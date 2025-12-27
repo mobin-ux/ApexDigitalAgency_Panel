@@ -1,0 +1,50 @@
+{
+  "name": "tairo",
+  "type": "module",
+  "version": "2.0.0",
+  "private": true,
+  "packageManager": "pnpm@10.5.2",
+  "main": "./nuxt.config.ts",
+  "engines": {
+    "node": ">=22",
+    "pnpm": ">=8"
+  },
+  "workspaces": [
+    ".demo",
+    ".app",
+    "layers/*"
+  ],
+  "scripts": {
+    "dev": "pnpm --filter=app dev",
+    "build": "pnpm --filter=app build",
+    "generate": "pnpm --filter=app generate",
+    "demo:dev": "pnpm --filter=demo dev",
+    "demo:build": "pnpm --filter=demo build",
+    "clean:all": "pnpm -r clean && rimraf .nuxt .output node_modules",
+    "test": "run-p test:*",
+    "test:tsc-demo": "pnpm --filter=demo typecheck",
+    "test:lint": "eslint --cache .",
+    "lint": "eslint --cache --fix ."
+  },
+  "devDependencies": {
+    "@antfu/eslint-config": "^4.11.0",
+    "eslint": "9.24.0",
+    "eslint-plugin-format": "^1.0.1",
+    "lint-staged": "15.5.0",
+    "npm-run-all": "4.1.5",
+    "rimraf": "6.0.1"
+  },
+  "gitHooks": {
+    "pre-commit": "lint-staged"
+  },
+  "pnpm": {
+    "patchedDependencies": {
+      "smooth-dnd@0.12.1": "patches/smooth-dnd@0.12.1.patch"
+    }
+  },
+  "lint-staged": {
+    "*.(ts|vue)": [
+      "eslint --fix"
+    ]
+  }
+}
