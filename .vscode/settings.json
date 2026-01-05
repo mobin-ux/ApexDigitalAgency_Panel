@@ -17,5 +17,8 @@
   "tailwindCSS.experimental.configFile": ".demo/tailwind.config.ts",
   "typescript.tsdk": "node_modules/typescript/lib",
   "prettier.enable": false,
-  "vue.codeActions.enabled": false
+  "vue.codeActions.enabled": false,
+  "[vue]": {
+    "editor.defaultFormatter": "Vue.volar"
+  }
 }

@@ -11,8 +11,8 @@ export default defineNuxtConfig({
      *
      * Alternatively you can use the following:
      * ["gh:cssninjaStudio/tairo/layers/tairo#v1.4.0", {
-     *    install: true,
-     *    giget: { auth: import.meta.env.GITHUB_TOKEN },
+     * install: true,
+     * giget: { auth: import.meta.env.GITHUB_TOKEN },
      * }]
      *
      * @see https://github.com/unjs/c12#extending-config-layer-from-remote-sources
@@ -129,8 +129,9 @@ export default defineNuxtConfig({
   },
 
   routeRules: {
+    // UPDATED: Redirect root to personal dashboard
     '/': {
-      swr: 3600,
+      redirect: '/dashboards/balance',
     },
     '/demos': {
       swr: 3600,

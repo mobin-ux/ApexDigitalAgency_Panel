@@ -1,5 +1,11 @@
 export default defineNuxtConfig({
-  compatibilityDate: '2024-11-26',
+  app: {
+    baseURL: '/',
+    cdnURL: '',
+  },
+  // ------------------------------------------
+
+  compatibilityDate: '2025-03-05',
   future: {
     compatibilityVersion: 4,
   },
