@@ -12,7 +12,7 @@ import { ref } from 'vue'
 
 definePageMeta({
   title: 'Dashboard',
-  layout: 'default',
+  layout: 'sidenav',
   middleware: [],
   auth: false,
 })

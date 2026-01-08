@@ -10,7 +10,7 @@
 
 definePageMeta({
   title: 'Financial Command',
-  layout: 'default',
+  layout: 'sidenav',
   middleware: [],
   auth: false,
 })

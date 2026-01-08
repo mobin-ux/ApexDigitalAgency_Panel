@@ -91,7 +91,7 @@ interface Invoice {
 // --- 2. CONFIG & STATE ---
 definePageMeta({
   title: 'Profile Settings',
-  layout: 'default',
+  layout: 'sidenav',
   middleware: [],
   auth: false,
 })

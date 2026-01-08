@@ -1,7 +1,7 @@
 <script setup lang="ts">
 definePageMeta({
   title: 'Sidebar Layout',
-  layout: 'default',
+  layout: 'sidenav',
   preview: {
     title: 'Sidebar starter layout',
     description: 'For a quick start usage.',

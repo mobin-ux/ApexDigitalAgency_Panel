@@ -10,7 +10,7 @@ import { computed, nextTick, onMounted, ref, watch } from 'vue'
 
 definePageMeta({
   title: 'Support Center',
-  layout: 'default',
+  layout: 'sidenav',
   middleware: [],
   auth: false,
 })
