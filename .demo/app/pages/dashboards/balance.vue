@@ -11,7 +11,7 @@
 import { ref } from 'vue'
 
 definePageMeta({
-  title: 'Dashboard',
+  title: 'Dashboawrd',
   layout: 'sidenav',
   middleware: [],
   auth: false,
@@ -29,8 +29,6 @@ const stats = [
   { label: 'Cash Wallet', value: '$3,420', icon: 'lucide:wallet', color: 'text-indigo-400', bg: 'bg-indigo-500/10' },
 ]
 
-// 2. Active Projects (List View)
-// 2. Active Projects (Updated Data)
 // 2. Active Projects (Updated Data)
 const activeProjects = ref([
   {
@@ -103,7 +101,7 @@ const services = [
 </script>
 
 <template>
-  <div class="w-full min-h-screen bg-[#0f111a] font-sans text-muted-100 p-4 md:p-6 lg:p-8 flex flex-col overflow-x-hidden relative">
+  <div class="w-full min-h-screen bg-[#101828] font-sans text-muted-100 p-4 md:p-6 lg:p-8 flex flex-col overflow-x-hidden relative">
     <div class="fixed inset-0 pointer-events-none -z-10 overflow-hidden">
       <div class="absolute top-[-10%] left-[-5%] w-[600px] h-[600px] bg-primary-500/5 rounded-full blur-[120px] mix-blend-screen" />
       <div class="absolute bottom-[-10%] right-[-5%] w-[700px] h-[700px] bg-indigo-600/5 rounded-full blur-[120px] mix-blend-screen" />
@@ -120,7 +118,7 @@ const services = [
         </p>
       </div>
       <div class="hidden md:flex gap-3">
-        <button class="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#161925] border border-white/10 hover:bg-white/5 text-muted-400 hover:text-white text-xs font-bold uppercase transition-all">
+        <button class="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#030712] border border-white/10 hover:bg-white/5 text-muted-400 hover:text-white text-xs font-bold uppercase transition-all">
           <Icon name="lucide:history" class="w-4 h-4" /> History
         </button>
       </div>
@@ -136,7 +134,7 @@ const services = [
         leave-to-class="opacity-0 translate-y-4 scale-95"
       >
         <div v-if="showFeatures" class="w-full relative z-20">
-          <div class="relative overflow-hidden rounded-[2.5rem] border border-white/10 bg-[#161925] shadow-2xl group">
+          <div class="relative overflow-hidden rounded-[2.5rem] border border-white/10 bg-[#030712] shadow-2xl group">
             <div class="absolute top-0 right-0 w-[600px] h-[600px] bg-indigo-600/20 rounded-full blur-[120px] mix-blend-screen translate-x-1/3 -translate-y-1/3 group-hover:bg-indigo-500/30 transition-colors duration-700" />
             <div class="absolute bottom-0 left-0 w-[400px] h-[400px] bg-purple-600/10 rounded-full blur-[100px] mix-blend-screen -translate-x-1/3 translate-y-1/3" />
             <div class="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-10 mix-blend-overlay" />
@@ -174,7 +172,7 @@ const services = [
                 <div class="flex flex-col sm:flex-row items-start sm:items-center gap-4 pt-2">
                   <NuxtLink to="/orders/new" class="relative group/btn overflow-hidden rounded-2xl bg-white px-8 py-4 transition-all hover:scale-105 active:scale-95 shadow-[0_0_40px_-10px_rgba(255,255,255,0.3)]">
                     <div class="absolute inset-0 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 opacity-0 group-hover/btn:opacity-10 transition-opacity duration-300" />
-                    <span class="relative flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-[#0f111a]">
+                    <span class="relative flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-[#101828]">
                       Get Started Now <Icon name="lucide:arrow-right" class="size-4 transition-transform group-hover/btn:translate-x-1" />
                     </span>
                   </NuxtLink>
@@ -233,7 +231,7 @@ const services = [
       </Transition>
 
       <div class="grid grid-cols-1 md:grid-cols-3 gap-6 animate-fade-in" style="animation-delay: 0.1s;">
-        <div class="relative overflow-hidden rounded-[2rem] border border-white/5 bg-[#161925] p-6 group hover:border-orange-500/30 transition-all duration-300">
+        <div class="relative overflow-hidden rounded-[2rem] border border-white/5 bg-[#030712] p-6 group hover:border-orange-500/30 transition-all duration-300">
           <div class="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-orange-500/10 blur-2xl group-hover:bg-orange-500/20 transition-all" />
           <div class="relative z-10 flex flex-col h-full justify-between">
             <div class="flex items-start justify-between mb-4">
@@ -276,7 +274,7 @@ const services = [
           </div>
         </div>
 
-        <div class="relative overflow-hidden rounded-[2rem] border border-white/5 bg-[#161925] p-6 group hover:border-emerald-500/30 transition-all duration-300">
+        <div class="relative overflow-hidden rounded-[2rem] border border-white/5 bg-[#030712] p-6 group hover:border-emerald-500/30 transition-all duration-300">
           <div class="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-emerald-500/10 blur-2xl group-hover:bg-emerald-500/20 transition-all" />
           <div class="relative z-10 flex flex-col h-full justify-between">
             <div class="flex items-start justify-between mb-4">
@@ -308,7 +306,7 @@ const services = [
           </div>
         </div>
 
-        <div class="relative overflow-hidden rounded-[2rem] border border-white/5 bg-[#161925] p-6 group hover:border-indigo-500/30 transition-all duration-300">
+        <div class="relative overflow-hidden rounded-[2rem] border border-white/5 bg-[#030712] p-6 group hover:border-indigo-500/30 transition-all duration-300">
           <div class="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-indigo-500/10 blur-2xl group-hover:bg-indigo-500/20 transition-all" />
           <div class="relative z-10 flex flex-col h-full justify-between">
             <div class="flex items-start justify-between mb-2">
@@ -352,7 +350,7 @@ const services = [
           <div v-if="activeProjects.length > 0" class="space-y-4">
             <div
               v-for="project in activeProjects" :key="project.id"
-              class="group relative overflow-hidden rounded-2xl bg-[#161925] border border-white/5 p-4 transition-all duration-300 hover:border-primary-500/30 hover:bg-[#1a1d29] hover:shadow-lg hover:shadow-primary-500/5"
+              class="group relative overflow-hidden rounded-2xl bg-[#030712] border border-white/5 p-4 transition-all duration-300 hover:border-primary-500/30 hover:bg-[#1a1d29] hover:shadow-lg hover:shadow-primary-500/5"
             >
               <div class="flex items-start gap-4">
                 <div class="flex size-12 shrink-0 items-center justify-center rounded-xl bg-white/5 text-muted-400 ring-1 ring-white/10 transition-all duration-300 group-hover:bg-primary-500/10 group-hover:text-primary-400 group-hover:ring-primary-500/20">
@@ -388,7 +386,7 @@ const services = [
                   </div>
                 </div>
               </div>
-              <div class="absolute inset-y-0 right-0 flex w-16 translate-x-full items-center justify-center bg-gradient-to-l from-[#161925] to-transparent transition-transform duration-300 group-hover:translate-x-0">
+              <div class="absolute inset-y-0 right-0 flex w-16 translate-x-full items-center justify-center bg-gradient-to-l from-[#030712] to-transparent transition-transform duration-300 group-hover:translate-x-0">
                 <button class="flex size-8 items-center justify-center rounded-lg bg-primary-500 text-white shadow-lg hover:bg-primary-400">
                   <Icon name="lucide:chevron-right" class="size-4" />
                 </button>
@@ -396,7 +394,7 @@ const services = [
             </div>
           </div>
 
-          <div v-else class="flex flex-col items-center justify-center rounded-[2.5rem] border border-dashed border-white/10 bg-[#161925]/50 p-8 text-center transition-all hover:border-primary-500/20 hover:bg-[#161925]">
+          <div v-else class="flex flex-col items-center justify-center rounded-[2.5rem] border border-dashed border-white/10 bg-[#030712]/50 p-8 text-center transition-all hover:border-primary-500/20 hover:bg-[#030712]">
             <div class="mb-4 flex size-16 items-center justify-center rounded-full bg-white/5 ring-1 ring-white/10">
               <Icon name="lucide:folder-plus" class="size-8 text-muted-500" />
             </div>

@@ -3,22 +3,9 @@ const isSwitcherOpen = useColorSwitcherOpen()
 
 const menu = [
   {
-    label: 'Personal',
+    label: 'Dashboard',
     icon: 'solar:box-minimalistic-linear',
-    children: [
-      {
-        label: 'Personal v1',
-        to: '/dashboards',
-      },
-      {
-        label: 'Personal v2',
-        to: '/dashboards/personal-2',
-      },
-      {
-        label: 'Personal v3',
-        to: '/dashboards/personal-3',
-      },
-    ],
+    to: '/dashboards/balance',
   },
   {
     label: 'Banking',

@@ -5,18 +5,19 @@ const menu = [
   {
     label: 'Dashboards',
     icon: 'solar:box-minimalistic-linear',
+    to: '/dashboards/balance',
+  },
+  {
+    label: 'Services',
+    icon: 'solar:suitcase-linear',
     children: [
       {
-        label: 'Personal v1',
-        to: '/dashboards',
+        label: 'New Service',
+        to: '/layouts/projects',
       },
       {
-        label: 'Personal v2',
-        to: '/dashboards/personal-2',
-      },
-      {
-        label: 'Personal v3',
-        to: '/dashboards/personal-3',
+        label: 'My Projects',
+        to: '/layouts/projects/project-list-2',
       },
     ],
   },
@@ -91,24 +92,6 @@ const menu = [
     ],
   },
   {
-    label: 'Projects',
-    icon: 'solar:suitcase-linear',
-    children: [
-      {
-        label: 'Projects v1',
-        to: '/layouts/projects',
-      },
-      {
-        label: 'Projects v2',
-        to: '/layouts/projects/project-list-2',
-      },
-      {
-        label: 'Projects v3',
-        to: '/layouts/projects/project-list-3',
-      },
-    ],
-  },
-  {
     label: 'Multistep wizard',
     icon: 'solar:bolt-linear',
     to: '/wizard',
@@ -159,9 +142,9 @@ const companies = [
         <NuxtLink to="/">
           <TairoLogoText class="text-primary-500 h-6 w-auto" />
         </NuxtLink>
-        <div class="ms-auto scale-[0.8]">
+        <!-- <div class="ms-auto scale-[0.8]">
           <BaseThemeSwitch />
-        </div>
+        </div> -->
       </TairoSidenavSidebarHeader>
       <TairoSidenavSidebarLinks class="p-4 grow">
         <template v-for="item in menu" :key="item.label">
