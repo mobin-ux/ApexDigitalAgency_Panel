@@ -11,3 +11,4 @@ dist
 .eslintcachetairo-component-meta/
 layers/tairo/node-compile-cache/
 .demo/node-compile-cache/
+node-compile-cache/
