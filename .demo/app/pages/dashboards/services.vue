@@ -1,11 +1,26 @@
 <script setup lang="ts">
 /**
- * Apex Project Estimator - Fixed 2-Column Layout
- * Structure: Flexbox (Fluid Left + Fixed Right Sidebar)
- * Theme: Dark Cyberpunk / Neon
+ * Apex Project Estimator - Integrated Backend
+ * -------------------------------------------
+ * - Auto-fills user data from session.
+ * - Submits complex order details to /api/orders.
+ * - Handles loading states and redirects.
  */
 
-// --- DATA ---
+import { ref, reactive, computed, onMounted } from 'vue'
+
+// 1. Page Configuration
+definePageMeta({
+  title: 'Project Estimator',
+  layout: 'sidenav',
+  middleware: 'auth'
+})
+
+// 2. Composables
+const router = useRouter()
+const { user } = useUser()
+
+// --- UI CONFIGURATION (Static Data for the Estimator) ---
 const categories = [
   { 
     id: 'web_dev', 
@@ -88,12 +103,22 @@ const currentStep = ref(0)
 const selectedCatId = ref('')
 const selectedOptionId = ref('')
 const budget = ref(1000)
+const isSubmitting = ref(false)
 const customerInfo = reactive({ name: '', email: '' })
 
 // --- LOGIC ---
+// Auto-fill user data when page loads
+onMounted(() => {
+  if (user.value) {
+    customerInfo.name = user.value.name || ''
+    customerInfo.email = user.value.email || ''
+  }
+})
+
 const activeCategory = computed(() => categories.find(c => c.id === selectedCatId.value))
 const activeSubServices = computed(() => selectedCatId.value ? subServices[selectedCatId.value as keyof typeof subServices] : null)
 
+// Invoice Calculation
 const invoiceItems = computed(() => {
   const items = []
   if (activeCategory.value) {
@@ -114,7 +139,9 @@ const invoiceItems = computed(() => {
 })
 
 const subTotal = computed(() => invoiceItems.value.reduce((acc, item) => acc + item.price, 0))
-const totalDue = computed(() => subTotal.value)
+// If budget slider is used for Ads, we add it to total, otherwise strictly project price
+const totalDue = computed(() => subTotal.value + (activeCategory.value?.id === 'marketing' ? budget.value : 0))
+
 const invoiceNumber = `INV-${Math.floor(1000 + Math.random() * 9000)}`
 const todayDate = new Date().toLocaleDateString('en-GB')
 
@@ -123,9 +150,57 @@ const formatCurrency = (val: number) => {
   return new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP', maximumFractionDigits: 0 }).format(val)
 }
 
-const next = () => { if (currentStep.value < 2) currentStep.value++ }
-const prev = () => { if (currentStep.value > 0) currentStep.value-- }
+// --- NAVIGATION & SUBMISSION ---
 const selectCategory = (id: string) => { selectedCatId.value = id; selectedOptionId.value = '' }
+
+const prev = () => { if (currentStep.value > 0) currentStep.value-- }
+
+const handleNextOrSubmit = async () => {
+  // A. Navigation Logic
+  if (currentStep.value < 2) {
+    currentStep.value++
+    return
+  }
+
+  // B. Submission Logic (Step 3)
+  if (isSubmitting.value) return
+  isSubmitting.value = true
+
+  try {
+    // 1. Prepare Data Payload
+    const selectedPlan = activeSubServices.value?.options.find(o => o.id === selectedOptionId.value)
+    
+    // Construct a readable description for the backend
+    const descriptionLines = [
+      `Generated via Project Estimator`,
+      `Service: ${activeCategory.value?.label}`,
+      `Plan: ${selectedPlan?.title} (${selectedPlan?.desc})`,
+      `Client Name: ${customerInfo.name}`,
+      `Email: ${customerInfo.email}`,
+      `Estimated Budget Setting: ${formatCurrency(budget.value)}`
+    ]
+
+    // 2. Send to Backend API
+    await $fetch('/api/orders', {
+      method: 'POST',
+      body: {
+        title: `${activeCategory.value?.label} - ${selectedPlan?.title}`,
+        category: activeCategory.value?.label,
+        budget: totalDue.value, // Send final calculated price
+        description: descriptionLines.join('\n')
+      }
+    })
+
+    // 3. Success Redirect
+    router.push('/dashboards/orders')
+
+  } catch (error) {
+    console.error(error)
+    alert('Something went wrong. Please try again.')
+  } finally {
+    isSubmitting.value = false
+  }
+}
 </script>
 
 <template>
@@ -297,10 +372,14 @@ const selectCategory = (id: string) => { selectedCatId.value = id; selectedOptio
 
             <div class="mt-auto pt-8 flex justify-end gap-3 border-t border-white/5">
               <button v-if="currentStep > 0" @click="prev" class="px-6 py-3 rounded-xl text-xs font-bold uppercase tracking-wider border border-white/10 hover:bg-white/5 text-gray-400 hover:text-white transition-colors">Back</button>
-              <button @click="next" :disabled="currentStep === 0 && !selectedCatId" 
-                      class="px-8 py-3 rounded-xl bg-primary-600 text-white text-xs font-bold uppercase tracking-wider shadow-lg hover:bg-primary-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
-                {{ currentStep === 2 ? 'Send Request' : 'Continue' }}
-              </button>
+              <button 
+  @click="handleNextOrSubmit" 
+  :disabled="(currentStep === 0 && !selectedCatId) || isSubmitting" 
+  class="px-8 py-3 rounded-xl bg-primary-600 text-white text-xs font-bold uppercase tracking-wider shadow-lg hover:bg-primary-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+>
+  <Icon v-if="isSubmitting" name="lucide:loader" class="w-4 h-4 animate-spin" />
+  <span>{{ currentStep === 2 ? (isSubmitting ? 'Processing...' : 'Send Request') : 'Continue' }}</span>
+</button>
             </div>
           </div>
         </div>

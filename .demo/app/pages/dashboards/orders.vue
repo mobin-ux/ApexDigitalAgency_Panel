@@ -1,14 +1,13 @@
 <script setup lang="ts">
-/**
- * Orders & Active Projects Page
- * Features:
- * - Master-Detail Pattern (List -> Details)
- * - Project Progress Tracker
- * - Status Indicators
- * - Consistent Dark/Cyberpunk Theme
- */
+import { ref, computed } from 'vue'
 
-// --- TYPES ---
+definePageMeta({
+  title: 'My Orders',
+  layout: 'sidenav',
+  middleware: 'auth'
+})
+
+// --- TYPES (Matching Prisma Schema + UI needs) ---
 interface Milestone {
   title: string;
   status: 'completed' | 'current' | 'pending';
@@ -24,70 +23,52 @@ interface Project {
   startDate: string;
   dueDate: string;
   price: number;
-  image: string; // Icon/Image placeholder
+  image: string;
   milestones: Milestone[];
 }
 
-// --- MOCK DATA ---
-const projects = ref<Project[]>([
-  {
-    id: 'PRJ-8854',
-    title: 'E-Commerce Redesign',
-    category: 'Web Development',
-    status: 'active',
-    progress: 65,
-    startDate: '2025-12-01',
-    dueDate: '2026-02-15',
-    price: 5400,
-    image: 'lucide:shopping-cart',
-    milestones: [
-      { title: 'Project Brief', status: 'completed', date: 'Dec 1' },
-      { title: 'Wireframing', status: 'completed', date: 'Dec 10' },
-      { title: 'UI Design', status: 'completed', date: 'Dec 25' },
-      { title: 'Frontend Dev', status: 'current', date: 'In Progress' },
-      { title: 'Backend Integration', status: 'pending' },
-      { title: 'Final Review', status: 'pending' },
-    ]
-  },
-  {
-    id: 'PRJ-9921',
-    title: 'Brand Identity V2',
-    category: 'Branding',
-    status: 'active',
-    progress: 30,
-    startDate: '2026-01-02',
-    dueDate: '2026-01-30',
-    price: 1500,
-    image: 'lucide:fingerprint',
-    milestones: [
-      { title: 'Discovery Call', status: 'completed', date: 'Jan 2' },
-      { title: 'Moodboard', status: 'current', date: 'Jan 5' },
-      { title: 'Logo Concepts', status: 'pending' },
-      { title: 'Brand Guidelines', status: 'pending' },
-    ]
-  },
-  {
-    id: 'PRJ-7743',
-    title: 'Q1 SEO Campaign',
-    category: 'Marketing',
-    status: 'pending',
-    progress: 0,
-    startDate: '2026-01-10',
-    dueDate: '2026-04-10',
-    price: 900,
-    image: 'lucide:bar-chart-2',
-    milestones: [
-      { title: 'Audit', status: 'pending' },
-      { title: 'Strategy', status: 'pending' },
-      { title: 'Execution', status: 'pending' },
-    ]
-  },
-])
+// --- API FETCHING ---
+// درخواست به API جدید و استاندارد
+const { data: apiResponse, refresh, pending } = await useFetch('/api/orders')
 
-// --- STATE ---
+// --- DATA ADAPTER (Database -> UI) ---
+const projects = computed<Project[]>(() => {
+  if (!apiResponse.value?.data) return []
+
+  return apiResponse.value.data.map((order: any) => {
+    // 1. Map Project Status
+    let uiStatus: Project['status'] = 'pending'
+    if (order.status === 'IN_PROGRESS') uiStatus = 'active'
+    else if (order.status === 'COMPLETED') uiStatus = 'completed'
+    else if (order.status === 'CANCELLED') uiStatus = 'cancelled'
+
+    // 2. Map Milestones (Real Data!)
+    const mappedMilestones = order.milestones.map((m: any) => ({
+      title: m.title,
+      // تبدیل وضعیت دیتابیس (Enum) به حروف کوچک برای UI
+      status: m.status.toLowerCase(),
+      date: m.date ? new Date(m.date).toLocaleDateString('en-GB', { month: 'short', day: 'numeric' }) : undefined
+    }))
+
+    // 3. Return Final Object
+    return {
+      id: order.id.substring(0, 8).toUpperCase(),
+      title: order.name,
+      category: order.category || 'General', // Now reading from DB
+      status: uiStatus,
+      progress: order.progress, // Now reading from DB
+      startDate: new Date(order.startDate).toLocaleDateString(),
+      dueDate: order.deadline ? new Date(order.deadline).toLocaleDateString() : 'TBD',
+      price: order.amount || 0,
+      image: 'lucide:box', // میتوانید بعدا در دیتابیس فیلد icon اضافه کنید
+      milestones: mappedMilestones
+    }
+  })
+})
+
+// --- UI LOGIC (No changes needed below) ---
 const selectedProject = ref<Project | null>(null)
 
-// --- UTILS ---
 const formatCurrency = (val: number) => new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP', maximumFractionDigits: 0 }).format(val)
 
 const getStatusColor = (status: string) => {

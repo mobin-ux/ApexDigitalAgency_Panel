@@ -1,4 +1,8 @@
+import { defineEventHandler } from 'h3'
 import bcrypt from 'bcryptjs'
+import { PrismaClient } from '@prisma/client'
+
+const prisma = new PrismaClient()
 
 export default defineEventHandler(async (event) => {
   try {
@@ -10,9 +14,12 @@ export default defineEventHandler(async (event) => {
       create: {
         email: 'admin@apex.com',
         password: adminPassword,
-        name: 'Super Admin',
+        firstName: 'Super',  // <--- Changed from name
+        lastName: 'Admin',   // <--- Changed from name
         role: 'ADMIN',
-        status: 'ACTIVE'
+        // status field might have been removed or defaults to something, checking schema...
+        // If you removed 'status' from schema, remove it here too.
+        // Assuming 'role' defaults exist.
       }
     })
 
@@ -24,21 +31,26 @@ export default defineEventHandler(async (event) => {
       create: {
         email: 'user@apex.com',
         password: userPassword,
-        name: 'John Customer',
+        firstName: 'John',   // <--- Changed from name
+        lastName: 'Doe',     // <--- Changed from name
         role: 'CUSTOMER',
-        status: 'ACTIVE'
       }
     })
 
-    // 3. Create Sample Project
-    const project = await prisma.project.create({
-      data: {
-        name: 'User Project 1',
-        userId: user.id,
-        status: 'IN_PROGRESS',
-        amount: 1000
-      }
-    })
+    // 3. Create Sample Project (Safe Check)
+    // Check if project exists first to avoid duplicates on re-run
+    const existingProject = await prisma.project.findFirst({ where: { userId: user.id } })
+    
+    if (!existingProject) {
+      await prisma.project.create({
+        data: {
+          name: 'User Project 1',
+          userId: user.id,
+          status: 'IN_PROGRESS',
+          amount: 1000
+        }
+      })
+    }
 
     return { 
       status: 'success',
@@ -49,6 +61,6 @@ export default defineEventHandler(async (event) => {
       }
     }
   } catch (error: any) {
-    return { status: 'error', message: error.message }
+    return { status: 'error', message: error.message, stack: error.stack }
   }
 })

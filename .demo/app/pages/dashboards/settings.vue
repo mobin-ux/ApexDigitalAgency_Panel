@@ -1,216 +1,184 @@
 <script setup lang="ts">
 /**
- * Profile & Settings - Golden Master v2
- * -------------------------------------------
- * Updates:
- * - Expanded Organization/Company Tab based on user requirements.
- * - Added specific Select/Dropdown fields for Business Info.
- * - Added Status Toggles and Note areas.
- * - Maintained strict typing and responsive layout.
+ * Profile Settings - Backend Integrated
+ * -------------------------------------
+ * Connected to Prisma Database via API.
+ * Handles Profile, Company, and Security updates.
  */
 
-import { reactive, ref, computed, onMounted } from 'vue'
+import { reactive, ref, onMounted } from 'vue'
 
-// --- 1. TYPE DEFINITIONS ---
-interface UserProfile {
-  avatar: string | null
-  coverImage: string | null
-  firstName: string
-  lastName: string
-  preferredName: string // New
-  email: string
-  phone: string
-  role: string
-  bio: string
-  familyStatus: string // New
-  birthDay: string // New
-  birthMonth: string // New
-  birthYear: string // New
-  gender: 'Male' | 'Female' | 'Other' // New
-  mailingAddress: { // New
-    street: string
-    city: string
-    state: string
-    zip: string
-    country: string
-  }
-  legalAddress: { // New
-    street: string
-    city: string
-    state: string
-    zip: string
-    country: string
-  }
-  socials: {
-    twitter: string
-    linkedin: string
-  }
-}
-
-interface CompanyProfile {
-  logo: string
-  name: string
-  email: string
-  website: string
-  phone: string
-  taxId: string
-  address: string
-  type: string
-  income: string
-  employees: string
-  manager: string
-  status: 'Active' | 'Inactive'
-  notes: string
-}
-
-interface SecurityState {
-  currentPassword: string
-  newPassword: string
-  confirmPassword: string
-  twoFactor: boolean
-}
-
-interface Session {
-  id: number
-  device: string
-  os: string
-  location: string
-  ip: string
-  status: 'Active' | 'Signed out'
-  lastActive: string
-  icon: string
-}
-
-interface Invoice {
-  id: string
-  date: string
-  amount: string
-  status: 'Paid' | 'Pending' | 'Overdue'
-}
-
-// --- 2. CONFIG & STATE ---
+// --- 1. CONFIG ---
 definePageMeta({
   title: 'Profile Settings',
   layout: 'sidenav',
-  middleware: [],
-  auth: false,
+  middleware: 'auth', // محافظت از صفحه
 })
 
-const activeTab = ref<'general' | 'company' | 'security' | 'billing'>('company') // Defaulted to company for preview
+const activeTab = ref<'general' | 'company' | 'security' | 'billing'>('company')
 const isLoading = ref(false)
 const isUploading = ref(false)
 
-// --- 3. OPTIONS DATA (For Selects) ---
-const companyTypes = ['Solo', 'Small Company (LLC)', 'Medium Company (Corp)', 'Bigger Company']
-const incomeRanges = ['0 - 250K', '250K - 500K', '500K - 1M', '1M - 5M', '10M+']
-const employeeRanges = ['1-10 employees', '10-50 employees', '50-100 employees', '100+ employees']
-const managers = ['Sales Manager', 'Project Manager', 'UI/UX Designer', 'Mobile Developer', 'Product Manager']
-
-// --- 4. DATA MODELS ---
-// 2. آپدیت آبجکت userForm (جایگزین reactive قبلی شود)
-const userForm = reactive<UserProfile>({
-  avatar: 'https://i.pravatar.cc/150?u=101',
-  coverImage: 'https://images.unsplash.com/photo-1614850523459-c2f4c699c52e?auto=format&fit=crop&w=1400&q=80',
-  firstName: 'Kendra',
-  lastName: 'Wilson',
-  preferredName: 'Ken',
-  email: 'kendra.wilson@apexdigi.co.uk',
-  phone: '+1 (555) 123-4567',
-  role: 'Product Designer',
-  bio: 'Senior Product Designer specialized in Fintech.',
+// --- 2. DATA MODELS (Reactive) ---
+const userForm = reactive({
+  avatar: '',
+  coverImage: '',
+  firstName: '',
+  lastName: '',
+  preferredName: '',
+  email: '',
+  phone: '',
+  role: 'Customer', // Read-only mostly
+  bio: '',
   familyStatus: 'Single',
-  birthDay: '15',
-  birthMonth: 'August',
-  birthYear: '1990',
-  gender: 'Female',
-  mailingAddress: {
-    street: '123 Mailing St, Suite 400',
-    city: 'New York',
-    state: 'NY',
-    zip: '10001',
-    country: 'United States'
-  },
-  legalAddress: {
-    street: '450 Legal Ave',
-    city: 'New York',
-    state: 'NY',
-    zip: '10017',
-    country: 'United States'
-  },
-  socials: {
-    twitter: '@kendra_w',
-    linkedin: 'kendra-wilson-pro'
-  }
+  birthDay: '',
+  birthMonth: '',
+  birthYear: '',
+  gender: 'Other',
+  mailingAddress: { street: '', city: '', state: '', zip: '', country: '' },
+  legalAddress: { street: '', city: '', state: '', zip: '', country: '' },
+  socials: { twitter: '', linkedin: '' }
 })
 
-const companyForm = reactive<CompanyProfile>({
-  logo: 'https://img.logoipsum.com/296.svg',
-  name: 'Apex Digital Agency',
-  email: 'contact@apexdigi.co.uk',
-  website: 'https://apexdigi.co.uk',
-  phone: '+1 (555) 000-9988',
-  taxId: 'US-8839201',
-  address: '450 Lexington Ave, New York, NY',
-  type: 'Small Company (LLC)',
-  income: '1M - 5M',
-  employees: '10-50 employees',
-  manager: 'Product Manager',
+const companyForm = reactive({
+  logo: '',
+  name: '',
+  email: '',
+  website: '',
+  phone: '',
+  taxId: '',
+  address: '',
+  type: '',
+  income: '',
+  employees: '',
+  manager: '',
   status: 'Active',
-  notes: 'Leading agency in fintech solutions and digital transformation.'
+  notes: ''
 })
 
-const securityForm = reactive<SecurityState>({
+const securityForm = reactive({
   currentPassword: '',
   newPassword: '',
   confirmPassword: '',
-  twoFactor: true
+  twoFactor: false
 })
 
-// Mock Data Lists
-const activeSessions = ref<Session[]>([
-  { id: 1, device: 'MacBook Pro 16"', os: 'macOS Sonoma', location: 'New York, USA', ip: '192.168.1.1', status: 'Active', lastActive: 'Now', icon: 'lucide:laptop' },
-  { id: 2, device: 'iPhone 15 Pro', os: 'iOS 17.4', location: 'New York, USA', ip: '10.0.0.12', status: 'Active', lastActive: '2h ago', icon: 'lucide:smartphone' },
-])
+// --- 3. FETCH DATA ON LOAD ---
+onMounted(async () => {
+  try {
+    const { user } = await $fetch<any>('/api/settings/get-all')
+    
+    // Fill User Data
+    userForm.firstName = user.firstName || ''
+    userForm.lastName = user.lastName || ''
+    userForm.email = user.email || ''
+    userForm.phone = user.phone || ''
+    userForm.role = user.role || 'Customer'
+    userForm.bio = user.bio || ''
+    userForm.avatar = user.avatar || 'https://i.pravatar.cc/150?u=101'
+    userForm.coverImage = user.coverImage || 'https://images.unsplash.com/photo-1614850523459-c2f4c699c52e?auto=format&fit=crop&w=1400&q=80'
+    userForm.gender = user.gender || 'Other'
+    userForm.mailingAddress.city = user.city || ''
+    userForm.mailingAddress.country = user.country || ''
 
-const invoices = ref<Invoice[]>([
-  { id: 'INV-001', date: 'Oct 01, 2025', amount: '$29.00', status: 'Paid' },
-  { id: 'INV-002', date: 'Sep 01, 2025', amount: '$29.00', status: 'Paid' },
-])
+    // Fill Company Data (if exists)
+    if (user.company) {
+      companyForm.name = user.company.name
+      companyForm.email = user.company.email || ''
+      companyForm.website = user.company.website || ''
+      companyForm.phone = user.company.phone || ''
+      companyForm.taxId = user.company.taxId || ''
+      companyForm.type = user.company.type || ''
+      companyForm.income = user.company.income || ''
+      companyForm.employees = user.company.employees || ''
+      companyForm.manager = user.company.manager || ''
+      companyForm.status = user.company.status || 'Active'
+      companyForm.notes = user.company.notes || ''
+      companyForm.logo = user.company.logo || 'https://img.logoipsum.com/296.svg'
+    }
+  } catch (e) {
+    console.error('Failed to load profile', e)
+  }
+})
 
-// --- 5. ACTIONS ---
+// --- 4. ACTIONS ---
+
+// Handle Image Upload (Convert to Base64 for simplicity in this demo)
 const handleImageUpload = (event: Event, type: 'avatar' | 'cover') => {
   const input = event.target as HTMLInputElement
   if (input.files && input.files[0]) {
     isUploading.value = true
     const reader = new FileReader()
     reader.onload = (e) => {
-      setTimeout(() => {
-        if (e.target?.result) {
-          if (type === 'avatar') userForm.avatar = e.target.result as string
-          if (type === 'cover') userForm.coverImage = e.target.result as string
-        }
-        isUploading.value = false
-      }, 1000)
+      if (e.target?.result) {
+        if (type === 'avatar') userForm.avatar = e.target.result as string
+        if (type === 'cover') userForm.coverImage = e.target.result as string
+      }
+      isUploading.value = false
     }
     reader.readAsDataURL(input.files[0])
   }
 }
 
+// Save All Data
 const saveAll = async () => {
   isLoading.value = true
-  await new Promise(resolve => setTimeout(resolve, 1500))
-  isLoading.value = false
+  try {
+    // 1. Save Profile & Company
+    await $fetch('/api/settings/update-all', {
+      method: 'PUT',
+      body: {
+        user: userForm,
+        company: companyForm
+      }
+    })
+
+    // 2. Save Password (if filled)
+    if (securityForm.newPassword) {
+      if (securityForm.newPassword !== securityForm.confirmPassword) {
+        alert('Passwords do not match!')
+        isLoading.value = false
+        return
+      }
+      await $fetch('/api/settings/password', {
+        method: 'POST',
+        body: {
+          currentPassword: securityForm.currentPassword,
+          newPassword: securityForm.newPassword
+        }
+      })
+      // Clear password fields on success
+      securityForm.currentPassword = ''
+      securityForm.newPassword = ''
+      securityForm.confirmPassword = ''
+    }
+
+    alert('Settings saved successfully!')
+  } catch (error: any) {
+    alert(error.statusMessage || 'Failed to save settings')
+  } finally {
+    isLoading.value = false
+  }
 }
 
-const revokeSession = (id: number) => {
-  const session = activeSessions.value.find(s => s.id === id)
-  if (session) session.status = 'Signed out'
-}
-// 3. اضافه کردن لیست‌های انتخابی (در انتهای بخش متغیرها اضافه کنید)
+// Mock Session/Invoice Data (Keep static for UI demo)
+const activeSessions = ref([
+  { id: 1, device: 'MacBook Pro 16"', os: 'macOS Sonoma', location: 'New York, USA', ip: '192.168.1.1', status: 'Active', lastActive: 'Now', icon: 'lucide:laptop' },
+])
+const invoices = ref([
+  { id: 'INV-001', date: 'Oct 01, 2025', amount: '$29.00', status: 'Paid' },
+])
+const revokeSession = (id: number) => {} // Placeholder
+
+// --- 5. OPTIONS (Static) ---
+const companyTypes = ['Solo', 'Small Company (LLC)', 'Medium Company (Corp)', 'Bigger Company']
+const incomeRanges = ['0 - 250K', '250K - 500K', '500K - 1M', '1M - 5M', '10M+']
+const employeeRanges = ['1-10 employees', '10-50 employees', '50-100 employees', '100+ employees']
+const managers = ['Sales Manager', 'Project Manager', 'UI/UX Designer', 'Mobile Developer', 'Product Manager']
 const familyStatusOptions = ['Single', 'Married', 'Divorced', 'Widow/Widower']
 const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 const days = Array.from({length: 31}, (_, i) => (i + 1).toString())
-const years = Array.from({length: 80}, (_, i) => (2024 - i).toString()) // سال‌های 1944 تا 2024
+const years = Array.from({length: 80}, (_, i) => (2024 - i).toString())
 const countries = ['United States', 'Canada', 'France', 'Germany', 'Spain', 'China', 'Japan']
 </script>
 

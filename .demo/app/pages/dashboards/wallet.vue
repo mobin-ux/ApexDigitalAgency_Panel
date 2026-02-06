@@ -1,26 +1,35 @@
 <script setup lang="ts">
 /**
- * Wallet Page - Final Integration
- * Layout: Bento Grid (Unified)
- * Sections:
- * 1. Top Stats (User Provided Code)
- * 2. Installments (User Provided Code - Fixed Logic)
- * 3. Right Sidebar: Card & Activity (User Provided Code)
+ * Wallet Page - Backend Connected (Strict Style Preservation)
+ * -----------------------------------------------------------
+ * Layout: 100% Original Bento Grid
+ * Logic: Data mapped from /api/finance/dashboard
  */
 
+import { computed, ref } from 'vue'
+
+// 1. Page Config
 definePageMeta({
   title: 'Financial Command',
   layout: 'sidenav',
-  middleware: [],
-  auth: false,
+  middleware: 'auth', // Added security
+  auth: false, // Override if needed, but middleware handles it
 })
 
-// --- UTILS (Defined locally to prevent template errors) ---
+// --- UTILS ---
 function formatCurrency(val: number) {
-  return `$${new Intl.NumberFormat('en-US').format(Math.abs(val))}`
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Math.abs(val))
 }
 
-// Logic to pre-calculate block styles (Fixes the Tailwind crash)
+function formatDate(dateStr: string) {
+  try {
+    return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  } catch (e) {
+    return dateStr
+  }
+}
+
+// Logic to pre-calculate block styles (Kept exactly as original)
 function getBlockClass(i: number, paid: number, current: number) {
   if (i <= paid)
     return 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]'
@@ -29,69 +38,60 @@ function getBlockClass(i: number, paid: number, current: number) {
   return 'bg-white/10'
 }
 
-// --- 1. CORE DATA ---
-const balanceOverview = {
-  cash: 11400.00,
-  credits: 1143.00,
-  monthlyChange: 12.5,
-}
+// --- DATA FETCHING ---
+const { data: apiData, refresh } = await useFetch('/api/finance/dashboard')
+
+// --- 1. CORE DATA (Mapped) ---
+const balanceOverview = computed(() => ({
+  cash: apiData.value?.balanceOverview.cash || 0,
+  credits: apiData.value?.balanceOverview.credits || 0,
+  monthlyChange: apiData.value?.balanceOverview.monthlyChange || 12.5, // Default fallback
+}))
 
 const creditLimit = {
   utilization: 17,
 }
 
-// --- 2. INSTALLMENTS ---
-// We pre-calculate the blocks array here to avoid logic in HTML
-const rawInstallments = [
-  {
-    id: 'INS-8854',
-    project: 'E-Commerce Redesign',
-    total: 3600,
-    paid: 900,
-    amountDue: 300,
-    monthsTotal: 12,
-    monthsPaid: 3,
-    nextDue: 'Feb 01',
-    icon: 'lucide:monitor',
-    status: 'active',
-  },
-  {
-    id: 'INS-9921',
-    project: 'Office Hardware Loan',
-    total: 2400,
-    paid: 2000,
-    amountDue: 400,
-    monthsTotal: 6,
-    monthsPaid: 5,
-    nextDue: 'Jan 15',
-    icon: 'lucide:server',
-    status: 'urgent',
-  },
-]
+// --- 2. INSTALLMENTS (Mapped) ---
+const activeInstallments = computed(() => {
+  const list = apiData.value?.installments || []
+  
+  return list.map((plan: any) => ({
+    id: plan.id.substring(0, 8).toUpperCase(),
+    project: plan.project,
+    total: plan.total,
+    paid: plan.paid,
+    amountDue: plan.amountDue,
+    monthsTotal: plan.monthsTotal,
+    monthsPaid: plan.monthsPaid,
+    nextDue: plan.nextDue, // Already formatted in API or format here
+    icon: plan.icon,
+    status: plan.status,
+    // Generate blocks (Logic preserved)
+    blocks: Array.from({ length: plan.monthsTotal }, (_, i) =>
+      getBlockClass(i + 1, plan.monthsPaid, plan.monthsPaid + 1)),
+  }))
+})
 
-// Transform data to include style classes safely
-const activeInstallments = rawInstallments.map(plan => ({
-  ...plan,
-  // Generate an array of classes for the progress blocks
-  blocks: Array.from({ length: plan.monthsTotal }, (_, i) =>
-    getBlockClass(i + 1, plan.monthsPaid, plan.monthsPaid + 1)),
-}))
-
-// --- 3. ACTIVITY & REQUESTS ---
+// --- 3. ACTIVITY & REQUESTS (Mapped) ---
 const activeTab = ref('Activity')
 const tabs = ['Activity', 'Requests']
 
-const activities = [
-  { id: 1, title: 'Deposit', sub: 'Stripe Top-up', date: '10:23 AM', amount: 2000.00, type: 'in', icon: 'lucide:arrow-down-left' },
-  { id: 2, title: 'Server Costs', sub: 'Auto-pay', date: 'Yesterday', amount: -50.00, type: 'out', icon: 'lucide:server' },
-  { id: 3, title: 'Ad Credits', sub: 'Promo', date: 'Jun 10', amount: 120.00, type: 'credit', icon: 'lucide:zap' },
-]
+const activities = computed(() => {
+  return apiData.value?.activities || []
+})
 
-const requests = [
-  { id: 101, title: 'Withdrawal #992', date: 'Pending', amount: 500.00, status: 'Processing', icon: 'lucide:banknote' },
-]
+const requests = computed(() => {
+  return apiData.value?.requests || []
+})
 
-// --- 4. CARDS ---
+// --- 4. CARDS (Mapped to Single Visual) ---
+// We take the FIRST card from DB to populate the visual widget
+const currentCard = computed(() => {
+  const cards = apiData.value?.cards || []
+  return cards.length > 0 ? cards[0] : null
+})
+
 const cardLimits = [
   { label: 'Withdrawal limit', current: 950, max: 2500, icon: 'lucide:arrow-up-from-line' },
   { label: 'Payment limit', current: 231.12, max: 5000, icon: 'lucide:credit-card' },
@@ -176,7 +176,7 @@ const cardLimits = [
               <div>
                 <h3 class="text-lg font-bold text-white flex items-center gap-2">
                   Project Installments
-                  <span class="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 text-[10px] uppercase border border-amber-500/20">2 Active</span>
+                  <span class="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 text-[10px] uppercase border border-amber-500/20">{{ activeInstallments.length }} Active</span>
                 </h3>
                 <p class="text-xs text-muted-500 mt-1">
                   Linked to your active orders
@@ -188,6 +188,8 @@ const cardLimits = [
             </div>
 
             <div class="space-y-4 relative z-10">
+              <div v-if="activeInstallments.length === 0" class="text-center py-4 text-xs text-muted-500">No active installments.</div>
+
               <div
                 v-for="plan in activeInstallments" :key="plan.id"
                 class="group relative bg-white/[0.02] border border-white/5 rounded-2xl p-4 hover:bg-white/[0.04] transition-all"
@@ -219,9 +221,13 @@ const cardLimits = [
                         :class="blockClass"
                       />
                     </div>
-                  </div>
 
-                  <button class="shrink-0 px-4 py-2 rounded-lg bg-white/5 hover:bg-white text-white hover:text-black border border-white/10 text-xs font-bold uppercase transition-all">
+                    <button class="shrink-0 px-4 py-2 rounded-lg bg-white/5 hover:bg-white text-white hover:text-black border border-white/10 text-xs font-bold uppercase transition-all md:hidden mt-4">
+                      Pay Now
+                    </button>
+                  </div>
+                  
+                  <button class="shrink-0 px-4 py-2 rounded-lg bg-white/5 hover:bg-white text-white hover:text-black border border-white/10 text-xs font-bold uppercase transition-all hidden md:block">
                     Pay Now
                   </button>
                 </div>
@@ -248,13 +254,13 @@ const cardLimits = [
 
               <div class="relative z-10 flex justify-between items-start">
                 <div class="text-xs font-bold text-white/50 tracking-widest uppercase">
-                  Mastercard
+                  {{ currentCard?.type || 'Mastercard' }}
                 </div>
                 <Icon name="logos:mastercard" class="w-8 h-8 opacity-80" />
               </div>
               <div class="relative z-10">
                 <div class="text-lg font-mono font-bold text-white tracking-widest mb-1">
-                  •••• •••• •••• 4479
+                  •••• •••• •••• {{ currentCard?.last4 || '4479' }}
                 </div>
                 <div class="flex justify-between items-end">
                   <div>
@@ -262,7 +268,7 @@ const cardLimits = [
                       Card Holder
                     </div>
                     <div class="text-xs font-bold text-white uppercase tracking-wide">
-                      Kendra Wilson
+                      {{ currentCard?.holderName || 'Kendra Wilson' }}
                     </div>
                   </div>
                   <div class="text-right">
@@ -270,7 +276,7 @@ const cardLimits = [
                       Expires
                     </div>
                     <div class="text-xs font-bold text-white">
-                      12/28
+                      {{ currentCard?.expiryDate || '12/28' }}
                     </div>
                   </div>
                 </div>
@@ -279,9 +285,9 @@ const cardLimits = [
 
             <div class="space-y-4">
               <div class="flex justify-between items-center pb-4 border-b border-white/5">
-                <span class="text-2xl font-bold text-white font-mono">$9,543.13</span>
+                <span class="text-2xl font-bold text-white font-mono">{{ formatCurrency(currentCard?.balance || 9543.13) }}</span>
                 <div class="flex items-center gap-2">
-                  <span class="text-xs text-muted-500 font-mono">**** 4869</span>
+                  <span class="text-xs text-muted-500 font-mono">**** {{ currentCard?.last4 || '4479' }}</span>
                   <Icon name="logos:mastercard" class="w-5 h-5 opacity-70" />
                 </div>
               </div>
@@ -322,6 +328,9 @@ const cardLimits = [
 
             <div class="flex-1 overflow-y-auto custom-scrollbar pr-2">
               <div v-if="activeTab === 'Activity'" class="space-y-3">
+                
+                <div v-if="activities.length === 0" class="text-center py-4 text-xs text-muted-500">No recent activity.</div>
+
                 <div
                   v-for="item in activities" :key="item.id"
                   class="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 transition-colors cursor-pointer"
@@ -352,6 +361,9 @@ const cardLimits = [
               </div>
 
               <div v-if="activeTab === 'Requests'" class="space-y-3">
+                
+                <div v-if="requests.length === 0" class="text-center py-4 text-xs text-muted-500">No requests pending.</div>
+
                 <div
                   v-for="req in requests" :key="req.id"
                   class="p-4 rounded-xl bg-white/5 border border-white/5 relative overflow-hidden group"

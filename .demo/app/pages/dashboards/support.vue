@@ -1,9 +1,9 @@
 <script setup lang="ts">
 /**
- * Support Center - Enterprise Level Logic
- * Refactored based on:
- * - dashboards/messaging (Chat mechanics, scroll handling)
- * - dashboards/widgets (Rich data presentation, avatars, badges)
+ * Support Center - Enterprise Logic (Backend Connected)
+ * -----------------------------------------------------
+ * Logic: Fully connected to API (create, list, reply).
+ * UI: Original Bento Grid preserved + New Ticket Modal added.
  */
 
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
@@ -11,211 +11,163 @@ import { computed, nextTick, onMounted, ref, watch } from 'vue'
 definePageMeta({
   title: 'Support Center',
   layout: 'sidenav',
-  middleware: [],
+  middleware: 'auth', // Added Security
   auth: false,
 })
 
-// --- INTERFACES ---
-interface User {
-  id: number | string
-  name: string
-  avatar?: string
-  role: 'user' | 'agent' | 'system'
-  status?: 'online' | 'offline' | 'busy'
-}
+// --- 1. STATE & DATA FETCHING ---
+// دریافت لیست تیکت‌ها از سرور
+const { data: apiData, refresh: refreshTickets } = await useFetch('/api/support/tickets')
 
-interface Attachment {
-  id: string
-  name: string
-  size: string
-  type: 'image' | 'file'
-  url: string
-}
+// نگاشت داده‌های سرور به فرمت مورد نیاز قالب
+const tickets = computed(() => {
+  if (!apiData.value?.tickets) return []
+  
+  return apiData.value.tickets.map((t: any) => ({
+    id: t.id, 
+    displayId: `#TK-${t.id.substring(0, 4).toUpperCase()}`,
+    subject: t.subject,
+    category: t.category,
+    status: t.status === 'ANSWERED' ? 'Pending' : (t.status === 'OPEN' ? 'Open' : 'Closed'),
+    priority: t.priority.charAt(0) + t.priority.slice(1).toLowerCase(),
+    created: new Date(t.createdAt).toLocaleDateString(),
+    lastUpdate: 'Recently', // Simplified for demo
+    preview: t.messages[0]?.content || 'No preview available',
+    tags: [t.category],
+    customer: {
+      id: t.userId,
+      name: 'Me', 
+      avatar: 'https://i.pravatar.cc/150?u=' + t.userId,
+      role: 'user',
+      status: 'online'
+    },
+    // Agent is mocked for UI consistency
+    assignedAgent: {
+      id: 999,
+      name: 'Support Team',
+      avatar: 'https://i.pravatar.cc/150?u=support',
+      role: 'agent',
+      status: 'busy'
+    },
+    messages: [] // Loaded on click
+  }))
+})
 
-interface Message {
-  id: number
-  sender: User
-  text: string
-  time: string
-  attachments?: Attachment[]
-  isSystem?: boolean
-}
-
-interface Ticket {
-  id: string
-  subject: string
-  category: 'Technical' | 'Finance' | 'Account' | 'Sales'
-  status: 'Open' | 'Pending' | 'Closed' | 'Resolved'
-  priority: 'High' | 'Medium' | 'Low'
-  created: string
-  lastUpdate: string
-  preview: string
-  customer: User
-  assignedAgent?: User
-  messages: Message[]
-  tags?: string[]
-}
-
-// --- STATE MANAGEMENT ---
+// --- 2. LOCAL STATE ---
 const activeFilter = ref('All')
 const searchQuery = ref('')
-const activeTicketId = ref<string | null>('#TK-9921')
+const activeTicketId = ref<string | null>(null)
 const replyMessage = ref('')
 const isSending = ref(false)
 const chatContainerRef = ref<HTMLElement | null>(null)
-
 const filters = ['All', 'Open', 'Pending', 'Closed']
 
-// --- MOCK DATA ---
-const tickets = ref<Ticket[]>([
-  {
-    id: '#TK-9921',
-    subject: 'Payment Gateway Error on Checkout',
-    category: 'Technical',
-    status: 'Open',
-    priority: 'High',
-    created: '2025-01-02',
-    lastUpdate: '10 min ago',
-    preview: 'I tried to pay using the new gateway but got a 502 error...',
-    tags: ['Bug', 'Checkout'],
-    customer: {
-      id: 101,
-      name: 'Kendra Wilson',
-      avatar: 'https://i.pravatar.cc/150?u=101',
-      role: 'user',
-      status: 'online',
-    },
-    assignedAgent: {
-      id: 201,
-      name: 'Sarah K.',
-      avatar: 'https://i.pravatar.cc/150?u=201',
-      role: 'agent',
-      status: 'busy',
-    },
-    messages: [
-      {
-        id: 1,
-        sender: { id: 101, name: 'Kendra Wilson', role: 'user', avatar: 'https://i.pravatar.cc/150?u=101' },
-        text: 'Hi, I tried to pay using the new gateway but I got a 502 Bad Gateway error. The transaction ID is TX-9921.',
-        time: '10:23 AM',
-        attachments: [
-          { id: 'a1', name: 'error_screenshot.png', size: '1.2 MB', type: 'image', url: '#' },
-        ],
-      },
-      {
-        id: 2,
-        sender: { id: 201, name: 'Sarah K.', role: 'agent', avatar: 'https://i.pravatar.cc/150?u=201' },
-        text: 'Hello Kendra! Thanks for reporting this. Our engineering team is looking into the server logs right now. Can you confirm which browser you were using?',
-        time: '10:35 AM',
-      },
-    ],
-  },
-  {
-    id: '#TK-8842',
-    subject: 'Request for Credit Limit Increase',
-    category: 'Finance',
-    status: 'Pending',
-    priority: 'Medium',
-    created: '2025-01-01',
-    lastUpdate: '2 hours ago',
-    preview: 'I would like to request a limit increase to $10k...',
-    tags: ['Upgrade'],
-    customer: {
-      id: 102,
-      name: 'Mike Ross',
-      avatar: 'https://i.pravatar.cc/150?u=102',
-      role: 'user',
-      status: 'offline',
-    },
-    assignedAgent: {
-      id: 202,
-      name: 'Bot',
-      role: 'system',
-      avatar: '',
-    },
-    messages: [
-      {
-        id: 1,
-        sender: { id: 102, name: 'Mike Ross', role: 'user', avatar: 'https://i.pravatar.cc/150?u=102' },
-        text: 'I would like to request a limit increase to $10,000 based on my recent payment history.',
-        time: 'Yesterday',
-      },
-      {
-        id: 2,
-        sender: { id: 202, name: 'System Bot', role: 'system' },
-        text: 'I have forwarded your request to the credit department. They will review your profile within 24 hours.',
-        time: 'Yesterday',
-      },
-    ],
-  },
-  {
-    id: '#TK-7731',
-    subject: 'Change Account Email',
-    category: 'Account',
-    status: 'Closed',
-    priority: 'Low',
-    created: '2024-12-28',
-    lastUpdate: '1 day ago',
-    preview: 'Is it possible to change my primary email?',
-    tags: ['Account'],
-    customer: {
-      id: 103,
-      name: 'John Doe',
-      role: 'user',
-      avatar: undefined, // No avatar case
-    },
-    messages: [
-      {
-        id: 1,
-        sender: { id: 103, name: 'John Doe', role: 'user' },
-        text: 'Is it possible to change my primary email address?',
-        time: 'Jun 10',
-      },
-      {
-        id: 2,
-        sender: { id: 201, name: 'Sarah K.', role: 'agent', avatar: 'https://i.pravatar.cc/150?u=201' },
-        text: 'Yes, you can do this from Settings > Profile. I have marked this ticket as resolved.',
-        time: 'Jun 10',
-      },
-      {
-        id: 3,
-        sender: { id: 0, name: 'System', role: 'system' },
-        text: 'Ticket marked as Closed by Agent.',
-        time: 'Jun 10',
-        isSystem: true,
-      },
-    ],
-  },
-])
+// New Ticket Modal State
+const showNewTicketModal = ref(false)
+const isCreating = ref(false)
+const newTicketForm = ref({ subject: '', category: 'Technical', priority: 'NORMAL', message: '' })
 
-// --- COMPUTED LOGIC ---
+// --- 3. COMPUTED LOGIC ---
 const filteredTickets = computed(() => {
   let result = tickets.value
-
-  // 1. Filter by Status
   if (activeFilter.value !== 'All') {
-    result = result.filter(t => t.status === activeFilter.value)
+    result = result.filter((t: any) => t.status === activeFilter.value)
   }
-
-  // 2. Filter by Search (Subject or ID)
   if (searchQuery.value) {
     const query = searchQuery.value.toLowerCase()
-    result = result.filter(t =>
-      t.subject.toLowerCase().includes(query)
-      || t.id.toLowerCase().includes(query)
-      || t.customer.name.toLowerCase().includes(query),
+    result = result.filter((t: any) =>
+      t.subject.toLowerCase().includes(query) ||
+      t.displayId.toLowerCase().includes(query)
     )
   }
-
   return result
 })
 
 const selectedTicket = computed(() => {
-  return tickets.value.find(t => t.id === activeTicketId.value)
+  return tickets.value.find((t: any) => t.id === activeTicketId.value)
 })
 
-// --- ACTIONS & METHODS ---
+// --- 4. MESSAGING LOGIC ---
+const messagesState = ref<Record<string, any[]>>({}) // Cache
 
+// Load messages when ticket selected
+watch(activeTicketId, async (newId) => {
+  if (!newId) return
+  
+  if (!messagesState.value[newId]) {
+    try {
+      const res = await $fetch<any>(`/api/support/${newId}/messages`)
+      messagesState.value[newId] = res.messages.map((m: any) => ({
+        id: m.id,
+        sender: m.isAdmin 
+          ? { id: 999, name: 'Support Agent', role: 'agent', avatar: 'https://i.pravatar.cc/150?u=support' }
+          : { id: 'me', name: 'Me', role: 'user', avatar: 'https://i.pravatar.cc/150?u=me' },
+        text: m.content,
+        time: new Date(m.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
+        isSystem: false
+      }))
+    } catch (e) { console.error(e) }
+  }
+  
+  if (selectedTicket.value) {
+    selectedTicket.value.messages = messagesState.value[newId]
+  }
+  scrollToBottom()
+})
+
+async function sendMessage() {
+  if (!replyMessage.value.trim() || !activeTicketId.value) return
+
+  const text = replyMessage.value
+  replyMessage.value = ''
+  isSending.value = true
+
+  try {
+    const { message } = await $fetch<any>(`/api/support/${activeTicketId.value}/reply`, {
+      method: 'POST',
+      body: { content: text }
+    })
+
+    const newMessage = {
+      id: message.id,
+      sender: { id: 'me', name: 'Me', role: 'user', avatar: 'https://i.pravatar.cc/150?u=me' },
+      text: message.content,
+      time: 'Just now',
+    }
+
+    if (!messagesState.value[activeTicketId.value]) messagesState.value[activeTicketId.value] = []
+    messagesState.value[activeTicketId.value].push(newMessage)
+    
+    scrollToBottom()
+  } catch (e) {
+    replyMessage.value = text
+    alert('Failed to send')
+  } finally {
+    isSending.value = false
+  }
+}
+
+// --- 5. CREATE TICKET LOGIC ---
+async function createTicket() {
+  if (!newTicketForm.value.subject || !newTicketForm.value.message) return
+  
+  isCreating.value = true
+  try {
+    await $fetch('/api/support/create', {
+      method: 'POST',
+      body: newTicketForm.value
+    })
+    await refreshTickets()
+    showNewTicketModal.value = false
+    newTicketForm.value = { subject: '', category: 'Technical', priority: 'NORMAL', message: '' }
+  } catch (e) {
+    alert('Error creating ticket')
+  } finally {
+    isCreating.value = false
+  }
+}
+
+// --- UTILS ---
 function getPriorityStyles(p: string) {
   switch (p) {
     case 'High': return { text: 'text-rose-400', bg: 'bg-rose-500/10', border: 'border-rose-500/20', icon: 'lucide:alert-circle' }
@@ -241,59 +193,16 @@ function scrollToBottom() {
   })
 }
 
-watch(activeTicketId, () => {
-  scrollToBottom()
-})
-
-async function sendMessage() {
-  if (!replyMessage.value.trim() || !selectedTicket.value)
-    return
-
-  isSending.value = true
-
-  // Simulate Network Delay
-  await new Promise(resolve => setTimeout(resolve, 600))
-
-  const newMessage: Message = {
-    id: Date.now(),
-    sender: { id: 999, name: 'You', role: 'agent', avatar: 'https://i.pravatar.cc/150?u=999' },
-    text: replyMessage.value,
-    time: 'Just now',
-  }
-
-  selectedTicket.value.messages.push(newMessage)
-  replyMessage.value = ''
-  isSending.value = false
-  scrollToBottom()
-}
-
-function closeTicket() {
-  if (selectedTicket.value) {
-    selectedTicket.value.status = 'Closed'
-    selectedTicket.value.messages.push({
-      id: Date.now(),
-      sender: { id: 0, name: 'System', role: 'system' },
-      text: 'Ticket marked as Closed.',
-      time: 'Just now',
-      isSystem: true,
-    })
-    scrollToBottom()
-  }
-}
-
-function reopenTicket() {
-  if (selectedTicket.value) {
-    selectedTicket.value.status = 'Open'
-  }
-}
-
+// Select first ticket on load
 onMounted(() => {
-  scrollToBottom()
+  if (tickets.value.length > 0 && !activeTicketId.value) {
+    activeTicketId.value = tickets.value[0].id
+  }
 })
 </script>
 
 <template>
-  <div class="w-full h-screen bg-[#0f111a] font-sans text-muted-100 p-4 md:p-6 lg:p-8 flex flex-col overflow-hidden">
+  <div class="w-full h-screen bg-[#0f111a] font-sans text-muted-100 p-4 md:p-6 lg:p-8 flex flex-col overflow-hidden relative">
     
     <div class="fixed inset-0 pointer-events-none -z-10">
       <div class="absolute top-[-10%] left-[-10%] w-[600px] h-[600px] bg-indigo-500/5 rounded-full blur-[100px]" />
@@ -310,7 +219,7 @@ onMounted(() => {
           Real-time support and ticket management.
         </p>
       </div>
-      <button class="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#6366f1] hover:bg-indigo-600 text-white text-xs font-bold uppercase tracking-wider transition-all shadow-lg shadow-indigo-500/20 group">
+      <button @click="showNewTicketModal = true" class="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#6366f1] hover:bg-indigo-600 text-white text-xs font-bold uppercase tracking-wider transition-all shadow-lg shadow-indigo-500/20 group">
         <Icon name="lucide:plus" class="w-4 h-4 group-hover:rotate-90 transition-transform" />
         <span>New Ticket</span>
       </button>
@@ -340,6 +249,8 @@ onMounted(() => {
         </div>
 
         <div class="flex-1 overflow-y-auto custom-scrollbar space-y-3 pr-2 pb-2">
+          <div v-if="filteredTickets.length === 0" class="text-center py-10 text-muted-500 text-xs">No tickets found.</div>
+
           <div
             v-for="ticket in filteredTickets" :key="ticket.id"
             class="group p-5 rounded-[1.25rem] border cursor-pointer transition-all duration-300 relative overflow-hidden"
@@ -350,7 +261,7 @@ onMounted(() => {
 
             <div class="flex justify-between items-center mb-2 pl-2">
               <span class="text-[10px] font-mono font-medium text-muted-500 tracking-wider flex items-center gap-1">
-                {{ ticket.id }}
+                {{ ticket.displayId }}
                 <span v-if="ticket.customer.status === 'online'" class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
               </span>
               <span class="text-[10px] text-muted-500">{{ ticket.lastUpdate }}</span>
@@ -416,18 +327,6 @@ onMounted(() => {
             </div>
 
             <div class="flex items-center gap-2">
-              <button
-                v-if="selectedTicket.status !== 'Closed'" class="px-3 py-2 rounded-lg bg-white/5 hover:bg-rose-500/10 hover:text-rose-400 text-muted-400 text-xs font-bold uppercase transition-colors border border-white/5 flex items-center gap-2"
-                @click="closeTicket"
-              >
-                <Icon name="lucide:check-circle" class="w-4 h-4" /> Close
-              </button>
-              <button
-                v-else class="px-3 py-2 rounded-lg bg-white/5 hover:bg-emerald-500/10 hover:text-emerald-400 text-muted-400 text-xs font-bold uppercase transition-colors border border-white/5 flex items-center gap-2"
-                @click="reopenTicket"
-              >
-                <Icon name="lucide:refresh-cw" class="w-4 h-4" /> Re-open
-              </button>
               <button class="w-9 h-9 flex items-center justify-center rounded-xl bg-white/5 hover:bg-white/10 text-muted-400 hover:text-white transition-colors border border-white/5">
                 <Icon name="lucide:more-vertical" class="w-4 h-4" />
               </button>
@@ -442,16 +341,16 @@ onMounted(() => {
                 </span>
               </div>
 
-              <div v-else class="flex gap-4 max-w-[85%]" :class="msg.sender.role === 'agent' ? 'ml-auto flex-row-reverse' : ''">
+              <div v-else class="flex gap-4 max-w-[85%]" :class="msg.sender.role === 'user' ? 'ml-auto flex-row-reverse' : ''">
                 <div
                   class="w-10 h-10 rounded-full flex items-center justify-center shrink-0 border-2 shadow-lg overflow-hidden"
-                  :class="msg.sender.role === 'agent' ? 'border-[#6366f1]/20' : 'border-white/10'"
+                  :class="msg.sender.role === 'user' ? 'border-[#6366f1]/20' : 'border-white/10'"
                 >
                   <img v-if="msg.sender.avatar" :src="msg.sender.avatar" class="w-full h-full object-cover">
                   <Icon v-else name="lucide:user" class="w-5 h-5 text-muted-400" />
                 </div>
 
-                <div class="flex flex-col" :class="msg.sender.role === 'agent' ? 'items-end' : 'items-start'">
+                <div class="flex flex-col" :class="msg.sender.role === 'user' ? 'items-end' : 'items-start'">
                   <div class="flex items-center gap-2 mb-1">
                     <span class="text-[11px] font-bold text-white">{{ msg.sender.name }}</span>
                     <span class="text-[9px] text-muted-500">{{ msg.time }}</span>
@@ -459,30 +358,11 @@ onMounted(() => {
 
                   <div
                     class="p-4 rounded-2xl text-sm leading-relaxed border shadow-md relative"
-                    :class="msg.sender.role === 'agent'
+                    :class="msg.sender.role === 'user'
                       ? 'bg-[#6366f1] text-white rounded-tr-none border-[#6366f1]'
                       : 'bg-[#27272a] text-muted-200 rounded-tl-none border-white/5'"
                   >
                     {{ msg.text }}
-                  </div>
-
-                  <div v-if="msg.attachments" class="mt-2 space-y-1">
-                    <div
-                      v-for="att in msg.attachments" :key="att.id"
-                      class="flex items-center gap-3 p-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 cursor-pointer transition-colors max-w-[250px]"
-                    >
-                      <div class="w-8 h-8 rounded-lg bg-[#0f111a] flex items-center justify-center text-primary-400">
-                        <Icon name="lucide:image" class="w-4 h-4" />
-                      </div>
-                      <div class="flex-1 overflow-hidden">
-                        <p class="text-[10px] font-bold text-white truncate">
-                          {{ att.name }}
-                        </p>
-                        <p class="text-[9px] text-muted-500">
-                          {{ att.size }}
-                        </p>
-                      </div>
-                    </div>
                   </div>
                 </div>
               </div>
@@ -490,17 +370,9 @@ onMounted(() => {
           </div>
 
           <div class="p-4 border-t border-white/5 bg-[#1a1e2e] shrink-0 z-20">
-            <div
-              v-if="selectedTicket.status === 'Closed'"
-              class="p-6 rounded-xl bg-white/5 border border-dashed border-white/10 text-center flex flex-col items-center justify-center gap-2"
-            >
+            <div v-if="selectedTicket.status === 'Closed'" class="p-6 rounded-xl bg-white/5 border border-dashed border-white/10 text-center flex flex-col items-center justify-center gap-2">
               <Icon name="lucide:lock" class="w-5 h-5 text-muted-500" />
-              <p class="text-xs text-muted-400 font-bold uppercase tracking-wider">
-                This conversation is locked.
-              </p>
-              <button class="text-primary-400 text-xs hover:text-primary-300 font-bold underline decoration-dashed underline-offset-4" @click="reopenTicket">
-                Re-open this ticket
-              </button>
+              <p class="text-xs text-muted-400 font-bold uppercase tracking-wider">This conversation is locked.</p>
             </div>
 
             <div v-else class="flex flex-col gap-3">
@@ -513,11 +385,7 @@ onMounted(() => {
                   class="w-full bg-[#0f111a] border border-white/10 rounded-2xl pl-4 pr-16 py-4 text-sm text-white placeholder:text-muted-600 focus:border-primary-500/50 focus:outline-none transition-all resize-none shadow-inner disabled:opacity-50 disabled:cursor-not-allowed"
                   @keydown.enter.prevent="sendMessage"
                 />
-
                 <div class="absolute right-2 bottom-2 flex items-center gap-1">
-                  <button class="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-white/5 text-muted-400 hover:text-white transition-colors">
-                    <Icon name="lucide:paperclip" class="w-4 h-4" />
-                  </button>
                   <button
                     :disabled="isSending || !replyMessage.trim()" class="w-9 h-9 flex items-center justify-center rounded-xl bg-[#6366f1] hover:bg-indigo-600 text-white transition-all shadow-lg disabled:opacity-50 disabled:bg-gray-700"
                     @click="sendMessage"
@@ -527,9 +395,6 @@ onMounted(() => {
                   </button>
                 </div>
               </div>
-              <p class="text-[9px] text-muted-600 pl-2">
-                Format support: Markdown is not supported yet.
-              </p>
             </div>
           </div>
         </template>
@@ -538,136 +403,82 @@ onMounted(() => {
           <div class="w-24 h-24 rounded-full bg-white/5 flex items-center justify-center mb-6 border border-white/5 shadow-2xl">
             <Icon name="lucide:message-square-dashed" class="w-10 h-10 opacity-30" />
           </div>
-          <h3 class="text-lg font-bold text-white mb-1">
-            No Ticket Selected
-          </h3>
-          <p class="text-sm font-medium opacity-60">
-            Select a ticket from the sidebar to view details
-          </p>
+          <h3 class="text-lg font-bold text-white mb-1">No Ticket Selected</h3>
+          <p class="text-sm font-medium opacity-60">Select a ticket from the sidebar to view details</p>
         </div>
       </div>
     </div>
+
+    <div v-if="showNewTicketModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+      <div class="bg-[#161925] border border-white/10 rounded-3xl p-8 w-full max-w-lg shadow-2xl relative">
+        <button @click="showNewTicketModal = false" class="absolute top-4 right-4 text-muted-500 hover:text-white"><Icon name="lucide:x" class="w-6 h-6" /></button>
+        
+        <h2 class="text-2xl font-bold text-white mb-6">Create New Ticket</h2>
+        
+        <div class="space-y-4">
+          <div>
+            <label class="block text-xs font-bold text-muted-400 uppercase mb-2">Subject</label>
+            <input v-model="newTicketForm.subject" class="w-full bg-[#0f111a] border border-white/10 rounded-xl px-4 py-3 text-white focus:border-[#6366f1] outline-none transition-all">
+          </div>
+          
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs font-bold text-muted-400 uppercase mb-2">Category</label>
+              <select v-model="newTicketForm.category" class="w-full bg-[#0f111a] border border-white/10 rounded-xl px-4 py-3 text-white focus:border-[#6366f1] outline-none appearance-none cursor-pointer">
+                <option>Technical</option>
+                <option>Billing</option>
+                <option>Sales</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-muted-400 uppercase mb-2">Priority</label>
+              <select v-model="newTicketForm.priority" class="w-full bg-[#0f111a] border border-white/10 rounded-xl px-4 py-3 text-white focus:border-[#6366f1] outline-none appearance-none cursor-pointer">
+                <option value="LOW">Low</option>
+                <option value="NORMAL">Normal</option>
+                <option value="HIGH">High</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-muted-400 uppercase mb-2">Message</label>
+            <textarea v-model="newTicketForm.message" rows="4" class="w-full bg-[#0f111a] border border-white/10 rounded-xl px-4 py-3 text-white focus:border-[#6366f1] outline-none resize-none"></textarea>
+          </div>
+
+          <button @click="createTicket" :disabled="isCreating" class="w-full py-4 rounded-xl bg-[#6366f1] hover:bg-indigo-600 text-white font-bold uppercase tracking-wider transition-all mt-2 flex items-center justify-center gap-2">
+             <Icon v-if="isCreating" name="lucide:loader" class="w-4 h-4 animate-spin" />
+             <span v-else>Submit Ticket</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
   </div>
 </template>
 
 <style scoped>
-/* =========================================
-   1. CORE LAYOUT & SCROLLBARS
-   ========================================= */
-
-.no-select {
-  user-select: none;
-  -webkit-user-select: none;
-}
-
-.custom-scrollbar {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.05) transparent;
-  scroll-behavior: smooth;
-  overflow-y: overlay;
-}
-
-.custom-scrollbar::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
-}
-
-.custom-scrollbar::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background-color: rgba(255, 255, 255, 0.05);
-  border-radius: 20px;
-  border: 1px solid transparent;
-  background-clip: content-box;
-}
-
-.custom-scrollbar:hover::-webkit-scrollbar-thumb {
-  background-color: rgba(255, 255, 255, 0.15);
-}
-
-.custom-scrollbar::-webkit-scrollbar-thumb:active {
-  background-color: rgba(99, 102, 241, 0.4);
-}
-
-.no-scrollbar::-webkit-scrollbar {
-  display: none;
-}
-.no-scrollbar {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-}
-
-/* =========================================
-   2. ANIMATIONS
-   ========================================= */
-
-@keyframes slide-in-bottom {
-  0% { opacity: 0; transform: translateY(10px); }
-  100% { opacity: 1; transform: translateY(0); }
-}
-
-.group {
-  animation: slide-in-bottom 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
-}
-
+.no-select { user-select: none; -webkit-user-select: none; }
+.custom-scrollbar { scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, 0.05) transparent; scroll-behavior: smooth; overflow-y: overlay; }
+.custom-scrollbar::-webkit-scrollbar { width: 5px; height: 5px; }
+.custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+.custom-scrollbar::-webkit-scrollbar-thumb { background-color: rgba(255, 255, 255, 0.05); border-radius: 20px; border: 1px solid transparent; background-clip: content-box; }
+.custom-scrollbar:hover::-webkit-scrollbar-thumb { background-color: rgba(255, 255, 255, 0.15); }
+.custom-scrollbar::-webkit-scrollbar-thumb:active { background-color: rgba(99, 102, 241, 0.4); }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+@keyframes slide-in-bottom { 0% { opacity: 0; transform: translateY(10px); } 100% { opacity: 1; transform: translateY(0); } }
+.group { animation: slide-in-bottom 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) both; }
 .group:nth-child(1) { animation-delay: 0.05s; }
 .group:nth-child(2) { animation-delay: 0.1s; }
 .group:nth-child(3) { animation-delay: 0.15s; }
 .group:nth-child(4) { animation-delay: 0.2s; }
 .group:nth-child(5) { animation-delay: 0.25s; }
-
-@keyframes message-pop {
-  0% { opacity: 0; transform: scale(0.95) translateY(5px); }
-  100% { opacity: 1; transform: scale(1) translateY(0); }
-}
-
-.message-bubble {
-  animation: message-pop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
-  transform-origin: bottom left;
-}
-
-.message-bubble.own {
-  transform-origin: bottom right;
-}
-
-/* =========================================
-   3. INPUT & FORM
-   ========================================= */
-
-textarea {
-  field-sizing: content;
-  min-height: 52px;
-  max-height: 150px;
-  line-height: 1.5;
-  resize: none;
-}
-
-::selection {
-  background: rgba(99, 102, 241, 0.3);
-  color: #fff;
-}
-
-/* =========================================
-   4. LAYOUT FIXES
-   ========================================= */
-
-@supports (height: 100dvh) {
-  .h-screen {
-    height: 100dvh;
-  }
-}
-
-@supports not (backdrop-filter: blur(12px)) {
-  .backdrop-blur-md {
-    background-color: rgba(26, 30, 46, 0.95);
-  }
-}
-
-.break-words {
-  word-wrap: break-word;
-  word-break: break-word;
-  overflow-wrap: break-word;
-}
+@keyframes message-pop { 0% { opacity: 0; transform: scale(0.95) translateY(5px); } 100% { opacity: 1; transform: scale(1) translateY(0); } }
+.message-bubble { animation: message-pop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; transform-origin: bottom left; }
+.message-bubble.own { transform-origin: bottom right; }
+textarea { field-sizing: content; min-height: 52px; max-height: 150px; line-height: 1.5; resize: none; }
+::selection { background: rgba(99, 102, 241, 0.3); color: #fff; }
+@supports (height: 100dvh) { .h-screen { height: 100dvh; } }
+@supports not (backdrop-filter: blur(12px)) { .backdrop-blur-md { background-color: rgba(26, 30, 46, 0.95); } }
+.break-words { word-wrap: break-word; word-break: break-word; overflow-wrap: break-word; }
 </style>
