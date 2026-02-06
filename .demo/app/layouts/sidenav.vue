@@ -13,110 +13,112 @@ const menu = [
     children: [
       {
         label: 'New Service',
-        to: '/layouts/projects',
+        to: '/dashboards/services',
       },
       {
         label: 'My Projects',
-        to: '/layouts/projects/project-list-2',
+        to: '/dashboards/orders',
       },
     ],
   },
   {
-    label: 'Banking',
-    icon: 'solar:buildings-linear',
-    children: [
-      {
-        label: 'Account balance',
-        to: '/dashboards/balance',
-      },
-      {
-        label: 'Account overview',
-        to: '/dashboards/banking-1',
-      },
-      {
-        label: 'Account expenses',
-        to: '/dashboards/banking-2',
-      },
-      {
-        label: 'Account aggregator',
-        to: '/dashboards/banking-5',
-      },
-    ],
+    label: 'Wallet & Credit',
+    icon: 'solar:wallet-2-linear',
+    to: '/dashboards/wallet',
+    // children: [
+    //   {
+    //     label: 'Account balance',
+    //     to: '/dashboards/balance',
+    //   },
+    //   {
+    //     label: 'Account overview',
+    //     to: '/dashboards/banking-1',
+    //   },
+    //   {
+    //     label: 'Account expenses',
+    //     to: '/dashboards/banking-2',
+    //   },
+    //   {
+    //     label: 'Account aggregator',
+    //     to: '/dashboards/banking-5',
+    //   },
+    // ],
   },
   {
-    label: 'Lifestyle',
-    icon: 'solar:confetti-minimalistic-linear',
-    children: [
-      {
-        label: 'Influencer',
-        to: '/dashboards/influencer',
-      },
-      {
-        label: 'Hobbies',
-        to: '/dashboards/hobbies',
-      },
-      {
-        label: 'Health',
-        to: '/dashboards/health',
-      },
-      {
-        label: 'Writer',
-        to: '/dashboards/writer',
-      },
-      {
-        label: 'Video log',
-        to: '/dashboards/video',
-      },
-      {
-        label: 'Soccer',
-        to: '/dashboards/soccer',
-      },
-    ],
+    label: 'Support',
+    icon: 'solar:help-linear',
+    to: '/dashboards/support',
   },
   {
-    label: 'Widgets',
-    icon: 'solar:widget-add-linear',
-    children: [
-      {
-        label: 'UI widgets',
-        to: '/dashboards/widgets',
-      },
-      {
-        label: 'Creative widgets',
-        to: '/dashboards/widgets/creative',
-      },
-      {
-        label: 'List widgets',
-        to: '/dashboards/widgets/list',
-      },
-    ],
+    label: 'Settings',
+    icon: 'solar:settings-linear',
+    to: '/dashboards/settings',
+    // children: [
+    //   {
+    //     label: 'Influencer',
+    //     to: '/dashboards/influencer',
+    //   },
+    //   {
+    //     label: 'Hobbies',
+    //     to: '/dashboards/hobbies',
+    //   },
+    //   {
+    //     label: 'Health',
+    //     to: '/dashboards/health',
+    //   },
+    //   {
+    //     label: 'Writer',
+    //     to: '/dashboards/writer',
+    //   },
+    //   {
+    //     label: 'Video log',
+    //     to: '/dashboards/video',
+    //   },
+    //   {
+    //     label: 'Soccer',
+    //     to: '/dashboards/soccer',
+    //   },
+    // ],
   },
-  {
-    label: 'Multistep wizard',
-    icon: 'solar:bolt-linear',
-    to: '/wizard',
-  },
+  // {
+  //   label: 'Widgets',
+  //   icon: 'solar:widget-add-linear',
+  //   children: [
+  //     {
+  //       label: 'UI widgets',
+  //       to: '/dashboards/widgets',
+  //     },
+  //     {
+  //       label: 'Creative widgets',
+  //       to: '/dashboards/widgets/creative',
+  //     },
+  //     {
+  //       label: 'List widgets',
+  //       to: '/dashboards/widgets/list',
+  //     },
+  //   ],
+  // },
 ]
 
-const people = [
-  {
-    name: 'Joshua M.',
-    avatar: '/img/avatars/15.svg',
-  },
-  {
-    name: 'Chris G.',
-    avatar: '/img/avatars/3.svg',
-    count: 5,
-  },
-  {
-    name: 'Hermann M.',
-    avatar: '/img/avatars/16.svg',
-  },
-  {
-    name: 'Helen C.',
-    avatar: '/img/avatars/25.svg',
-  },
-]
+// const people = [
+//   {
+//     name: 'Joshua M.',
+//     avatar: '/img/avatars/15.svg',
+//   },
+//   {
+//     name: 'Chris G.',
+//     avatar: '/img/avatars/3.svg',
+//     count: 5,
+//   },
+//   {
+//     name: 'Hermann M.',
+//     avatar: '/img/avatars/16.svg',
+//   },
+//   {
+//     name: 'Helen C.',
+//     avatar: '/img/avatars/25.svg',
+//   },
+// ]
 
 const companies = [
   {

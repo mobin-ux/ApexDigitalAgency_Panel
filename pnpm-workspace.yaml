@@ -3,11 +3,12 @@ packages:
   - .app
   - layers/*
   - tairo-component-meta
-
 onlyBuiltDependencies:
   - '@parcel/watcher'
+  - '@prisma/engines'
   - better-sqlite3
   - core-js-pure
   - esbuild
+  - prisma
   - sharp
   - vue-demi

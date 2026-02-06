@@ -24,6 +24,7 @@ export default defineNuxtConfig({
   ],
 
   modules: [
+    '@pinia/nuxt',
     'reka-ui/nuxt',
     '@vueuse/nuxt',
     '@nuxtjs/i18n',
