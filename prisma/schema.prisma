@@ -1,30 +1,64 @@
-// تنظیمات کلاینت و موتورها
+// اتصال به دیتابیس
 generator client {
   provider = "prisma-client-js"
-  // این خط مهم است تا با سرور لینوکس شما هماهنگ شود
-  binaryTargets = ["native", "debian-openssl-3.0.x"]
 }
 
-// تنظیمات اتصال به دیتابیس
 datasource db {
   provider = "mysql"
   url      = env("DATABASE_URL")
 }
 
-// --- مدل‌های نمونه (برای تست اتصال) ---
-
+// --------------------------------------
+// 1. مدل کاربر (هسته مرکزی احراز هویت)
+// --------------------------------------
 model User {
-  id        Int      @id @default(autoincrement())
-  email     String   @unique
-  name      String?
-  password  String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id            Int       @id @default(autoincrement())
+  email         String    @unique
+  name          String?   // نام کامل (برای نمایش در داشبورد)
+  password      String    // رمز عبور هش شده
+  phone         String?   // شماره موبایل (اختیاری)
+  avatar        String?   // آدرس عکس پروفایل
+  
+  // نقش کاربر (مدیر، مشتری، پشتیبان)
+  role          Role      @default(USER)
+  
+  // وضعیت حساب (فعال، مسدود شده، در انتظار تایید)
+  status        UserStatus @default(ACTIVE)
+
+  // زمان‌بندی‌ها
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // ارتباطات (بعداً پروژه‌ها و سفارش‌ها اضافه می‌شوند)
+  // projects Project[] 
 }
 
-model Session {
-  id        String   @id
-  sid       String   @unique
-  data      String   @db.Text
-  expiresAt DateTime
+// --------------------------------------
+// 2. توکن‌های بازیابی رمز عبور (Forgot Password)
+// --------------------------------------
+model PasswordResetToken {
+  id        Int      @id @default(autoincrement())
+  email     String   // ایمیلی که درخواست تغییر رمز داده
+  token     String   @unique // کد امنیتی یکبار مصرف
+  expiresAt DateTime // زمان انقضا (مثلاً ۱ ساعت بعد)
+  createdAt DateTime @default(now())
+  
+  // این جدول به User وصل نمی‌شود تا اگر کاربری هنوز ثبت نام نکرده بود
+  // ولی درخواست داد، بتوانیم مدیریت کنیم (امنیت بیشتر)
+}
+
+// --------------------------------------
+// 3. تعریف نقش‌ها و وضعیت‌ها (Enums)
+// --------------------------------------
+
+enum Role {
+  USER      // مشتری عادی
+  ADMIN     // مدیر کل
+  SUPPORT   // پشتیبان فنی
+}
+
+enum UserStatus {
+  ACTIVE    // فعال
+  BANNED    // مسدود شده
+  PENDING   // در انتظار تایید ایمیل
 }
