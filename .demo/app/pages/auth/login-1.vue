@@ -7,89 +7,76 @@ definePageMeta({
   layout: 'empty',
   title: 'Login',
   preview: {
-    title: 'Login 2',
-    description: 'For authentication and sign in',
+    title: 'Login 1',
+    description: 'Login with simple fields',
     categories: ['layouts', 'authentication'],
-    src: '/img/screens/auth-login-2.png',
-    srcDark: '/img/screens/auth-login-2-dark.png',
-    order: 152,
+    src: '/img/screens/auth-login-1.png',
+    srcDark: '/img/screens/auth-login-1-dark.png',
+    order: 150,
   },
 })
 
+// --- 1. Validation Schema ---
 const VALIDATION_TEXT = {
   EMAIL_REQUIRED: 'A valid email is required',
-  PASSWORD_REQUIRED: 'A password is required',
+  PASSWORD_REQUIRED: 'Password is required',
 }
 
-// This is the Zod schema for the form input
-// It's used to define the shape that the form data will have
 const zodSchema = z.object({
   email: z.string().email(VALIDATION_TEXT.EMAIL_REQUIRED),
   password: z.string().min(1, VALIDATION_TEXT.PASSWORD_REQUIRED),
-  trustDevice: z.boolean(),
 })
 
-// Zod has a great infer method that will
-// infer the shape of the schema into a TypeScript type
 type FormInput = z.infer<typeof zodSchema>
 
 const validationSchema = toTypedSchema(zodSchema)
 const initialValues = {
   email: '',
   password: '',
-  trustDevice: false,
 } satisfies FormInput
 
-const {
-  handleSubmit,
-  isSubmitting,
-  setFieldError,
-} = useForm({
+// --- 2. Form Setup ---
+const { handleSubmit, isSubmitting } = useForm({
   validationSchema,
   initialValues,
 })
 
 const router = useRouter()
-const toaster = useNuiToasts()
+const { fetchUser } = useUser() // Use our custom composable
+const errorMessage = ref('')
 
-// This is where you would send the form data to the server
+// --- 3. Login Logic ---
 const onSubmit = handleSubmit(async (values) => {
-  // here you have access to the validated form values
-  // console.log('auth-success', values)
-
+  errorMessage.value = ''
+  
   try {
-    // fake delay, this will make isSubmitting value to be true
-    await new Promise((resolve, reject) => {
-      if (values.password !== 'password') {
-        // simulate a backend error
-        setTimeout(
-          () => reject(new Error('Fake backend validation error')),
-          2000,
-        )
+    // A. Send request to Backend API
+    await $fetch('/api/auth/login', {
+      method: 'POST',
+      body: {
+        email: values.email,
+        password: values.password
       }
-      setTimeout(resolve, 4000)
     })
 
-    toaster.add({
-      title: 'Success',
-      description: `Welcome back!`,
-      icon: 'ph:user-circle-fill',
-      progress: true,
-    })
-  }
-  catch (error: any) {
-    // this will set the error on the form
-    if (error.message === 'Fake backend validation error') {
-      setFieldError('password', 'Invalid credentials (use "password")')
-    }
-    return
-  }
+    // B. Refresh User State (Get user data into session)
+    await fetchUser()
 
-  router.push('/dashboards')
+    // C. Redirect to Dashboard
+    router.push('/')
+
+  } catch (error: any) {
+    // Handle Errors (Wrong password, etc.)
+    console.error('Login Error:', error)
+    errorMessage.value = error.statusMessage || error.data?.message || 'Invalid email or password.'
+  }
 })
 </script>
 
 <template>
+  <div v-if="errorMessage" class="mb-4 rounded bg-red-100 p-3 text-sm text-red-600 dark:bg-red-900/30 dark:text-red-400">
+  {{ errorMessage }}
+</div>
   <div class="dark:bg-muted-800 flex min-h-screen bg-white">
     <div
       class="bg-muted-100 dark:bg-muted-900 relative hidden w-0 flex-1 items-center justify-center lg:flex lg:w-3/5"

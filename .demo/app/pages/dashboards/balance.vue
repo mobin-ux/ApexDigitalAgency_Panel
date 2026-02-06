@@ -1,103 +1,46 @@
 <script setup lang="ts">
-/**
- * Dashboard Home - Integrated & Optimized
- * ---------------------------------------
- * Components used:
- * - DemoWidgetFeatures (CTA)
- * - BaseCard, BaseHeading, BaseButton (Tairo Standard)
- * - Hobbies Style Grid for Services
- */
+import { ref, onMounted } from 'vue'
 
-import { ref } from 'vue'
-
+// 1. تنظیمات استاندارد صفحه
 definePageMeta({
-  title: 'Dashboawrd',
+  title: 'Dashboard',
   layout: 'sidenav',
-  middleware: [],
-  auth: false,
+  middleware: 'auth' // استفاده از فایل auth.ts که در مرحله ۳ ساختیم
 })
 
-// --- STATE ---
+// 2. استفاده از Composable استاندارد
+const { user, logout } = useUser()
+const router = useRouter()
+
+// مدیریت خروج
+const handleLogout = async () => {
+  await logout()
+}
+
+// 3. متغیرهای داده (Data State)
 const showFeatures = ref(true)
-
-// --- DATA ---
-
-// 1. Stats
-const stats = [
-  { label: 'Active Projects', value: '4', icon: 'lucide:layers', color: 'text-orange-400', bg: 'bg-orange-500/10' },
-  { label: 'Available Credit', value: '$12,500', icon: 'lucide:credit-card', color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
-  { label: 'Cash Wallet', value: '$3,420', icon: 'lucide:wallet', color: 'text-indigo-400', bg: 'bg-indigo-500/10' },
-]
-
-// 2. Active Projects (Updated Data)
-const activeProjects = ref([
-  {
-    id: 1,
-    name: 'E-Commerce Redesign',
-    client: 'Gold Store Isfahan',
-    status: 'In Progress',
-    date: 'Due Jan 20',
-    icon: 'lucide:shopping-bag',
-  },
-  {
-    id: 2,
-    name: 'Instagram Campaign',
-    client: 'Apex Vision',
-    status: 'Pending',
-    date: 'Due Jan 15',
-    icon: 'lucide:camera',
-  },
-  {
-    id: 3,
-    name: 'SEO Optimization',
-    client: 'Tech Startup',
-    status: 'Started',
-    date: 'Due Feb 01',
-    icon: 'lucide:search',
-  },
+const stats = ref([
+  { label: 'Active Projects', value: 'Loading...', icon: 'lucide:layers', color: 'text-orange-400', bg: 'bg-orange-500/10' },
+  { label: 'Available Credit', value: 'Loading...', icon: 'lucide:credit-card', color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
+  { label: 'Cash Wallet', value: 'Loading...', icon: 'lucide:wallet', color: 'text-indigo-400', bg: 'bg-indigo-500/10' },
 ])
+const activeProjects = ref<any[]>([])
 
-// 3. Services (Adapted from Hobbies Dashboard Images)
-// 3. Services Data (Optimized for New UI)
-// 3. Services Data (Optimized for New UI)
-const services = [
-  {
-    name: 'Digital Marketing',
-    desc: 'Scale your business with zero upfront cost & profit sharing.',
-    url: '/orders/new?service=marketing',
-    icon: 'lucide:megaphone',
-    color: 'text-pink-400',
-    bgGradient: 'from-pink-500/20 via-rose-500/10 to-transparent',
-    lineColor: 'bg-pink-500',
-  },
-  {
-    name: 'Web Development',
-    desc: 'Custom high-performance websites using Nuxt & Tailwind.',
-    url: '/orders/new?service=dev',
-    icon: 'lucide:code-2',
-    color: 'text-cyan-400',
-    bgGradient: 'from-cyan-500/20 via-blue-500/10 to-transparent',
-    lineColor: 'bg-cyan-500',
-  },
-  {
-    name: 'SEO & Content',
-    desc: 'Dominate search results and drive organic traffic.',
-    url: '/orders/new?service=seo',
-    icon: 'lucide:search',
-    color: 'text-amber-400',
-    bgGradient: 'from-amber-500/20 via-orange-500/10 to-transparent',
-    lineColor: 'bg-amber-500',
-  },
-  {
-    name: 'Branding Design',
-    desc: 'Logo, Visual Identity and complete UI/UX solutions.',
-    url: '/orders/new?service=design',
-    icon: 'lucide:palette',
-    color: 'text-purple-400',
-    bgGradient: 'from-purple-500/20 via-indigo-500/10 to-transparent',
-    lineColor: 'bg-purple-500',
-  },
-]
+// 4. دریافت داده‌ها (Data Fetching)
+// در Nuxt 3 بهتر است از useFetch استفاده کنیم تا در سرور هم اجرا شود (SEO Friendly)
+const { data: dashboardData } = await useFetch('/api/dashboard/stats')
+
+if (dashboardData.value) {
+  // @ts-ignore
+  stats.value = dashboardData.value.stats
+  // @ts-ignore
+  activeProjects.value = dashboardData.value.projects
+}
+
+// 5. مسیریابی
+const navigateToOrder = (service: string) => {
+  router.push(`/orders/new?service=${service}`)
+}
 </script>
 
 <template>

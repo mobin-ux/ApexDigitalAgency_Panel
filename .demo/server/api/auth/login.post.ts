@@ -1,4 +1,3 @@
-import prisma from '../../utils/prisma' // مسیر را چک کنید، شاید ~ باشد
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 
@@ -10,6 +9,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'اطلاعات ناقص است' })
   }
 
+  // نکته: prisma اینجا به صورت خودکار توسط Nuxt ایمپورت شده است
   const user = await prisma.user.findUnique({ where: { email } })
 
   // ۱. چک کردن وجود کاربر

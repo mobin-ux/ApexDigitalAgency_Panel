@@ -1,4 +1,3 @@
-import prisma from '~/utils/prisma'
 import bcrypt from 'bcryptjs'
 
 export default defineEventHandler(async (event) => {
@@ -35,12 +34,12 @@ export default defineEventHandler(async (event) => {
       name,
       password: hashedPassword,
       role: 'USER',       // امنیت: همیشه نقش کاربر عادی داده شود
-      status: 'ACTIVE',   // فعلاً فعال است (بعداً می‌توانیم ایمیل تایید بگذاریم)
+      status: 'ACTIVE',   // فعلاً فعال است
       avatar: '/img/avatars/placeholder.svg' // عکس پیش‌فرض
     }
   })
 
-  // ۷. بازگشت پاسخ موفقیت (بدون فرستادن رمز عبور!)
+  // ۷. بازگشت پاسخ موفقیت
   return {
     status: 'success',
     message: 'ثبت نام با موفقیت انجام شد.',

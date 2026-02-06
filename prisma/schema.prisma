@@ -1,64 +1,85 @@
-// اتصال به دیتابیس
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "mysql"
-  url      = env("DATABASE_URL")
+  provider = "sqlite" // Or postgresql
+  url      = "file:./dev.db"
 }
 
-// --------------------------------------
-// 1. مدل کاربر (هسته مرکزی احراز هویت)
-// --------------------------------------
-model User {
-  id            Int       @id @default(autoincrement())
-  email         String    @unique
-  name          String?   // نام کامل (برای نمایش در داشبورد)
-  password      String    // رمز عبور هش شده
-  phone         String?   // شماره موبایل (اختیاری)
-  avatar        String?   // آدرس عکس پروفایل
-  
-  // نقش کاربر (مدیر، مشتری، پشتیبان)
-  role          Role      @default(USER)
-  
-  // وضعیت حساب (فعال، مسدود شده، در انتظار تایید)
-  status        UserStatus @default(ACTIVE)
-
-  // زمان‌بندی‌ها
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-
-  // ارتباطات (بعداً پروژه‌ها و سفارش‌ها اضافه می‌شوند)
-  // projects Project[] 
-}
-
-// --------------------------------------
-// 2. توکن‌های بازیابی رمز عبور (Forgot Password)
-// --------------------------------------
-model PasswordResetToken {
-  id        Int      @id @default(autoincrement())
-  email     String   // ایمیلی که درخواست تغییر رمز داده
-  token     String   @unique // کد امنیتی یکبار مصرف
-  expiresAt DateTime // زمان انقضا (مثلاً ۱ ساعت بعد)
-  createdAt DateTime @default(now())
-  
-  // این جدول به User وصل نمی‌شود تا اگر کاربری هنوز ثبت نام نکرده بود
-  // ولی درخواست داد، بتوانیم مدیریت کنیم (امنیت بیشتر)
-}
-
-// --------------------------------------
-// 3. تعریف نقش‌ها و وضعیت‌ها (Enums)
-// --------------------------------------
-
+// 1. Definition of Roles
 enum Role {
-  USER      // مشتری عادی
-  ADMIN     // مدیر کل
-  SUPPORT   // پشتیبان فنی
+  CUSTOMER
+  ADMIN
+  EMPLOYEE
 }
 
-enum UserStatus {
-  ACTIVE    // فعال
-  BANNED    // مسدود شده
-  PENDING   // در انتظار تایید ایمیل
+// 2. Definition of Project Status
+enum ProjectStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  name      String?
+  avatar    String?
+  role      Role     @default(CUSTOMER) // Changed from String to Enum
+  status    String   @default("ACTIVE") // ACTIVE, BANNED, PENDING
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relationships
+  projects           Project[]     @relation("CustomerProjects") // Projects owned by customer
+  managedProjects    Project[]     @relation("AssignedEmployee") // Projects managed by employee
+  transactions       Transaction[]
+  resetTokens        PasswordResetToken[]
+}
+
+model Project {
+  id          String        @id @default(uuid())
+  name        String
+  client      String?
+  status      ProjectStatus @default(PENDING)
+  description String?
+  deadline    DateTime?
+  amount      Float?        @default(0)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  
+  // Owner (Customer)
+  userId      String
+  user        User          @relation("CustomerProjects", fields: [userId], references: [id])
+
+  // Assigned Employee (Optional)
+  employeeId  String?
+  employee    User?         @relation("AssignedEmployee", fields: [employeeId], references: [id])
+}
+
+model Transaction {
+  id          String   @id @default(uuid())
+  amount      Float
+  type        String
+  status      String   @default("COMPLETED")
+  description String?
+  createdAt   DateTime @default(now())
+
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+}
+
+model PasswordResetToken {
+  id        String   @id @default(uuid())
+  email     String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  // --- اضافه کردن این دو خط برای تکمیل رابطه ---
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
