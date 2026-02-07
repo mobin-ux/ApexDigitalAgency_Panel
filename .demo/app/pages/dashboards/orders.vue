@@ -131,7 +131,7 @@ const handleChat = () => {
   // اینجا می‌توانید لاجیک باز کردن چت یا ریدایرکت را بگذارید
   router.push('/dashboards/support')
 }
-</script>
+</script> 
 
 <template>
   <div class="w-full min-h-screen bg-[#0f111a] font-sans text-muted-100 p-4 md:p-8 relative overflow-x-hidden">
