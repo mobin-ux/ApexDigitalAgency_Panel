@@ -7,15 +7,26 @@ definePageMeta({
   middleware: 'auth'
 })
 
-// --- TYPES (Matching Prisma Schema + UI needs) ---
+const router = useRouter()
+
+// --- TYPES ---
 interface Milestone {
   title: string;
   status: 'completed' | 'current' | 'pending';
   date?: string;
 }
 
-interface Project {
+interface ProjectFile {
   id: string;
+  name: string;
+  size: string;
+  type: string;
+  url: string;
+}
+
+interface Project {
+  realId: string; // شناسه واقعی برای API
+  id: string;     // شناسه نمایشی
   title: string;
   category: string;
   status: 'active' | 'pending' | 'completed' | 'cancelled';
@@ -25,10 +36,10 @@ interface Project {
   price: number;
   image: string;
   milestones: Milestone[];
+  files: ProjectFile[];
 }
 
 // --- API FETCHING ---
-// درخواست به API جدید و استاندارد
 const { data: apiResponse, refresh, pending } = await useFetch('/api/orders')
 
 // --- DATA ADAPTER (Database -> UI) ---
@@ -42,34 +53,36 @@ const projects = computed<Project[]>(() => {
     else if (order.status === 'COMPLETED') uiStatus = 'completed'
     else if (order.status === 'CANCELLED') uiStatus = 'cancelled'
 
-    // 2. Map Milestones (Real Data!)
-    const mappedMilestones = order.milestones.map((m: any) => ({
+    // 2. Map Milestones
+    const mappedMilestones = order.milestones ? order.milestones.map((m: any) => ({
       title: m.title,
-      // تبدیل وضعیت دیتابیس (Enum) به حروف کوچک برای UI
       status: m.status.toLowerCase(),
       date: m.date ? new Date(m.date).toLocaleDateString('en-GB', { month: 'short', day: 'numeric' }) : undefined
-    }))
+    })) : []
 
     // 3. Return Final Object
     return {
+      realId: order.id, // مهم برای پرداخت
       id: order.id.substring(0, 8).toUpperCase(),
       title: order.name,
-      category: order.category || 'General', // Now reading from DB
+      category: order.category || 'General',
       status: uiStatus,
-      progress: order.progress, // Now reading from DB
+      progress: order.progress,
       startDate: new Date(order.startDate).toLocaleDateString(),
       dueDate: order.deadline ? new Date(order.deadline).toLocaleDateString() : 'TBD',
       price: order.amount || 0,
-      image: 'lucide:box', // میتوانید بعدا در دیتابیس فیلد icon اضافه کنید
-      milestones: mappedMilestones
+      image: order.category.includes('SEO') ? 'lucide:bar-chart' : 'lucide:box',
+      milestones: mappedMilestones,
+      files: order.files || [] // دریافت فایل‌ها از دیتابیس
     }
   })
 })
 
-// --- UI LOGIC (No changes needed below) ---
+// --- UI LOGIC ---
 const selectedProject = ref<Project | null>(null)
+const isPaying = ref(false)
 
-const formatCurrency = (val: number) => new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP', maximumFractionDigits: 0 }).format(val)
+const formatCurrency = (val: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(val)
 
 const getStatusColor = (status: string) => {
   switch(status) {
@@ -87,6 +100,36 @@ const selectProject = (project: Project) => {
 
 const goBack = () => {
   selectedProject.value = null
+}
+
+// --- ACTIONS (Backend Connected) ---
+
+const handlePayProject = async () => {
+  if (!selectedProject.value) return
+  
+  // تاییدیه از کاربر
+  if (!confirm(`Confirm payment of ${formatCurrency(selectedProject.value.price)} for this project?`)) return
+
+  isPaying.value = true
+  try {
+    await $fetch('/api/orders/pay', {
+      method: 'POST',
+      body: { projectId: selectedProject.value.realId } // استفاده از ID واقعی
+    })
+    
+    await refresh() // رفرش کردن دیتا
+    selectedProject.value = null // بستن پنل جزئیات
+    alert('Payment successful! Project has been activated.')
+  } catch (e: any) {
+    alert(e.data?.message || 'Payment failed. Please check your wallet balance.')
+  } finally {
+    isPaying.value = false
+  }
+}
+
+const handleChat = () => {
+  // اینجا می‌توانید لاجیک باز کردن چت یا ریدایرکت را بگذارید
+  router.push('/dashboards/support')
 }
 </script>
 
@@ -233,23 +276,28 @@ const goBack = () => {
               </div>
             </div>
 
-            <div class="bg-[#161925] border border-white/5 rounded-3xl p-6">
-              <h3 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
-                <Icon name="lucide:folder-open" class="w-5 h-5 text-primary-500" />
-                Project Files
-              </h3>
-              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div v-for="i in 2" :key="i" class="flex items-center gap-3 p-3 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 cursor-pointer transition-colors">
-                  <div class="w-10 h-10 rounded-lg bg-blue-500/10 text-blue-400 flex items-center justify-center">
-                    <Icon name="lucide:file-code" class="w-5 h-5" />
-                  </div>
-                  <div>
-                    <p class="text-sm font-medium text-white">Concept_v{{i}}.pdf</p>
-                    <p class="text-xs text-muted-500">2.4 MB • 2 days ago</p>
-                  </div>
-                </div>
-              </div>
-            </div>
+          <div class="bg-[#161925] border border-white/5 rounded-3xl p-6">
+  <h3 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
+    <Icon name="lucide:folder-open" class="w-5 h-5 text-primary-500" />
+    Project Files
+  </h3>
+  
+  <div v-if="selectedProject.files.length > 0" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+    <div v-for="file in selectedProject.files" :key="file.id" class="flex items-center gap-3 p-3 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 cursor-pointer transition-colors group">
+      <div class="w-10 h-10 rounded-lg bg-blue-500/10 text-blue-400 flex items-center justify-center group-hover:bg-blue-500 group-hover:text-white transition-colors">
+        <Icon name="lucide:file-code" class="w-5 h-5" />
+      </div>
+      <div class="overflow-hidden">
+        <p class="text-sm font-medium text-white truncate">{{ file.name }}</p>
+        <p class="text-xs text-muted-500">{{ file.size }}</p>
+      </div>
+    </div>
+  </div>
+  
+  <div v-else class="text-center py-6 text-muted-500 text-sm border border-dashed border-white/10 rounded-xl">
+    No files attached to this project yet.
+  </div>
+</div>
 
           </div>
 
@@ -284,12 +332,18 @@ const goBack = () => {
               </div>
 
               <div class="grid grid-cols-2 gap-3">
-                <button class="flex items-center justify-center gap-2 py-3 rounded-xl bg-white/5 hover:bg-white/10 text-xs font-bold uppercase transition-colors">
+                <button @click="handleChat" class="flex items-center justify-center gap-2 py-3 rounded-xl bg-white/5 hover:bg-white/10 text-xs font-bold uppercase transition-colors">
                   <Icon name="lucide:message-square" class="w-4 h-4" /> Chat
                 </button>
-                <button class="flex items-center justify-center gap-2 py-3 rounded-xl bg-primary-600 hover:bg-primary-500 text-white text-xs font-bold uppercase transition-colors shadow-lg shadow-primary-500/20">
-                  <Icon name="lucide:credit-card" class="w-4 h-4" /> Pay
-                </button>
+               <button 
+    @click="handlePayProject"
+    :disabled="isPaying || selectedProject.status !== 'pending'"
+    class="flex items-center justify-center gap-2 py-3 rounded-xl text-white text-xs font-bold uppercase transition-colors shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+    :class="selectedProject.status === 'pending' ? 'bg-primary-600 hover:bg-primary-500 shadow-primary-500/20' : 'bg-green-600 hover:bg-green-500 shadow-green-500/20'"
+  >
+    <Icon v-if="isPaying" name="lucide:loader-2" class="w-4 h-4 animate-spin" />
+    <span v-else>{{ selectedProject.status === 'pending' ? 'Pay Now' : 'Paid' }}</span>
+  </button>
               </div>
             </div>
 

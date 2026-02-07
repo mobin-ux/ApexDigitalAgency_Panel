@@ -1,40 +1,39 @@
-import prisma from '../../utils/prisma'
+import { defineEventHandler, getCookie, createError } from 'h3'
 import jwt from 'jsonwebtoken'
+import { PrismaClient } from '@prisma/client'
+
+const prisma = new PrismaClient()
 
 export default defineEventHandler(async (event) => {
-  // ۱. دریافت توکن از کوکی
   const token = getCookie(event, 'auth_token')
 
+  // اگر توکن نبود، یعنی کاربر لاگین نیست
   if (!token) {
-    throw createError({ statusCode: 401, statusMessage: 'لطفاً وارد شوید' })
+    return { user: null }
   }
 
   try {
-    // ۲. بررسی امضای توکن
-    const secret = process.env.JWT_SECRET
-    if (!secret) throw new Error('Server config error')
-    
-    const decoded = jwt.verify(token, secret) as { id: number }
+    const secret = process.env.JWT_SECRET || 'secret'
+    const decoded = jwt.verify(token, secret) as any
 
-    // ۳. استعلام تازه از دیتابیس (Security Best Practice)
-    // همیشه اطلاعات را دوباره از دیتابیس بگیرید، شاید نقش کاربر عوض شده باشد
+    // دریافت اطلاعات تازه کاربر از دیتابیس
     const user = await prisma.user.findUnique({
-      where: { id: decoded.id }
+      where: { id: decoded.id },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        role: true,
+        avatar: true,
+        adCredits: true // اضافه شده طبق اسکیما جدید
+      }
     })
 
-    if (!user) {
-      throw createError({ statusCode: 401, statusMessage: 'کاربر نامعتبر' })
-    }
+    if (!user) return { user: null }
 
-    // ۴. بازگشت اطلاعات امن
-    const { password: _, ...userInfo } = user
-    return {
-      user: userInfo
-    }
-
+    return { user }
   } catch (error) {
-    // اگر توکن منقضی یا دستکاری شده باشد، کوکی را پاک می‌کنیم
-    deleteCookie(event, 'auth_token')
-    throw createError({ statusCode: 401, statusMessage: 'نشست کاربری منقضی شده است' })
+    return { user: null }
   }
 })

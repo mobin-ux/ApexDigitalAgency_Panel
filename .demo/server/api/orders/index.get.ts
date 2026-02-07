@@ -1,65 +1,31 @@
-import { defineEventHandler, getCookie, getQuery, createError } from 'h3'
+import { defineEventHandler, getCookie, createError } from 'h3'
 import jwt from 'jsonwebtoken'
 import { PrismaClient } from '@prisma/client'
 
 const prisma = new PrismaClient()
 
 export default defineEventHandler(async (event) => {
-  // 1. Auth Guard
+  // 1. Auth Check
   const token = getCookie(event, 'auth_token')
-  if (!token) throw createError({ statusCode: 401, statusMessage: 'Unauthorized' })
-  const secret = process.env.JWT_SECRET || 'secret'
-  let userPayload
-  try {
-    userPayload = jwt.verify(token, secret) as any
-  } catch (e) {
-    throw createError({ statusCode: 401, statusMessage: 'Invalid Token' })
-  }
+  if (!token) throw createError({ statusCode: 401 })
+  const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret') as any
+  const userId = decoded.id
 
-  // 2. Parse Query Params (Standardization)
-  const query = getQuery(event)
-  const page = Number(query.page) || 1
-  const limit = Number(query.limit) || 10
-  const skip = (page - 1) * limit
-  const status = query.status as string
-  const sort = query.sort as 'asc' | 'desc' || 'desc'
+  // 2. Fetch Projects with Milestones
+  // نکته مهم: حتما باید include: { milestones } باشد
+const projects = await prisma.project.findMany({
+  where: { userId },
+  include: {
+    milestones: { orderBy: { date: 'asc' } },
+    files: true // <--- اضافه شد: دریافت فایل‌ها
+  },
+  orderBy: { createdAt: 'desc' }
+})
 
-  // 3. Build Where Clause
-  const whereClause: any = {
-    userId: userPayload.id
-  }
-
-  // Map UI status 'active' to DB status 'IN_PROGRESS' if needed
-  if (status && status !== 'All') {
-    if (status === 'active') whereClause.status = 'IN_PROGRESS'
-    else if (status === 'completed') whereClause.status = 'COMPLETED'
-    else if (status === 'pending') whereClause.status = 'PENDING'
-  }
-
-  // 4. Execute Queries (Transaction for atomicity)
-  const [total, orders] = await Promise.all([
-    prisma.project.count({ where: whereClause }),
-    prisma.project.findMany({
-      where: whereClause,
-      skip,
-      take: limit,
-      orderBy: { createdAt: sort }, // Dynamic Sorting
-      include: {
-        milestones: { // Load Milestones
-          orderBy: { id: 'asc' } // Or by date
-        } 
-      }
-    })
-  ])
-
-  // 5. Return Standard Response
+  // 3. Return Raw Data
+  // ما اینجا داده خام را برمی‌گردانیم، چون فرانت‌‌اند شما (Computed Property)
+  // وظیفه تبدیل داده‌ها (Mapping) را بر عهده گرفته است.
   return {
-    data: orders,
-    meta: {
-      total,
-      page,
-      limit,
-      totalPages: Math.ceil(total / limit)
-    }
+    data: projects
   }
 })

@@ -1,29 +1,21 @@
 export default defineNuxtRouteMiddleware(async (to, from) => {
   const { user, fetchUser } = useUser()
+  
+  // ۱. چک کردن کوکی در مرورگر
+  const token = useCookie('auth_token')
 
-  // 1. Fetch user if not loaded
+  // ۲. اگر اصلا کوکی ندارد، یعنی قطعا لاگین نیست -> برو بیرون
+  if (!token.value) {
+    return navigateTo('/auth/login-1')
+  }
+
+  // ۳. اگر کوکی دارد اما اطلاعات کاربر در رم نیست (رفرش شده) -> برو بگیر
   if (!user.value) {
     await fetchUser()
   }
 
-  // 2. Public Routes (No login required)
-  const publicRoutes = [
-    '/auth/login-1',
-    '/auth/signup-1',
-    '/auth/recover'
-  ]
-
-  // 3. Logic
-  const isPublic = publicRoutes.includes(to.path)
-  const isLoggedIn = !!user.value
-
-  // Redirect to login if accessing protected page while logged out
-  if (!isLoggedIn && !isPublic) {
+  // ۴. اگر بعد از تلاش برای گرفتن، باز هم کاربر null بود -> یعنی کوکی فیک یا منقضی است -> برو بیرون
+  if (!user.value) {
     return navigateTo('/auth/login-1')
-  }
-
-  // Redirect to home if accessing login page while logged in
-  if (isLoggedIn && isPublic) {
-    return navigateTo('/')
   }
 })

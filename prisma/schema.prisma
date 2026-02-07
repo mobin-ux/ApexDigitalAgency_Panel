@@ -58,27 +58,34 @@ model User {
   updatedAt     DateTime  @updatedAt
 
   // --- Financial Info ---
+  walletBalance Float     @default(0)
   adCredits     Float     @default(0)
 
   // --- Relations (Connecting all modules) ---
-  company            Company?      // One-to-One
+  company             Company?       // One-to-One
   
   // Project Management
-  projects           Project[]     @relation("CustomerProjects")
-  managedProjects    Project[]     @relation("AssignedEmployee")
+  // 1. پروژه‌هایی که کاربر مالک آنهاست (مشتری)
+  projects            Project[]      @relation("CustomerProjects")
+  // 2. پروژه‌هایی که کاربر مدیریت می‌کند (کارمند/ادمین)
+  managedProjects     Project[]      @relation("AssignedEmployee")
   
   // Finance & Wallet
-  transactions       Transaction[]
-  cards              Card[]
-  installments       Installment[]
-  withdrawalRequests WithdrawalRequest[]
+  transactions        Transaction[]
+  cards               Card[]
+  installments        Installment[]
+  withdrawalRequests  WithdrawalRequest[]
   
   // Support System
-  tickets            Ticket[]
+  tickets             Ticket[]
   
   // Security
-  resetTokens        PasswordResetToken[]
+  resetTokens         PasswordResetToken[]
+
+  // Notifications
+  notifications       Notification[] 
 }
+
 
 model Company {
   id          String   @id @default(uuid())
@@ -105,38 +112,44 @@ model Company {
 // ==============================
 
 model Project {
-  id          String        @id @default(uuid())
-  name        String
-  client      String?
-  category    String?       @default("General")
-  progress    Int           @default(0)
-  startDate   DateTime      @default(now())
-  
-  status      ProjectStatus @default(PENDING)
-  description String?
-  deadline    DateTime?
-  amount      Float?        @default(0)
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
-  
-  // Relations
-  userId      String
-  user        User          @relation("CustomerProjects", fields: [userId], references: [id], onDelete: Cascade)
-  
-  employeeId  String?
-  employee    User?         @relation("AssignedEmployee", fields: [employeeId], references: [id])
 
+  id          String      @id @default(uuid())
+  name        String
+  category    String      // e.g. "Web Development", "SEO"
+  status      String      @default("PENDING") // IN_PROGRESS, COMPLETED, CANCELLED
+  amount      Float       @default(0) 
+  
+  progress    Int         @default(0) 
+  startDate   DateTime    @default(now())
+  deadline    DateTime?
+  
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  // --- روابط اصلاح شده ---
+  
+  // مالک پروژه (مشتری)
+  userId      String
+  user        User        @relation("CustomerProjects", fields: [userId], references: [id], onDelete: Cascade)
+
+  // مدیر پروژه (کارمند) - این بخش برای رفع ارور اضافه شد
+  managerId   String?     
+  manager     User?       @relation("AssignedEmployee", fields: [managerId], references: [id])
+  
+  // مراحل پروژه
   milestones  Milestone[]
+
+  files       ProjectFile[]
 }
 
 model Milestone {
-  id        String          @id @default(uuid())
-  title     String
-  status    MilestoneStatus @default(PENDING)
-  date      DateTime?
+  id        String    @id @default(uuid())
+  title     String    
+  status    String    
+  date      DateTime? 
   
   projectId String
-  project   Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
 }
 
 // ==============================
@@ -156,16 +169,20 @@ model Transaction {
 }
 
 model Card {
-  id          String   @id @default(uuid())
-  type        String   // Mastercard, Visa
-  last4       String
-  holderName  String
-  expiryDate  String   // MM/YY
-  balance     Float
-  limit       Float
+  id              String   @id @default(uuid())
+  type            String   // Mastercard, Visa
+  last4           String
+  holderName      String
+  expiryDate      String   // MM/YY
   
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // فیلدهای مورد نیاز برای لاجیک Wallet.vue
+  withdrawalLimit Float    @default(2500)
+  withdrawalUsed  Float    @default(0)
+  paymentLimit    Float    @default(5000)
+  paymentUsed     Float    @default(0)
+  
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Installment {
@@ -217,7 +234,7 @@ model TicketMessage {
   id        String   @id @default(uuid())
   content   String
   isAdmin   Boolean  @default(false)
-  senderId  String?  // Optional: ID of specific staff member
+  senderId  String?  
   createdAt DateTime @default(now())
 
   ticketId  String
@@ -225,7 +242,7 @@ model TicketMessage {
 }
 
 // ==============================
-// 6. AUTHENTICATION
+// 6. AUTHENTICATION & NOTIFICATIONS
 // ==============================
 
 model PasswordResetToken {
@@ -237,4 +254,30 @@ model PasswordResetToken {
 
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  title     String
+  message   String
+  type      String   @default("INFO") 
+  isRead    Boolean  @default(false)
+  link      String?  
+  createdAt DateTime @default(now())
+
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+
+model ProjectFile {
+  id        String   @id @default(uuid())
+  name      String   // مثلا: "Contract.pdf"
+  url       String   // لینک دانلود
+  size      String   // مثلا: "2.4 MB"
+  type      String   // pdf, jpg, zip
+  createdAt DateTime @default(now())
+  
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
 }

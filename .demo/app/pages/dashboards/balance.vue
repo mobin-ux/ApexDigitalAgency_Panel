@@ -1,45 +1,95 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+/**
+ * Dashboard Overview - Backend Connected
+ * --------------------------------------
+ * Logic: Fetches real stats, projects, and wallet data.
+ * UI: 100% Preserved.
+ */
 
-// 1. تنظیمات استاندارد صفحه
+import { ref, computed } from 'vue'
+
+// 1. تنظیمات صفحه
 definePageMeta({
   title: 'Dashboard',
   layout: 'sidenav',
-  middleware: 'auth' // استفاده از فایل auth.ts که در مرحله ۳ ساختیم
+  middleware: 'auth'
 })
 
-// 2. استفاده از Composable استاندارد
-const { user, logout } = useUser()
+// 2. ابزارها
+const { user } = useUser()
 const router = useRouter()
 
-// مدیریت خروج
-const handleLogout = async () => {
-  await logout()
-}
-
-// 3. متغیرهای داده (Data State)
+// 3. متغیرهای رابط کاربری
 const showFeatures = ref(true)
-const stats = ref([
-  { label: 'Active Projects', value: 'Loading...', icon: 'lucide:layers', color: 'text-orange-400', bg: 'bg-orange-500/10' },
-  { label: 'Available Credit', value: 'Loading...', icon: 'lucide:credit-card', color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
-  { label: 'Cash Wallet', value: 'Loading...', icon: 'lucide:wallet', color: 'text-indigo-400', bg: 'bg-indigo-500/10' },
-])
-const activeProjects = ref<any[]>([])
 
-// 4. دریافت داده‌ها (Data Fetching)
-// در Nuxt 3 بهتر است از useFetch استفاده کنیم تا در سرور هم اجرا شود (SEO Friendly)
-const { data: dashboardData } = await useFetch('/api/dashboard/stats')
+// 4. دریافت داده‌ها از سرور (API جدید)
+const { data: dashboardData, refresh } = await useFetch('/api/dashboard/stats')
 
-if (dashboardData.value) {
-  // @ts-ignore
-  stats.value = dashboardData.value.stats
-  // @ts-ignore
-  activeProjects.value = dashboardData.value.projects
-}
+// 5. نگاشت داده‌ها به متغیرهای قالب
+// قالب شما انتظار آرایه stats با ۳ آیتم خاص را دارد
+const stats = computed(() => {
+  const d = dashboardData.value
+  return [
+    // کارت ۱: پروژه‌های فعال
+    { 
+      label: 'Active Projects', 
+      value: d?.stats[0].value || 0, // عدد خام برای شرط v-if
+      displayValue: d?.stats[0].value || 0,
+      icon: 'lucide:layers', 
+      color: 'text-orange-400', 
+      bg: 'bg-orange-500/10' 
+    },
+    // کارت ۲: کردیت لیمیت
+    { 
+      label: 'Available Credit', 
+      value: d?.stats[1].displayValue || 0, 
+      displayValue: d?.stats[1].formatted || '$0.00', // فرمت دلاری
+      icon: 'lucide:credit-card', 
+      color: 'text-emerald-400', 
+      bg: 'bg-emerald-500/10' 
+    },
+    // کارت ۳: موجودی کیف پول
+    { 
+      label: 'Cash Wallet', 
+      value: d?.stats[2].value || 0, 
+      displayValue: d?.stats[2].formatted || '$0.00',
+      icon: 'lucide:wallet', 
+      color: 'text-indigo-400', 
+      bg: 'bg-indigo-500/10' 
+    },
+  ]
+})
 
-// 5. مسیریابی
+const activeProjects = computed(() => dashboardData.value?.projects || [])
+const totalSpent = computed(() => dashboardData.value?.totalSpent || '$0.00')
+
+// 6. اکشن‌ها (Action Buttons)
+
+// انتقال به صفحه سفارش
 const navigateToOrder = (service: string) => {
   router.push(`/orders/new?service=${service}`)
+}
+
+// دکمه واریز سریع (Demo logic)
+const handleDeposit = async () => {
+  const amount = prompt('Enter amount to deposit:', '1000')
+  if (amount) {
+    try {
+      await $fetch('/api/finance/deposit', {
+        method: 'POST',
+        body: { amount: parseFloat(amount) }
+      })
+      await refresh() // رفرش کردن آمار بعد از واریز
+      alert('Deposit successful!')
+    } catch (e) {
+      alert('Failed to deposit.')
+    }
+  }
+}
+
+// دکمه افزایش اعتبار (Demo)
+const handleIncreaseLimit = () => {
+  alert('Request for credit limit increase has been sent to admin.')
 }
 </script>
 
@@ -242,7 +292,7 @@ const navigateToOrder = (service: string) => {
               </p>
             </div>
             <div class="absolute inset-x-4 bottom-4 translate-y-12 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-300">
-              <button class="w-full py-2.5 rounded-xl bg-emerald-600 text-white text-xs font-bold shadow-lg">
+              <button  class="w-full py-2.5 rounded-xl bg-emerald-600 text-white text-xs font-bold shadow-lg">
                 Increase Limit
               </button>
             </div>
@@ -262,12 +312,12 @@ const navigateToOrder = (service: string) => {
             </div>
             <div class="mb-4">
               <h3 class="text-3xl font-black text-white flex items-center gap-2">
-                $3,420
+                {{ stats[2].displayValue }}
                 <span class="text-[10px] font-normal text-muted-500 bg-white/5 px-2 py-1 rounded-full">USD</span>
               </h3>
             </div>
             <div class="grid grid-cols-2 gap-3">
-              <button class="flex items-center justify-center gap-2 py-2 rounded-lg bg-white/5 border border-white/5 hover:bg-white/10 hover:border-white/10 text-white text-[10px] font-bold uppercase transition-all">
+              <button @click="handleDeposit" class="flex items-center justify-center gap-2 py-2 rounded-lg bg-white/5 border border-white/5 hover:bg-white/10 hover:border-white/10 text-white text-[10px] font-bold uppercase transition-all">
                 <Icon name="lucide:plus" class="size-3 text-indigo-400" /> Deposit
               </button>
               <button class="flex items-center justify-center gap-2 py-2 rounded-lg bg-white/5 border border-white/5 hover:bg-white/10 hover:border-white/10 text-white text-[10px] font-bold uppercase transition-all">
@@ -359,7 +409,7 @@ const navigateToOrder = (service: string) => {
                   Total Spent
                 </p>
                 <p class="mt-1 text-3xl font-black tracking-tight text-white">
-                  $8,240
+                  {{ totalSpent }}
                 </p>
                 <span class="mt-2 inline-flex items-center gap-1 text-[10px] text-emerald-400">
                   <Icon name="lucide:trending-up" class="size-3" /> +12% this month

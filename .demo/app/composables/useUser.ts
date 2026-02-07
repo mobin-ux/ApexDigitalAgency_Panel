@@ -1,29 +1,41 @@
 export const useUser = () => {
-  // State: نگهداری اطلاعات کاربر در رم مرورگر
+  // state اصلی کاربر
   const user = useState<any>('user', () => null)
 
-  // Action: دریافت اطلاعات از سرور
+  // تابع دریافت کاربر از سرور
   const fetchUser = async () => {
+    // اگر قبلاً یوزر را داریم، دوباره نگیر (مگر اینکه بخواهیم فورس کنیم)
+    if (user.value) return
+
     try {
-      const { user: userData } = await $fetch<any>('/api/auth/me')
-      user.value = userData
-    } catch (error) {
+      const { user: fetchedUser } = await $fetch('/api/auth/me')
+      if (fetchedUser) {
+        user.value = fetchedUser
+      } else {
+        user.value = null
+      }
+    } catch (e) {
       user.value = null
     }
   }
 
-  // Action: خروج
+  // تابع لاگین دستی
+  const setUser = (newUser: any) => {
+    user.value = newUser
+  }
+
+  // تابع خروج
   const logout = async () => {
-    try {
-      await $fetch('/api/auth/logout', { method: 'POST' })
-    } catch (error) {
-      console.error(error)
-    } finally {
-      user.value = null
-      return navigateTo('/auth/login-1')
-    }
+    user.value = null
+    const token = useCookie('auth_token')
+    token.value = null
+    await navigateTo('/auth/login-1')
   }
 
-  return { user, fetchUser, logout }
+  return {
+    user,
+    fetchUser,
+    setUser,
+    logout
+  }
 }
-

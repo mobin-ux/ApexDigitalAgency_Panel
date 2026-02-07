@@ -1,54 +1,51 @@
+import { defineEventHandler, readBody, setCookie, createError } from 'h3'
+import { PrismaClient } from '@prisma/client'
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
+
+const prisma = new PrismaClient()
 
 export default defineEventHandler(async (event) => {
   const body = await readBody(event)
   const { email, password } = body
 
   if (!email || !password) {
-    throw createError({ statusCode: 400, statusMessage: 'اطلاعات ناقص است' })
+    throw createError({ statusCode: 400, message: 'Email and password are required' })
   }
 
-  // نکته: prisma اینجا به صورت خودکار توسط Nuxt ایمپورت شده است
-  const user = await prisma.user.findUnique({ where: { email } })
+  // 1. پیدا کردن کاربر
+  const user = await prisma.user.findUnique({
+    where: { email }
+  })
 
-  // ۱. چک کردن وجود کاربر
-  if (!user || !user.password) {
-    throw createError({ statusCode: 401, statusMessage: 'ایمیل یا رمز عبور اشتباه است' })
+  // اگر کاربر نبود
+  if (!user) {
+    throw createError({ statusCode: 401, message: 'User not found' })
   }
 
-  // ۲. چک کردن وضعیت مسدودی (Security Check) 🚫
-  if (user.status === 'BANNED') {
-    throw createError({ statusCode: 403, statusMessage: 'حساب کاربری شما مسدود شده است.' })
-  }
-  
-  if (user.status === 'PENDING') {
-    throw createError({ statusCode: 403, statusMessage: 'لطفاً ابتدا ایمیل خود را تایید کنید.' })
+  // 2. چک کردن پسورد
+  const isPasswordValid = await bcrypt.compare(password, user.password)
+
+  if (!isPasswordValid) {
+    throw createError({ statusCode: 401, message: 'Invalid password' })
   }
 
-  // ۳. چک کردن رمز
-  const isValid = await bcrypt.compare(password, user.password)
-  if (!isValid) {
-    throw createError({ statusCode: 401, statusMessage: 'ایمیل یا رمز عبور اشتباه است' })
-  }
-
-  // ۴. ساخت توکن با اطلاعات نقش (Role)
-  const secret = process.env.JWT_SECRET || 'secret'
+  // 3. ساخت توکن
   const token = jwt.sign(
-    { id: user.id, email: user.email, role: user.role }, // نقش را هم در توکن گذاشتیم
-    secret,
+    { id: user.id, email: user.email, role: user.role },
+    process.env.JWT_SECRET || 'secret',
     { expiresIn: '7d' }
   )
 
+  // 4. تنظیم کوکی
   setCookie(event, 'auth_token', token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    maxAge: 604800,
+    httpOnly: false, // برای راحتی تست فعلا false
+    secure: false,   // چون روی localhost هستیم
+    maxAge: 60 * 60 * 24 * 7, // 7 روز
     path: '/'
   })
 
-  // ۵. حذف اطلاعات حساس از خروجی
-  const { password: _, ...userInfo } = user
-  return { status: 'success', user: userInfo }
+  // بازگرداندن اطلاعات کاربر (بدون پسورد)
+  const { password: _, ...userWithoutPassword } = user
+  return { status: 'success', user: userWithoutPassword, token }
 })

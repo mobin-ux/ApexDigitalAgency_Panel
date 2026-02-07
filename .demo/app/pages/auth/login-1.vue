@@ -1,76 +1,70 @@
 <script setup lang="ts">
+import { ref } from 'vue'
 import { toTypedSchema } from '@vee-validate/zod'
-import { Field, useForm } from 'vee-validate'
 import { z } from 'zod'
+import { useForm, Field } from 'vee-validate'
 
+// 1. تنظیمات صفحه
 definePageMeta({
   layout: 'empty',
   title: 'Login',
-  preview: {
-    title: 'Login 1',
-    description: 'Login with simple fields',
-    categories: ['layouts', 'authentication'],
-    src: '/img/screens/auth-login-1.png',
-    srcDark: '/img/screens/auth-login-1-dark.png',
-    order: 150,
-  },
+  middleware: [] 
 })
 
-// --- 1. Validation Schema ---
-const VALIDATION_TEXT = {
-  EMAIL_REQUIRED: 'A valid email is required',
-  PASSWORD_REQUIRED: 'Password is required',
-}
-
-const zodSchema = z.object({
-  email: z.string().email(VALIDATION_TEXT.EMAIL_REQUIRED),
-  password: z.string().min(1, VALIDATION_TEXT.PASSWORD_REQUIRED),
-})
-
-type FormInput = z.infer<typeof zodSchema>
-
-const validationSchema = toTypedSchema(zodSchema)
-const initialValues = {
-  email: '',
-  password: '',
-} satisfies FormInput
-
-// --- 2. Form Setup ---
-const { handleSubmit, isSubmitting } = useForm({
-  validationSchema,
-  initialValues,
-})
-
+// 2. ابزارها
+const { fetchUser } = useUser()
 const router = useRouter()
-const { fetchUser } = useUser() // Use our custom composable
 const errorMessage = ref('')
 
-// --- 3. Login Logic ---
-const onSubmit = handleSubmit(async (values) => {
-  errorMessage.value = ''
-  
-  try {
-    // A. Send request to Backend API
-    await $fetch('/api/auth/login', {
-      method: 'POST',
-      body: {
-        email: values.email,
-        password: values.password
-      }
-    })
+// 3. اعتبارسنجی (Zod)
+const validationSchema = toTypedSchema(
+  z.object({
+    email: z.string().min(1, 'Email is required').email('Format is wrong'),
+    password: z.string().min(1, 'Password is required'),
+    trustDevice: z.boolean().optional(),
+  })
+)
 
-    // B. Refresh User State (Get user data into session)
-    await fetchUser()
-
-    // C. Redirect to Dashboard
-    router.push('/')
-
-  } catch (error: any) {
-    // Handle Errors (Wrong password, etc.)
-    console.error('Login Error:', error)
-    errorMessage.value = error.statusMessage || error.data?.message || 'Invalid email or password.'
-  }
+// 4. فرم
+const { handleSubmit, isSubmitting } = useForm({
+  validationSchema,
 })
+
+// 5. تابع هوشمند ارسال (با قابلیت شناسایی خطای فرم)
+const onSubmit = handleSubmit(
+  // الف) اگر فرم صحیح بود و همه چیز اوکی بود این اجرا می‌شود:
+  async (values) => {
+    console.log('Form is valid, sending request...', values) // برای دیباگ
+    errorMessage.value = ''
+    
+    try {
+      await $fetch('/api/auth/login', {
+        method: 'POST',
+        body: {
+          email: values.email,
+          password: values.password
+        }
+      })
+
+      // دریافت یوزر و ریدایرکت
+      await fetchUser()
+      await router.push('/dashboards/balance')
+
+    } catch (error: any) {
+      console.error('API Error:', error)
+      errorMessage.value = error.data?.message || 'Login failed.'
+      alert(errorMessage.value) // نمایش خطا به صورت آلرت برای اطمینان
+    }
+  },
+  
+  // ب) اگر فرم نامعتبر بود (مثلا ایمیل غلط بود) این اجرا می‌شود:
+  ({ errors }) => {
+    console.log('Validation Errors:', errors)
+    // این خط به ما می‌گوید چرا دکمه کار نمی‌کند
+    const firstError = Object.values(errors)[0]
+    alert('Form Error: ' + firstError)
+  }
+)
 </script>
 
 <template>
