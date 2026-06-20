@@ -22,17 +22,39 @@
   --color-chart-title: var(--color-muted-600);
   --color-chart-subtitle: var(--color-muted-900);
 
-  --color-primary-50: var(--color-violet-50);
-  --color-primary-100: var(--color-violet-100);
-  --color-primary-200: var(--color-violet-200);
-  --color-primary-300: var(--color-violet-300);
-  --color-primary-400: var(--color-violet-400);
-  --color-primary-500: var(--color-violet-500);
-  --color-primary-600: var(--color-violet-600);
-  --color-primary-700: var(--color-violet-700);
-  --color-primary-800: var(--color-violet-800);
-  --color-primary-900: var(--color-violet-900);
-  --color-primary-950: var(--color-violet-950);
+  /*
+   * Apex Digi brand palette
+   * ------------------------
+   * primary -> indigo: the complementary accent that sits on the navy base.
+   *            (Unifies the ad-hoc indigo/violet/purple usage across pages.)
+   * muted   -> a custom cool navy/charcoal scale. Drives every surface,
+   *            border and neutral text, giving the dark theme its on-brand
+   *            navy feel while staying clean and legible in light mode.
+   * Change these in one place to re-theme the whole dashboard.
+   */
+  --color-primary-50: var(--color-indigo-50);
+  --color-primary-100: var(--color-indigo-100);
+  --color-primary-200: var(--color-indigo-200);
+  --color-primary-300: var(--color-indigo-300);
+  --color-primary-400: var(--color-indigo-400);
+  --color-primary-500: var(--color-indigo-500);
+  --color-primary-600: var(--color-indigo-600);
+  --color-primary-700: var(--color-indigo-700);
+  --color-primary-800: var(--color-indigo-800);
+  --color-primary-900: var(--color-indigo-900);
+  --color-primary-950: var(--color-indigo-950);
+
+  --color-muted-50: #f8fafc;
+  --color-muted-100: #f1f5f9;
+  --color-muted-200: #e2e8f0;
+  --color-muted-300: #cbd5e1;
+  --color-muted-400: #94a3b8;
+  --color-muted-500: #64748b;
+  --color-muted-600: #475569;
+  --color-muted-700: #2c3a52;
+  --color-muted-800: #1a2438;
+  --color-muted-900: #0f1626;
+  --color-muted-950: #070b15;
 }
 
 @layer base {

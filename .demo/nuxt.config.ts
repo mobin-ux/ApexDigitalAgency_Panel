@@ -5,6 +5,17 @@ export default defineNuxtConfig({
   },
   devtools: { enabled: true },
 
+  /**
+   * Apex Digi defaults to the dark theme (brand direction), while the
+   * BaseThemeToggle in the toolbar still lets customers switch to light.
+   * `classSuffix: ''` keeps the toggled class as `.dark` to match main.css.
+   */
+  colorMode: {
+    preference: 'dark',
+    fallback: 'dark',
+    classSuffix: '',
+  },
+
   extends: [
     /**
      * This extends the base Tairo layer.
