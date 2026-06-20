@@ -160,8 +160,11 @@ export default defineNuxtConfig({
     '/documentation/**': {
       swr: 3600,
     },
+    // Authenticated, per-user customer pages must NOT be SWR-cached: the first
+    // (unauthenticated) render would otherwise be cached and served to everyone,
+    // breaking auth and leaking the wrong content between users.
     '/dashboards/**': {
-      swr: 3600,
+      swr: false,
     },
     '/layouts/**': {
       swr: 3600,

@@ -15,6 +15,7 @@
     "layers/*"
   ],
   "scripts": {
+    "postinstall": "prisma generate",
     "dev": "pnpm --filter=app dev",
     "build": "pnpm --filter=app build",
     "generate": "pnpm --filter=app generate",

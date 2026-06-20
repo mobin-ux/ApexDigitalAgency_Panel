@@ -52,7 +52,8 @@ native `alert()`, USD). When refactoring a page, bring it in line:
 | # | Area | Status |
 |---|---|---|
 | 0 | **Foundation** — tokens, dark default, `sidenav` cleanup, `useCurrency`, app.config | ✅ Done |
-| 1 | Balance (home dashboard) | ⏳ Next |
+| 0b | **Auth/infra fixes** — reload-logout, SWR cache, Prisma generate, duplicate code | ✅ Done |
+| 1 | Balance (home dashboard) + fix `/api/dashboard/stats` | ⏳ Next |
 | 2 | Orders | ☐ |
 | 3 | Services + New Order / financing & installment calculator | ☐ |
 | 4 | Wallet & Credit (installments, history, invoices) | ☐ |
@@ -60,12 +61,27 @@ native `alert()`, USD). When refactoring a page, bring it in line:
 | 6 | Settings | ☐ |
 | 7 | Auth flow (login / signup / recover) | ☐ |
 
-## 5. Known issues to address
+## 5. Known issues
 
-- [ ] `routeRules['/dashboards/**'].swr = 3600` in `.demo/nuxt.config.ts` — stale-while-
-      revalidate caching on authenticated, per-user pages risks serving stale/cross-user
-      content. Review/remove for dashboard routes.
+Fixed:
+- [x] **Reload logged users out.** Refreshing/direct-loading any `/dashboards/*` page
+      bounced to login. Two causes: (1) `swr: 3600` on `/dashboards/**` cached the first
+      unauthenticated render and served it to everyone; (2) `fetchUser()` used plain
+      `$fetch`, dropping the cookie during SSR. Fixed by `swr: false` on `/dashboards/**`
+      and `useRequestFetch()` in `useUser`.
+- [x] **App broke after a fresh `pnpm install`** (Prisma client not generated → "Named
+      export 'PrismaClient' not found"). Added `postinstall: prisma generate`.
+- [x] Duplicate `useUser.ts` (`.demo/composables/` vs `.demo/app/composables/`) and
+      duplicate auth plugins (`auth.ts` + `auth-load.ts`) removed.
+
+To address:
+- [ ] **`/api/dashboard/stats` throws `PrismaClientValidationError`** (schema drift) → the
+      home page falls back to placeholders. Fix as part of Page 1 (balance).
+- [ ] Stale seed scripts reference fields not in the schema: `server/api/seed-rich.get.ts`,
+      `seed-wallet.get.ts`, and `prisma/seed.js` (uses `name`/`status`/`USER`). Dev-only.
 - [ ] Pages still hardcode dark hex + USD + native `alert()`/`confirm()` until refactored
       (orders, services, wallet, support, settings, balance).
 - [ ] `orders.vue` formats prices in USD and has a hardcoded "Sarah Connor" project manager.
 - [ ] Mixed English / Persian inline comments across pages (cosmetic; standardise to English).
+- [ ] Local dev uses an Iran mirror in `.npmrc` that 403s intermittently; `registry.npmmirror.com`
+      worked (`pnpm install --registry=https://registry.npmmirror.com/`).
