@@ -1,98 +1,82 @@
-import { defineEventHandler, getCookie, createError } from 'h3'
-import jwt from 'jsonwebtoken'
+import process from 'node:process'
 import { PrismaClient } from '@prisma/client'
+import { createError, defineEventHandler, getCookie } from 'h3'
+import jwt from 'jsonwebtoken'
 
 const prisma = new PrismaClient()
 
+const ACTIVE_STATUSES = ['IN_PROGRESS', 'PENDING']
+
+function mapStatus(status: string) {
+  switch (status) {
+    case 'IN_PROGRESS': return 'In Progress'
+    case 'COMPLETED': return 'Completed'
+    case 'CANCELLED': return 'Cancelled'
+    default: return 'Pending'
+  }
+}
+
 export default defineEventHandler(async (event) => {
   const token = getCookie(event, 'auth_token')
-  if (!token) throw createError({ statusCode: 401 })
+  if (!token)
+    throw createError({ statusCode: 401, message: 'Unauthorized' })
+
   const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret') as any
   const userId = decoded.id
 
-  // دریافت تمام اطلاعات به صورت موازی (برای سرعت بالا)
-  const [user, card, activeProjects, recentProjects, transactions] = await Promise.all([
-    // 1. اطلاعات کاربر (برای موجودی کیف پول)
-    prisma.user.findUnique({ 
-        where: { id: userId },
-        select: { walletBalance: true } 
+  // Fetch everything in parallel for speed.
+  const [user, activeProjects, recentProjects, spent] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: { walletBalance: true, adCredits: true },
     }),
-
-    // 2. اطلاعات کارت (برای سقف اعتبار)
-    prisma.card.findFirst({ 
-        where: { userId } 
+    prisma.project.count({
+      where: { userId, status: { in: ACTIVE_STATUSES } },
     }),
-
-    // 3. تعداد پروژه‌های فعال
-    prisma.project.count({ 
-        where: { userId, status: 'IN_PROGRESS' } 
-    }),
-
-    // 4. لیست پروژه‌های اخیر (برای نمایش در لیست)
     prisma.project.findMany({
       where: { userId },
       orderBy: { updatedAt: 'desc' },
       take: 5,
+      // NOTE: Project has no `client` field — that select was the source of the
+      // PrismaClientValidationError. We use `category` as the secondary label.
       select: {
         id: true,
         name: true,
-        client: true, // اگر کلاینت ندارید، نام کاربر را بگذارید
+        category: true,
         status: true,
-        updatedAt: true
-      }
+        progress: true,
+        amount: true,
+        deadline: true,
+        updatedAt: true,
+      },
     }),
-
-    // 5. محاسبه مجموع خرج‌کرد (تراکنش‌های منفی)
     prisma.transaction.aggregate({
-      where: { userId, amount: { lt: 0 } }, // lt: less than 0 (برداشت‌ها)
-      _sum: { amount: true }
-    })
+      where: { userId, amount: { lt: 0 } },
+      _sum: { amount: true },
+    }),
   ])
 
-  // آماده‌سازی داده‌ها برای نمودارها
-  const totalSpent = Math.abs(transactions._sum.amount || 0)
-  const creditLimit = card?.paymentLimit || 0
-  const walletBalance = user?.walletBalance || 0
-
+  // Raw numbers only — formatting (GBP) happens in the UI via useCurrency().
   return {
-    // آمار کارت‌های بالای صفحه
-    stats: [
-      { 
-        label: 'Active Projects', 
-        value: activeProjects, 
-        icon: 'lucide:layers', 
-        color: 'text-orange-400', 
-        bg: 'bg-orange-500/10' 
-      },
-      { 
-        label: 'Credit Limit', 
-        value: creditLimit, 
-        icon: 'lucide:credit-card', 
-        color: 'text-emerald-400', 
-        bg: 'bg-emerald-500/10',
-        formatted: new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(creditLimit)
-      },
-      { 
-        label: 'Cash Wallet', 
-        value: walletBalance, 
-        icon: 'lucide:wallet', 
-        color: 'text-indigo-400', 
-        bg: 'bg-indigo-500/10',
-        formatted: new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(walletBalance)
-      },
-    ],
-    
-    // لیست پروژه‌ها
+    stats: {
+      activeProjects,
+      walletBalance: user?.walletBalance ?? 0,
+      adCredits: user?.adCredits ?? 0,
+      totalSpent: Math.abs(spent._sum.amount ?? 0),
+    },
     projects: recentProjects.map(p => ({
       id: p.id,
       name: p.name,
-      client: p.client || 'Personal',
-      status: p.status === 'IN_PROGRESS' ? 'In Progress' : (p.status === 'PENDING' ? 'Pending' : 'Completed'),
-      date: new Date(p.updatedAt).toLocaleDateString(),
-      icon: 'lucide:box' // آیکون پیش‌فرض
+      category: p.category || 'General',
+      status: mapStatus(p.status),
+      progress: p.progress ?? 0,
+      amount: p.amount ?? 0,
+      deadline: p.deadline ? new Date(p.deadline).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : null,
+      icon: (p.category || '').toLowerCase().includes('seo')
+        ? 'lucide:bar-chart-3'
+        : (p.category || '').toLowerCase().includes('market')
+            ? 'lucide:megaphone'
+            : 'lucide:box',
     })),
-
-    // مجموع خرج‌کرد
-    totalSpent: new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(totalSpent)
   }
 })

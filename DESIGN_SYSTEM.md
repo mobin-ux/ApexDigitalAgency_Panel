@@ -53,8 +53,8 @@ native `alert()`, USD). When refactoring a page, bring it in line:
 |---|---|---|
 | 0 | **Foundation** — tokens, dark default, `sidenav` cleanup, `useCurrency`, app.config | ✅ Done |
 | 0b | **Auth/infra fixes** — reload-logout, SWR cache, Prisma generate, duplicate code | ✅ Done |
-| 1 | Balance (home dashboard) + fix `/api/dashboard/stats` | ⏳ Next |
-| 2 | Orders | ☐ |
+| 1 | Balance (home dashboard) + fix `/api/dashboard/stats` | ✅ Done |
+| 2 | Orders | ⏳ Next |
 | 3 | Services + New Order / financing & installment calculator | ☐ |
 | 4 | Wallet & Credit (installments, history, invoices) | ☐ |
 | 5 | Support (ticketing) | ☐ |
@@ -75,8 +75,6 @@ Fixed:
       duplicate auth plugins (`auth.ts` + `auth-load.ts`) removed.
 
 To address:
-- [ ] **`/api/dashboard/stats` throws `PrismaClientValidationError`** (schema drift) → the
-      home page falls back to placeholders. Fix as part of Page 1 (balance).
 - [ ] Stale seed scripts reference fields not in the schema: `server/api/seed-rich.get.ts`,
       `seed-wallet.get.ts`, and `prisma/seed.js` (uses `name`/`status`/`USER`). Dev-only.
 - [ ] Pages still hardcode dark hex + USD + native `alert()`/`confirm()` until refactored
