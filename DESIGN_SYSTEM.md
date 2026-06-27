@@ -22,13 +22,20 @@ and `middleware: 'auth'`.
 
 ## 2. Brand & theme decisions
 
-- **Default theme: dark** (`colorMode.preference: 'dark'`), brand direction. The toolbar
-  `BaseThemeToggle` still switches to light — so every page must be built to work in both.
+Source of truth: the **Apex design system** the client provided (Claude Design export).
+Imported tokens/font live in the bundle; the values below are mirrored into `main.css`.
+
+- **Default theme: dark** (`colorMode.preference: 'dark'`). The app/dashboard uses the
+  Apex dark navy "ink" treatment; the marketing site is light. Toggle still works.
 - **Palette (set once in `main.css`):**
-  - `primary` → **indigo** — the accent/CTA colour that complements the navy base.
-  - `muted` → a custom **navy/charcoal** scale — every surface, border and neutral text.
-  - Re-theme the whole app by editing those token blocks; never hardcode hex.
-- **Currency: GBP (£)** via `useCurrency()`.
+  - `primary` → **electric violet `#7D53F2`** (brand accent: buttons, links, highlights).
+  - `muted` → warm-cool grays (light end) down to deep navy **ink** (`#0B1517` page /
+    `#16252A` card) on the dark end — the dashboard's surfaces.
+  - Re-theme the whole app by editing those two ramps; never hardcode hex.
+- **Fonts:** **Yellix** (display/headings + big numbers) via the `font-heading` utility;
+  **Inter** for body/UI. Yellix `.woff` files in `/public/fonts/yellix`.
+- **Currency: GBP (£)** via `useCurrency()` (design mocks show `$`; the brand is UK → £).
+- **Brand assets:** `apex-icon.svg` / `apex-wordmark-dark.svg` in `/public/brand`.
 
 ## 3. Conventions ("rebuilt properly")
 
