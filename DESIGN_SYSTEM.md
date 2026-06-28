@@ -61,8 +61,8 @@ native `alert()`, USD). When refactoring a page, bring it in line:
 | 0 | **Foundation** — tokens, dark default, `sidenav` cleanup, `useCurrency`, app.config | ✅ Done |
 | 0b | **Auth/infra fixes** — reload-logout, SWR cache, Prisma generate, duplicate code | ✅ Done |
 | 1 | Balance (home dashboard) + fix `/api/dashboard/stats` | ✅ Done |
-| 2 | Orders | ⏳ Next |
-| 3 | Services + New Order / financing & installment calculator | ☐ |
+| 2 | Orders | ☐ |
+| 3 | New Order / financing wizard (`services.vue`) — Apex Design redesign | ✅ Done |
 | 4 | Wallet & Credit (installments, history, invoices) | ☐ |
 | 5 | Support (ticketing) | ☐ |
 | 6 | Settings | ☐ |
@@ -82,10 +82,16 @@ Fixed:
       duplicate auth plugins (`auth.ts` + `auth-load.ts`) removed.
 
 To address:
+- [ ] **Hydration mismatch warnings** ("Hydration completed but contains mismatches") on
+      every dashboard page — pre-existing and global (also on the shipped Balance page), so
+      it lives in the shared chrome (toolbar / color-mode / i18n), not a single page. Run
+      down the SSR-vs-client diff in the `sidenav` layout + `DemoToolbar` and fix.
 - [ ] Stale seed scripts reference fields not in the schema: `server/api/seed-rich.get.ts`,
       `seed-wallet.get.ts`, and `prisma/seed.js` (uses `name`/`status`/`USER`). Dev-only.
 - [ ] Pages still hardcode dark hex + USD + native `alert()`/`confirm()` until refactored
-      (orders, services, wallet, support, settings, balance).
+      (orders, wallet, support, settings).
+- [ ] Credit-line, expense-split (balance) and the service "from" prices / order plan
+      catalogue (new order) are front-end placeholders — back them with real API/data models.
 - [ ] `orders.vue` formats prices in USD and has a hardcoded "Sarah Connor" project manager.
 - [ ] Mixed English / Persian inline comments across pages (cosmetic; standardise to English).
 - [ ] Local dev uses an Iran mirror in `.npmrc` that 403s intermittently; `registry.npmmirror.com`

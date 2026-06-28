@@ -1,481 +1,770 @@
 <script setup lang="ts">
 /**
- * Apex Project Estimator - Integrated Backend
- * -------------------------------------------
- * - Auto-fills user data from session.
- * - Submits complex order details to /api/orders.
- * - Handles loading states and redirects.
+ * New Order — Apex Design redesign (5-step order + financing wizard).
+ * Service → Plan → Payment (0% / 12-mo vs 1%·24-mo) → Details → Review & sign.
+ * Live order-summary rail with the financing breakdown. "Sign & start" creates a
+ * real PENDING order via /api/orders.
  */
-
-import { ref, reactive, computed, onMounted } from 'vue'
-
-// 1. Page Configuration
 definePageMeta({
-  title: 'Project Estimator',
+  title: 'New Order',
   layout: 'sidenav',
-  middleware: 'auth'
+  middleware: 'auth',
 })
 
-// 2. Composables
+const route = useRoute()
 const router = useRouter()
-const { user } = useUser()
+const { formatCurrency } = useCurrency()
+const toaster = useNuiToasts()
 
-// --- UI CONFIGURATION (Static Data for the Estimator) ---
-const categories = [
-  { 
-    id: 'web_dev', 
-    label: 'Web Development', 
-    desc: 'WordPress, React & Custom Code', 
-    icon: 'lucide:code-2', 
-    color: 'text-blue-400',
-    bg: 'bg-blue-500/10',
-    border_active: 'border-blue-500',
-    ring: 'ring-blue-500/20'
-  },
-  { 
-    id: 'marketing', 
-    label: 'Marketing & Ads', 
-    desc: 'SEO, PPC & Growth Hacking', 
-    icon: 'lucide:bar-chart-2', 
-    color: 'text-emerald-400',
-    bg: 'bg-emerald-500/10',
-    border_active: 'border-emerald-500',
-    ring: 'ring-emerald-500/20'
-  },
-  { 
-    id: 'web_design', 
-    label: 'UI/UX Design', 
-    desc: 'Visuals, Prototyping & Motion', 
-    icon: 'lucide:palette', 
-    color: 'text-pink-400',
-    bg: 'bg-pink-500/10',
-    border_active: 'border-pink-500',
-    ring: 'ring-pink-500/20'
-  },
-  { 
-    id: 'branding', 
-    label: 'Branding', 
-    desc: 'Logo, Identity & Strategy', 
-    icon: 'lucide:fingerprint', 
-    color: 'text-violet-400',
-    bg: 'bg-violet-500/10',
-    border_active: 'border-violet-500',
-    ring: 'ring-violet-500/20'
-  },
-]
+// ---- catalogue ----------------------------------------------------------
+interface Plan { id: string, name: string, base: number, tier: 0 | 1 | 2, popular?: boolean, desc: string, features: string[] }
 
-const subServices = {
-  web_dev: {
-    title: 'Development Plans',
-    options: [
-      { id: 'basic_wp', title: 'Basic WordPress', desc: 'Mobile friendly, Basic SEO, 6mo support', price: 499, unit: 'mo' },
-      { id: 'std_wp', title: 'Standard WordPress', desc: 'Custom UI/UX, Lead forms, 12mo support', price: 799, unit: 'mo' },
-      { id: 'vip_web', title: 'VIP Website Design', desc: 'React/Next.js, API Integrations, Priority', price: 0, unit: 'custom' },
-    ]
-  },
-  marketing: {
-    title: 'Growth Plans',
-    options: [
-      { id: 'basic_mkt', title: 'Basic (Starter Growth)', desc: 'GMB Setup, Basic PPC (Google/FB)', price: 499, unit: 'mo' },
-      { id: 'std_mkt', title: 'Standard (Best Value)', desc: 'Full SEO Strategy, Dedicated Manager', price: 899, unit: 'mo' },
-      { id: 'vip_mkt', title: 'VIP Plan', desc: 'Omnichannel Ads (TikTok/FB/Google)', price: 0, unit: 'custom' },
-    ]
-  },
-  web_design: {
-    title: 'Design Plans',
-    options: [
-      { id: 'basic_des', title: 'Basic (Starter)', desc: 'UX Research, UI Design, 1 Revision', price: 399, unit: 'mo' },
-      { id: 'std_des', title: 'Standard (Best Value)', desc: 'Animations, 3 Revisions, User Tracking', price: 699, unit: 'mo' },
-      { id: 'vip_des', title: 'VIP Plan', desc: 'Full Brand Strategy, Unlimited Revisions', price: 0, unit: 'custom' },
-    ]
-  },
-  branding: {
-    title: 'Identity Packages',
-    options: [
-      { id: 'logo', title: 'Logo Design', desc: 'Vector logo + guidelines', price: 600, unit: 'one-time' },
-      { id: 'full', title: 'Full Identity', desc: 'Logo, Social Kit, Stationery', price: 1500, unit: 'one-time' },
-    ]
-  }
+const services = [
+  { id: 'web', name: 'Web development', desc: 'WordPress, React & custom code', icon: 'lucide:code-2', tone: 'text-primary-400 bg-primary-500/14' },
+  { id: 'mkt', name: 'Marketing & ads', desc: 'SEO, PPC & growth', icon: 'lucide:megaphone', tone: 'text-[#EC6453] bg-[#EC6453]/14' },
+  { id: 'uiux', name: 'UI/UX design', desc: 'Product design & prototyping', icon: 'lucide:pen-tool', tone: 'text-primary-400 bg-primary-500/14' },
+  { id: 'brand', name: 'Branding', desc: 'Identity, logo & strategy', icon: 'lucide:target', tone: 'text-[#F2C14E] bg-[#D9A521]/14' },
+] as const
+
+const plansByService: Record<string, Plan[]> = {
+  web: [
+    { id: 'web-launch', name: 'Launch', base: 2400, tier: 0, desc: 'A polished one-page site to get you online fast.', features: ['Up to 3 sections', 'Mobile-first build', 'Basic SEO setup', '30 days of support'] },
+    { id: 'web-growth', name: 'Growth', base: 4800, tier: 1, popular: true, desc: 'A multi-page custom site built to convert visitors.', features: ['Up to 8 pages', 'Custom UI/UX design', 'Lead-capture forms', 'SEO + analytics', '90 days of support'] },
+    { id: 'web-scale', name: 'Scale', base: 9600, tier: 2, desc: 'A high-performance React/Next.js platform with integrations.', features: ['Unlimited pages', 'React / Next.js build', 'API & CRM integrations', 'Priority delivery', '12 months of support'] },
+  ],
+  mkt: [
+    { id: 'mkt-spark', name: 'Spark', base: 1800, tier: 0, desc: 'Kickstart demand with a focused single-channel campaign.', features: ['1 ad channel', 'Audience research', '5 ad creatives', 'Monthly report'] },
+    { id: 'mkt-momentum', name: 'Momentum', base: 3600, tier: 1, popular: true, desc: 'A multi-channel growth engine tuned for leads.', features: ['3 ad channels', 'Landing page', 'A/B testing', 'Weekly optimisation', 'Conversion tracking'] },
+    { id: 'mkt-dominate', name: 'Dominate', base: 7200, tier: 2, desc: 'Full-funnel growth with a dedicated strategist.', features: ['Unlimited channels', 'Dedicated strategist', 'Creative studio', 'Retargeting', 'Priority support'] },
+  ],
+  uiux: [
+    { id: 'ux-essential', name: 'Essential', base: 2400, tier: 0, desc: 'Clean, usable screens for your core flow.', features: ['Up to 6 screens', 'Wireframes', '1 revision round', 'Figma handoff'] },
+    { id: 'ux-product', name: 'Product', base: 4800, tier: 1, popular: true, desc: 'End-to-end product design with a clickable prototype.', features: ['Up to 20 screens', 'Interactive prototype', 'UX research', 'Design QA', 'Unlimited revisions'] },
+    { id: 'ux-system', name: 'Design system', base: 8400, tier: 2, desc: 'A scalable design system your team can build on.', features: ['Design system', 'Component library', 'Accessibility audit', 'Dev handoff', 'Ongoing support'] },
+  ],
+  brand: [
+    { id: 'br-identity', name: 'Identity', base: 1800, tier: 0, desc: 'The essentials to launch a memorable brand.', features: ['Logo suite', 'Colour & type', 'Brand guidelines (lite)', '3 concepts'] },
+    { id: 'br-studio', name: 'Studio', base: 3600, tier: 1, popular: true, desc: 'A complete brand kit across every touchpoint.', features: ['Full logo system', 'Brand guidelines', 'Business cards', 'Social-media kit', '2 revision rounds'] },
+    { id: 'br-signature', name: 'Signature', base: 7200, tier: 2, desc: 'Premium, end-to-end brand strategy & identity.', features: ['Brand strategy', 'Full identity system', 'Messaging & voice', 'Launch assets', 'Priority support'] },
+  ],
 }
 
-// --- STATE ---
-const currentStep = ref(0)
-const selectedCatId = ref('')
-const selectedOptionId = ref('')
-const budget = ref(1000)
-const isSubmitting = ref(false)
-const customerInfo = reactive({ name: '', email: '' })
+const tierIcon = ['lucide:zap', 'lucide:trending-up', 'lucide:award']
 
-// --- LOGIC ---
-// Auto-fill user data when page loads
+// Service-specific detail forms (data-driven so it stays DRY + reusable).
+interface Field { key: string, label: string, type: 'text' | 'url' | 'date' | 'select' | 'textarea' | 'checkboxes', placeholder?: string, options?: string[], boxes?: { key: string, label: string }[], full?: boolean }
+const formSchemas: Record<string, Field[]> = {
+  web: [
+    { key: 'title', label: 'Project name *', type: 'text', placeholder: 'e.g. Gold Store storefront', full: true },
+    { key: 'url', label: 'Current website', type: 'url', placeholder: 'https:// (optional)' },
+    { key: 'pages', label: 'Pages needed', type: 'select', options: ['1–3 pages', '4–8 pages', '9+ pages'] },
+    { key: 'tech', label: 'Tech preference', type: 'select', options: ['No preference', 'WordPress', 'React / Next.js'] },
+    { key: 'launch', label: 'Target launch', type: 'date' },
+    { key: 'notes', label: 'Anything else we should know?', type: 'textarea', placeholder: 'Goals, references, must-have features…', full: true },
+  ],
+  mkt: [
+    { key: 'title', label: 'Business name *', type: 'text', placeholder: 'e.g. Nitro LLC' },
+    { key: 'url', label: 'Landing / site URL', type: 'url', placeholder: 'https://' },
+    { key: 'budget', label: 'Monthly ad budget', type: 'select', options: ['Under £1,000', '£1,000 – £5,000', '£5,000+'] },
+    { key: 'channel', label: 'Primary channel', type: 'select', options: ['Google Ads', 'Meta (FB/IG)', 'TikTok', 'LinkedIn'] },
+    { key: 'goal', label: 'Main goal', type: 'select', options: ['More leads', 'More sales', 'Brand awareness'] },
+    { key: 'audience', label: 'Target audience', type: 'text', placeholder: 'Who are we reaching?' },
+  ],
+  uiux: [
+    { key: 'title', label: 'Product name *', type: 'text', placeholder: 'e.g. Apex Vision app' },
+    { key: 'platform', label: 'Platform', type: 'select', options: ['Web app', 'iOS', 'Android', 'Web + mobile'] },
+    { key: 'screens', label: 'Approx. screens', type: 'select', options: ['Up to 6', '7–20', '20+'] },
+    { key: 'files', label: 'Existing design files?', type: 'select', options: ['No, starting fresh', 'Yes, in Figma', 'Yes, other format'] },
+    { key: 'research', label: 'UX research needed?', type: 'select', options: ['Yes, please', 'No, we have insights'] },
+    { key: 'url', label: 'Reference / inspo link', type: 'url', placeholder: 'https:// (optional)' },
+  ],
+  brand: [
+    { key: 'title', label: 'Company name *', type: 'text', placeholder: 'e.g. Okano' },
+    { key: 'industry', label: 'Industry', type: 'text', placeholder: 'e.g. Fintech, retail…' },
+    { key: 'logo', label: 'Have a logo already?', type: 'select', options: ['No, starting fresh', 'Yes, needs a refresh'] },
+    { key: 'adjectives', label: 'Brand in 3 words', type: 'text', placeholder: 'e.g. bold, warm, premium' },
+    { key: 'deliverables', label: 'Deliverables needed', type: 'checkboxes', full: true, boxes: [{ key: 'd_logo', label: 'Logo suite' }, { key: 'd_guide', label: 'Brand guidelines' }, { key: 'd_cards', label: 'Business cards' }, { key: 'd_social', label: 'Social-media kit' }] },
+  ],
+}
+
+// ---- state --------------------------------------------------------------
+const STEP_LABELS = ['Service', 'Plan', 'Payment', 'Details', 'Contract']
+const step = ref(1)
+const maxStep = ref(1)
+const serviceId = ref<string | null>(null)
+const planId = ref<string | null>(null)
+const term = ref<'12' | '24'>('24')
+const form = reactive<Record<string, any>>({})
+const agreed = ref(false)
+const signName = ref('')
+const hasDrawn = ref(false)
+const showErr = ref(false)
+const placing = ref(false)
+const orderId = ref('')
+const statusStarted = ref(false)
+
+// Preselect service from ?service= (links from the home page).
+const QUERY_MAP: Record<string, string> = { web: 'web', development: 'web', dev: 'web', marketing: 'mkt', mkt: 'mkt', seo: 'mkt', uiux: 'uiux', design: 'uiux', branding: 'brand', brand: 'brand' }
 onMounted(() => {
-  if (user.value) {
-    customerInfo.name = user.value.name || ''
-    customerInfo.email = user.value.email || ''
-  }
+  const q = String(route.query.service || '').toLowerCase()
+  if (QUERY_MAP[q])
+    serviceId.value = QUERY_MAP[q]
 })
 
-const activeCategory = computed(() => categories.find(c => c.id === selectedCatId.value))
-const activeSubServices = computed(() => selectedCatId.value ? subServices[selectedCatId.value as keyof typeof subServices] : null)
-
-// Invoice Calculation
-const invoiceItems = computed(() => {
-  const items = []
-  if (activeCategory.value) {
-    items.push({ title: `${activeCategory.value.label}`, type: 'Category', price: 0 })
-  }
-  
-  if (activeSubServices.value && selectedOptionId.value) {
-    const found = activeSubServices.value.options.find(o => o.id === selectedOptionId.value)
-    if (found) {
-      items.push({ 
-        title: found.title, 
-        type: found.price === 0 ? 'Custom Quote' : `Plan`, 
-        price: found.price 
-      })
-    }
-  }
-  return items
-})
-
-const subTotal = computed(() => invoiceItems.value.reduce((acc, item) => acc + item.price, 0))
-// If budget slider is used for Ads, we add it to total, otherwise strictly project price
-const totalDue = computed(() => subTotal.value + (activeCategory.value?.id === 'marketing' ? budget.value : 0))
-
-const invoiceNumber = `INV-${Math.floor(1000 + Math.random() * 9000)}`
-const todayDate = new Date().toLocaleDateString('en-GB')
-
-const formatCurrency = (val: number) => {
-  if (val === 0) return 'Contact for Quote'
-  return new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP', maximumFractionDigits: 0 }).format(val)
+// ---- pricing ------------------------------------------------------------
+function amort(b: number) {
+  const r = 0.01
+  const n = 24
+  return b * r / (1 - (1 + r) ** -n)
 }
 
-// --- NAVIGATION & SUBMISSION ---
-const selectCategory = (id: string) => { selectedCatId.value = id; selectedOptionId.value = '' }
+const service = computed(() => services.find(s => s.id === serviceId.value) || null)
+const serviceName = computed(() => service.value?.name ?? '')
+const plans = computed(() => plansByService[serviceId.value ?? ''] ?? [])
+const plan = computed(() => plans.value.find(p => p.id === planId.value) || null)
+const base = computed(() => plan.value?.base ?? 0)
+const m12 = computed(() => base.value / 12)
+const m24 = computed(() => amort(base.value))
+const total24 = computed(() => m24.value * 24)
+const interest24 = computed(() => total24.value - base.value)
+const monthly = computed(() => (term.value === '12' ? m12.value : m24.value))
+const total = computed(() => (term.value === '12' ? base.value : total24.value))
+const termLabel = computed(() => (term.value === '12' ? '12 months · 0%' : '24 months · 1%/mo'))
+const monthsText = computed(() => (term.value === '12' ? '12 monthly payments' : '24 monthly payments'))
+const money = (n: number) => formatCurrency(n)
 
-const prev = () => { if (currentStep.value > 0) currentStep.value-- }
+const fields = computed(() => formSchemas[serviceId.value ?? ''] ?? [])
 
-const handleNextOrSubmit = async () => {
-  // A. Navigation Logic
-  if (currentStep.value < 2) {
-    currentStep.value++
+// ---- step flow ----------------------------------------------------------
+const canContinue = computed(() => {
+  if (step.value === 1)
+    return !!serviceId.value
+  if (step.value === 2)
+    return !!planId.value
+  return true
+})
+const continueLabel = computed(() => (step.value === 4 ? 'Review contract' : 'Continue'))
+
+function selectService(id: string) {
+  if (serviceId.value !== id)
+    planId.value = null
+  serviceId.value = id
+}
+function goStep(n: number) {
+  if (n <= maxStep.value)
+    step.value = n
+}
+function next() {
+  if (step.value === 1 && !serviceId.value)
+    return
+  if (step.value === 2 && !planId.value)
+    return
+  if (step.value === 4 && !String(form.title || '').trim()) {
+    showErr.value = true
     return
   }
+  showErr.value = false
+  step.value = Math.min(step.value + 1, 5)
+  maxStep.value = Math.max(maxStep.value, step.value)
+}
+function back() {
+  step.value = Math.max(1, step.value - 1)
+}
 
-  // B. Submission Logic (Step 3)
-  if (isSubmitting.value) return
-  isSubmitting.value = true
+// ---- signature ----------------------------------------------------------
+const sigCanvas = ref<HTMLCanvasElement | null>(null)
+let drawing = false
+let lastPt: [number, number] | null = null
+function sigPos(e: PointerEvent): [number, number] {
+  const c = sigCanvas.value!
+  const r = c.getBoundingClientRect()
+  return [(e.clientX - r.left) * (c.width / r.width), (e.clientY - r.top) * (c.height / r.height)]
+}
+function sigDown(e: PointerEvent) {
+  const c = sigCanvas.value
+  if (!c)
+    return
+  c.setPointerCapture?.(e.pointerId)
+  drawing = true
+  lastPt = sigPos(e)
+  hasDrawn.value = true
+}
+function sigMove(e: PointerEvent) {
+  if (!drawing || !sigCanvas.value || !lastPt)
+    return
+  const ctx = sigCanvas.value.getContext('2d')!
+  const p = sigPos(e)
+  ctx.strokeStyle = '#fff'
+  ctx.lineWidth = 2.6
+  ctx.lineCap = 'round'
+  ctx.lineJoin = 'round'
+  ctx.beginPath()
+  ctx.moveTo(lastPt[0], lastPt[1])
+  ctx.lineTo(p[0], p[1])
+  ctx.stroke()
+  lastPt = p
+}
+function sigUp() {
+  drawing = false
+}
+function clearSig() {
+  const c = sigCanvas.value
+  if (c)
+    c.getContext('2d')!.clearRect(0, 0, c.width, c.height)
+  hasDrawn.value = false
+}
 
+const canSign = computed(() => agreed.value && (hasDrawn.value || signName.value.trim().length > 1))
+
+async function placeOrder() {
+  if (!canSign.value || placing.value)
+    return
+  placing.value = true
   try {
-    // 1. Prepare Data Payload
-    const selectedPlan = activeSubServices.value?.options.find(o => o.id === selectedOptionId.value)
-    
-    // Construct a readable description for the backend
-    const descriptionLines = [
-      `Generated via Project Estimator`,
-      `Service: ${activeCategory.value?.label}`,
-      `Plan: ${selectedPlan?.title} (${selectedPlan?.desc})`,
-      `Client Name: ${customerInfo.name}`,
-      `Email: ${customerInfo.email}`,
-      `Estimated Budget Setting: ${formatCurrency(budget.value)}`
-    ]
-
-    // 2. Send to Backend API
-    await $fetch('/api/orders', {
+    const res: any = await $fetch('/api/orders', {
       method: 'POST',
-      body: {
-        title: `${activeCategory.value?.label} - ${selectedPlan?.title}`,
-        category: activeCategory.value?.label,
-        budget: totalDue.value, // Send final calculated price
-        description: descriptionLines.join('\n')
-      }
+      body: { title: String(form.title || serviceName.value), category: serviceName.value, budget: base.value },
     })
-
-    // 3. Success Redirect
-    router.push('/dashboards/orders')
-
-  } catch (error) {
-    console.error(error)
-    alert('Something went wrong. Please try again.')
-  } finally {
-    isSubmitting.value = false
+    const id = res?.project?.id
+    orderId.value = id ? `APX-${String(id).replace(/-/g, '').slice(0, 4).toUpperCase()}` : `APX-${Math.floor(1000 + Math.random() * 9000)}`
+    step.value = 6
+    setTimeout(() => {
+      statusStarted.value = true
+    }, 1500)
+  }
+  catch (e: any) {
+    toaster.add({ title: 'Could not place order', description: e?.data?.message || 'Please try again in a moment.', icon: 'lucide:alert-triangle', progress: true })
+  }
+  finally {
+    placing.value = false
   }
 }
+function resetFlow() {
+  step.value = 1
+  maxStep.value = 1
+  serviceId.value = null
+  planId.value = null
+  term.value = '24'
+  agreed.value = false
+  signName.value = ''
+  hasDrawn.value = false
+  showErr.value = false
+  orderId.value = ''
+  statusStarted.value = false
+  Object.keys(form).forEach(k => delete form[k])
+}
+
+const radioBase = 'flex size-[22px] shrink-0 items-center justify-center rounded-full transition'
 </script>
 
 <template>
-  <div class="w-full min-h-screen bg-[#0f111a] font-sans text-gray-200 p-4 md:p-8">
-    
-    <div class="max-w-[1600px] mx-auto">
-      
-      <div class="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
-        <div>
-          <span class="text-xs font-bold text-primary-500 uppercase tracking-widest mb-1 block">Project Estimator</span>
-          <h1 class="text-3xl md:text-4xl font-light text-white">
-            Start a <span class="font-bold text-transparent bg-clip-text bg-gradient-to-r from-primary-400 to-purple-500">Project</span>
-          </h1>
-        </div>
-        
-        <div class="inline-flex bg-[#161925] border border-white/5 rounded-full p-1">
-          <button v-for="(step, i) in ['Service', 'Plan', 'Finalize']" :key="i"
-                  @click="i < currentStep ? currentStep = i : null"
-                  class="px-6 py-2 rounded-full text-xs font-bold uppercase tracking-wider transition-all duration-300"
-                  :class="currentStep === i ? 'bg-primary-600 text-white shadow-lg' : 'text-gray-500 hover:text-white'">
-            {{ step }}
-          </button>
-        </div>
+  <div class="mx-auto flex max-w-[1180px] flex-col gap-6 pb-12 font-sans text-muted-400">
+    <!-- secured-checkout strip -->
+    <div class="flex items-center justify-between gap-4">
+      <div class="flex items-center gap-2 text-[13.5px] text-muted-500">
+        <span>Services</span><span class="opacity-50">/</span><span class="font-semibold text-white">New order</span>
       </div>
-
-      <div class="flex flex-col xl:flex-row gap-8 items-start">
-        
-        <div class="flex-1 w-full min-w-0">
-          <div class="bg-[#161925] border border-white/5 rounded-3xl p-6 md:p-10 shadow-2xl relative overflow-hidden min-h-[600px] flex flex-col">
-            
-            <Transition name="fade" mode="out-in">
-              <div v-if="currentStep === 0" class="flex-1 flex flex-col h-full">
-                <div class="mb-8">
-                  <h2 class="text-2xl font-medium text-white">Select a Service</h2>
-                  <p class="text-gray-500 mt-1">What expertise do you need?</p>
-                </div>
-
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
-                  <div v-for="cat in categories" :key="cat.id" @click="selectCategory(cat.id)"
-                       class="group cursor-pointer relative h-full">
-                    
-                    <div class="relative h-full p-6 rounded-2xl border-2 transition-all duration-200 flex flex-col gap-4 bg-[#1c2030] hover:bg-[#23273a]"
-                         :class="selectedCatId === cat.id 
-                           ? `${cat.border_active} bg-[#1f2336] ring-1 ${cat.ring}` 
-                           : 'border-white/5 hover:border-white/10'">
-                      
-                      <div class="flex justify-between items-start">
-                        <div class="w-12 h-12 rounded-xl flex items-center justify-center transition-transform group-hover:scale-110"
-                             :class="`${cat.bg} ${cat.color}`">
-                          <Icon :name="cat.icon" class="w-6 h-6" />
-                        </div>
-                        
-                        <div class="w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all"
-                             :class="selectedCatId === cat.id ? 'bg-primary-500 border-primary-500 text-white' : 'border-white/10 opacity-30'">
-                          <Icon name="lucide:check" class="w-3.5 h-3.5" v-if="selectedCatId === cat.id" />
-                        </div>
-                      </div>
-
-                      <div class="mt-2">
-                        <h3 class="text-lg font-bold text-white">{{ cat.label }}</h3>
-                        <p class="text-xs text-gray-500 mt-1 leading-relaxed">{{ cat.desc }}</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div v-else-if="currentStep === 1" class="flex-1 flex flex-col h-full">
-                <div class="flex items-center justify-between mb-8">
-                  <div>
-                    <h2 class="text-2xl font-medium text-white">Select a Plan</h2>
-                    <p class="text-gray-500 mt-1 text-sm">For <span class="font-bold text-primary-500">{{ activeCategory?.label }}</span></p>
-                  </div>
-                  <button @click="prev" class="text-xs font-bold uppercase text-gray-500 hover:text-white transition-colors">Change Service</button>
-                </div>
-
-                <div class="space-y-4">
-                  <div v-if="activeSubServices" class="grid gap-4">
-                    <label v-for="opt in activeSubServices.options" :key="opt.id"
-                           class="relative flex flex-col sm:flex-row sm:items-center p-5 rounded-2xl border-2 cursor-pointer transition-all bg-[#1c2030] hover:bg-[#23273a]"
-                           :class="selectedOptionId === opt.id 
-                             ? 'border-primary-500 ring-1 ring-primary-500/20' 
-                             : 'border-white/5 hover:border-white/10'">
-                      
-                      <input type="radio" :value="opt.id" v-model="selectedOptionId" class="peer sr-only" />
-
-                      <div class="w-12 h-12 rounded-xl flex items-center justify-center mr-5 mb-4 sm:mb-0 transition-colors shrink-0"
-                           :class="selectedOptionId === opt.id ? 'bg-primary-500 text-white' : 'bg-white/5 text-gray-400'">
-                        <Icon v-if="opt.price === 0" name="lucide:crown" class="w-6 h-6" />
-                        <Icon v-else name="lucide:zap" class="w-6 h-6" />
-                      </div>
-
-                      <div class="flex-1">
-                        <div class="flex items-center gap-2 mb-1">
-                          <span class="font-bold text-white text-base sm:text-lg">{{ opt.title }}</span>
-                          <span v-if="opt.price === 0" class="px-2 py-0.5 rounded bg-amber-500/10 text-amber-500 text-[10px] font-bold uppercase border border-amber-500/20">VIP</span>
-                        </div>
-                        <p class="text-sm text-gray-500 leading-relaxed max-w-md">{{ opt.desc }}</p>
-                      </div>
-
-                      <div class="text-right pl-0 sm:pl-4 mt-4 sm:mt-0 min-w-[100px] flex sm:block justify-between items-center w-full sm:w-auto">
-                        <div>
-                          <span class="block font-bold font-mono text-white" :class="opt.price === 0 ? 'text-sm' : 'text-xl'">
-                            {{ formatCurrency(opt.price) }}
-                          </span>
-                          <span v-if="opt.price > 0" class="text-[10px] font-bold text-gray-500 uppercase block mt-0.5">Per {{ opt.unit }}</span>
-                        </div>
-                        
-                        <div class="sm:mt-2 flex justify-end">
-                          <div class="w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors"
-                               :class="selectedOptionId === opt.id ? 'border-primary-500 bg-primary-500' : 'border-white/10'">
-                            <div class="w-2 h-2 bg-white rounded-full scale-0 transition-transform" :class="selectedOptionId === opt.id ? 'scale-100' : ''"></div>
-                          </div>
-                        </div>
-                      </div>
-                    </label>
-                  </div>
-                </div>
-              </div>
-
-              <div v-else-if="currentStep === 2" class="flex-1 flex flex-col h-full">
-                <div class="mb-8">
-                  <h2 class="text-2xl font-medium text-white">Finalize Details</h2>
-                  <p class="text-gray-500 mt-1">Set your budget & contact info.</p>
-                </div>
-
-                <div class="bg-black/40 rounded-2xl p-8 text-white mb-8 border border-white/5 relative overflow-hidden">
-                  <div class="relative z-10">
-                    <div class="flex justify-between items-end mb-6">
-                      <div>
-                        <p class="text-xs font-bold uppercase text-gray-400 mb-2">Ad Spend / Budget</p>
-                        <div class="text-4xl font-black font-mono tracking-tight">{{ formatCurrency(budget) }}</div>
-                      </div>
-                      <Icon name="lucide:trending-up" class="w-8 h-8 text-primary-500" />
-                    </div>
-                    
-                    <div class="relative w-full h-3 rounded-full bg-white/10">
-                       <input type="range" v-model.number="budget" min="100" max="30000" step="100" 
-                           class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20" />
-                       <div class="absolute top-0 left-0 h-full bg-primary-500 rounded-full" :style="{width: `${((budget - 100) / 29900) * 100}%`}"></div>
-                       <div class="absolute top-1/2 -translate-y-1/2 w-5 h-5 bg-white rounded-full shadow-lg pointer-events-none transition-all" 
-                            :style="{left: `calc(${((budget - 100) / 29900) * 100}% - 10px)`}"></div>
-                    </div>
-
-                    <div class="flex justify-between mt-3 text-[10px] text-gray-500 font-mono">
-                      <span>£100</span><span>£30,000+</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div class="group">
-                    <label class="block text-xs font-bold text-gray-500 uppercase mb-2 ml-1">Full Name</label>
-                    <div class="relative">
-                      <input type="text" v-model="customerInfo.name" class="w-full bg-[#1c2030] border border-white/10 rounded-xl px-4 py-3.5 pl-11 text-sm focus:border-primary-500 outline-none transition-all text-white placeholder-gray-600" placeholder="John Doe" />
-                      <Icon name="lucide:user" class="absolute left-3.5 top-3.5 w-5 h-5 text-gray-500" />
-                    </div>
-                  </div>
-                  <div class="group">
-                    <label class="block text-xs font-bold text-gray-500 uppercase mb-2 ml-1">Email Address</label>
-                    <div class="relative">
-                      <input type="email" v-model="customerInfo.email" class="w-full bg-[#1c2030] border border-white/10 rounded-xl px-4 py-3.5 pl-11 text-sm focus:border-primary-500 outline-none transition-all text-white placeholder-gray-600" placeholder="email@company.com" />
-                      <Icon name="lucide:mail" class="absolute left-3.5 top-3.5 w-5 h-5 text-gray-500" />
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </Transition>
-
-            <div class="mt-auto pt-8 flex justify-end gap-3 border-t border-white/5">
-              <button v-if="currentStep > 0" @click="prev" class="px-6 py-3 rounded-xl text-xs font-bold uppercase tracking-wider border border-white/10 hover:bg-white/5 text-gray-400 hover:text-white transition-colors">Back</button>
-              <button 
-  @click="handleNextOrSubmit" 
-  :disabled="(currentStep === 0 && !selectedCatId) || isSubmitting" 
-  class="px-8 py-3 rounded-xl bg-primary-600 text-white text-xs font-bold uppercase tracking-wider shadow-lg hover:bg-primary-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
->
-  <Icon v-if="isSubmitting" name="lucide:loader" class="w-4 h-4 animate-spin" />
-  <span>{{ currentStep === 2 ? (isSubmitting ? 'Processing...' : 'Send Request') : 'Continue' }}</span>
-</button>
-            </div>
-          </div>
-        </div>
-
-        <div class="w-full xl:w-[380px] shrink-0">
-          <div class="sticky top-8">
-            <div class="bg-[#161925] rounded-2xl shadow-xl overflow-hidden border border-white/5">
-              
-              <div class="p-6 border-b border-white/5 bg-[#1c2030]">
-                <div class="flex justify-between items-start mb-4">
-                  <div class="flex items-center gap-2">
-                    <div class="w-8 h-8 bg-white rounded-lg flex items-center justify-center text-black">
-                      <Icon name="lucide:command" class="w-4 h-4" />
-                    </div>
-                    <span class="font-black text-lg tracking-tight text-white">INVOICE</span>
-                  </div>
-                  <div class="text-right">
-                    <p class="text-[10px] font-bold text-gray-500 uppercase">Ref #</p>
-                    <p class="font-mono text-xs font-bold text-white">{{ invoiceNumber }}</p>
-                  </div>
-                </div>
-                <div class="flex justify-between items-center">
-                   <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-green-500/10 text-green-400 uppercase tracking-wide">Estimate</span>
-                   <p class="text-xs text-gray-500 font-medium">{{ todayDate }}</p>
-                </div>
-              </div>
-
-              <div class="p-6">
-                <div class="flex justify-between mb-6 pb-6 border-b border-dashed border-white/10 text-xs">
-                  <div>
-                    <span class="block font-bold text-gray-500 uppercase mb-1">Billed To</span>
-                    <span class="block font-bold text-white truncate">{{ customerInfo.name || 'Guest Client' }}</span>
-                    <span class="block text-gray-500 mt-0.5 truncate">{{ customerInfo.email || 'email@example.com' }}</span>
-                  </div>
-                  <div class="text-right">
-                    <span class="block font-bold text-gray-500 uppercase mb-1">Date</span>
-                    <span class="block font-mono text-gray-300">{{ todayDate }}</span>
-                  </div>
-                </div>
-
-                <div class="mb-6 bg-[#11131d] rounded-xl border border-white/5 overflow-hidden">
-                  <div class="flex justify-between text-[10px] font-bold text-gray-500 uppercase tracking-wider px-4 py-3 border-b border-white/5">
-                    <span>Description</span>
-                    <span>Amount</span>
-                  </div>
-                  
-                  <div class="max-h-[300px] overflow-y-auto">
-                    <template v-if="invoiceItems.length">
-                      <div v-for="(item, i) in invoiceItems" :key="i" class="flex justify-between px-4 py-3 border-b border-white/5 last:border-0 text-xs">
-                        <div class="pr-2">
-                          <span class="font-bold text-gray-200 block">{{ item.title }}</span>
-                          <span class="text-[10px] text-gray-500">{{ item.type }}</span>
-                        </div>
-                        <span class="font-mono font-medium text-gray-300 whitespace-nowrap">{{ formatCurrency(item.price) }}</span>
-                      </div>
-                    </template>
-                    <div v-else class="p-8 text-center text-xs text-gray-500 italic">No items selected</div>
-                  </div>
-                  
-                  <div class="px-4 py-3 bg-[#1c2030] border-t border-white/5 flex justify-between items-center text-xs">
-                    <span class="font-bold text-primary-400 flex items-center gap-1.5">
-                      <Icon name="lucide:plus" class="w-3 h-3" /> Ad Spend
-                    </span>
-                    <span class="font-mono font-bold text-white">{{ formatCurrency(budget) }}</span>
-                  </div>
-                </div>
-
-                <div class="flex justify-between items-end border-t border-white/5 pt-4">
-                  <div>
-                    <span class="block text-[10px] font-bold text-gray-500 uppercase">Total Due</span>
-                    <span class="text-xs text-gray-400">Excl. Tax</span>
-                  </div>
-                  <span class="text-3xl font-black text-white tracking-tighter">{{ formatCurrency(totalDue) }}</span>
-                </div>
-              </div>
-
-              <div class="grid grid-cols-2 border-t border-white/5 bg-[#1c2030]">
-                <button class="py-4 text-xs font-bold text-gray-400 hover:text-white transition-colors border-r border-white/5 flex items-center justify-center gap-2 hover:bg-white/5">
-                  <Icon name="lucide:printer" class="w-3.5 h-3.5" /> Print
-                </button>
-                <button class="py-4 text-xs font-bold text-primary-500 hover:text-primary-400 transition-colors flex items-center justify-center gap-2 hover:bg-primary-500/10">
-                  <Icon name="lucide:download" class="w-3.5 h-3.5" /> PDF
-                </button>
-              </div>
-
-            </div>
-          </div>
-        </div>
-
-      </div>
+      <span class="inline-flex items-center gap-1.5 rounded-full bg-[#22B07D]/12 px-3 py-1.5 text-[12.5px] font-semibold text-[#22B07D]"><Icon name="lucide:shield-check" class="size-3.5" />Secured checkout</span>
     </div>
+
+    <!-- title -->
+    <div>
+      <div class="mb-1.5 text-xs font-bold tracking-[0.06em] text-primary-400">
+        NEW ORDER
+      </div>
+      <h1 class="font-heading text-[34px] font-extrabold leading-[1.05] tracking-[-0.02em] text-white">
+        Start your <span class="text-primary-400">project</span>
+      </h1>
+    </div>
+
+    <!-- stepper -->
+    <div role="list" aria-label="Progress" class="flex flex-wrap items-center gap-1 py-1.5">
+      <template v-for="(label, i) in STEP_LABELS" :key="label">
+        <div v-if="i > 0" class="h-0.5 w-[30px] shrink-0 rounded" :class="(i + 1) <= step ? 'bg-primary-500' : 'bg-white/10'" />
+        <button
+          type="button" role="listitem" :disabled="(i + 1) > maxStep"
+          class="inline-flex items-center gap-2.5 rounded-[10px] px-1.5 py-1 enabled:cursor-pointer"
+          @click="goStep(i + 1)"
+        >
+          <span
+            class="flex size-[26px] shrink-0 items-center justify-center rounded-full font-heading text-[12.5px] font-bold transition"
+            :class="[
+              (i + 1) <= step ? 'bg-primary-500 text-white' : 'border border-white/10 bg-white/5 text-muted-500',
+              (i + 1) === step ? 'ring-4 ring-primary-500/20' : '',
+            ]"
+          >
+            <Icon v-if="(i + 1) < step" name="lucide:check" class="size-3.5" />
+            <span v-else>{{ i + 1 }}</span>
+          </span>
+          <span class="text-[13.5px]" :class="(i + 1) === step ? 'font-bold text-white' : (i + 1) < step ? 'font-medium text-muted-400' : 'font-medium text-muted-500'">{{ label }}</span>
+        </button>
+      </template>
+    </div>
+
+    <!-- content + rail -->
+    <div class="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_344px]">
+      <!-- ===================== LEFT: STEP CONTENT ===================== -->
+      <div>
+        <!-- STEP 1 — SERVICE -->
+        <section v-if="step === 1" class="rounded-[28px] border border-white/10 bg-muted-800 p-7">
+          <h2 class="font-heading text-[22px] font-bold tracking-[-0.01em] text-white">
+            What can we build for you?
+          </h2>
+          <p class="mb-6 mt-1.5 text-[14.5px] text-muted-400">
+            Choose the service you need. You'll pick a plan and a payment schedule next.
+          </p>
+          <div class="grid gap-4 sm:grid-cols-2">
+            <button
+              v-for="svc in services" :key="svc.id"
+              type="button" :aria-pressed="serviceId === svc.id"
+              class="relative flex min-h-[158px] flex-col rounded-[20px] border bg-white/[0.02] p-[22px] text-left transition"
+              :class="serviceId === svc.id ? 'border-primary-500 ring-4 ring-primary-500/15' : 'border-white/10 hover:border-white/15'"
+              @click="selectService(svc.id)"
+            >
+              <div class="mb-auto flex items-center justify-between">
+                <span class="flex size-12 items-center justify-center rounded-[13px]" :class="svc.tone"><Icon :name="svc.icon" class="size-[23px]" /></span>
+                <span v-if="serviceId === svc.id" class="flex size-[26px] items-center justify-center rounded-full bg-primary-500 text-white"><Icon name="lucide:check" class="size-[15px]" /></span>
+              </div>
+              <div class="mt-[18px] font-heading text-[19px] font-bold text-white">
+                {{ svc.name }}
+              </div>
+              <div class="mt-1 text-[13.5px] text-muted-500">
+                {{ svc.desc }}
+              </div>
+            </button>
+          </div>
+        </section>
+
+        <!-- STEP 2 — PLAN -->
+        <section v-else-if="step === 2" class="rounded-[28px] border border-white/10 bg-muted-800 p-7">
+          <div class="mb-1.5 flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <h2 class="font-heading text-[22px] font-bold tracking-[-0.01em] text-white">
+                Choose your plan
+              </h2>
+              <p class="mt-1.5 text-[14.5px] text-muted-400">
+                For <strong class="font-semibold text-primary-400">{{ serviceName }}</strong> · prices shown as the lowest monthly over 24 months.
+              </p>
+            </div>
+            <button type="button" class="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3.5 py-2 text-[13px] font-semibold text-white transition hover:border-white/15" @click="goStep(1)">
+              <Icon name="lucide:arrow-left" class="size-3.5" />Change service
+            </button>
+          </div>
+          <div class="mt-5 grid gap-4 md:grid-cols-3">
+            <button
+              v-for="p in plans" :key="p.id"
+              type="button" :aria-pressed="planId === p.id"
+              class="relative flex flex-col rounded-[20px] border p-5 text-left transition"
+              :class="planId === p.id ? 'border-primary-500 bg-primary-500/[0.06] ring-4 ring-primary-500/15' : p.popular ? 'border-primary-500/30 bg-white/[0.02]' : 'border-white/10 bg-white/[0.02] hover:border-white/15'"
+              @click="planId = p.id"
+            >
+              <span v-if="p.popular" class="absolute -top-[11px] left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-gradient-to-r from-primary-400 to-primary-600 px-3 py-[5px] text-[10.5px] font-extrabold tracking-[0.05em] text-white shadow-[0_6px_16px_rgba(125,83,242,.4)]">MOST POPULAR</span>
+              <div class="flex items-center justify-between">
+                <span class="flex size-[42px] items-center justify-center rounded-[11px] bg-primary-500/14 text-primary-400"><Icon :name="tierIcon[p.tier]" class="size-[21px]" /></span>
+                <span :class="[radioBase, planId === p.id ? 'bg-primary-500' : 'border-2 border-white/15']"><span v-if="planId === p.id" class="size-2.5 rounded-full bg-white" /></span>
+              </div>
+              <div class="mt-4 font-heading text-[20px] font-bold tracking-[-0.01em] text-white">
+                {{ p.name }}
+              </div>
+              <div class="mt-1.5 min-h-[54px] text-[13px] leading-[1.5] text-muted-400">
+                {{ p.desc }}
+              </div>
+              <div class="mt-1.5 flex items-baseline gap-1.5">
+                <span class="font-heading text-[30px] font-extrabold tracking-[-0.02em] text-white tabular-nums">{{ money(amort(p.base)) }}</span>
+                <span class="text-[13px] text-muted-500">/mo</span>
+              </div>
+              <div class="mt-0.5 text-xs text-muted-500">
+                24 monthly payments · {{ money(p.base) }} total project
+              </div>
+              <div class="my-4 h-px bg-white/10" />
+              <div class="flex flex-col gap-2.5">
+                <div v-for="f in p.features" :key="f" class="flex items-start gap-2.5 text-[13px] text-muted-400">
+                  <Icon name="lucide:check" class="mt-0.5 size-[15px] shrink-0 text-[#22B07D]" />{{ f }}
+                </div>
+              </div>
+            </button>
+          </div>
+        </section>
+
+        <!-- STEP 3 — PAYMENT -->
+        <section v-else-if="step === 3" class="flex flex-col gap-[18px]">
+          <div class="relative overflow-hidden rounded-[28px] border border-primary-500/30 p-6" style="background: linear-gradient(135deg, #241846, #16252A 75%);">
+            <div class="pointer-events-none absolute -top-12 right-10 size-52 rounded-full opacity-45 blur-[60px]" style="background: radial-gradient(circle at 50% 38%, #9b79f6 0%, #7d53f2 55%, #6c40e8 100%);" />
+            <div class="relative flex flex-wrap items-center gap-6">
+              <div class="min-w-[240px] flex-1">
+                <div class="mb-2 text-xs font-bold tracking-[0.05em] text-primary-200">
+                  PAY FROM PROFITS
+                </div>
+                <h2 class="font-heading text-[26px] font-extrabold leading-[1.12] tracking-[-0.02em] text-white">
+                  £0 today. Your project starts immediately.
+                </h2>
+              </div>
+              <div class="flex flex-wrap gap-6">
+                <div v-for="b in [{ t: 'No deposit', s: '£0 down payment' }, { t: 'Start now', s: 'Work begins today' }, { t: 'Cancel anytime', s: 'Before work starts' }]" :key="b.t" class="flex items-center gap-2.5">
+                  <span class="flex size-[34px] items-center justify-center rounded-full bg-[#22B07D]/18 text-[#22B07D]"><Icon name="lucide:check" class="size-[17px]" /></span>
+                  <span class="text-[13.5px] font-medium text-white">{{ b.t }}<br><span class="text-xs text-primary-200">{{ b.s }}</span></span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="rounded-[28px] border border-white/10 bg-muted-800 p-7">
+            <h3 class="font-heading text-[20px] font-bold tracking-[-0.01em] text-white">
+              Choose how you'd like to pay
+            </h3>
+            <p class="mb-5 text-sm text-muted-400">
+              Spread the cost of your <strong class="font-semibold text-white">{{ plan?.name }}</strong> plan. Switch anytime before signing.
+            </p>
+            <div class="grid gap-4 sm:grid-cols-2">
+              <!-- 12 months -->
+              <button type="button" :aria-pressed="term === '12'" class="relative flex flex-col rounded-[20px] border p-[22px] text-left transition" :class="term === '12' ? 'border-primary-500 bg-primary-500/[0.06] ring-4 ring-primary-500/15' : 'border-white/10 bg-white/[0.02] hover:border-white/15'" @click="term = '12'">
+                <div class="flex items-center justify-between">
+                  <span class="rounded-full bg-[#22B07D]/16 px-2.5 py-[5px] text-[11px] font-extrabold tracking-[0.05em] text-[#22B07D]">0% INTEREST</span>
+                  <span :class="[radioBase, term === '12' ? 'bg-primary-500' : 'border-2 border-white/15']"><span v-if="term === '12'" class="size-2.5 rounded-full bg-white" /></span>
+                </div>
+                <div class="mt-4 font-heading text-[18px] font-bold text-white">
+                  12 monthly payments
+                </div>
+                <div class="mt-2.5 flex items-baseline gap-1.5">
+                  <span class="font-heading text-[36px] font-extrabold tracking-[-0.02em] text-white tabular-nums">{{ money(m12) }}</span><span class="text-sm text-muted-500">/mo</span>
+                </div>
+                <div class="mt-4 flex flex-col gap-2 text-[13px]">
+                  <div class="flex justify-between text-muted-400">
+                    <span>Interest</span><span class="font-semibold text-[#22B07D]">£0 · 0%</span>
+                  </div>
+                  <div class="flex justify-between text-muted-400">
+                    <span>Total to pay</span><span class="font-bold text-white">{{ money(base) }}</span>
+                  </div>
+                </div>
+                <div class="mt-3.5 flex items-center gap-1.5 rounded-[10px] border border-primary-500/20 bg-primary-500/10 px-2.5 py-2 text-xs text-primary-200">
+                  <Icon name="lucide:info" class="size-3.5" />Pay the least overall
+                </div>
+              </button>
+              <!-- 24 months -->
+              <button type="button" :aria-pressed="term === '24'" class="relative flex flex-col rounded-[20px] border p-[22px] text-left transition" :class="term === '24' ? 'border-primary-500 bg-primary-500/[0.06] ring-4 ring-primary-500/15' : 'border-white/10 bg-white/[0.02] hover:border-white/15'" @click="term = '24'">
+                <div class="flex items-center justify-between">
+                  <span class="rounded-full bg-primary-500/18 px-2.5 py-[5px] text-[11px] font-extrabold tracking-[0.05em] text-primary-200">LOWEST MONTHLY</span>
+                  <span :class="[radioBase, term === '24' ? 'bg-primary-500' : 'border-2 border-white/15']"><span v-if="term === '24'" class="size-2.5 rounded-full bg-white" /></span>
+                </div>
+                <div class="mt-4 font-heading text-[18px] font-bold text-white">
+                  24 monthly payments
+                </div>
+                <div class="mt-2.5 flex items-baseline gap-1.5">
+                  <span class="font-heading text-[36px] font-extrabold tracking-[-0.02em] text-white tabular-nums">{{ money(m24) }}</span><span class="text-sm text-muted-500">/mo</span>
+                </div>
+                <div class="mt-4 flex flex-col gap-2 text-[13px]">
+                  <div class="flex justify-between text-muted-400">
+                    <span>Interest</span><span class="font-semibold text-white">{{ money(interest24) }} · 1%/mo</span>
+                  </div>
+                  <div class="flex justify-between text-muted-400">
+                    <span>Total to pay</span><span class="font-bold text-white">{{ money(total24) }}</span>
+                  </div>
+                </div>
+                <div class="mt-3.5 flex items-center gap-1.5 rounded-[10px] border border-primary-500/20 bg-primary-500/10 px-2.5 py-2 text-xs text-primary-200">
+                  <Icon name="lucide:sprout" class="size-3.5" />Keep cash free to grow
+                </div>
+              </button>
+            </div>
+            <div class="mt-[18px] flex items-center gap-2 text-[12.5px] text-muted-500">
+              <Icon name="lucide:lock" class="size-3.5" />The 24-month plan adds 1% monthly interest (≈12% per year) on the reducing balance. No early-repayment fees.
+            </div>
+          </div>
+        </section>
+
+        <!-- STEP 4 — DETAILS -->
+        <section v-else-if="step === 4" class="flex flex-col gap-[18px]">
+          <div class="flex flex-wrap items-center gap-[18px] rounded-[20px] border border-white/10 px-6 py-5" style="background: linear-gradient(135deg, #1B2B31, #101D21);">
+            <span class="flex size-[46px] items-center justify-center rounded-xl bg-primary-500/16 text-primary-400"><Icon :name="tierIcon[plan?.tier ?? 0]" class="size-[23px]" /></span>
+            <div class="min-w-[180px] flex-1">
+              <div class="text-xs font-bold tracking-[0.05em] text-primary-200">
+                {{ serviceName }}
+              </div>
+              <div class="mt-0.5 font-heading text-[19px] font-bold text-white">
+                {{ plan?.name }} plan
+              </div>
+            </div>
+            <div class="text-right">
+              <div class="font-heading text-[24px] font-extrabold tracking-[-0.02em] text-white tabular-nums">
+                {{ money(monthly) }}<span class="text-[13px] font-medium text-muted-500">/mo</span>
+              </div>
+              <div class="text-[12.5px] text-muted-500">
+                {{ termLabel }} · {{ money(total) }} total
+              </div>
+            </div>
+          </div>
+
+          <div class="rounded-[28px] border border-white/10 bg-muted-800 p-7">
+            <h3 class="font-heading text-[20px] font-bold tracking-[-0.01em] text-white">
+              Tell us about your project
+            </h3>
+            <p class="mb-5 text-sm text-muted-400">
+              A few details so the right team is ready the moment you sign. <span class="text-muted-500">Tailored to your {{ serviceName }} order.</span>
+            </p>
+            <div class="grid gap-[18px] sm:grid-cols-2">
+              <div v-for="field in fields" :key="field.key" :class="field.full ? 'sm:col-span-2' : ''">
+                <label class="mb-2 block text-xs font-semibold uppercase tracking-[0.04em] text-muted-500">{{ field.label }}</label>
+                <input
+                  v-if="['text', 'url', 'date'].includes(field.type)"
+                  v-model="form[field.key]" :type="field.type === 'url' ? 'url' : field.type" :placeholder="field.placeholder"
+                  class="w-full rounded-xl border border-white/10 bg-white/5 px-3.5 py-3 text-sm text-white outline-none transition [color-scheme:dark] focus:border-primary-400"
+                >
+                <select
+                  v-else-if="field.type === 'select'" v-model="form[field.key]"
+                  class="w-full rounded-xl border border-white/10 bg-white/5 px-3.5 py-3 text-sm text-white outline-none transition [color-scheme:dark] focus:border-primary-400"
+                >
+                  <option v-for="o in field.options" :key="o">
+                    {{ o }}
+                  </option>
+                </select>
+                <textarea
+                  v-else-if="field.type === 'textarea'" v-model="form[field.key]" rows="3" :placeholder="field.placeholder"
+                  class="w-full resize-y rounded-xl border border-white/10 bg-white/5 px-3.5 py-3 text-sm text-white outline-none transition focus:border-primary-400"
+                />
+                <div v-else-if="field.type === 'checkboxes'" class="flex flex-wrap gap-2.5">
+                  <label v-for="box in field.boxes" :key="box.key" class="inline-flex cursor-pointer items-center gap-2.5 rounded-[10px] border border-white/10 bg-white/5 px-3.5 py-2.5 text-[13.5px] text-white">
+                    <input v-model="form[box.key]" type="checkbox" class="size-4 accent-primary-500">{{ box.label }}
+                  </label>
+                </div>
+              </div>
+            </div>
+            <div v-if="showErr" class="mt-4 flex items-center gap-2 rounded-[10px] border border-[#EC6453]/30 bg-[#EC6453]/10 px-3.5 py-2.5 text-[13px] text-[#EC6453]">
+              <Icon name="lucide:alert-circle" class="size-[15px]" />Please add a name so we can set up your project.
+            </div>
+          </div>
+        </section>
+
+        <!-- STEP 5 — CONTRACT -->
+        <section v-else-if="step === 5" class="rounded-[28px] border border-white/10 bg-muted-800 p-7">
+          <h2 class="font-heading text-[22px] font-bold tracking-[-0.01em] text-white">
+            Review &amp; sign
+          </h2>
+          <p class="mb-5 mt-1.5 text-[14.5px] text-muted-400">
+            Your service agreement. Signing moves the project straight to <strong class="font-semibold text-[#22B07D]">Started</strong>.
+          </p>
+
+          <div class="max-h-[264px] overflow-y-auto rounded-[14px] border border-white/10 bg-white/[0.02] px-6 py-[22px] text-[13.5px] leading-[1.65] text-muted-400">
+            <div class="mb-3 font-heading text-base font-bold text-white">
+              Service agreement — Apex Digital Agency
+            </div>
+            <p class="mb-3.5">
+              This agreement is between <strong class="font-semibold text-white">Apex Digital Agency</strong> ("Apex") and the Client for the supply of <strong class="font-semibold text-white">{{ serviceName }}</strong> services under the <strong class="font-semibold text-white">{{ plan?.name }}</strong> plan.
+            </p>
+            <p class="mb-2 font-semibold text-white">
+              1. Scope &amp; deliverables
+            </p>
+            <p class="mb-3.5">
+              Apex will deliver the features listed in the selected plan. Work begins immediately upon signature, with no down payment required.
+            </p>
+            <p class="mb-2 font-semibold text-white">
+              2. Fees &amp; payment schedule
+            </p>
+            <p class="mb-3.5">
+              Project value of <strong class="font-semibold text-white">{{ money(base) }}</strong>, payable as <strong class="font-semibold text-white">{{ monthsText }}</strong> of <strong class="font-semibold text-white">{{ money(monthly) }}</strong>. Total payable <strong class="font-semibold text-white">{{ money(total) }}</strong> ({{ term === '12' ? '0% interest' : `includes ${money(interest24)} interest` }}). The first instalment is collected 30 days after the project start date.
+            </p>
+            <p class="mb-2 font-semibold text-white">
+              3. Revisions &amp; support
+            </p>
+            <p class="mb-3.5">
+              Revisions and support are provided as specified in the plan. Additional scope may be quoted separately.
+            </p>
+            <p class="mb-2 font-semibold text-white">
+              4. Cancellation
+            </p>
+            <p>The Client may cancel at no cost before work begins. Once started, completed milestones are payable. There are no early-repayment fees on instalments.</p>
+          </div>
+
+          <label class="mt-5 flex cursor-pointer items-start gap-3">
+            <input v-model="agreed" type="checkbox" class="mt-0.5 size-[18px] shrink-0 accent-primary-500">
+            <span class="text-sm leading-[1.5] text-muted-400">I have read and agree to the service agreement, the payment schedule, and Apex's <a href="#" class="text-primary-400 no-underline">terms of service</a>.</span>
+          </label>
+
+          <div class="mt-5 grid items-end gap-5 sm:grid-cols-[1.3fr_1fr]">
+            <div>
+              <div class="mb-2 flex items-center justify-between">
+                <label class="text-xs font-semibold uppercase tracking-[0.04em] text-muted-500">Draw your signature</label>
+                <button type="button" class="cursor-pointer border-none bg-transparent text-xs font-semibold text-primary-400 transition hover:text-white" @click="clearSig">
+                  Clear
+                </button>
+              </div>
+              <div class="relative h-[130px] overflow-hidden rounded-xl border border-dashed border-white/15 bg-white/[0.02]">
+                <canvas ref="sigCanvas" width="640" height="130" class="absolute inset-0 size-full cursor-crosshair touch-none" @pointerdown="sigDown" @pointermove="sigMove" @pointerup="sigUp" @pointerleave="sigUp" />
+                <div class="pointer-events-none absolute inset-x-[18px] bottom-4 border-t border-white/10" />
+                <span class="pointer-events-none absolute bottom-5 left-[18px] text-[11px] text-muted-500">✕</span>
+              </div>
+            </div>
+            <div>
+              <label class="mb-2 block text-xs font-semibold uppercase tracking-[0.04em] text-muted-500">Or type your full name</label>
+              <input v-model="signName" placeholder="Your full name" class="w-full rounded-xl border border-white/10 bg-white/5 px-3.5 py-3 font-heading text-[15px] font-semibold text-white outline-none transition focus:border-primary-400">
+              <div class="mt-2.5 flex items-center gap-1.5 text-xs text-muted-500">
+                <Icon name="lucide:lock" class="size-3.5" />Legally binding e-signature
+              </div>
+            </div>
+          </div>
+
+          <div class="mt-6 flex flex-wrap items-center justify-between gap-4">
+            <div class="flex items-center gap-2 text-[13px] text-muted-500">
+              <Icon name="lucide:check" class="size-4 text-[#22B07D]" />£0 charged today · cancel free before work begins
+            </div>
+            <BaseButton rounded="full" variant="primary" size="lg" :disabled="!canSign || placing" :loading="placing" @click="placeOrder">
+              <Icon name="lucide:box" class="size-[17px]" />Sign &amp; start project
+            </BaseButton>
+          </div>
+        </section>
+
+        <!-- FOOTER NAV -->
+        <div v-if="step >= 1 && step <= 5" class="mt-[22px] flex items-center justify-between gap-3.5">
+          <BaseButton v-if="step > 1" rounded="full" class="border border-white/10 bg-muted-800 !text-white hover:bg-muted-700" @click="back">
+            <Icon name="lucide:arrow-left" class="size-4" />Back
+          </BaseButton>
+          <div class="flex-1" />
+          <BaseButton rounded="full" variant="primary" size="lg" :disabled="!canContinue" @click="next">
+            {{ continueLabel }}<Icon name="lucide:arrow-right" class="size-4" />
+          </BaseButton>
+        </div>
+      </div>
+
+      <!-- ===================== RIGHT: ORDER SUMMARY RAIL ===================== -->
+      <aside aria-label="Order summary" class="overflow-hidden rounded-[28px] border border-white/10 lg:sticky lg:top-4" style="background: linear-gradient(160deg, #16252A, #101D21);">
+        <div class="flex items-center gap-3 border-b border-white/10 px-[22px] py-5">
+          <span class="flex size-[34px] items-center justify-center rounded-[9px] bg-primary-500/16 text-primary-400"><Icon name="lucide:file-text" class="size-[17px]" /></span>
+          <div class="flex-1">
+            <div class="font-heading text-[15px] font-bold tracking-[0.02em] text-white">
+              Order summary
+            </div>
+            <div class="text-[11.5px] text-muted-500">
+              Step {{ Math.min(step, 5) }} of 5
+            </div>
+          </div>
+        </div>
+
+        <div class="px-[22px] py-5">
+          <div class="flex items-center justify-between gap-3 border-b border-white/10 py-2.5">
+            <span class="text-[13px] text-muted-500">Service</span>
+            <span v-if="service" class="text-right text-[13.5px] font-semibold text-white">{{ serviceName }}</span>
+            <span v-else class="text-[13px] text-muted-500/60">Not selected</span>
+          </div>
+          <div class="flex items-center justify-between gap-3 border-b border-white/10 py-2.5">
+            <span class="text-[13px] text-muted-500">Plan</span>
+            <span v-if="plan" class="text-right text-[13.5px] font-semibold text-white">{{ plan.name }}</span>
+            <span v-else class="text-[13px] text-muted-500/60">—</span>
+          </div>
+          <div v-if="plan" class="flex items-center justify-between gap-3 border-b border-white/10 py-2.5">
+            <span class="text-[13px] text-muted-500">Project value</span>
+            <span class="text-[13.5px] font-semibold text-white">{{ money(base) }}</span>
+          </div>
+          <template v-if="step >= 3 && plan">
+            <div class="flex items-center justify-between gap-3 border-b border-white/10 py-2.5">
+              <span class="text-[13px] text-muted-500">Payment plan</span>
+              <span class="text-[13.5px] font-semibold text-white">{{ termLabel }}</span>
+            </div>
+            <div v-if="term === '24'" class="flex items-center justify-between gap-3 border-b border-white/10 py-2.5">
+              <span class="text-[13px] text-muted-500">Interest (1%/mo)</span>
+              <span class="text-[13.5px] font-semibold text-white">{{ money(interest24) }}</span>
+            </div>
+          </template>
+        </div>
+
+        <div v-if="plan" class="mx-[22px] rounded-[14px] border border-primary-500/28 px-[18px] py-4" style="background: linear-gradient(135deg, rgba(125,83,242,.22), rgba(125,83,242,.06));">
+          <div class="flex items-end justify-between">
+            <div>
+              <div class="text-[11.5px] font-bold tracking-[0.05em] text-primary-200">
+                YOUR MONTHLY
+              </div>
+              <div class="mt-0.5 font-heading text-[30px] font-extrabold leading-[1.1] tracking-[-0.02em] text-white tabular-nums">
+                {{ money(monthly) }}<span class="text-[13px] font-medium text-primary-200">/mo</span>
+              </div>
+            </div>
+            <div class="text-right text-[11.5px] text-primary-200">
+              {{ monthsText }}<br>total {{ money(total) }}
+            </div>
+          </div>
+        </div>
+
+        <div class="flex flex-col gap-2.5 px-[22px] pb-[22px] pt-[18px]">
+          <div class="flex items-center justify-between rounded-[11px] border border-[#22B07D]/24 bg-[#22B07D]/10 px-3.5 py-3">
+            <span class="text-[13px] font-semibold text-white">Due today</span>
+            <span class="font-heading text-[18px] font-extrabold text-[#22B07D]">£0</span>
+          </div>
+          <div class="flex items-center gap-2 text-xs text-muted-500">
+            <Icon name="lucide:zap" class="size-3.5 text-[#22B07D]" />Project starts the moment you sign — no deposit.
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <!-- ===================== SUCCESS OVERLAY ===================== -->
+    <Teleport to="body">
+      <Transition enter-active-class="transition-opacity duration-300" enter-from-class="opacity-0" leave-active-class="transition-opacity duration-200" leave-to-class="opacity-0">
+        <div v-if="step === 6" class="fixed inset-0 z-50 flex items-center justify-center p-6" style="background: rgba(9,18,20,.82); backdrop-filter: blur(8px);">
+          <div class="apex-pop relative w-full max-w-[520px] overflow-hidden rounded-[28px] border border-primary-500/30 p-9 text-center" style="background: linear-gradient(160deg, #1B2B31, #101D21);">
+            <div class="pointer-events-none absolute -top-16 left-1/2 size-60 -translate-x-1/2 rounded-full opacity-40 blur-[70px]" style="background: radial-gradient(circle at 50% 38%, #9b79f6 0%, #7d53f2 55%, #6c40e8 100%);" />
+            <div class="relative mx-auto flex size-[74px] items-center justify-center rounded-full shadow-[0_16px_40px_rgba(34,176,125,.45)]" style="background: linear-gradient(150deg, #22B07D, #0f6e4d);">
+              <Icon name="lucide:check" class="size-9 text-white" />
+            </div>
+            <h2 class="relative mt-5 font-heading text-[28px] font-extrabold tracking-[-0.02em] text-white">
+              You're all set!
+            </h2>
+            <p class="relative mt-2.5 text-[15px] leading-[1.55] text-muted-400">
+              Your <strong class="font-semibold text-white">{{ plan?.name }}</strong> order is confirmed and signed. The team has been notified and work begins today.
+            </p>
+
+            <div class="relative my-6 flex items-center justify-center gap-3">
+              <span class="inline-flex items-center gap-2 rounded-full bg-[#22B07D]/14 px-3.5 py-2 text-[13px] font-bold text-[#22B07D]"><Icon name="lucide:check" class="size-3.5" />Order placed</span>
+              <Icon name="lucide:arrow-right" class="size-[22px] text-muted-500" />
+              <span class="inline-flex items-center gap-2 rounded-full px-3.5 py-2 text-[13px] font-bold transition" :class="statusStarted ? 'bg-gradient-to-r from-primary-400 to-primary-600 text-white shadow-[0_8px_20px_rgba(125,83,242,.4)]' : 'border border-white/10 bg-white/5 text-muted-500'">
+                <Icon v-if="statusStarted" name="lucide:zap" class="size-3.5" />{{ statusStarted ? 'Started' : 'Starting…' }}
+              </span>
+            </div>
+
+            <div class="relative mb-6 flex items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] px-[18px] py-3.5">
+              <div class="text-left">
+                <div class="text-[11.5px] text-muted-500">
+                  Order reference
+                </div><div class="font-heading text-[15px] font-bold tracking-[0.04em] text-white">
+                  {{ orderId }}
+                </div>
+              </div>
+              <div class="text-right">
+                <div class="text-[11.5px] text-muted-500">
+                  First payment
+                </div><div class="text-sm font-semibold text-white">
+                  {{ money(monthly) }} · in 30 days
+                </div>
+              </div>
+            </div>
+
+            <div class="relative flex gap-3">
+              <BaseButton rounded="full" variant="primary" size="lg" class="flex-1" @click="router.push('/dashboards/orders')">
+                View project<Icon name="lucide:arrow-right" class="size-4" />
+              </BaseButton>
+              <BaseButton rounded="full" class="border border-white/10 bg-muted-800 !text-white hover:bg-muted-700" @click="resetFlow">
+                New order
+              </BaseButton>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
   </div>
 </template>
 
 <style scoped>
-/* Fade Transitions */
-.fade-enter-active, .fade-leave-active { transition: opacity 0.3s ease; }
-.fade-enter-from, .fade-leave-to { opacity: 0; }
+@keyframes apex-pop {
+  0% {
+    transform: scale(0.94);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+.apex-pop {
+  animation: apex-pop 0.4s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .apex-pop {
+    animation: none;
+  }
+}
 </style>
