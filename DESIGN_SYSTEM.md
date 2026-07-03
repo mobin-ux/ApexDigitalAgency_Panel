@@ -61,7 +61,7 @@ native `alert()`, USD). When refactoring a page, bring it in line:
 | 0 | **Foundation** — tokens, dark default, `sidenav` cleanup, `useCurrency`, app.config | ✅ Done |
 | 0b | **Auth/infra fixes** — reload-logout, SWR cache, Prisma generate, duplicate code | ✅ Done |
 | 1 | Balance (home dashboard) + fix `/api/dashboard/stats` | ✅ Done |
-| 2 | Orders | ☐ |
+| 2 | My Orders (`orders.vue`) — Apex Design redesign (list + detail + payment plan) | ✅ Done |
 | 3 | New Order / financing wizard (`services.vue`) — Apex Design redesign | ✅ Done |
 | 4 | Wallet & Credit (installments, history, invoices) | ☐ |
 | 5 | Support (ticketing) | ☐ |
