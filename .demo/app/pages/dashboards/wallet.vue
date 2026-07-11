@@ -1,399 +1,1142 @@
 <script setup lang="ts">
 /**
- * Wallet Page - Backend Connected (Strict Style Preservation)
- * -----------------------------------------------------------
- * Layout: 100% Original Bento Grid
- * Logic: Data mapped from /api/finance/dashboard
+ * Wallet & Credit — Apex Design redesign.
+ * Four tabs (Overview / Transactions / Installments / Banking) plus a Top-up
+ * modal and an Apply-for-credit modal, on the dark navy (.apex-dark) surface
+ * with electric-violet accents and Yellix display headings.
+ *
+ * Real data:
+ *  - Cash balance, cards, ad credits           → /api/finance/dashboard
+ *  - Transaction feed (top-ups/payments/…)     → /api/finance/transactions
+ *  - Installment plans + upcoming payments      → /api/orders (DERIVED the same
+ *    way as My Orders — 12-month plan, amount/12, paid inferred; ADR-010)
+ *  - Top up wallet                              → POST /api/finance/deposit (real
+ *    deposit record; no real card charge is simulated — ADR-010 / rule #9)
+ *
+ * Presentation placeholders (flagged TODO(api) until a model backs them):
+ *  - Apex credit line figures (no credit model on User — REQUIREMENTS §6)
+ *  - Auto-pay preference, invoice numbering, per-installment "Pay now",
+ *    billing address / VAT, and the agency bank-transfer details.
  */
-
 import { computed, ref } from 'vue'
 
-// 1. Page Config
 definePageMeta({
-  title: 'Financial Command',
+  title: 'Wallet & credit',
   layout: 'sidenav',
-  middleware: 'auth', // Added security
-  auth: false, // Override if needed, but middleware handles it
+  middleware: 'auth',
 })
 
-// --- UTILS ---
-function formatCurrency(val: number) {
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Math.abs(val))
+const { user } = useUser()
+const { formatCurrency } = useCurrency()
+const toaster = useNuiToasts()
+
+// ---- fetches --------------------------------------------------------------
+const { data: finance, refresh: refreshFinance } = await useFetch('/api/finance/dashboard', { lazy: true })
+const { data: txData, refresh: refreshTx } = await useFetch('/api/finance/transactions', { lazy: true })
+const { data: ordersData } = await useFetch('/api/orders', { lazy: true })
+
+// ---- types + helpers ------------------------------------------------------
+type IconKind = 'web' | 'mkt' | 'uiux' | 'brand'
+type TxKind = 'topup' | 'installment' | 'refund' | 'credit' | 'out'
+
+const SVC_META: Record<IconKind, { icon: string, bg: string, text: string }> = {
+  web: { icon: 'lucide:code-2', bg: 'bg-primary-500/14', text: 'text-primary-400' },
+  mkt: { icon: 'lucide:megaphone', bg: 'bg-[#EC6453]/14', text: 'text-[#EC6453]' },
+  uiux: { icon: 'lucide:pen-tool', bg: 'bg-primary-500/14', text: 'text-primary-400' },
+  brand: { icon: 'lucide:target', bg: 'bg-[#D9A521]/14', text: 'text-[#F2C14E]' },
 }
 
-function formatDate(dateStr: string) {
-  try {
-    return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-  } catch (e) {
-    return dateStr
+const TX_META: Record<TxKind, { icon: string, bg: string, text: string }> = {
+  topup: { icon: 'lucide:arrow-up', bg: 'bg-[#22B07D]/14', text: 'text-[#22B07D]' },
+  refund: { icon: 'lucide:undo-2', bg: 'bg-[#22B07D]/14', text: 'text-[#22B07D]' },
+  credit: { icon: 'lucide:zap', bg: 'bg-primary-500/14', text: 'text-primary-400' },
+  installment: { icon: 'lucide:arrow-down', bg: 'bg-[#6EA8FE]/14', text: 'text-[#6EA8FE]' },
+  out: { icon: 'lucide:arrow-down', bg: 'bg-[#6EA8FE]/14', text: 'text-[#6EA8FE]' },
+}
+
+function iconKind(category: string): IconKind {
+  const c = (category || '').toLowerCase()
+  if (c.includes('seo') || c.includes('market') || c.includes('ads'))
+    return 'mkt'
+  if (c.includes('ui') || c.includes('ux') || (c.includes('design') && !c.includes('brand')))
+    return 'uiux'
+  if (c.includes('brand'))
+    return 'brand'
+  return 'web'
+}
+
+function txKind(type: string, amount: number): TxKind {
+  const t = (type || '').toUpperCase()
+  if (t === 'DEPOSIT' || (amount > 0 && t !== 'REFUND'))
+    return 'topup'
+  if (t === 'REFUND')
+    return 'refund'
+  if (t === 'AD_CREDIT' || t === 'CREDIT')
+    return 'credit'
+  if (t === 'PAYMENT' || t === 'INSTALLMENT')
+    return 'installment'
+  return 'out'
+}
+
+function shortId(id: string) {
+  return String(id).replace(/-/g, '').slice(0, 8).toUpperCase()
+}
+
+function fmtDate(v: string | Date | null | undefined, fallback = 'TBD') {
+  if (!v)
+    return fallback
+  return new Date(v).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
+function addMonths(base: Date, n: number) {
+  const d = new Date(base)
+  d.setMonth(d.getMonth() + n)
+  return d
+}
+
+/** Signed money string using the design's + / − (U+2212) prefixes. */
+function signed(n: number) {
+  const prefix = n < 0 ? '−' : n > 0 ? '+' : ''
+  return prefix + formatCurrency(Math.abs(n))
+}
+
+// ---- core real data -------------------------------------------------------
+const balance = computed(() => (finance.value as any)?.balanceOverview?.cash ?? 0)
+const cards = computed(() => ((finance.value as any)?.cards ?? []) as any[])
+const rawTx = computed(() => ((txData.value as any)?.transactions ?? []) as any[])
+
+// ---- tabs -----------------------------------------------------------------
+const TAB_DEFS = [
+  ['overview', 'Overview'],
+  ['transactions', 'Transactions'],
+  ['installments', 'Installments'],
+  ['banking', 'Banking'],
+] as const
+const tab = ref<'overview' | 'transactions' | 'installments' | 'banking'>('overview')
+
+function goTab(next: typeof tab.value) {
+  tab.value = next
+  if (import.meta.client)
+    window.scrollTo({ top: 0 })
+}
+
+// ---- transactions ---------------------------------------------------------
+interface UiTx { id: string, title: string, sub: string, date: string, amount: number, kind: TxKind }
+
+const allTx = computed<UiTx[]>(() =>
+  rawTx.value.map((t) => {
+    const kind = txKind(t.type, t.amount)
+    return {
+      id: t.id,
+      title: t.description || (t.amount > 0 ? 'Wallet top-up' : 'Payment'),
+      sub: t.type ? String(t.type).charAt(0) + String(t.type).slice(1).toLowerCase() : 'Transaction',
+      date: fmtDate(t.date),
+      amount: t.amount,
+      kind,
+    }
+  }),
+)
+
+const TX_FILTERS = [
+  ['all', 'All'],
+  ['topup', 'Top-ups'],
+  ['installment', 'Installments'],
+  ['refund', 'Refunds'],
+  ['credit', 'Credit'],
+] as const
+const txFilter = ref<'all' | TxKind>('all')
+const txQ = ref('')
+
+const txRows = computed(() => {
+  const needle = txQ.value.trim().toLowerCase()
+  return allTx.value.filter((t) => {
+    if (txFilter.value !== 'all' && t.kind !== txFilter.value)
+      return false
+    if (needle && !(t.title.toLowerCase().includes(needle) || t.sub.toLowerCase().includes(needle) || t.date.toLowerCase().includes(needle)))
+      return false
+    return true
+  })
+})
+const recentTx = computed(() => allTx.value.slice(0, 4))
+const txEmptyMsg = computed(() =>
+  txQ.value.trim()
+    ? `Nothing matches “${txQ.value}”. Try a different search or filter.`
+    : 'Your top-ups, payments and refunds will appear here.',
+)
+
+// ---- installment plans (DERIVED from projects — consistent with My Orders) -
+interface Row { n: number, label: string, date: string, amount: number, state: 'paid' | 'next' | 'scheduled', dueSoon: boolean }
+interface Plan {
+  id: string
+  shortId: string
+  name: string
+  service: string
+  icon: IconKind
+  status: 'active' | 'completed'
+  total: number
+  paid: number
+  amount: number
+  dueSoon: boolean
+  nextLabel: string | null
+  rows: Row[]
+}
+
+const plans = computed<Plan[]>(() => {
+  const rows = (ordersData.value as any)?.data ?? []
+  return rows
+    .filter((o: any) => o.status === 'IN_PROGRESS' || o.status === 'COMPLETED')
+    .map((o: any): Plan => {
+      const completed = o.status === 'COMPLETED'
+      const total = 12
+      const amount = Math.max(1, Math.round((o.amount ?? 0) / total))
+      const progress = o.progress ?? 0
+      const paid = completed ? total : Math.min(total - 1, Math.max(0, Math.floor((progress / 100) * total)))
+      const start = o.startDate ? new Date(o.startDate) : new Date()
+      // first instalment collected ~30 days after project start, then monthly
+      const dueInDays = o.deadline ? Math.ceil((new Date(o.deadline).getTime() - Date.now()) / 86_400_000) : null
+      const dueSoon = !completed && dueInDays != null && dueInDays >= 0 && dueInDays <= 5
+
+      const planRows: Row[] = []
+      for (let i = 0; i < total; i++) {
+        const isPaid = i < paid
+        const isNext = !completed && i === paid
+        planRows.push({
+          n: i + 1,
+          label: `Installment ${i + 1} of ${total}`,
+          date: fmtDate(addMonths(start, i + 1)),
+          amount,
+          state: isPaid ? 'paid' : isNext ? 'next' : 'scheduled',
+          dueSoon: isNext && dueSoon,
+        })
+      }
+      const nextRow = planRows.find(r => r.state === 'next')
+      return {
+        id: o.id,
+        shortId: shortId(o.id),
+        name: o.name,
+        service: o.category || 'General',
+        icon: iconKind(o.category),
+        status: completed ? 'completed' : 'active',
+        total,
+        paid,
+        amount,
+        dueSoon,
+        nextLabel: completed ? null : dueSoon ? `Due in ${dueInDays} day${dueInDays === 1 ? '' : 's'}` : nextRow ? nextRow.date : null,
+        rows: planRows,
+      }
+    })
+})
+
+const expanded = ref<Record<string, boolean>>({})
+function togglePlan(id: string) {
+  expanded.value = { ...expanded.value, [id]: !expanded.value[id] }
+}
+// open the first plan by default once data lands
+watchEffect(() => {
+  if (plans.value.length && Object.keys(expanded.value).length === 0)
+    expanded.value = { [plans.value[0]!.id]: true }
+})
+
+// ---- overview: upcoming payments -----------------------------------------
+const upcoming = computed(() =>
+  plans.value
+    .filter(p => p.status === 'active')
+    .map((p) => {
+      const next = p.rows.find(r => r.state === 'next')
+      return {
+        id: p.id,
+        name: p.name,
+        sub: `Installment ${p.paid + 1} of ${p.total}`,
+        amount: p.amount,
+        date: p.nextLabel || (next ? next.date : 'Next cycle'),
+        dueSoon: p.dueSoon,
+        icon: p.icon,
+      }
+    })
+    .sort((a, b) => Number(b.dueSoon) - Number(a.dueSoon)),
+)
+
+// ---- credit line (TODO(api): no credit model on User yet) -----------------
+// Illustrative figures, mirroring the balance page. Gate the "approved" view on
+// whether the client has any projects so brand-new accounts see the apply CTA.
+const applied = ref(false)
+const hasCredit = computed(() => plans.value.length > 0)
+const credit = computed(() => {
+  const limit = 5000
+  const used = 1800
+  return {
+    limit,
+    used,
+    available: limit - used,
+    pct: Math.round((used / limit) * 100),
+    repayAmount: 450,
+    repayDate: '20 Mar 2026',
   }
-}
+})
 
-// Logic to pre-calculate block styles (Kept exactly as original)
-function getBlockClass(i: number, paid: number, current: number) {
-  if (i <= paid)
-    return 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]'
-  if (i === paid + 1)
-    return 'bg-amber-500 animate-pulse shadow-[0_0_8px_rgba(245,158,11,0.4)]'
-  return 'bg-white/10'
-}
-
-// --- DATA FETCHING ---
-const { data: apiData, refresh } = await useFetch('/api/finance/dashboard')
-
-// --- 1. CORE DATA (Mapped) ---
-const balanceOverview = computed(() => ({
-  cash: apiData.value?.balanceOverview.cash || 0,
-  credits: apiData.value?.balanceOverview.credits || 0,
-  monthlyChange: apiData.value?.balanceOverview.monthlyChange || 12.5, // Default fallback
-}))
-
-const creditLimit = {
-  utilization: 17,
-}
-
-// --- 2. INSTALLMENTS (Mapped) ---
-const activeInstallments = computed(() => {
-  const list = apiData.value?.installments || []
-  
-  return list.map((plan: any) => ({
-    id: plan.id.substring(0, 8).toUpperCase(),
-    project: plan.project,
-    total: plan.total,
-    paid: plan.paid,
-    amountDue: plan.amountDue,
-    monthsTotal: plan.monthsTotal,
-    monthsPaid: plan.monthsPaid,
-    nextDue: plan.nextDue, // Already formatted in API or format here
-    icon: plan.icon,
-    status: plan.status,
-    // Generate blocks (Logic preserved)
-    blocks: Array.from({ length: plan.monthsTotal }, (_, i) =>
-      getBlockClass(i + 1, plan.monthsPaid, plan.monthsPaid + 1)),
+// ---- banking: invoices (TODO(api): no invoice model — derived from payments) -
+const invoices = computed(() => {
+  const paid = allTx.value.filter(t => t.kind === 'installment' || (t.kind === 'out' && t.amount < 0))
+  return paid.slice(0, 5).map((t, i) => ({
+    id: t.id,
+    num: `INV-2026-${String(14 - i).padStart(3, '0')}`,
+    sub: `${t.title} · ${t.date}`,
+    amount: Math.abs(t.amount),
+    status: 'paid' as const,
   }))
 })
 
-// --- 3. ACTIVITY & REQUESTS (Mapped) ---
-const activeTab = ref('Activity')
-const tabs = ['Activity', 'Requests']
-
-const activities = computed(() => {
-  return apiData.value?.activities || []
-})
-
-const requests = computed(() => {
-  return apiData.value?.requests || []
-})
-
-// --- 4. CARDS (Mapped to Single Visual) ---
-// We take the FIRST card from DB to populate the visual widget
-const currentCard = computed(() => {
-  const cards = apiData.value?.cards || []
-  return cards.length > 0 ? cards[0] : null
-})
-
-const cardLimits = [
-  { label: 'Withdrawal limit', current: 950, max: 2500, icon: 'lucide:arrow-up-from-line' },
-  { label: 'Payment limit', current: 231.12, max: 5000, icon: 'lucide:credit-card' },
+// ---- banking: bank transfer (static agency details) -----------------------
+// TODO(api): expose the agency's receiving account via config rather than inline.
+const BANK_ROWS = [
+  { key: 'name', label: 'Account name', value: 'Apex Digital Agency Ltd' },
+  { key: 'sort', label: 'Sort code', value: '04-00-04' },
+  { key: 'acct', label: 'Account number', value: '2847 1196' },
+  { key: 'iban', label: 'IBAN', value: 'GB29 APEX 0400 0428 4711 96' },
 ]
+const copied = ref<string | null>(null)
+let copyTimer: ReturnType<typeof setTimeout> | undefined
+function copyBank(key: string) {
+  const row = BANK_ROWS.find(b => b.key === key)
+  if (row && import.meta.client && navigator.clipboard)
+    navigator.clipboard.writeText(row.value).catch(() => {})
+  copied.value = key
+  clearTimeout(copyTimer)
+  copyTimer = setTimeout(() => (copied.value = null), 1600)
+}
+
+// ---- billing details (name/email real; address/VAT placeholder) -----------
+const billing = computed(() => ({
+  name: [user.value?.firstName, user.value?.lastName].filter(Boolean).join(' ') || 'Your account',
+  email: user.value?.email || '—',
+}))
+
+// ---- auto-pay (TODO(api): no preference field on User) --------------------
+const autoPay = ref(true)
+
+// ---- top-up modal ---------------------------------------------------------
+const TOPUP_PRESETS = [100, 250, 500, 1000]
+const topupOpen = ref(false)
+const topupAmount = ref('250')
+const topupMethod = ref<'card' | 'bank'>('card')
+const topupDone = ref(false)
+const topupBusy = ref(false)
+const topupAddedAmount = ref(0)
+
+const topupValue = computed(() => Number.parseInt(topupAmount.value, 10) || 0)
+
+function openTopup() {
+  topupOpen.value = true
+  topupDone.value = false
+  topupAmount.value = '250'
+  topupMethod.value = 'card'
+}
+function closeTopup() {
+  topupOpen.value = false
+  topupDone.value = false
+}
+function onTopupAmount(e: Event) {
+  topupAmount.value = (e.target as HTMLInputElement).value.replace(/\D/g, '')
+}
+async function confirmTopup() {
+  const amt = topupValue.value
+  if (amt <= 0 || topupBusy.value)
+    return
+  topupBusy.value = true
+  try {
+    await $fetch('/api/finance/deposit', { method: 'POST', body: { amount: amt } })
+    topupAddedAmount.value = amt
+    topupDone.value = true
+    await Promise.all([refreshFinance(), refreshTx()])
+  }
+  catch {
+    toaster.add({ title: 'Top-up failed', description: 'We couldn’t add funds just now. Please try again.', icon: 'lucide:alert-triangle' })
+  }
+  finally {
+    topupBusy.value = false
+  }
+}
+
+// ---- apply / increase credit modal (TODO(api): stub, no backend) ----------
+const APPLY_TERMS = [
+  { months: 3, label: '3 months', sub: '0% interest' },
+  { months: 6, label: '6 months', sub: '3.9% APR' },
+  { months: 12, label: '12 months', sub: '6.9% APR' },
+]
+const applyOpen = ref(false)
+const applyAmount = ref(5000)
+const applyTerm = ref(6)
+const applySubmitted = ref(false)
+
+const isIncrease = computed(() => hasCredit.value)
+const applyMonthly = computed(() => Math.ceil((applyAmount.value / applyTerm.value) / 5) * 5)
+
+function openApply() {
+  applyOpen.value = true
+  applySubmitted.value = false
+}
+function closeApply() {
+  applyOpen.value = false
+}
+function submitApply() {
+  applySubmitted.value = true
+  applied.value = true
+}
+
+function closeModals() {
+  topupOpen.value = false
+  applyOpen.value = false
+}
+
+// ---- installment "Pay now" (TODO(api): no per-installment charge endpoint) --
+function payInstallment(plan: Plan) {
+  toaster.add({
+    title: 'Payment scheduled',
+    description: autoPay.value
+      ? `Your next installment for ${plan.name} is set to auto-pay from your wallet.`
+      : `We’ll notify you before the next installment for ${plan.name} is due.`,
+    icon: 'lucide:check',
+    progress: true,
+  })
+}
+
+function comingSoon(feature: string) {
+  toaster.add({ title: feature, description: 'Your account manager has been notified and will be in touch shortly.', icon: 'lucide:check', progress: true })
+}
 </script>
 
 <template>
-  <div class="w-full min-h-screen bg-[#0f111a] font-sans text-muted-100 p-4 md:p-6 lg:p-8 relative overflow-x-hidden">
-    <div class="fixed inset-0 pointer-events-none -z-10">
-      <div class="absolute top-[-20%] right-[-10%] w-[800px] h-[800px] bg-primary-500/5 rounded-full blur-[120px]" />
-      <div class="absolute bottom-[-10%] left-[-10%] w-[600px] h-[600px] bg-indigo-500/5 rounded-full blur-[120px]" />
-      <div class="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-15 brightness-100 contrast-150" />
+  <div class="apex-wallet mx-auto flex max-w-[1160px] flex-col pb-14 font-sans text-muted-400">
+    <!-- ============ TITLE ============ -->
+    <div class="mb-[22px] flex flex-wrap items-end justify-between gap-5">
+      <div>
+        <h1 class="font-heading text-[34px] font-extrabold leading-[1.05] tracking-[-0.02em] text-white">
+          Wallet &amp; <span class="text-primary-400">credit</span>
+        </h1>
+        <p class="mt-2 text-[15px] text-muted-400">
+          Your balance, installments and payment details — all in one place.
+        </p>
+      </div>
+      <BaseButton rounded="full" size="lg" variant="primary" class="shadow-[0_10px_24px_rgba(125,83,242,0.32)]" @click="openTopup">
+        <Icon name="lucide:plus" class="size-4" />
+        <span>Top up wallet</span>
+      </BaseButton>
     </div>
 
-    <div class="max-w-[1600px] mx-auto relative z-10">
-      <div class="flex items-center justify-between mb-8">
-        <div>
-          <h1 class="text-2xl md:text-3xl font-light text-white">
-            Financial <span class="font-bold text-primary-400">Command</span>
-          </h1>
-        </div>
-        <div class="flex gap-2">
-          <button class="w-10 h-10 rounded-xl bg-white/5 border border-white/5 flex items-center justify-center hover:bg-white/10 text-white transition-all">
-            <Icon name="lucide:bell" class="w-5 h-5" />
-          </button>
-          <button class="w-10 h-10 rounded-xl bg-white/5 border border-white/5 flex items-center justify-center hover:bg-white/10 text-white transition-all">
-            <Icon name="lucide:settings" class="w-5 h-5" />
-          </button>
-        </div>
+    <!-- ============ TABS ============ -->
+    <div role="tablist" class="mb-[26px] inline-flex gap-1 self-start rounded-full border border-white/8 bg-muted-800 p-1">
+      <button
+        v-for="[key, label] in TAB_DEFS" :key="key"
+        role="tab" :aria-selected="tab === key"
+        class="rounded-full px-[18px] py-[9px] text-[13.5px] transition-all"
+        :class="tab === key ? 'bg-primary-500 font-bold text-white' : 'font-semibold text-muted-400 hover:text-white'"
+        @click="goTab(key)"
+      >
+        {{ label }}
+      </button>
+    </div>
+
+    <!-- ============================================================ OVERVIEW -->
+    <div v-if="tab === 'overview'" class="apex-rise flex flex-col gap-[18px]">
+      <div class="grid grid-cols-1 gap-[18px] lg:grid-cols-2">
+        <!-- CASH WALLET -->
+        <section
+          class="relative flex flex-col overflow-hidden rounded-[28px] border border-white/8 p-[26px]"
+          style="background: linear-gradient(160deg, #16252A, #0F1D21);"
+        >
+          <div class="pointer-events-none absolute -right-16 -top-24 size-[230px] rounded-full" style="background: radial-gradient(circle, rgba(34,176,125,.16), transparent 70%);" />
+          <div class="flex items-center justify-between gap-3">
+            <div class="flex items-center gap-2.5">
+              <span class="inline-flex size-[34px] items-center justify-center rounded-[10px] bg-[#22B07D]/15 text-[#22B07D]">
+                <Icon name="lucide:wallet" class="size-[17px]" />
+              </span>
+              <span class="font-heading text-[15px] font-bold text-white">Cash wallet</span>
+            </div>
+            <span class="text-[11px] font-bold uppercase tracking-[0.05em] text-muted-500">GBP</span>
+          </div>
+          <div class="mt-[22px]">
+            <div class="text-[12.5px] text-muted-500">
+              Available balance
+            </div>
+            <div class="mt-1.5 font-heading text-[42px] font-extrabold leading-[1.05] tracking-[-0.02em] tabular-nums text-white">
+              {{ formatCurrency(balance) }}
+            </div>
+          </div>
+          <div class="mt-[22px] flex gap-2.5">
+            <BaseButton rounded="lg" variant="primary" class="flex-1 shadow-[0_8px_20px_rgba(125,83,242,0.28)]" @click="openTopup">
+              <Icon name="lucide:plus" class="size-[15px]" />
+              <span>Top up</span>
+            </BaseButton>
+            <BaseButton rounded="lg" class="flex-1 border border-white/8 bg-muted-700 !text-white" @click="goTab('transactions')">
+              History
+            </BaseButton>
+          </div>
+          <div class="mt-4 flex items-center justify-between gap-3 rounded-xl border border-white/8 bg-white/[0.03] px-[15px] py-[13px]">
+            <div>
+              <div class="text-[13.5px] font-semibold text-white">
+                Auto-pay installments
+              </div>
+              <div class="mt-0.5 text-xs text-muted-500">
+                {{ autoPay ? 'Installments are paid from your wallet first' : 'Pay each installment manually' }}
+              </div>
+            </div>
+            <button
+              role="switch" :aria-checked="autoPay" aria-label="Toggle auto-pay installments"
+              class="relative h-[25px] w-11 shrink-0 rounded-full transition-colors"
+              :class="autoPay ? 'bg-primary-500' : 'bg-white/12'"
+              @click="autoPay = !autoPay"
+            >
+              <span class="absolute top-[3px] size-[19px] rounded-full bg-white shadow-[0_2px_6px_rgba(0,0,0,0.3)] transition-all" :class="autoPay ? 'left-[22px]' : 'left-[3px]'" />
+            </button>
+          </div>
+        </section>
+
+        <!-- APEX CREDIT -->
+        <section
+          class="relative flex flex-col overflow-hidden rounded-[28px] border border-primary-500/26 p-[26px]"
+          style="background: linear-gradient(160deg, #1B2231, #141A26);"
+        >
+          <div class="pointer-events-none absolute -right-16 -top-24 size-[260px] rounded-full" style="background: radial-gradient(circle, rgba(125,83,242,.24), transparent 70%);" />
+          <div class="relative flex items-center justify-between gap-3">
+            <div class="flex items-center gap-2.5">
+              <span class="inline-flex size-[34px] items-center justify-center rounded-[10px] bg-primary-500/18 text-primary-400">
+                <Icon name="lucide:zap" class="size-[17px]" />
+              </span>
+              <span class="font-heading text-[15px] font-bold text-white">Apex credit</span>
+            </div>
+            <span
+              class="inline-flex items-center rounded-full px-2.5 py-1 text-[10.5px] font-extrabold uppercase tracking-[0.05em]"
+              :class="hasCredit ? 'bg-[#22B07D]/14 text-[#22B07D]' : applied ? 'bg-[#D9A521]/16 text-[#F2C14E]' : 'bg-primary-500/16 text-primary-200'"
+            >
+              {{ hasCredit ? 'Active' : applied ? 'Under review' : 'Available' }}
+            </span>
+          </div>
+
+          <!-- approved -->
+          <template v-if="hasCredit">
+            <div class="relative mt-[22px]">
+              <div class="text-[12.5px] text-muted-500">
+                Available to spend
+              </div>
+              <div class="mt-1.5 font-heading text-[42px] font-extrabold leading-[1.05] tracking-[-0.02em] tabular-nums text-white">
+                {{ formatCurrency(credit.available) }}
+              </div>
+              <div class="mt-4">
+                <div class="h-2 overflow-hidden rounded-full bg-white/[0.07]">
+                  <div class="h-full rounded-full" :style="{ width: `${credit.pct}%`, background: 'linear-gradient(90deg, var(--color-primary-400), var(--color-primary-500))' }" />
+                </div>
+                <div class="mt-2 flex justify-between text-[12.5px] text-muted-500">
+                  <span>{{ formatCurrency(credit.used) }} in use</span>
+                  <span>{{ formatCurrency(credit.limit) }} limit</span>
+                </div>
+              </div>
+            </div>
+            <div class="relative mt-[18px] flex items-center justify-between gap-3 rounded-xl border border-primary-500/20 bg-primary-500/[0.08] px-[15px] py-[13px]">
+              <div>
+                <div class="text-[11.5px] font-bold uppercase tracking-[0.04em] text-primary-200">
+                  Next repayment
+                </div>
+                <div class="mt-[3px] text-[13px] font-semibold text-white">
+                  {{ credit.repayDate }}
+                </div>
+              </div>
+              <div class="font-heading text-[20px] font-extrabold tabular-nums text-white">
+                {{ formatCurrency(credit.repayAmount) }}
+              </div>
+            </div>
+            <div class="relative mt-3.5 flex gap-2.5">
+              <BaseButton rounded="lg" class="flex-1 border border-white/8 bg-muted-700 !text-white" @click="comingSoon('Repay early')">
+                Repay early
+              </BaseButton>
+              <BaseButton rounded="lg" class="flex-1 border border-white/8 bg-muted-700 !text-white" @click="openApply">
+                Increase limit
+              </BaseButton>
+            </div>
+          </template>
+
+          <!-- no credit -->
+          <template v-else>
+            <div class="relative mt-5 flex flex-1 flex-col">
+              <div class="font-heading text-[21px] font-bold leading-[1.2] tracking-[-0.01em] text-white">
+                Spread project costs with an Apex credit line
+              </div>
+              <div class="mt-4 flex flex-col gap-[9px]">
+                <div v-for="perk in ['Up to £10,000 for approved clients', '0% interest on 3-month terms', 'Decision within one working day']" :key="perk" class="flex items-center gap-2.5 text-[13.5px] text-muted-400">
+                  <span class="inline-flex size-[18px] shrink-0 items-center justify-center rounded-full bg-[#22B07D]">
+                    <Icon name="lucide:check" class="size-[11px] text-white" />
+                  </span>
+                  {{ perk }}
+                </div>
+              </div>
+              <div class="flex-1" />
+              <BaseButton v-if="!applied" rounded="lg" variant="primary" class="mt-5 w-full shadow-[0_8px_20px_rgba(125,83,242,0.28)]" @click="openApply">
+                Apply for credit
+              </BaseButton>
+              <div v-else class="mt-5 flex items-center gap-2.5 rounded-xl border border-[#D9A521]/24 bg-[#D9A521]/[0.08] px-[15px] py-[13px]">
+                <Icon name="lucide:clock" class="size-[17px] shrink-0 text-[#F2C14E]" />
+                <div class="text-[13px] text-muted-400">
+                  Application under review — we'll email you within one working day.
+                </div>
+              </div>
+            </div>
+          </template>
+        </section>
       </div>
 
-      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        <div class="lg:col-span-8 flex flex-col gap-6">
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div class="relative bg-[#161925] border border-white/5 rounded-3xl p-6 overflow-hidden group">
-              <div class="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 rounded-full blur-2xl group-hover:bg-emerald-500/10 transition-all" />
-
-              <div class="flex justify-between items-start mb-6">
-                <div class="p-3 bg-emerald-500/10 rounded-2xl border border-emerald-500/20 text-emerald-400">
-                  <Icon name="lucide:wallet" class="w-6 h-6" />
+      <!-- second row -->
+      <div class="grid grid-cols-1 gap-[18px] lg:grid-cols-2">
+        <!-- upcoming payments -->
+        <section class="flex flex-col rounded-[28px] border border-white/8 bg-muted-800 px-6 py-[22px]">
+          <div class="mb-4 flex items-center gap-2.5">
+            <Icon name="lucide:calendar" class="size-[18px] text-primary-400" />
+            <h3 class="font-heading text-base font-bold text-white">
+              Upcoming payments
+            </h3>
+          </div>
+          <div v-if="upcoming.length" class="flex flex-col gap-2.5">
+            <div
+              v-for="u in upcoming" :key="u.id"
+              class="flex items-center gap-3 rounded-xl border bg-muted-700 px-3.5 py-3"
+              :class="u.dueSoon ? 'border-[#D9A521]/28' : 'border-white/8'"
+            >
+              <span class="inline-flex size-[38px] shrink-0 items-center justify-center rounded-[11px]" :class="[SVC_META[u.icon].bg, SVC_META[u.icon].text]">
+                <Icon :name="SVC_META[u.icon].icon" class="size-[17px]" />
+              </span>
+              <div class="min-w-0 flex-1">
+                <div class="truncate text-[13.5px] font-semibold text-white">
+                  {{ u.name }}
                 </div>
-                <div class="text-right">
-                  <span class="text-[10px] uppercase font-bold text-muted-500 block">Available Cash</span>
-                  <span class="text-2xl font-mono font-bold text-white">{{ formatCurrency(balanceOverview.cash) }}</span>
-                </div>
-              </div>
-
-              <div class="flex items-center gap-2 text-xs text-muted-400 bg-white/5 p-3 rounded-xl border border-white/5">
-                <Icon name="lucide:trending-up" class="w-4 h-4 text-emerald-400" />
-                <span class="text-emerald-400 font-bold">+{{ balanceOverview.monthlyChange }}%</span>
-                <span>increase this month</span>
-              </div>
-            </div>
-
-            <div class="relative bg-[#161925] border border-white/5 rounded-3xl p-6 overflow-hidden group">
-              <div class="absolute top-0 right-0 w-32 h-32 bg-blue-500/5 rounded-full blur-2xl group-hover:bg-blue-500/10 transition-all" />
-
-              <div class="flex justify-between items-start mb-6">
-                <div class="p-3 bg-blue-500/10 rounded-2xl border border-blue-500/20 text-blue-400">
-                  <Icon name="lucide:zap" class="w-6 h-6" />
-                </div>
-                <div class="text-right">
-                  <span class="text-[10px] uppercase font-bold text-muted-500 block">Ad Credits</span>
-                  <span class="text-2xl font-mono font-bold text-white">{{ formatCurrency(balanceOverview.credits) }}</span>
+                <div class="mt-0.5 text-xs text-muted-500">
+                  {{ u.sub }}
                 </div>
               </div>
-
-              <div class="space-y-1.5">
-                <div class="flex justify-between text-[10px] uppercase font-bold text-muted-500">
-                  <span>Utilization</span>
-                  <span>{{ creditLimit.utilization }}%</span>
+              <div class="text-right">
+                <div class="font-heading text-[15px] font-bold tabular-nums text-white">
+                  {{ formatCurrency(u.amount) }}
                 </div>
-                <div class="w-full h-2 bg-black/40 rounded-full overflow-hidden">
-                  <div class="h-full bg-blue-500 rounded-full" :style="{ width: `${creditLimit.utilization}%` }" />
+                <div class="mt-0.5 text-[11.5px] font-semibold" :class="u.dueSoon ? 'text-[#F2C14E]' : 'text-muted-500'">
+                  {{ u.date }}
                 </div>
               </div>
             </div>
           </div>
+          <div v-else class="flex flex-1 items-center justify-center rounded-xl border border-dashed border-white/8 p-[26px] text-center text-[13.5px] text-muted-500">
+            No payments scheduled — start a project to see installments here.
+          </div>
+          <button
+            class="mt-3.5 inline-flex items-center justify-center gap-1.5 rounded-[11px] border border-white/8 bg-transparent p-2.5 text-[13px] font-bold text-primary-400 transition-all hover:bg-muted-700"
+            @click="goTab('installments')"
+          >
+            View all installments
+            <Icon name="lucide:chevron-right" class="size-3.5" />
+          </button>
+        </section>
 
-          <div class="bg-[#161925] border border-white/5 rounded-[2rem] p-6 lg:p-8 flex flex-col relative overflow-hidden">
-            <div class="flex items-center justify-between mb-6 relative z-10">
-              <div>
-                <h3 class="text-lg font-bold text-white flex items-center gap-2">
-                  Project Installments
-                  <span class="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 text-[10px] uppercase border border-amber-500/20">{{ activeInstallments.length }} Active</span>
-                </h3>
-                <p class="text-xs text-muted-500 mt-1">
-                  Linked to your active orders
-                </p>
-              </div>
-              <button class="text-xs text-primary-400 hover:text-white transition-colors uppercase font-bold">
-                Details
-              </button>
-            </div>
-
-            <div class="space-y-4 relative z-10">
-              <div v-if="activeInstallments.length === 0" class="text-center py-4 text-xs text-muted-500">No active installments.</div>
-
-              <div
-                v-for="plan in activeInstallments" :key="plan.id"
-                class="group relative bg-white/[0.02] border border-white/5 rounded-2xl p-4 hover:bg-white/[0.04] transition-all"
-              >
-                <div class="flex flex-col md:flex-row gap-6 items-center">
-                  <div class="flex items-center gap-4 w-full md:w-auto md:min-w-[200px]">
-                    <div class="w-12 h-12 rounded-xl bg-[#0f111a] border border-white/10 flex items-center justify-center text-muted-400 group-hover:text-white group-hover:border-primary-500/50 transition-all">
-                      <Icon :name="plan.icon" class="w-6 h-6" />
-                    </div>
-                    <div>
-                      <span class="text-[10px] text-muted-500 font-mono block mb-0.5">{{ plan.id }}</span>
-                      <h4 class="text-sm font-bold text-white">
-                        {{ plan.project }}
-                      </h4>
-                    </div>
-                  </div>
-
-                  <div class="flex-1 w-full">
-                    <div class="flex justify-between text-[10px] uppercase font-bold text-muted-500 mb-2">
-                      <span>Progress: {{ plan.monthsPaid }}/{{ plan.monthsTotal }} Months</span>
-                      <span :class="plan.status === 'urgent' ? 'text-amber-400' : 'text-emerald-400'">
-                        Next: {{ formatCurrency(plan.amountDue) }} on {{ plan.nextDue }}
-                      </span>
-                    </div>
-                    <div class="flex gap-1 h-3 w-full">
-                      <div
-                        v-for="(blockClass, idx) in plan.blocks" :key="idx"
-                        class="flex-1 rounded-sm transition-all duration-500"
-                        :class="blockClass"
-                      />
-                    </div>
-
-                    <button class="shrink-0 px-4 py-2 rounded-lg bg-white/5 hover:bg-white text-white hover:text-black border border-white/10 text-xs font-bold uppercase transition-all md:hidden mt-4">
-                      Pay Now
-                    </button>
-                  </div>
-                  
-                  <button class="shrink-0 px-4 py-2 rounded-lg bg-white/5 hover:bg-white text-white hover:text-black border border-white/10 text-xs font-bold uppercase transition-all hidden md:block">
-                    Pay Now
-                  </button>
+        <!-- recent activity -->
+        <section class="flex flex-col rounded-[28px] border border-white/8 bg-muted-800 px-6 py-[22px]">
+          <div class="mb-4 flex items-center gap-2.5">
+            <Icon name="lucide:activity" class="size-[18px] text-primary-400" />
+            <h3 class="font-heading text-base font-bold text-white">
+              Recent activity
+            </h3>
+          </div>
+          <div v-if="recentTx.length" class="flex flex-col">
+            <div
+              v-for="(t, i) in recentTx" :key="t.id"
+              class="flex items-center gap-3 py-2.5"
+              :class="i < recentTx.length - 1 ? 'border-b border-white/8' : ''"
+            >
+              <span class="inline-flex size-[38px] shrink-0 items-center justify-center rounded-[11px]" :class="[TX_META[t.kind].bg, TX_META[t.kind].text]">
+                <Icon :name="TX_META[t.kind].icon" class="size-4" />
+              </span>
+              <div class="min-w-0 flex-1">
+                <div class="truncate text-[13.5px] font-semibold text-white">
+                  {{ t.title }}
+                </div>
+                <div class="mt-0.5 text-xs text-muted-500">
+                  {{ t.sub }}
                 </div>
               </div>
+              <span class="font-heading text-[15px] font-bold tabular-nums" :class="t.amount > 0 ? 'text-[#22B07D]' : 'text-white'">
+                {{ signed(t.amount) }}
+              </span>
+            </div>
+          </div>
+          <div v-else class="flex flex-1 items-center justify-center rounded-xl border border-dashed border-white/8 p-[26px] text-center text-[13.5px] text-muted-500">
+            No activity yet — your top-ups and payments will appear here.
+          </div>
+          <button
+            class="mt-3.5 inline-flex items-center justify-center gap-1.5 rounded-[11px] border border-white/8 bg-transparent p-2.5 text-[13px] font-bold text-primary-400 transition-all hover:bg-muted-700"
+            @click="goTab('transactions')"
+          >
+            View all transactions
+            <Icon name="lucide:chevron-right" class="size-3.5" />
+          </button>
+        </section>
+      </div>
+    </div>
+
+    <!-- ============================================================ TRANSACTIONS -->
+    <div v-else-if="tab === 'transactions'" class="apex-rise">
+      <div class="mb-[18px] flex flex-wrap items-center gap-3.5">
+        <div class="flex flex-wrap gap-1 rounded-full border border-white/8 bg-muted-800 p-1">
+          <button
+            v-for="[key, label] in TX_FILTERS" :key="key"
+            class="rounded-full px-[15px] py-2 text-[13px] transition-all"
+            :class="txFilter === key ? 'bg-primary-500 font-bold text-white' : 'font-semibold text-muted-400 hover:text-white'"
+            @click="txFilter = key as any"
+          >
+            {{ label }}
+          </button>
+        </div>
+        <div class="flex-1" />
+        <label class="flex w-full items-center gap-2.5 rounded-[11px] border border-white/8 bg-muted-800 px-3.5 py-2.5 focus-within:border-primary-400 sm:w-[250px]">
+          <Icon name="lucide:search" class="size-4 shrink-0 text-muted-500" />
+          <input v-model="txQ" placeholder="Search transactions" class="min-w-0 flex-1 border-none bg-transparent text-[13.5px] text-white outline-none placeholder:text-muted-500">
+        </label>
+      </div>
+
+      <section v-if="txRows.length" class="rounded-[28px] border border-white/8 bg-muted-800 px-6 py-2">
+        <div
+          v-for="(t, i) in txRows" :key="t.id"
+          class="flex items-center gap-4 py-[15px]"
+          :class="i < txRows.length - 1 ? 'border-b border-white/5' : ''"
+        >
+          <span class="inline-flex size-[38px] shrink-0 items-center justify-center rounded-[11px]" :class="[TX_META[t.kind].bg, TX_META[t.kind].text]">
+            <Icon :name="TX_META[t.kind].icon" class="size-4" />
+          </span>
+          <div class="min-w-0 flex-1">
+            <div class="truncate text-sm font-semibold text-white">
+              {{ t.title }}
+            </div>
+            <div class="mt-[3px] text-xs text-muted-500">
+              {{ t.sub }}
+            </div>
+          </div>
+          <div class="shrink-0 text-right">
+            <div class="font-heading text-[15px] font-bold tabular-nums" :class="t.amount > 0 ? 'text-[#22B07D]' : 'text-white'">
+              {{ signed(t.amount) }}
+            </div>
+            <div class="mt-[3px] text-[11.5px] text-muted-500">
+              {{ t.date }}
             </div>
           </div>
         </div>
+      </section>
+      <div v-else class="rounded-[28px] border border-white/8 bg-muted-800 px-[30px] py-14 text-center">
+        <span class="mb-4 inline-flex size-[60px] items-center justify-center rounded-full bg-muted-700 text-muted-500">
+          <Icon name="lucide:activity" class="size-[26px]" />
+        </span>
+        <h3 class="font-heading text-[19px] font-bold text-white">
+          No transactions
+        </h3>
+        <p class="mt-2 text-sm text-muted-400">
+          {{ txEmptyMsg }}
+        </p>
+      </div>
+    </div>
 
-        <div class="lg:col-span-4 w-full flex flex-col gap-6">
-          <div class="bg-[#161925] border border-white/5 rounded-3xl p-6 sticky top-6">
-            <div class="flex justify-between items-center mb-6">
-              <h3 class="text-sm font-bold text-white uppercase tracking-wider">
-                Your Cards
-              </h3>
-              <button class="w-8 h-8 flex items-center justify-center rounded-lg bg-white/5 hover:bg-white/10 text-white transition-colors">
-                <Icon name="lucide:settings-2" class="w-4 h-4" />
+    <!-- ============================================================ INSTALLMENTS -->
+    <div v-else-if="tab === 'installments'" class="apex-rise">
+      <div v-if="plans.length" class="flex flex-col gap-3.5">
+        <section v-for="pl in plans" :key="pl.id" class="overflow-hidden rounded-[28px] border border-white/8 bg-muted-800">
+          <div
+            role="button" tabindex="0" class="flex cursor-pointer items-center gap-4 px-6 py-[19px] transition-colors hover:bg-muted-700"
+            @click="togglePlan(pl.id)"
+            @keydown.enter="togglePlan(pl.id)"
+            @keydown.space.prevent="togglePlan(pl.id)"
+          >
+            <span class="inline-flex size-11 shrink-0 items-center justify-center rounded-xl" :class="[SVC_META[pl.icon].bg, SVC_META[pl.icon].text]">
+              <Icon :name="SVC_META[pl.icon].icon" class="size-5" />
+            </span>
+            <div class="min-w-0 flex-1">
+              <div class="flex flex-wrap items-center gap-2.5">
+                <span class="font-heading text-[16.5px] font-bold text-white">{{ pl.name }}</span>
+                <span
+                  class="inline-flex items-center rounded-full px-2.5 py-1 text-[10.5px] font-extrabold uppercase tracking-[0.05em]"
+                  :class="pl.status === 'completed' ? 'bg-[#22B07D]/14 text-[#22B07D]' : pl.dueSoon ? 'bg-[#D9A521]/16 text-[#F2C14E]' : 'bg-[#22B07D]/14 text-[#22B07D]'"
+                >
+                  {{ pl.status === 'completed' ? 'Paid in full' : pl.dueSoon ? 'Due soon' : 'Up to date' }}
+                </span>
+              </div>
+              <div class="mt-[3px] truncate text-[12.5px] text-muted-500">
+                {{ pl.service }} · #{{ pl.shortId }}<template v-if="pl.status !== 'completed'">
+                  · Next: {{ formatCurrency(pl.amount) }} · {{ pl.nextLabel }}
+                </template>
+              </div>
+            </div>
+            <div class="hidden w-[200px] shrink-0 flex-col gap-[7px] sm:flex">
+              <div class="flex gap-[3px]">
+                <div
+                  v-for="(r, i) in pl.rows" :key="i"
+                  class="h-[7px] flex-1 rounded-[3px]"
+                  :class="i < pl.paid ? (pl.status === 'completed' ? 'bg-[#22B07D]' : 'bg-primary-500') : 'bg-white/8'"
+                />
+              </div>
+              <div class="text-right text-[11.5px] text-muted-500">
+                {{ pl.paid }} of {{ pl.total }} paid
+              </div>
+            </div>
+            <Icon name="lucide:chevron-down" class="size-[18px] shrink-0 text-muted-500 transition-transform" :class="expanded[pl.id] ? 'rotate-180' : ''" />
+          </div>
+
+          <div v-if="expanded[pl.id]" class="apex-fade border-t border-white/8 px-6 pb-[18px] pt-2.5">
+            <div
+              v-for="r in pl.rows" :key="r.n"
+              class="flex items-center gap-3.5 border-b border-white/[0.04] py-[11px]"
+            >
+              <span
+                class="inline-flex size-[26px] shrink-0 items-center justify-center rounded-full font-heading text-[11.5px] font-bold"
+                :class="r.state === 'paid' ? 'bg-[#22B07D]/16 text-[#22B07D]' : r.state === 'next' ? 'bg-primary-500/18 text-primary-200' : 'bg-muted-700 text-muted-500'"
+              >{{ r.n }}</span>
+              <div class="flex-1 text-[13.5px] font-semibold" :class="r.state === 'scheduled' ? 'text-muted-500' : 'text-white'">
+                {{ r.label }}
+              </div>
+              <span class="shrink-0 basis-[110px] text-[12.5px] text-muted-500">{{ r.date }}</span>
+              <span class="shrink-0 basis-[70px] text-right font-heading text-sm font-bold tabular-nums text-white">{{ formatCurrency(r.amount) }}</span>
+              <span
+                class="inline-flex w-[86px] shrink-0 items-center justify-center rounded-full px-2.5 py-1 text-[10.5px] font-extrabold uppercase tracking-[0.05em]"
+                :class="r.state === 'paid' ? 'bg-[#22B07D]/14 text-[#22B07D]' : r.state === 'next' ? (r.dueSoon ? 'bg-[#D9A521]/16 text-[#F2C14E]' : 'bg-primary-500/16 text-primary-200') : 'bg-muted-700 text-muted-500'"
+              >
+                {{ r.state === 'paid' ? 'Paid' : r.state === 'next' ? (r.dueSoon ? 'Due soon' : 'Next') : 'Scheduled' }}
+              </span>
+              <button
+                v-if="r.state === 'next'"
+                class="rounded-full bg-primary-500 px-[15px] py-[7px] text-xs font-bold text-white transition-colors hover:bg-primary-600"
+                @click="payInstallment(pl)"
+              >
+                Pay now
+              </button>
+              <span v-else class="w-[79px]" />
+            </div>
+          </div>
+        </section>
+      </div>
+      <div v-else class="rounded-[28px] border border-white/8 bg-muted-800 px-[30px] py-14 text-center">
+        <span class="mb-4 inline-flex size-[60px] items-center justify-center rounded-full bg-muted-700 text-muted-500">
+          <Icon name="lucide:calendar" class="size-[26px]" />
+        </span>
+        <h3 class="font-heading text-[19px] font-bold text-white">
+          No installment plans
+        </h3>
+        <p class="mb-5 mt-2 text-sm text-muted-400">
+          Installment schedules appear here once you start a project.
+        </p>
+        <BaseButton rounded="full" variant="primary" to="/dashboards/services">
+          Start a project
+        </BaseButton>
+      </div>
+    </div>
+
+    <!-- ============================================================ BANKING -->
+    <div v-else-if="tab === 'banking'" class="apex-rise grid grid-cols-1 items-start gap-[18px] lg:grid-cols-[minmax(0,1fr)_380px]">
+      <!-- left: methods + invoices -->
+      <div class="flex min-w-0 flex-col gap-[18px]">
+        <section class="rounded-[28px] border border-white/8 bg-muted-800 px-6 py-[22px]">
+          <div class="mb-4 flex items-center gap-2.5">
+            <Icon name="lucide:credit-card" class="size-[18px] text-primary-400" />
+            <h3 class="font-heading text-base font-bold text-white">
+              Payment methods
+            </h3>
+          </div>
+          <div v-if="cards.length" class="flex flex-col gap-2.5">
+            <div
+              v-for="(c, i) in cards" :key="c.id"
+              class="flex items-center gap-3.5 rounded-[13px] border bg-muted-700 px-4 py-3.5"
+              :class="i === 0 ? 'border-primary-500/26' : 'border-white/8'"
+            >
+              <span class="inline-flex h-8 w-[46px] shrink-0 items-center justify-center rounded-[7px] border border-white/15 text-[9px] font-extrabold tracking-[0.04em] text-white" style="background: linear-gradient(140deg, #1B2B31, #0D181C);">
+                {{ (c.type || '').toLowerCase().includes('visa') ? 'VISA' : 'MC' }}
+              </span>
+              <div class="min-w-0 flex-1">
+                <div class="text-sm font-semibold text-white">
+                  •••• {{ c.last4 }}
+                </div>
+                <div class="mt-0.5 text-xs text-muted-500">
+                  Expires {{ c.expiryDate }}
+                </div>
+              </div>
+              <span v-if="i === 0" class="rounded-full bg-primary-500/14 px-[11px] py-[5px] text-[11px] font-extrabold uppercase tracking-[0.05em] text-primary-200">Default</span>
+              <button v-else class="px-2 py-[5px] text-xs font-semibold text-muted-500 transition-colors hover:text-white" @click="comingSoon('Set default card')">
+                Make default
+              </button>
+              <button
+                aria-label="Remove card"
+                class="inline-flex size-8 items-center justify-center rounded-[9px] border border-white/8 text-muted-500 transition-colors hover:border-[#EC6453]/40 hover:text-[#EC6453]"
+                @click="comingSoon('Remove card')"
+              >
+                <Icon name="lucide:trash-2" class="size-[15px]" />
               </button>
             </div>
+          </div>
+          <div v-else class="mb-0.5 rounded-xl border border-dashed border-white/8 p-[22px] text-center text-[13.5px] text-muted-500">
+            No saved cards yet.
+          </div>
+          <button
+            class="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl border-[1.5px] border-dashed border-white/15 p-3 text-[13.5px] font-semibold text-muted-400 transition-all hover:border-primary-400 hover:bg-primary-500/5 hover:text-white"
+            @click="comingSoon('Add payment method')"
+          >
+            <Icon name="lucide:plus" class="size-[15px]" />
+            Add payment method
+          </button>
+        </section>
 
-            <div class="relative w-full aspect-[1.586/1] rounded-2xl overflow-hidden p-6 flex flex-col justify-between shadow-2xl mb-8 group cursor-pointer transition-transform hover:scale-[1.02]">
-              <div class="absolute inset-0 bg-gradient-to-br from-[#2c3e50] to-[#000000] z-0" />
-              <div class="absolute top-0 right-0 w-40 h-40 bg-white/5 rounded-full blur-2xl -translate-y-1/2 translate-x-1/2" />
-              <div class="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-10 z-0" />
-
-              <div class="relative z-10 flex justify-between items-start">
-                <div class="text-xs font-bold text-white/50 tracking-widest uppercase">
-                  {{ currentCard?.type || 'Mastercard' }}
+        <section class="rounded-[28px] border border-white/8 bg-muted-800 px-6 py-[22px]">
+          <div class="mb-3.5 flex items-center gap-2.5">
+            <Icon name="lucide:file-text" class="size-[18px] text-primary-400" />
+            <h3 class="font-heading text-base font-bold text-white">
+              Invoices
+            </h3>
+            <span class="rounded-full bg-muted-700 px-2.5 py-0.5 text-xs text-muted-500">{{ invoices.length }}</span>
+          </div>
+          <div v-if="invoices.length">
+            <div
+              v-for="inv in invoices" :key="inv.id"
+              class="flex items-center gap-3.5 border-b border-white/[0.04] py-3"
+            >
+              <div class="min-w-0 flex-1">
+                <div class="text-[13.5px] font-semibold text-white">
+                  {{ inv.num }}
                 </div>
-                <Icon name="logos:mastercard" class="w-8 h-8 opacity-80" />
-              </div>
-              <div class="relative z-10">
-                <div class="text-lg font-mono font-bold text-white tracking-widest mb-1">
-                  •••• •••• •••• {{ currentCard?.last4 || '4479' }}
-                </div>
-                <div class="flex justify-between items-end">
-                  <div>
-                    <div class="text-[9px] text-white/50 uppercase tracking-wider mb-0.5">
-                      Card Holder
-                    </div>
-                    <div class="text-xs font-bold text-white uppercase tracking-wide">
-                      {{ currentCard?.holderName || 'Kendra Wilson' }}
-                    </div>
-                  </div>
-                  <div class="text-right">
-                    <div class="text-[9px] text-white/50 uppercase tracking-wider mb-0.5">
-                      Expires
-                    </div>
-                    <div class="text-xs font-bold text-white">
-                      {{ currentCard?.expiryDate || '12/28' }}
-                    </div>
-                  </div>
+                <div class="mt-0.5 truncate text-xs text-muted-500">
+                  {{ inv.sub }}
                 </div>
               </div>
-            </div>
-
-            <div class="space-y-4">
-              <div class="flex justify-between items-center pb-4 border-b border-white/5">
-                <span class="text-2xl font-bold text-white font-mono">{{ formatCurrency(currentCard?.balance || 9543.13) }}</span>
-                <div class="flex items-center gap-2">
-                  <span class="text-xs text-muted-500 font-mono">**** {{ currentCard?.last4 || '4479' }}</span>
-                  <Icon name="logos:mastercard" class="w-5 h-5 opacity-70" />
-                </div>
-              </div>
-              <div v-for="(limit, i) in cardLimits" :key="i" class="bg-white/5 border border-white/5 rounded-xl p-4">
-                <div class="flex items-center gap-3 mb-3">
-                  <div class="w-8 h-8 rounded-lg bg-black/30 flex items-center justify-center text-muted-400">
-                    <Icon :name="limit.icon" class="w-4 h-4" />
-                  </div>
-                  <div class="flex-1">
-                    <div class="flex justify-between items-baseline mb-1">
-                      <h4 class="text-xs font-bold text-white">
-                        {{ limit.label }}
-                      </h4>
-                      <span class="text-[10px] text-muted-400">{{ formatCurrency(limit.current) }} / {{ formatCurrency(limit.max) }}</span>
-                    </div>
-                    <div class="w-full h-1.5 bg-black/30 rounded-full overflow-hidden">
-                      <div class="h-full bg-primary-500 rounded-full" :style="{ width: `${(limit.current / limit.max) * 100}%` }" />
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <span class="font-heading text-sm font-bold tabular-nums text-white">{{ formatCurrency(inv.amount) }}</span>
+              <span class="inline-flex items-center rounded-full bg-[#22B07D]/14 px-2.5 py-1 text-[10.5px] font-extrabold uppercase tracking-[0.05em] text-[#22B07D]">Paid</span>
+              <button
+                aria-label="Download invoice"
+                class="inline-flex size-8 items-center justify-center rounded-[9px] border border-white/8 bg-muted-700 text-muted-400 transition-colors hover:border-white/15 hover:text-white"
+                @click="comingSoon('Download invoice')"
+              >
+                <Icon name="lucide:download" class="size-[15px]" />
+              </button>
             </div>
           </div>
+          <div v-else class="rounded-xl border border-dashed border-white/8 p-[22px] text-center text-[13.5px] text-muted-500">
+            Invoices are issued with each installment payment.
+          </div>
+        </section>
+      </div>
 
-          <div class="bg-[#161925] border border-white/5 rounded-[2rem] p-6 flex flex-col h-[400px]">
-            <div class="flex items-center justify-between mb-4 border-b border-white/5 pb-4">
-              <div class="flex bg-black/20 p-1 rounded-xl">
-                <button
-                  v-for="tab in tabs" :key="tab"
-                  class="px-4 py-1.5 text-xs font-bold rounded-lg transition-all"
-                  :class="activeTab === tab ? 'bg-white text-black shadow-lg' : 'text-muted-500 hover:text-white'"
-                  @click="activeTab = tab"
-                >
-                  {{ tab }}
-                </button>
+      <!-- right: bank transfer + billing -->
+      <div class="flex flex-col gap-[18px]">
+        <section class="rounded-[28px] border border-white/8 px-6 py-[22px]" style="background: linear-gradient(160deg, #16252A, #101D21);">
+          <div class="mb-1.5 flex items-center gap-2.5">
+            <Icon name="lucide:landmark" class="size-[18px] text-primary-400" />
+            <h3 class="font-heading text-base font-bold text-white">
+              Bank transfer
+            </h3>
+          </div>
+          <p class="mb-3.5 text-[12.5px] leading-[1.5] text-muted-500">
+            Pay any installment directly by transfer — use your project ID as the reference.
+          </p>
+          <div
+            v-for="b in BANK_ROWS" :key="b.key"
+            class="flex items-center gap-2.5 border-b border-white/[0.05] py-2.5"
+          >
+            <div class="min-w-0 flex-1">
+              <div class="text-[11px] font-bold uppercase tracking-[0.05em] text-muted-500">
+                {{ b.label }}
+              </div>
+              <div class="mt-[3px] text-[13.5px] font-semibold tabular-nums text-white">
+                {{ b.value }}
               </div>
             </div>
+            <button
+              class="rounded-lg border border-white/8 bg-muted-700 px-3 py-1.5 text-[11.5px] font-semibold transition-colors hover:border-white/15 hover:text-white"
+              :class="copied === b.key ? 'text-[#22B07D]' : 'text-muted-400'"
+              @click="copyBank(b.key)"
+            >
+              {{ copied === b.key ? 'Copied' : 'Copy' }}
+            </button>
+          </div>
+        </section>
 
-            <div class="flex-1 overflow-y-auto custom-scrollbar pr-2">
-              <div v-if="activeTab === 'Activity'" class="space-y-3">
-                
-                <div v-if="activities.length === 0" class="text-center py-4 text-xs text-muted-500">No recent activity.</div>
-
-                <div
-                  v-for="item in activities" :key="item.id"
-                  class="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 transition-colors cursor-pointer"
-                >
-                  <div class="flex items-center gap-3">
-                    <div
-                      class="w-10 h-10 rounded-lg flex items-center justify-center border border-white/5"
-                      :class="item.type === 'in' ? 'bg-emerald-500/10 text-emerald-400' : item.type === 'credit' ? 'bg-blue-500/10 text-blue-400' : 'bg-white/5 text-muted-400'"
-                    >
-                      <Icon :name="item.icon" class="w-5 h-5" />
-                    </div>
-                    <div>
-                      <h4 class="text-sm font-bold text-white">
-                        {{ item.title }}
-                      </h4>
-                      <p class="text-[10px] text-muted-500">
-                        {{ item.date }} • {{ item.sub }}
-                      </p>
-                    </div>
-                  </div>
-                  <span
-                    class="text-xs font-mono font-bold"
-                    :class="item.amount > 0 ? 'text-emerald-400' : 'text-white'"
-                  >
-                    {{ item.amount > 0 ? '+' : '' }}{{ formatCurrency(item.amount) }}
-                  </span>
-                </div>
+        <section class="rounded-[28px] border border-white/8 bg-muted-800 px-6 py-[22px]">
+          <div class="mb-3.5 flex items-center justify-between gap-2.5">
+            <div class="flex items-center gap-2.5">
+              <Icon name="lucide:user" class="size-[18px] text-primary-400" />
+              <h3 class="font-heading text-base font-bold text-white">
+                Billing details
+              </h3>
+            </div>
+            <button class="text-[12.5px] font-bold text-primary-400 transition-colors hover:text-primary-200" @click="comingSoon('Edit billing details')">
+              Edit
+            </button>
+          </div>
+          <div class="flex flex-col gap-2.5 text-[13.5px] leading-[1.5] text-muted-400">
+            <div>
+              <div class="mb-[3px] text-[11px] font-bold uppercase tracking-[0.05em] text-muted-500">
+                Billed to
               </div>
-
-              <div v-if="activeTab === 'Requests'" class="space-y-3">
-                
-                <div v-if="requests.length === 0" class="text-center py-4 text-xs text-muted-500">No requests pending.</div>
-
-                <div
-                  v-for="req in requests" :key="req.id"
-                  class="p-4 rounded-xl bg-white/5 border border-white/5 relative overflow-hidden group"
-                >
-                  <div class="flex justify-between items-start mb-2">
-                    <div class="flex items-center gap-2">
-                      <Icon :name="req.icon" class="w-4 h-4 text-primary-400" />
-                      <span class="text-xs font-bold text-white">{{ req.title }}</span>
-                    </div>
-                    <span
-                      class="text-[10px] px-2 py-0.5 rounded border uppercase font-bold"
-                      :class="req.status === 'Processing' ? 'text-amber-400 border-amber-500/20 bg-amber-500/10' : 'text-emerald-400 border-emerald-500/20 bg-emerald-500/10'"
-                    >
-                      {{ req.status }}
-                    </span>
-                  </div>
-                  <div class="flex justify-between items-end">
-                    <span class="text-[10px] text-muted-500">{{ req.date }}</span>
-                    <span class="text-sm font-mono font-bold text-white">{{ formatCurrency(req.amount) }}</span>
-                  </div>
-                  <div v-if="req.status === 'Processing'" class="absolute bottom-0 left-0 w-full h-0.5 bg-amber-500/20">
-                    <div class="h-full bg-amber-500 w-1/2 animate-[shine_1.5s_infinite]" />
-                  </div>
-                </div>
-                <button class="w-full py-3 border border-dashed border-white/10 rounded-xl text-xs font-bold text-muted-500 hover:text-white hover:border-white/30 transition-all flex items-center justify-center gap-2">
-                  <Icon name="lucide:plus" class="w-4 h-4" /> New Request
-                </button>
+              <span class="font-semibold text-white">{{ billing.name }}</span>
+            </div>
+            <div>
+              <div class="mb-[3px] text-[11px] font-bold uppercase tracking-[0.05em] text-muted-500">
+                Email
               </div>
+              {{ billing.email }}
+            </div>
+            <!-- TODO(api): billing address + VAT number are not stored yet. -->
+            <div>
+              <div class="mb-[3px] text-[11px] font-bold uppercase tracking-[0.05em] text-muted-500">
+                Address
+              </div>
+              Add your billing address in Settings.
             </div>
           </div>
+        </section>
+      </div>
+    </div>
+
+    <!-- ============================================================ TOP-UP MODAL -->
+    <div v-if="topupOpen" class="apex-fade fixed inset-0 z-[60] flex items-center justify-center bg-[rgba(5,10,12,0.66)] p-6 backdrop-blur-[4px]" @click="closeModals">
+      <div
+        role="dialog" aria-label="Top up wallet"
+        class="apex-pop w-[440px] max-w-full rounded-[28px] border border-white/15 p-7 shadow-[0_30px_80px_rgba(0,0,0,0.5)]"
+        style="background: #132125;"
+        @click.stop
+      >
+        <template v-if="!topupDone">
+          <div class="mb-1.5 flex items-center justify-between">
+            <h3 class="font-heading text-[21px] font-extrabold tracking-[-0.01em] text-white">
+              Top up wallet
+            </h3>
+            <button aria-label="Close" class="inline-flex size-8 items-center justify-center rounded-[9px] border border-white/8 bg-muted-700 text-muted-400 hover:text-white" @click="closeTopup">
+              <Icon name="lucide:x" class="size-[15px]" />
+            </button>
+          </div>
+          <p class="mb-5 text-[13.5px] text-muted-500">
+            Funds are available immediately and can auto-pay your installments.
+          </p>
+          <div class="grid grid-cols-4 gap-2">
+            <button
+              v-for="p in TOPUP_PRESETS" :key="p"
+              class="rounded-[11px] border px-1.5 py-[11px] font-heading text-sm font-bold transition-all"
+              :class="String(p) === topupAmount ? 'border-primary-500 bg-primary-500/16 text-white' : 'border-white/8 bg-muted-700 text-muted-400'"
+              @click="topupAmount = String(p)"
+            >
+              £{{ p }}
+            </button>
+          </div>
+          <label class="mt-3 flex items-center gap-2.5 rounded-xl border border-white/8 bg-muted-700 px-3.5 py-3 focus-within:border-primary-400">
+            <span class="font-heading text-[17px] font-bold text-muted-500">£</span>
+            <input
+              :value="topupAmount" inputmode="numeric" placeholder="Custom amount"
+              class="min-w-0 flex-1 border-none bg-transparent text-base font-semibold text-white outline-none placeholder:text-muted-500"
+              @input="onTopupAmount"
+            >
+          </label>
+          <div class="mb-2.5 mt-5 text-xs font-bold uppercase tracking-[0.05em] text-muted-500">
+            Pay with
+          </div>
+          <div class="flex flex-col gap-2">
+            <button
+              v-for="m in [{ key: 'card', title: cards[0] ? `${cards[0].type} •••• ${cards[0].last4}` : 'Card', sub: 'Instant', icon: 'lucide:credit-card' }, { key: 'bank', title: 'Bank transfer', sub: '1–2 working days', icon: 'lucide:landmark' }]" :key="m.key"
+              class="flex w-full items-center gap-3 rounded-xl border px-3.5 py-3 transition-all"
+              :class="topupMethod === m.key ? 'border-primary-500 bg-primary-500/10' : 'border-white/8 bg-muted-700'"
+              @click="topupMethod = m.key as any"
+            >
+              <span class="inline-flex size-[34px] items-center justify-center rounded-[9px] border border-white/8 bg-muted-800 text-muted-400">
+                <Icon :name="m.icon" class="size-[15px]" />
+              </span>
+              <span class="flex-1 text-left">
+                <span class="block text-[13.5px] font-semibold text-white">{{ m.title }}</span>
+                <span class="mt-0.5 block text-[11.5px] text-muted-500">{{ m.sub }}</span>
+              </span>
+              <span class="box-border size-[18px] shrink-0 rounded-full" :class="topupMethod === m.key ? 'border-[5px] border-primary-500 bg-white' : 'border-2 border-white/15'" />
+            </button>
+          </div>
+          <button
+            class="mt-5 w-full rounded-xl py-3 text-sm font-bold transition-all"
+            :class="topupValue > 0 && !topupBusy ? 'cursor-pointer bg-primary-500 text-white shadow-[0_8px_20px_rgba(125,83,242,0.28)] hover:bg-primary-600' : 'cursor-not-allowed bg-muted-700 text-muted-500'"
+            :disabled="topupValue <= 0 || topupBusy"
+            @click="confirmTopup"
+          >
+            {{ topupBusy ? 'Adding…' : topupValue > 0 ? `Add ${formatCurrency(topupValue)} to wallet` : 'Enter an amount' }}
+          </button>
+        </template>
+        <div v-else class="px-1 pb-1.5 pt-2.5 text-center">
+          <span class="mb-[18px] inline-flex size-[62px] items-center justify-center rounded-full bg-[#22B07D]/16 text-[#22B07D]">
+            <Icon name="lucide:check" class="size-[30px]" />
+          </span>
+          <h3 class="font-heading text-[21px] font-extrabold text-white">
+            {{ formatCurrency(topupAddedAmount) }} added
+          </h3>
+          <p class="mb-[22px] mt-2.5 text-[13.5px] text-muted-500">
+            Your new balance is <strong class="text-white">{{ formatCurrency(balance) }}</strong>.
+          </p>
+          <BaseButton rounded="lg" variant="primary" class="w-full" @click="closeTopup">
+            Done
+          </BaseButton>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================================================ APPLY / INCREASE CREDIT MODAL -->
+    <div v-if="applyOpen" class="apex-fade fixed inset-0 z-[60] flex items-center justify-center bg-[rgba(5,10,12,0.66)] p-6 backdrop-blur-[4px]" @click="closeModals">
+      <div
+        role="dialog" aria-label="Apply for credit"
+        class="apex-pop w-[460px] max-w-full rounded-[28px] border border-white/15 p-7 shadow-[0_30px_80px_rgba(0,0,0,0.5)]"
+        style="background: #132125;"
+        @click.stop
+      >
+        <template v-if="!applySubmitted">
+          <div class="mb-1.5 flex items-center justify-between">
+            <h3 class="font-heading text-[21px] font-extrabold tracking-[-0.01em] text-white">
+              {{ isIncrease ? 'Increase credit limit' : 'Apply for credit' }}
+            </h3>
+            <button aria-label="Close" class="inline-flex size-8 items-center justify-center rounded-[9px] border border-white/8 bg-muted-700 text-muted-400 hover:text-white" @click="closeApply">
+              <Icon name="lucide:x" class="size-[15px]" />
+            </button>
+          </div>
+          <p class="mb-[22px] text-[13.5px] text-muted-500">
+            No impact on your credit score. Decision within one working day.
+          </p>
+          <div class="flex items-baseline justify-between">
+            <span class="text-xs font-bold uppercase tracking-[0.05em] text-muted-500">{{ isIncrease ? 'New limit' : 'Credit amount' }}</span>
+            <span class="font-heading text-[26px] font-extrabold tracking-[-0.01em] tabular-nums text-white">{{ formatCurrency(applyAmount) }}</span>
+          </div>
+          <input v-model.number="applyAmount" type="range" min="1000" max="10000" step="500" class="mt-3 w-full cursor-pointer accent-primary-500">
+          <div class="mt-1 flex justify-between text-[11.5px] text-muted-500">
+            <span>£1,000</span><span>£10,000</span>
+          </div>
+          <div class="mb-2.5 mt-5 text-xs font-bold uppercase tracking-[0.05em] text-muted-500">
+            Repayment term
+          </div>
+          <div class="grid grid-cols-3 gap-2">
+            <button
+              v-for="t in APPLY_TERMS" :key="t.months"
+              class="rounded-[11px] border px-1.5 py-[11px] text-center transition-all"
+              :class="applyTerm === t.months ? 'border-primary-500 bg-primary-500/16 text-white' : 'border-white/8 bg-muted-700 text-muted-400'"
+              @click="applyTerm = t.months"
+            >
+              <span class="block font-heading text-[15px] font-bold">{{ t.label }}</span>
+              <span class="mt-0.5 block text-[11px] opacity-75">{{ t.sub }}</span>
+            </button>
+          </div>
+          <div class="mt-4 flex items-center justify-between rounded-xl border border-primary-500/20 bg-primary-500/[0.08] px-4 py-3">
+            <span class="text-[13px] text-muted-400">Estimated monthly repayment</span>
+            <span class="font-heading text-[17px] font-extrabold tabular-nums text-white">{{ formatCurrency(applyMonthly) }}/mo</span>
+          </div>
+          <BaseButton rounded="lg" variant="primary" class="mt-[18px] w-full shadow-[0_8px_20px_rgba(125,83,242,0.28)]" @click="submitApply">
+            {{ isIncrease ? 'Request increase' : 'Submit application' }}
+          </BaseButton>
+        </template>
+        <div v-else class="px-1 pb-1.5 pt-2.5 text-center">
+          <span class="mb-[18px] inline-flex size-[62px] items-center justify-center rounded-full bg-primary-500/16 text-primary-400">
+            <Icon name="lucide:send" class="size-7" />
+          </span>
+          <h3 class="font-heading text-[21px] font-extrabold text-white">
+            Application submitted
+          </h3>
+          <p class="mb-[22px] mt-2.5 text-[13.5px] leading-[1.55] text-muted-500">
+            We're reviewing your request for <strong class="text-white">{{ formatCurrency(applyAmount) }}</strong> over {{ applyTerm }} months. You'll hear from us within one working day.
+          </p>
+          <BaseButton rounded="lg" variant="primary" class="w-full" @click="closeApply">
+            Done
+          </BaseButton>
         </div>
       </div>
     </div>
@@ -401,23 +1144,48 @@ const cardLimits = [
 </template>
 
 <style scoped>
-.custom-scrollbar::-webkit-scrollbar {
-  width: 4px;
+.apex-rise {
+  animation: apexRise 0.3s cubic-bezier(0.22, 0.61, 0.36, 1) both;
 }
-.custom-scrollbar::-webkit-scrollbar-track {
-  background: transparent;
+.apex-fade {
+  animation: apexFade 0.25s both;
 }
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background-color: rgba(255, 255, 255, 0.1);
-  border-radius: 10px;
+.apex-pop {
+  animation: apexPop 0.25s cubic-bezier(0.22, 0.61, 0.36, 1) both;
 }
-
-@keyframes shine {
-  0% {
-    transform: translateX(-100%);
+@keyframes apexRise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
   }
-  100% {
-    transform: translateX(200%);
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes apexFade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes apexPop {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .apex-rise,
+  .apex-fade,
+  .apex-pop {
+    animation: none;
   }
 }
 </style>

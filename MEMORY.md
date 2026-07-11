@@ -22,31 +22,24 @@
 | `51f1295` → `ee2b2cc` | Home/Balance page (interim rebuild, then Apex Design redesign + Yellix/violet token switch) |
 | `ad12c8b` | New Order wizard (`services.vue`): 5 steps, financing calculator, e-signature, creates real orders |
 | `4c1dc3d` | My Orders (`orders.vue`): list+detail, payment-plan rail, segmented installments; `/api/orders` now includes manager |
+| _(this session)_ | **Wallet & Credit (`wallet.vue`)**: 4 tabs (Overview/Transactions/Installments/Banking) + top-up & apply-credit modals. Wired to `/api/finance/dashboard` (balance/cards), `/api/finance/transactions`, `/api/orders` (installments derived per ADR-010), real top-up via `POST /api/finance/deposit`. GBP throughout. Credit-line figures/auto-pay/invoices/bank details are TODO(api) placeholders. |
 
-## IN PROGRESS — Wallet & Credit (`wallet.vue`)  ⬅ NEXT ACTION
+## Wallet redesign — gotcha to remember
 
-Two design zips received (in `C:\Users\mobin\Downloads\` — re-extract from there;
-scratchpad copies die with the session):
+The design's modals use CSS `@keyframes` (apexPop/apexFade), **not** Vue enter/leave
+transitions. My first pass wrapped each modal in `<Transition>` with opacity leave
+classes — the leave animated to `opacity:0` but Vue **never unmounted the node**,
+leaving an invisible full-screen overlay that swallowed all clicks (close handlers
+"did nothing"). Fix: drop `<Transition>`, use plain `v-if` + the `.apex-fade`/`.apex-pop`
+classes. If a future modal "won't close," suspect a stuck Transition-leave first.
 
-- `Page redesign request Wallet.zip` → **`Apex Wallet & Credit.dc.html`** (843 lines, populated states)
-- `Page redesign requestWallet (Empty).zip` → **`Apex Wallet & Credit Empty Pages.dc.html`**
-  (843 lines) + `Apex Wallet & Credit-print-bor8bj.dc.html` (1,220-line print variant)
+## Remaining queue (user sends a Claude Design zip per page)  ⬅ Support is NEXT
 
-Status: zips extracted once, **spec NOT yet reviewed, nothing implemented**.
-Plan when resuming: follow ADR-006 cadence — map sections/headings of both variants,
-read the logic scripts (data model + states), implement `wallet.vue` covering
-populated AND empty states, wire real APIs (`/api/finance/*`, transactions,
-walletBalance/adCredits), GBP, lint, verify, update DESIGN_SYSTEM.md roadmap,
-commit, push.
-
-## Remaining queue (user sends a Claude Design zip per page)
-
-1. **Wallet & Credit** — in progress (above)
-2. Support / ticketing (`support.vue`) — design explicitly "being redesigned next"
+1. Support / ticketing (`support.vue`) — design explicitly "being redesigned next"
    per the My Orders stub
-3. Settings (`settings.vue`)
-4. Auth pages (login-1 = active login, signup-1, recover)
-5. Not yet designed at all: service *compare* view, invoices (see REQUIREMENTS §6)
+2. Settings (`settings.vue`)
+3. Auth pages (login-1 = active login, signup-1, recover)
+4. Not yet designed at all: service *compare* view, invoices (see REQUIREMENTS §6)
 
 ## Known issues (open, non-blocking)
 
@@ -58,7 +51,7 @@ commit, push.
   (schema drift). Working: `create-admin`, `seed-orders`, `seed-support`, `seed-notifs`.
 - `.npmrc` registry mirror (runflare) 403s intermittently →
   `pnpm install --registry=https://registry.npmmirror.com/`.
-- Legacy pages (wallet/support/settings/auth) still old-style: hardcoded hex, USD,
+- Legacy pages (support/settings/auth) still old-style: hardcoded hex, USD,
   native alerts, Persian comments — normalize as each is redesigned.
 - Prod-hardening backlog: httpOnly/secure cookie, real JWT_SECRET, gate seed
   endpoints (REQUIREMENTS §5).
