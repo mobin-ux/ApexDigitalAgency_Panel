@@ -2,12 +2,13 @@
 
 > Handoff doc for continuing work in fresh sessions. Update the relevant section
 > whenever a page ships, a decision lands, or a blocker appears.
-> Last updated: **2026-07-10** (context-externalization session).
+> Last updated: **2026-07-12** (Support redesign session).
 
 ## Where things stand
 
-- Branch: `master` @ `4c1dc3d`, in sync with `origin/master`
-  (github.com/mobin-ux/ApexDigitalAgency_Panel).
+- Branch: `master` @ `10001f1`, in sync with `origin/master`
+  (github.com/mobin-ux/ApexDigitalAgency_Panel). Support redesign commit not yet
+  pushed as of this note — push it next.
 - Working tree: `prisma/dev.db` modified (local test data — never commit),
   `graphify-out/` untracked (generated — never commit).
 - Stale branch `refactor/apex-dashboard` (local + origin) is superseded by master;
@@ -22,7 +23,8 @@
 | `51f1295` → `ee2b2cc` | Home/Balance page (interim rebuild, then Apex Design redesign + Yellix/violet token switch) |
 | `ad12c8b` | New Order wizard (`services.vue`): 5 steps, financing calculator, e-signature, creates real orders |
 | `4c1dc3d` | My Orders (`orders.vue`): list+detail, payment-plan rail, segmented installments; `/api/orders` now includes manager |
-| _(this session)_ | **Wallet & Credit (`wallet.vue`)**: 4 tabs (Overview/Transactions/Installments/Banking) + top-up & apply-credit modals. Wired to `/api/finance/dashboard` (balance/cards), `/api/finance/transactions`, `/api/orders` (installments derived per ADR-010), real top-up via `POST /api/finance/deposit`. GBP throughout. Credit-line figures/auto-pay/invoices/bank details are TODO(api) placeholders. |
+| `10001f1` | Wallet & Credit (`wallet.vue`): 4 tabs (Overview/Transactions/Installments/Banking) + top-up & apply-credit modals. Wired to `/api/finance/dashboard` (balance/cards), `/api/finance/transactions`, `/api/orders` (installments derived per ADR-010), real top-up via `POST /api/finance/deposit`. GBP throughout. Credit-line figures/auto-pay/invoices/bank details are TODO(api) placeholders. |
+| _(this session)_ | **Support (`support.vue`)**: 3 tabs (My tickets split-pane inbox+thread / New request / Help & FAQ). Wired to `/api/support/tickets` (list), `/api/support/[id]/messages` (full thread, fetched per-ticket), `/api/support/[id]/reply`, `/api/support/create`; project dropdown from `/api/orders`. Status/category/priority are free-text schema fields normalized via keyword matching (`catKey`/`priKey`/`statusKey`). Attachments (no upload endpoint/model), assigned-agent identity (no assignee field — renders as generic "Apex Support"), and FAQ copy are TODO(api)/static placeholders. |
 
 ## Wallet redesign — gotcha to remember
 
@@ -33,13 +35,11 @@ leaving an invisible full-screen overlay that swallowed all clicks (close handle
 "did nothing"). Fix: drop `<Transition>`, use plain `v-if` + the `.apex-fade`/`.apex-pop`
 classes. If a future modal "won't close," suspect a stuck Transition-leave first.
 
-## Remaining queue (user sends a Claude Design zip per page)  ⬅ Support is NEXT
+## Remaining queue (user sends a Claude Design zip per page)  ⬅ Settings is NEXT
 
-1. Support / ticketing (`support.vue`) — design explicitly "being redesigned next"
-   per the My Orders stub
-2. Settings (`settings.vue`)
-3. Auth pages (login-1 = active login, signup-1, recover)
-4. Not yet designed at all: service *compare* view, invoices (see REQUIREMENTS §6)
+1. Settings (`settings.vue`)
+2. Auth pages (login-1 = active login, signup-1, recover)
+3. Not yet designed at all: service *compare* view, invoices (see REQUIREMENTS §6)
 
 ## Known issues (open, non-blocking)
 
@@ -51,7 +51,7 @@ classes. If a future modal "won't close," suspect a stuck Transition-leave first
   (schema drift). Working: `create-admin`, `seed-orders`, `seed-support`, `seed-notifs`.
 - `.npmrc` registry mirror (runflare) 403s intermittently →
   `pnpm install --registry=https://registry.npmmirror.com/`.
-- Legacy pages (support/settings/auth) still old-style: hardcoded hex, USD,
+- Legacy pages (settings/auth) still old-style: hardcoded hex, USD,
   native alerts, Persian comments — normalize as each is redesigned.
 - Prod-hardening backlog: httpOnly/secure cookie, real JWT_SECRET, gate seed
   endpoints (REQUIREMENTS §5).

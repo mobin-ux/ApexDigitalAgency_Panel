@@ -1,484 +1,785 @@
 <script setup lang="ts">
 /**
- * Support Center - Enterprise Logic (Backend Connected)
- * -----------------------------------------------------
- * Logic: Fully connected to API (create, list, reply).
- * UI: Original Bento Grid preserved + New Ticket Modal added.
+ * Support center — Apex Design redesign.
+ * Three tabs: My tickets (split-pane inbox + thread + composer), New request
+ * (category grid + form), Help & FAQ (static knowledge base + search).
+ *
+ * Real data: tickets + latest message from GET /api/support/tickets, full
+ * thread from GET /api/support/[id]/messages, replies via POST
+ * /api/support/[id]/reply, new tickets via POST /api/support/create.
+ * "Related project" options come from /api/orders.
+ *
+ * Placeholders (TODO(api) — no backing model/endpoint yet):
+ *  - File attachments (TicketMessage has no attachment field/storage) — the
+ *    picker is functional for UX parity but files are not uploaded or sent.
+ *  - Assigned agent identity (no assignee field on Ticket) — replies from
+ *    staff render under a single "Apex Support" persona.
+ *  - "Related project" is not a Ticket field — folded into the message text
+ *    instead of being silently dropped.
+ *  - FAQ content is static editorial copy, same as the Services catalogue.
  */
-
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
-
 definePageMeta({
-  title: 'Support Center',
+  title: 'Support',
   layout: 'sidenav',
-  middleware: 'auth', // Added Security
-  auth: false,
+  middleware: 'auth',
 })
 
-// --- 1. STATE & DATA FETCHING ---
-// دریافت لیست تیکت‌ها از سرور
-const { data: apiData, refresh: refreshTickets } = await useFetch('/api/support/tickets')
+const toaster = useNuiToasts()
 
-// نگاشت داده‌های سرور به فرمت مورد نیاز قالب
-const tickets = computed(() => {
-  if (!apiData.value?.tickets) return []
-  
-  return apiData.value.tickets.map((t: any) => ({
-    id: t.id, 
-    displayId: `#TK-${t.id.substring(0, 4).toUpperCase()}`,
-    subject: t.subject,
-    category: t.category,
-    status: t.status === 'ANSWERED' ? 'Pending' : (t.status === 'OPEN' ? 'Open' : 'Closed'),
-    priority: t.priority.charAt(0) + t.priority.slice(1).toLowerCase(),
-    created: new Date(t.createdAt).toLocaleDateString(),
-    lastUpdate: 'Recently', // Simplified for demo
-    preview: t.messages[0]?.content || 'No preview available',
-    tags: [t.category],
-    customer: {
-      id: t.userId,
-      name: 'Me', 
-      avatar: 'https://i.pravatar.cc/150?u=' + t.userId,
-      role: 'user',
-      status: 'online'
-    },
-    // Agent is mocked for UI consistency
-    assignedAgent: {
-      id: 999,
-      name: 'Support Team',
-      avatar: 'https://i.pravatar.cc/150?u=support',
-      role: 'agent',
-      status: 'busy'
-    },
-    messages: [] // Loaded on click
-  }))
-})
+// ---- fetch -----------------------------------------------------------------
+const { data: apiResponse, refresh: refreshTickets } = await useFetch('/api/support/tickets', { lazy: true })
+const { data: ordersData } = await useFetch('/api/orders', { lazy: true })
 
-// --- 2. LOCAL STATE ---
-const activeFilter = ref('All')
-const searchQuery = ref('')
-const activeTicketId = ref<string | null>(null)
-const replyMessage = ref('')
-const isSending = ref(false)
-const chatContainerRef = ref<HTMLElement | null>(null)
-const filters = ['All', 'Open', 'Pending', 'Closed']
+const projectOpts = computed(() => ['None', ...((ordersData.value as any)?.data ?? []).map((o: any) => o.name)])
 
-// New Ticket Modal State
-const showNewTicketModal = ref(false)
-const isCreating = ref(false)
-const newTicketForm = ref({ subject: '', category: 'Technical', priority: 'NORMAL', message: '' })
+// ---- taxonomy ---------------------------------------------------------------
+type CatKey = 'billing' | 'technical' | 'presales' | 'aftersales' | 'project' | 'general'
+type PriKey = 'urgent' | 'high' | 'normal' | 'low'
+type StatusKey = 'open' | 'pending' | 'resolved'
 
-// --- 3. COMPUTED LOGIC ---
-const filteredTickets = computed(() => {
-  let result = tickets.value
-  if (activeFilter.value !== 'All') {
-    result = result.filter((t: any) => t.status === activeFilter.value)
-  }
-  if (searchQuery.value) {
-    const query = searchQuery.value.toLowerCase()
-    result = result.filter((t: any) =>
-      t.subject.toLowerCase().includes(query) ||
-      t.displayId.toLowerCase().includes(query)
-    )
-  }
-  return result
-})
+const CATEGORIES: Record<CatKey, { label: string, api: string, icon: string, text: string, bg: string, sub: string }> = {
+  billing: { label: 'Billing', api: 'Billing', icon: 'lucide:wallet', text: 'text-primary-400', bg: 'bg-primary-500/14', sub: 'Invoices, payments, VAT' },
+  technical: { label: 'Technical', api: 'Technical', icon: 'lucide:code-2', text: 'text-[#6EA8FE]', bg: 'bg-[#6EA8FE]/14', sub: 'Bugs, access, setup' },
+  presales: { label: 'Pre-sales', api: 'Pre-sales', icon: 'lucide:arrow-up-right', text: 'text-[#22B07D]', bg: 'bg-[#22B07D]/14', sub: 'Quotes & new work' },
+  aftersales: { label: 'After-sales', api: 'After-sales', icon: 'lucide:badge-check', text: 'text-[#F2C14E]', bg: 'bg-[#D9A521]/14', sub: 'Post-delivery help' },
+  project: { label: 'Project', api: 'Project', icon: 'lucide:briefcase', text: 'text-primary-200', bg: 'bg-primary-500/12', sub: 'About an active project' },
+  general: { label: 'General', api: 'General', icon: 'lucide:message-circle', text: 'text-muted-400', bg: 'bg-muted-700', sub: 'Anything else' },
+}
+const PRIORITIES: Record<PriKey, { label: string, api: string, text: string, bg: string }> = {
+  urgent: { label: 'Urgent', api: 'URGENT', text: 'text-[#EC6453]', bg: 'bg-[#EC6453]/16' },
+  high: { label: 'High', api: 'HIGH', text: 'text-[#F2C14E]', bg: 'bg-[#D9A521]/16' },
+  normal: { label: 'Normal', api: 'NORMAL', text: 'text-muted-400', bg: 'bg-muted-700' },
+  low: { label: 'Low', api: 'LOW', text: 'text-muted-500', bg: 'bg-muted-700' },
+}
+const STATUSES: Record<StatusKey, { label: string, text: string, bg: string }> = {
+  open: { label: 'Open', text: 'text-[#22B07D]', bg: 'bg-[#22B07D]/14' },
+  pending: { label: 'Awaiting you', text: 'text-[#F2C14E]', bg: 'bg-[#D9A521]/16' },
+  resolved: { label: 'Resolved', text: 'text-muted-500', bg: 'bg-muted-700' },
+}
+const ETA: Record<PriKey, { label: string, color: string }> = {
+  urgent: { label: 'under 5 minutes', color: '#EC6453' },
+  high: { label: '~10 minutes', color: '#F2C14E' },
+  normal: { label: '~15 minutes', color: '#22B07D' },
+  low: { label: 'within a few hours', color: 'var(--color-muted-400)' },
+}
 
-const selectedTicket = computed(() => {
-  return tickets.value.find((t: any) => t.id === activeTicketId.value)
-})
+function catKey(raw: string): CatKey {
+  const c = (raw || '').toLowerCase()
+  if (c.includes('bill'))
+    return 'billing'
+  if (c.includes('tech'))
+    return 'technical'
+  if (c.includes('pre') && c.includes('sale'))
+    return 'presales'
+  if (c.includes('after'))
+    return 'aftersales'
+  if (c.includes('project'))
+    return 'project'
+  return 'general'
+}
+function priKey(raw: string): PriKey {
+  const p = (raw || '').toLowerCase()
+  if (p.includes('urgent'))
+    return 'urgent'
+  if (p.includes('high'))
+    return 'high'
+  if (p.includes('low'))
+    return 'low'
+  return 'normal'
+}
+function statusKey(raw: string): StatusKey {
+  const s = (raw || '').toUpperCase()
+  if (s === 'ANSWERED')
+    return 'pending'
+  if (s === 'OPEN')
+    return 'open'
+  return 'resolved'
+}
+function relTime(v: string | Date) {
+  const diff = Date.now() - new Date(v).getTime()
+  const m = Math.floor(diff / 60_000)
+  if (m < 1)
+    return 'Just now'
+  if (m < 60)
+    return `${m} min ago`
+  const h = Math.floor(m / 60)
+  if (h < 24)
+    return `${h}h ago`
+  const days = Math.floor(h / 24)
+  if (days === 1)
+    return 'Yesterday'
+  if (days < 7)
+    return `${days} days ago`
+  const w = Math.floor(days / 7)
+  return `${w} week${w === 1 ? '' : 's'} ago`
+}
+function clock(v: string | Date) {
+  return new Date(v).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
+}
+function firstReplyLabel(created: string | Date, msgs: { isAdmin: boolean, createdAt: string }[]) {
+  const firstAdmin = msgs.find(m => m.isAdmin)
+  if (!firstAdmin)
+    return '—'
+  const mins = Math.round((new Date(firstAdmin.createdAt).getTime() - new Date(created).getTime()) / 60_000)
+  return mins < 1 ? '<1 min' : `${mins} min`
+}
 
-// --- 4. MESSAGING LOGIC ---
-const messagesState = ref<Record<string, any[]>>({}) // Cache
+// ---- tickets (list) ---------------------------------------------------------
+interface RawTicket { id: string, subject: string, category: string, priority: string, status: string, createdAt: string, updatedAt: string, messages: { id: string, content: string, isAdmin: boolean, createdAt: string }[] }
+const tickets = computed<RawTicket[]>(() => (apiResponse.value as any)?.tickets ?? [])
 
-// Load messages when ticket selected
-watch(activeTicketId, async (newId) => {
-  if (!newId) return
-  
-  if (!messagesState.value[newId]) {
-    try {
-      const res = await $fetch<any>(`/api/support/${newId}/messages`)
-      messagesState.value[newId] = res.messages.map((m: any) => ({
-        id: m.id,
-        sender: m.isAdmin 
-          ? { id: 999, name: 'Support Agent', role: 'agent', avatar: 'https://i.pravatar.cc/150?u=support' }
-          : { id: 'me', name: 'Me', role: 'user', avatar: 'https://i.pravatar.cc/150?u=me' },
-        text: m.content,
-        time: new Date(m.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
-        isSystem: false
-      }))
-    } catch (e) { console.error(e) }
-  }
-  
-  if (selectedTicket.value) {
-    selectedTicket.value.messages = messagesState.value[newId]
-  }
-  scrollToBottom()
-})
+const tab = ref<'tickets' | 'new' | 'faq'>('tickets')
+const activeId = ref<string | null>(null)
+const mobileShowDetail = ref(false)
+const statusFilter = ref<'all' | StatusKey>('all')
+const catFilter = ref<'all' | CatKey>('all')
+const q = ref('')
 
-async function sendMessage() {
-  if (!replyMessage.value.trim() || !activeTicketId.value) return
+const openCount = computed(() => tickets.value.filter(t => statusKey(t.status) === 'open').length)
+const TAB_DEFS = [
+  ['tickets', 'My tickets'],
+  ['new', 'New request'],
+  ['faq', 'Help & FAQ'],
+] as const
 
-  const text = replyMessage.value
-  replyMessage.value = ''
-  isSending.value = true
-
-  try {
-    const { message } = await $fetch<any>(`/api/support/${activeTicketId.value}/reply`, {
-      method: 'POST',
-      body: { content: text }
+const listRows = computed(() => {
+  const needle = q.value.trim().toLowerCase()
+  return tickets.value
+    .filter((t) => {
+      if (statusFilter.value !== 'all' && statusKey(t.status) !== statusFilter.value)
+        return false
+      if (catFilter.value !== 'all' && catKey(t.category) !== catFilter.value)
+        return false
+      if (needle && !(t.subject.toLowerCase().includes(needle) || t.id.toLowerCase().includes(needle)))
+        return false
+      return true
     })
+    .map(t => ({
+      ...t,
+      unread: t.messages[0]?.isAdmin === true,
+      preview: t.messages[0] ? (t.messages[0].isAdmin ? 'Apex Support: ' : 'You: ') + t.messages[0].content : 'No messages yet',
+    }))
+})
 
-    const newMessage = {
-      id: message.id,
-      sender: { id: 'me', name: 'Me', role: 'user', avatar: 'https://i.pravatar.cc/150?u=me' },
-      text: message.content,
-      time: 'Just now',
-    }
+watchEffect(() => {
+  if (!activeId.value && listRows.value.length)
+    activeId.value = listRows.value[0]!.id
+})
+const activeTicket = computed(() => tickets.value.find(t => t.id === activeId.value) ?? null)
 
-    if (!messagesState.value[activeTicketId.value]) messagesState.value[activeTicketId.value] = []
-    messagesState.value[activeTicketId.value].push(newMessage)
-    
-    scrollToBottom()
-  } catch (e) {
-    replyMessage.value = text
-    alert('Failed to send')
-  } finally {
-    isSending.value = false
-  }
+function selectTicket(id: string) {
+  activeId.value = id
+  mobileShowDetail.value = true
+  loadThread(id)
+}
+function backToList() {
+  mobileShowDetail.value = false
 }
 
-// --- 5. CREATE TICKET LOGIC ---
-async function createTicket() {
-  if (!newTicketForm.value.subject || !newTicketForm.value.message) return
-  
-  isCreating.value = true
+// ---- thread (full message history, fetched per ticket) ---------------------
+const threadCache = ref<Record<string, { id: string, content: string, isAdmin: boolean, createdAt: string }[]>>({})
+const threadLoading = ref(false)
+const threadRef = ref<HTMLElement | null>(null)
+
+async function loadThread(id: string) {
+  if (threadCache.value[id])
+    return
+  threadLoading.value = true
   try {
-    await $fetch('/api/support/create', {
-      method: 'POST',
-      body: newTicketForm.value
-    })
-    await refreshTickets()
-    showNewTicketModal.value = false
-    newTicketForm.value = { subject: '', category: 'Technical', priority: 'NORMAL', message: '' }
-  } catch (e) {
-    alert('Error creating ticket')
-  } finally {
-    isCreating.value = false
+    const res = await $fetch<any>(`/api/support/${id}/messages`)
+    threadCache.value = { ...threadCache.value, [id]: res.messages ?? [] }
+    scrollThread()
+  }
+  finally {
+    threadLoading.value = false
   }
 }
-
-// --- UTILS ---
-function getPriorityStyles(p: string) {
-  switch (p) {
-    case 'High': return { text: 'text-rose-400', bg: 'bg-rose-500/10', border: 'border-rose-500/20', icon: 'lucide:alert-circle' }
-    case 'Medium': return { text: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/20', icon: 'lucide:clock' }
-    default: return { text: 'text-blue-400', bg: 'bg-blue-500/10', border: 'border-blue-500/20', icon: 'lucide:info' }
-  }
-}
-
-function getStatusStyles(s: string) {
-  switch (s) {
-    case 'Open': return 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]'
-    case 'Pending': return 'bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.4)]'
-    case 'Closed': return 'bg-muted-500'
-    default: return 'bg-blue-500'
-  }
-}
-
-function scrollToBottom() {
+function scrollThread() {
   nextTick(() => {
-    if (chatContainerRef.value) {
-      chatContainerRef.value.scrollTop = chatContainerRef.value.scrollHeight
-    }
+    if (threadRef.value)
+      threadRef.value.scrollTop = threadRef.value.scrollHeight
   })
 }
+watchEffect(() => {
+  if (activeId.value)
+    loadThread(activeId.value)
+})
 
-// Select first ticket on load
-onMounted(() => {
-  if (tickets.value.length > 0 && !activeTicketId.value) {
-    activeTicketId.value = tickets.value[0].id
+const thread = computed(() => (activeId.value && threadCache.value[activeId.value]) || [])
+
+// ---- composer ----------------------------------------------------------------
+const draft = ref('')
+const draftFiles = ref<{ name: string, size: string }[]>([])
+const sending = ref(false)
+const fileRef = ref<HTMLInputElement | null>(null)
+
+function formatSize(bytes: number) {
+  if (bytes < 1024)
+    return `${bytes} B`
+  if (bytes < 1_048_576)
+    return `${Math.round(bytes / 1024)} KB`
+  return `${(bytes / 1_048_576).toFixed(1)} MB`
+}
+function triggerAttach() {
+  fileRef.value?.click()
+}
+function onPickFiles(e: Event) {
+  const files = Array.from((e.target as HTMLInputElement).files ?? []).map(f => ({ name: f.name, size: formatSize(f.size) }))
+  draftFiles.value = [...draftFiles.value, ...files]
+  ;(e.target as HTMLInputElement).value = ''
+}
+function removeDraftFile(idx: number) {
+  draftFiles.value = draftFiles.value.filter((_, i) => i !== idx)
+}
+const QUICK_REPLIES = ['Yes, please go ahead', 'Can you share a preview?', 'Thanks!']
+function useQuick(text: string) {
+  draft.value = draft.value ? `${draft.value} ${text}` : text
+}
+async function sendReply() {
+  const text = draft.value.trim()
+  if (!text || !activeId.value || sending.value)
+    return
+  sending.value = true
+  try {
+    const { message } = await $fetch<any>(`/api/support/${activeId.value}/reply`, { method: 'POST', body: { content: text } })
+    threadCache.value = { ...threadCache.value, [activeId.value]: [...thread.value, message] }
+    draft.value = ''
+    draftFiles.value = []
+    scrollThread()
+    await refreshTickets()
   }
+  finally {
+    sending.value = false
+  }
+}
+function onDraftKey(e: KeyboardEvent) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault()
+    sendReply()
+  }
+}
+
+// ---- new request ---------------------------------------------------------------
+const nCat = ref<CatKey>('technical')
+const nPriority = ref<PriKey>('normal')
+const nProject = ref('None')
+const nSubject = ref('')
+const nMessage = ref('')
+const nFiles = ref<{ name: string, size: string }[]>([])
+const newFileRef = ref<HTMLInputElement | null>(null)
+const submitting = ref(false)
+const submittedId = ref<string | null>(null)
+
+function triggerNewAttach() {
+  newFileRef.value?.click()
+}
+function onNewFiles(e: Event) {
+  const files = Array.from((e.target as HTMLInputElement).files ?? []).map(f => ({ name: f.name, size: formatSize(f.size) }))
+  nFiles.value = [...nFiles.value, ...files]
+  ;(e.target as HTMLInputElement).value = ''
+}
+function removeNewFile(idx: number) {
+  nFiles.value = nFiles.value.filter((_, i) => i !== idx)
+}
+const canSubmit = computed(() => nSubject.value.trim() && nMessage.value.trim())
+
+async function submitNew() {
+  if (!canSubmit.value || submitting.value)
+    return
+  submitting.value = true
+  try {
+    const body = nProject.value !== 'None' ? `Project: ${nProject.value}\n\n${nMessage.value.trim()}` : nMessage.value.trim()
+    const { ticket } = await $fetch<any>('/api/support/create', {
+      method: 'POST',
+      body: { subject: nSubject.value.trim(), category: CATEGORIES[nCat.value].api, priority: PRIORITIES[nPriority.value].api, message: body },
+    })
+    submittedId.value = ticket.id
+    await refreshTickets()
+  }
+  finally {
+    submitting.value = false
+  }
+}
+function viewNewTicket() {
+  if (!submittedId.value)
+    return
+  tab.value = 'tickets'
+  selectTicket(submittedId.value)
+  resetNew()
+}
+function resetNew() {
+  submittedId.value = null
+  nCat.value = 'technical'
+  nPriority.value = 'normal'
+  nProject.value = 'None'
+  nSubject.value = ''
+  nMessage.value = ''
+  nFiles.value = []
+}
+function openNew() {
+  tab.value = 'new'
+  resetNew()
+}
+function goFaq() {
+  tab.value = 'faq'
+}
+
+// ---- FAQ ------------------------------------------------------------------------
+interface Faq { id: string, cat: CatKey, q: string, a: string }
+const FAQS: Faq[] = [
+  { id: 'f1', cat: 'billing', q: 'How do installments and monthly payments work?', a: 'Every project can be split into equal monthly installments — 3, 6 or 12 months depending on the service. Payments are taken automatically from your wallet first, then your default card. You can see the full schedule and pay early any time from the Wallet & credit page.' },
+  { id: 'f2', cat: 'technical', q: 'How do I share access or files with my project team?', a: 'Attach files directly to any support conversation, or drag them into a new request. For site access, share credentials through a request marked as Technical — we\'ll confirm receipt and never store passwords in plain text.' },
+  { id: 'f3', cat: 'project', q: 'Where can I track the progress of my active projects?', a: 'Your Dashboard shows every active project with a live progress bar and next milestone. For project-specific questions, open a request and tag the related project so the right specialist picks it up.' },
+  { id: 'f4', cat: 'presales', q: 'Can I get a quote before committing to a project?', a: 'Absolutely. Start a Pre-sales request describing what you have in mind and our team will send a detailed quote — usually within one working day — including scope, timeline and installment options.' },
+  { id: 'f5', cat: 'aftersales', q: 'What happens after a project is delivered?', a: 'You get a full handover pack with all source files, plus 30 days of complimentary support for tweaks and questions. After that, ongoing care plans are available — just ask via an After-sales request.' },
+  { id: 'f6', cat: 'general', q: 'What are your support hours and response times?', a: 'Our team is online Monday–Friday, 9am–6pm GMT, with a target first response of 15 minutes for standard requests and under 5 minutes for urgent ones. Outside hours, urgent tickets are monitored on-call.' },
+]
+const faqQ = ref('')
+const faqOpen = ref<Record<string, boolean>>({ f1: true })
+function toggleFaq(id: string) {
+  faqOpen.value = { ...faqOpen.value, [id]: !faqOpen.value[id] }
+}
+const faqRows = computed(() => {
+  const needle = faqQ.value.trim().toLowerCase()
+  return FAQS.filter(f => !needle || f.q.toLowerCase().includes(needle) || f.a.toLowerCase().includes(needle))
 })
 </script>
 
 <template>
-  <div class="w-full h-screen bg-[#0f111a] font-sans text-muted-100 p-4 md:p-6 lg:p-8 flex flex-col overflow-hidden relative">
-    
-    <div class="fixed inset-0 pointer-events-none -z-10">
-      <div class="absolute top-[-10%] left-[-10%] w-[600px] h-[600px] bg-indigo-500/5 rounded-full blur-[100px]" />
-      <div class="absolute bottom-[-10%] right-[-10%] w-[500px] h-[500px] bg-primary-500/5 rounded-full blur-[100px]" />
-      <div class="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-15 brightness-100 contrast-150" />
-    </div>
-
-    <div class="flex items-center justify-between mb-6 shrink-0 z-10">
+  <div class="mx-auto flex h-[calc(100vh-64px-1px)] max-w-[1240px] flex-col pb-[22px] pt-[26px] font-sans text-muted-400">
+    <!-- ============ TITLE ============ -->
+    <div class="mb-[18px] flex flex-shrink-0 flex-wrap items-end justify-between gap-5">
       <div>
-        <h1 class="text-3xl font-light text-white">
-          Support <span class="font-bold text-[#6366f1]">Center</span>
+        <h1 class="font-heading text-[34px] font-extrabold leading-[1.05] tracking-[-0.02em] text-white">
+          Support <span class="text-primary-400">center</span>
         </h1>
-        <p class="text-xs text-muted-500 mt-1">
-          Real-time support and ticket management.
+        <p class="mt-2 text-[15px] text-muted-400">
+          Message our team, track requests and find quick answers — all in one place.
         </p>
       </div>
-      <button @click="showNewTicketModal = true" class="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#6366f1] hover:bg-indigo-600 text-white text-xs font-bold uppercase tracking-wider transition-all shadow-lg shadow-indigo-500/20 group">
-        <Icon name="lucide:plus" class="w-4 h-4 group-hover:rotate-90 transition-transform" />
-        <span>New Ticket</span>
+      <div class="flex items-center gap-3">
+        <div class="flex items-center gap-2.5 rounded-full border border-[#22B07D]/24 bg-[#22B07D]/10 px-3.5 py-2">
+          <span class="size-2 rounded-full bg-[#22B07D] shadow-[0_0_0_3px_rgba(34,176,125,0.18)]" />
+          <span class="text-[12.5px] font-semibold text-white">Team online · replies in ~15 min</span>
+        </div>
+        <BaseButton rounded="full" size="lg" variant="primary" class="shadow-[0_10px_24px_rgba(125,83,242,0.32)]" @click="openNew">
+          <Icon name="lucide:plus" class="size-4" />
+          <span>New request</span>
+        </BaseButton>
+      </div>
+    </div>
+
+    <!-- ============ TABS ============ -->
+    <div role="tablist" class="mb-[18px] inline-flex flex-shrink-0 gap-1 self-start rounded-full border border-white/8 bg-muted-800 p-1">
+      <button
+        v-for="[key, label] in TAB_DEFS" :key="key"
+        role="tab" :aria-selected="tab === key"
+        class="inline-flex items-center rounded-full px-[18px] py-[9px] text-[13.5px] transition-all"
+        :class="tab === key ? 'bg-primary-500 font-bold text-white' : 'font-semibold text-muted-400 hover:text-white'"
+        @click="tab = key"
+      >
+        {{ label }}
+        <span v-if="key === 'tickets' && openCount > 0" class="ml-2 rounded-full px-[7px] py-px text-[11px] font-bold" :class="tab === key ? 'bg-white/20 text-white' : 'bg-muted-700 text-muted-400'">{{ openCount }}</span>
       </button>
     </div>
 
-    <div class="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6 min-h-0 z-10">
-      
-      <div class="lg:col-span-4 flex flex-col gap-4 h-full min-h-0">
-        <div class="bg-[#161925] border border-white/5 rounded-[1.5rem] p-4 shrink-0 shadow-xl">
-          <div class="relative mb-4 group">
-            <Icon name="lucide:search" class="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-500 group-focus-within:text-primary-400 transition-colors" />
-            <input
-              v-model="searchQuery" type="text" placeholder="Search by ID, subject or customer..."
-              class="w-full bg-[#0f111a] border border-white/10 rounded-xl pl-10 pr-4 py-3 text-xs text-white placeholder:text-muted-600 focus:border-primary-500/50 focus:outline-none focus:ring-1 focus:ring-primary-500/50 transition-all"
-            >
-          </div>
-          <div class="flex gap-2 overflow-x-auto pb-1 custom-scrollbar no-scrollbar">
-            <button
-              v-for="tab in filters" :key="tab"
-              class="px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider whitespace-nowrap transition-all border"
-              :class="activeFilter === tab ? 'bg-white text-black border-white shadow-md' : 'bg-transparent text-muted-500 border-transparent hover:bg-white/5'"
-              @click="activeFilter = tab"
-            >
-              {{ tab }}
-            </button>
-          </div>
-        </div>
-
-        <div class="flex-1 overflow-y-auto custom-scrollbar space-y-3 pr-2 pb-2">
-          <div v-if="filteredTickets.length === 0" class="text-center py-10 text-muted-500 text-xs">No tickets found.</div>
-
-          <div
-            v-for="ticket in filteredTickets" :key="ticket.id"
-            class="group p-5 rounded-[1.25rem] border cursor-pointer transition-all duration-300 relative overflow-hidden"
-            :class="activeTicketId === ticket.id ? 'bg-[#1c2130] border-primary-500/40 shadow-lg translate-x-1' : 'bg-[#161925] border-white/5 hover:border-white/10 hover:bg-[#1a1d29]'"
-            @click="activeTicketId = ticket.id"
-          >
-            <div v-if="activeTicketId === ticket.id" class="absolute left-0 top-0 bottom-0 w-1 bg-primary-500" />
-
-            <div class="flex justify-between items-center mb-2 pl-2">
-              <span class="text-[10px] font-mono font-medium text-muted-500 tracking-wider flex items-center gap-1">
-                {{ ticket.displayId }}
-                <span v-if="ticket.customer.status === 'online'" class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              </span>
-              <span class="text-[10px] text-muted-500">{{ ticket.lastUpdate }}</span>
-            </div>
-
-            <h4 class="text-sm font-bold text-white mb-1.5 pl-2 truncate pr-2 group-hover:text-primary-400 transition-colors">
-              {{ ticket.subject }}
-            </h4>
-
-            <div class="flex items-center gap-2 pl-2 mb-3">
-              <img :src="ticket.customer.avatar || 'https://via.placeholder.com/30'" class="w-5 h-5 rounded-full border border-white/10" :alt="ticket.customer.name">
-              <p class="text-[11px] text-muted-400 truncate w-full">
-                {{ ticket.customer.name }}: {{ ticket.preview }}
-              </p>
-            </div>
-
-            <div class="flex flex-wrap items-center gap-2 pl-2">
-              <span
-                class="px-2.5 py-1 rounded-md text-[9px] font-bold uppercase border flex items-center gap-1.5"
-                :class="[getPriorityStyles(ticket.priority).bg, getPriorityStyles(ticket.priority).text, getPriorityStyles(ticket.priority).border]"
+    <!-- ============================================================ TICKETS -->
+    <div v-if="tab === 'tickets'" class="apex-rise flex min-h-0 flex-1 flex-col">
+      <div v-if="listRows.length || tickets.length" class="apex-inbox grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-[360px_1fr]">
+        <!-- LIST PANE -->
+        <div class="flex min-h-0 flex-col overflow-hidden rounded-[28px] border border-white/8 bg-muted-800" :class="mobileShowDetail ? 'hidden lg:flex' : 'flex'">
+          <div class="flex-shrink-0 border-b border-white/8 p-3.5 pb-3">
+            <label class="flex items-center gap-2.5 rounded-[11px] border border-white/8 bg-muted-700 px-3 py-2.5 focus-within:border-primary-400">
+              <Icon name="lucide:search" class="size-4 shrink-0 text-muted-500" />
+              <input v-model="q" placeholder="Search requests…" class="min-w-0 flex-1 border-none bg-transparent text-[13.5px] text-white outline-none placeholder:text-muted-500">
+            </label>
+            <div class="mt-2.5 flex items-center gap-2 overflow-x-auto rounded-full border border-white/8 bg-muted-700 p-[3px]">
+              <button
+                v-for="[key, label] in [['all', 'All'], ['open', 'Open'], ['pending', 'Awaiting'], ['resolved', 'Resolved']]" :key="key"
+                class="whitespace-nowrap rounded-full px-3.5 py-1.5 text-[12.5px] transition-all"
+                :class="statusFilter === key ? 'bg-primary-500 font-bold text-white' : 'font-semibold text-muted-400 hover:text-white'"
+                @click="statusFilter = key as any"
               >
-                <Icon :name="getPriorityStyles(ticket.priority).icon" class="w-3 h-3" />
-                {{ ticket.priority }}
-              </span>
-              <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-white/5 border border-white/5">
-                <span class="w-1.5 h-1.5 rounded-full" :class="getStatusStyles(ticket.status)" />
-                <span class="text-[9px] font-bold text-muted-400 uppercase">{{ ticket.status }}</span>
+                {{ label }}
+              </button>
+            </div>
+            <select v-model="catFilter" class="mt-2.5 w-full cursor-pointer rounded-[10px] border border-white/8 bg-muted-700 px-3 py-2.5 text-[13px] text-white outline-none">
+              <option value="all">
+                All categories
+              </option>
+              <option v-for="(c, key) in CATEGORIES" :key="key" :value="key">
+                {{ c.label }}
+              </option>
+            </select>
+          </div>
+
+          <div class="min-h-0 flex-1 overflow-y-auto p-2">
+            <button
+              v-for="t in listRows" :key="t.id"
+              class="mb-1.5 block w-full rounded-[13px] border p-3.5 text-left transition-colors"
+              :class="t.id === activeId ? 'border-primary-500/45 bg-primary-500/10 shadow-[inset_3px_0_0_var(--color-primary-500)]' : 'border-transparent hover:bg-muted-700'"
+              @click="selectTicket(t.id)"
+            >
+              <div class="flex items-center gap-2">
+                <span class="inline-flex items-center rounded-full px-[9px] py-1 text-[10.5px] font-extrabold uppercase tracking-[0.04em]" :class="[CATEGORIES[catKey(t.category)].text, CATEGORIES[catKey(t.category)].bg]">{{ CATEGORIES[catKey(t.category)].label }}</span>
+                <span class="text-[11px] font-semibold" :class="PRIORITIES[priKey(t.priority)].text">{{ PRIORITIES[priKey(t.priority)].label }}</span>
+                <span class="flex-1" />
+                <span v-if="t.unread" class="size-2 shrink-0 rounded-full bg-primary-400" />
               </div>
-              <span v-for="tag in ticket.tags" :key="tag" class="text-[9px] text-muted-500 px-1.5">#{{ tag }}</span>
+              <div class="mt-2.5 truncate text-sm font-semibold" :class="t.id === activeId || t.unread ? 'text-white' : 'text-[#E4E9EB]'">
+                {{ t.subject }}
+              </div>
+              <div class="mt-1 truncate text-[12.5px] text-muted-500">
+                {{ t.preview }}
+              </div>
+              <div class="mt-2.5 flex items-center gap-2">
+                <span class="inline-flex items-center rounded-full px-[9px] py-1 text-[10.5px] font-extrabold uppercase tracking-[0.04em]" :class="[STATUSES[statusKey(t.status)].text, STATUSES[statusKey(t.status)].bg]">{{ STATUSES[statusKey(t.status)].label }}</span>
+                <span class="text-[11.5px] text-muted-500">#{{ t.id.slice(0, 8).toUpperCase() }}</span>
+                <span class="flex-1" />
+                <span class="text-[11.5px] text-muted-500">{{ relTime(t.updatedAt) }}</span>
+              </div>
+            </button>
+            <div v-if="!listRows.length" class="p-11 text-center text-[13.5px] text-muted-500">
+              No requests match your filters.
             </div>
           </div>
         </div>
-      </div>
 
-      <div class="lg:col-span-8 flex flex-col h-full bg-[#161925] border border-white/5 rounded-[2rem] overflow-hidden relative shadow-2xl">
-        <template v-if="selectedTicket">
-          <div class="p-6 border-b border-white/5 flex justify-between items-start bg-[#1a1e2e]/80 backdrop-blur-md shrink-0 z-20">
-            <div>
-              <div class="flex items-center gap-3 mb-2">
-                <h2 class="text-lg md:text-xl font-bold text-white">
-                  {{ selectedTicket.subject }}
+        <!-- DETAIL PANE -->
+        <div v-if="activeTicket" class="flex min-h-0 flex-col overflow-hidden rounded-[28px] border border-white/8 bg-muted-800" :class="mobileShowDetail ? 'flex' : 'hidden lg:flex'">
+          <div class="flex-shrink-0 border-b border-white/8 p-[18px] pb-[18px]">
+            <button class="mb-3 inline-flex items-center gap-1.5 text-xs font-semibold text-muted-400 hover:text-white lg:hidden" @click="backToList">
+              <Icon name="lucide:chevron-left" class="size-3.5" /> Back to requests
+            </button>
+            <div class="flex items-start gap-3.5">
+              <div class="min-w-0 flex-1">
+                <div class="mb-2 flex flex-wrap items-center gap-2">
+                  <span class="inline-flex items-center rounded-full px-[9px] py-1 text-[10.5px] font-extrabold uppercase tracking-[0.04em]" :class="[CATEGORIES[catKey(activeTicket.category)].text, CATEGORIES[catKey(activeTicket.category)].bg]">{{ CATEGORIES[catKey(activeTicket.category)].label }}</span>
+                  <span class="inline-flex items-center rounded-full px-[9px] py-1 text-[10.5px] font-extrabold uppercase tracking-[0.04em]" :class="[PRIORITIES[priKey(activeTicket.priority)].text, PRIORITIES[priKey(activeTicket.priority)].bg]">{{ PRIORITIES[priKey(activeTicket.priority)].label }} priority</span>
+                  <span class="inline-flex items-center rounded-full px-[9px] py-1 text-[10.5px] font-extrabold uppercase tracking-[0.04em]" :class="[STATUSES[statusKey(activeTicket.status)].text, STATUSES[statusKey(activeTicket.status)].bg]">{{ STATUSES[statusKey(activeTicket.status)].label }}</span>
+                  <span class="text-xs text-muted-500">#{{ activeTicket.id.slice(0, 8).toUpperCase() }}</span>
+                </div>
+                <h2 class="font-heading text-xl font-bold leading-[1.25] tracking-[-0.01em] text-white">
+                  {{ activeTicket.subject }}
                 </h2>
-                <div class="flex gap-2">
-                  <span
-                    class="px-2 py-0.5 rounded text-[9px] font-bold uppercase border bg-[#0f111a]"
-                    :class="[getPriorityStyles(selectedTicket.priority).text, getPriorityStyles(selectedTicket.priority).border]"
-                  >
-                    {{ selectedTicket.priority }}
-                  </span>
-                  <span class="px-2 py-0.5 rounded text-[9px] font-bold uppercase border bg-[#0f111a] border-white/10 text-muted-400">
-                    {{ selectedTicket.category }}
-                  </span>
-                </div>
-              </div>
-              <div class="flex items-center gap-2 text-xs text-muted-400">
-                <span>Assigned to:</span>
-                <div v-if="selectedTicket.assignedAgent" class="flex items-center gap-1.5 text-white bg-white/5 px-2 py-0.5 rounded-full border border-white/5">
-                  <img v-if="selectedTicket.assignedAgent.avatar" :src="selectedTicket.assignedAgent.avatar" class="w-4 h-4 rounded-full">
-                  <span class="font-medium">{{ selectedTicket.assignedAgent.name }}</span>
-                </div>
-                <span v-else class="text-muted-500 italic">Unassigned</span>
               </div>
             </div>
+            <div class="mt-3.5 flex flex-wrap items-center gap-4">
+              <div class="flex items-center gap-2">
+                <span class="inline-flex size-[34px] items-center justify-center rounded-full text-xs font-bold text-white" style="background: linear-gradient(135deg, #9B79F6, #6C40E8);">AS</span>
+                <div>
+                  <div class="text-[12.5px] font-semibold leading-tight text-white">
+                    Apex Support
+                  </div>
+                  <div class="text-[11px] text-muted-500">
+                    Support team
+                  </div>
+                </div>
+              </div>
+              <span class="h-[26px] w-px bg-white/8" />
+              <div class="flex items-center gap-2 text-[12.5px] text-muted-400">
+                <Icon name="lucide:clock" class="size-[15px] text-[#22B07D]" />
+                First reply <strong class="font-semibold text-white">{{ firstReplyLabel(activeTicket.createdAt, thread) }}</strong>
+              </div>
+            </div>
+          </div>
 
-            <div class="flex items-center gap-2">
-              <button class="w-9 h-9 flex items-center justify-center rounded-xl bg-white/5 hover:bg-white/10 text-muted-400 hover:text-white transition-colors border border-white/5">
-                <Icon name="lucide:more-vertical" class="w-4 h-4" />
+          <div ref="threadRef" class="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-[22px] pb-2 pt-[22px]">
+            <div class="self-center rounded-full border border-white/8 bg-muted-700 px-3.5 py-1.5 text-xs text-muted-500">
+              Ticket opened · {{ relTime(activeTicket.createdAt) }}
+            </div>
+            <div v-for="m in thread" :key="m.id" class="flex items-end gap-2.5" :class="!m.isAdmin ? 'flex-row-reverse' : ''">
+              <span v-if="m.isAdmin" class="inline-flex size-8 shrink-0 items-center justify-center self-end rounded-full text-[11px] font-bold text-white" style="background: linear-gradient(135deg, #9B79F6, #6C40E8);">AS</span>
+              <div class="flex max-w-[76%] flex-col" :class="!m.isAdmin ? 'items-end' : 'items-start'">
+                <div class="mb-1 text-[11.5px] text-muted-500">
+                  {{ m.isAdmin ? 'Apex Support' : 'You' }} · {{ clock(m.createdAt) }}
+                </div>
+                <div
+                  class="apex-bubble rounded-2xl px-[15px] py-3 text-sm leading-[1.55]"
+                  :class="!m.isAdmin ? 'rounded-br-[4px] bg-gradient-to-br from-primary-500 to-primary-600 text-white' : 'rounded-bl-[4px] border border-white/8 bg-muted-700 text-[#E4E9EB]'"
+                >
+                  {{ m.content }}
+                </div>
+              </div>
+            </div>
+            <div v-if="threadLoading" class="self-center text-xs text-muted-500">
+              Loading conversation…
+            </div>
+          </div>
+
+          <div class="flex-shrink-0 border-t border-white/8 p-[14px] pb-4 pt-[14px]">
+            <div v-if="draftFiles.length" class="mb-2.5 flex flex-wrap gap-2">
+              <div v-for="(f, i) in draftFiles" :key="i" class="flex items-center gap-2 rounded-[9px] border border-white/8 bg-muted-700 py-1.5 pl-[11px] pr-1.5 text-xs text-white">
+                <Icon name="lucide:file-text" class="size-[13px] text-primary-400" />
+                {{ f.name }}
+                <button aria-label="Remove file" class="inline-flex size-[18px] items-center justify-center rounded-md text-muted-500 hover:text-[#EC6453]" @click="removeDraftFile(i)">
+                  <Icon name="lucide:x" class="size-3" />
+                </button>
+              </div>
+            </div>
+            <div class="flex items-end gap-2.5 rounded-[14px] border border-white/8 bg-muted-700 py-2 pl-3.5 pr-2 focus-within:border-primary-400">
+              <textarea
+                v-model="draft" rows="1" placeholder="Write a reply…  (Enter to send, Shift+Enter for a new line)"
+                class="max-h-[120px] min-w-0 flex-1 resize-none border-none bg-transparent py-1.5 text-sm leading-[1.5] text-white outline-none placeholder:text-muted-500"
+                @keydown="onDraftKey"
+              />
+              <input ref="fileRef" type="file" multiple class="hidden" @change="onPickFiles">
+              <button aria-label="Attach file" class="inline-flex size-[38px] shrink-0 items-center justify-center rounded-[10px] border border-white/8 text-muted-400 hover:border-white/15 hover:text-white" @click="triggerAttach">
+                <Icon name="lucide:paperclip" class="size-[17px]" />
+              </button>
+              <button aria-label="Send reply" class="inline-flex size-[38px] shrink-0 items-center justify-center rounded-[10px] bg-primary-500 text-white shadow-[0_6px_16px_rgba(125,83,242,0.32)] disabled:cursor-not-allowed disabled:opacity-50" :disabled="!draft.trim() || sending" @click="sendReply">
+                <Icon name="lucide:send" class="size-[17px]" />
+              </button>
+            </div>
+            <div class="mt-2.5 flex flex-wrap items-center gap-2">
+              <span class="mr-0.5 text-[11.5px] text-muted-500">Quick:</span>
+              <button v-for="qr in QUICK_REPLIES" :key="qr" class="rounded-full border border-white/8 bg-muted-700 px-3 py-1.5 text-xs text-muted-400 hover:border-white/15 hover:text-white" @click="useQuick(qr)">
+                {{ qr }}
               </button>
             </div>
           </div>
+        </div>
+      </div>
 
-          <div ref="chatContainerRef" class="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar bg-[#0f111a]/30">
-            <div v-for="msg in selectedTicket.messages" :key="msg.id">
-              <div v-if="msg.isSystem" class="flex justify-center my-4">
-                <span class="text-[10px] font-bold text-muted-500 bg-white/5 px-3 py-1 rounded-full border border-white/5 uppercase tracking-wider flex items-center gap-2">
-                  <Icon name="lucide:info" class="w-3 h-3" /> {{ msg.text }} • {{ msg.time }}
-                </span>
-              </div>
-
-              <div v-else class="flex gap-4 max-w-[85%]" :class="msg.sender.role === 'user' ? 'ml-auto flex-row-reverse' : ''">
-                <div
-                  class="w-10 h-10 rounded-full flex items-center justify-center shrink-0 border-2 shadow-lg overflow-hidden"
-                  :class="msg.sender.role === 'user' ? 'border-[#6366f1]/20' : 'border-white/10'"
-                >
-                  <img v-if="msg.sender.avatar" :src="msg.sender.avatar" class="w-full h-full object-cover">
-                  <Icon v-else name="lucide:user" class="w-5 h-5 text-muted-400" />
-                </div>
-
-                <div class="flex flex-col" :class="msg.sender.role === 'user' ? 'items-end' : 'items-start'">
-                  <div class="flex items-center gap-2 mb-1">
-                    <span class="text-[11px] font-bold text-white">{{ msg.sender.name }}</span>
-                    <span class="text-[9px] text-muted-500">{{ msg.time }}</span>
-                  </div>
-
-                  <div
-                    class="p-4 rounded-2xl text-sm leading-relaxed border shadow-md relative"
-                    :class="msg.sender.role === 'user'
-                      ? 'bg-[#6366f1] text-white rounded-tr-none border-[#6366f1]'
-                      : 'bg-[#27272a] text-muted-200 rounded-tl-none border-white/5'"
-                  >
-                    {{ msg.text }}
-                  </div>
-                </div>
-              </div>
-            </div>
+      <!-- empty (no tickets yet) -->
+      <div v-else class="flex min-h-0 flex-1 items-center justify-center">
+        <div class="max-w-[520px] rounded-[28px] border border-white/8 bg-muted-800 px-10 py-[52px] text-center">
+          <span class="mb-5 inline-flex size-[66px] items-center justify-center rounded-full bg-primary-500/14 text-primary-400">
+            <Icon name="lucide:message-square" class="size-[30px]" />
+          </span>
+          <h3 class="font-heading text-[23px] font-extrabold tracking-[-0.01em] text-white">
+            How can we help?
+          </h3>
+          <p class="mb-6 mt-2.5 text-[14.5px] leading-[1.6] text-muted-400">
+            You don't have any requests yet. Start a conversation with our team — billing, technical, pre-sales or anything about your projects. We usually reply within 15 minutes.
+          </p>
+          <div class="flex flex-wrap items-center justify-center gap-3">
+            <BaseButton rounded="full" variant="primary" class="shadow-[0_10px_24px_rgba(125,83,242,0.3)]" @click="openNew">
+              <Icon name="lucide:plus" class="size-4" />
+              <span>Start a request</span>
+            </BaseButton>
+            <BaseButton rounded="full" class="border border-white/8 bg-muted-700 !text-white" @click="goFaq">
+              Browse FAQ
+            </BaseButton>
           </div>
-
-          <div class="p-4 border-t border-white/5 bg-[#1a1e2e] shrink-0 z-20">
-            <div v-if="selectedTicket.status === 'Closed'" class="p-6 rounded-xl bg-white/5 border border-dashed border-white/10 text-center flex flex-col items-center justify-center gap-2">
-              <Icon name="lucide:lock" class="w-5 h-5 text-muted-500" />
-              <p class="text-xs text-muted-400 font-bold uppercase tracking-wider">This conversation is locked.</p>
-            </div>
-
-            <div v-else class="flex flex-col gap-3">
-              <div class="relative group">
-                <textarea
-                  v-model="replyMessage"
-                  :disabled="isSending"
-                  rows="2"
-                  placeholder="Type your reply here... (Press Enter to send)"
-                  class="w-full bg-[#0f111a] border border-white/10 rounded-2xl pl-4 pr-16 py-4 text-sm text-white placeholder:text-muted-600 focus:border-primary-500/50 focus:outline-none transition-all resize-none shadow-inner disabled:opacity-50 disabled:cursor-not-allowed"
-                  @keydown.enter.prevent="sendMessage"
-                />
-                <div class="absolute right-2 bottom-2 flex items-center gap-1">
-                  <button
-                    :disabled="isSending || !replyMessage.trim()" class="w-9 h-9 flex items-center justify-center rounded-xl bg-[#6366f1] hover:bg-indigo-600 text-white transition-all shadow-lg disabled:opacity-50 disabled:bg-gray-700"
-                    @click="sendMessage"
-                  >
-                    <Icon v-if="!isSending" name="lucide:send" class="w-4 h-4" />
-                    <Icon v-else name="lucide:loader-2" class="w-4 h-4 animate-spin" />
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </template>
-
-        <div v-else class="flex-1 flex flex-col items-center justify-center text-muted-500">
-          <div class="w-24 h-24 rounded-full bg-white/5 flex items-center justify-center mb-6 border border-white/5 shadow-2xl">
-            <Icon name="lucide:message-square-dashed" class="w-10 h-10 opacity-30" />
-          </div>
-          <h3 class="text-lg font-bold text-white mb-1">No Ticket Selected</h3>
-          <p class="text-sm font-medium opacity-60">Select a ticket from the sidebar to view details</p>
         </div>
       </div>
     </div>
 
-    <div v-if="showNewTicketModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-      <div class="bg-[#161925] border border-white/10 rounded-3xl p-8 w-full max-w-lg shadow-2xl relative">
-        <button @click="showNewTicketModal = false" class="absolute top-4 right-4 text-muted-500 hover:text-white"><Icon name="lucide:x" class="w-6 h-6" /></button>
-        
-        <h2 class="text-2xl font-bold text-white mb-6">Create New Ticket</h2>
-        
-        <div class="space-y-4">
-          <div>
-            <label class="block text-xs font-bold text-muted-400 uppercase mb-2">Subject</label>
-            <input v-model="newTicketForm.subject" class="w-full bg-[#0f111a] border border-white/10 rounded-xl px-4 py-3 text-white focus:border-[#6366f1] outline-none transition-all">
-          </div>
-          
-          <div class="grid grid-cols-2 gap-4">
-            <div>
-              <label class="block text-xs font-bold text-muted-400 uppercase mb-2">Category</label>
-              <select v-model="newTicketForm.category" class="w-full bg-[#0f111a] border border-white/10 rounded-xl px-4 py-3 text-white focus:border-[#6366f1] outline-none appearance-none cursor-pointer">
-                <option>Technical</option>
-                <option>Billing</option>
-                <option>Sales</option>
-              </select>
-            </div>
-            <div>
-              <label class="block text-xs font-bold text-muted-400 uppercase mb-2">Priority</label>
-              <select v-model="newTicketForm.priority" class="w-full bg-[#0f111a] border border-white/10 rounded-xl px-4 py-3 text-white focus:border-[#6366f1] outline-none appearance-none cursor-pointer">
-                <option value="LOW">Low</option>
-                <option value="NORMAL">Normal</option>
-                <option value="HIGH">High</option>
-              </select>
-            </div>
-          </div>
-
-          <div>
-            <label class="block text-xs font-bold text-muted-400 uppercase mb-2">Message</label>
-            <textarea v-model="newTicketForm.message" rows="4" class="w-full bg-[#0f111a] border border-white/10 rounded-xl px-4 py-3 text-white focus:border-[#6366f1] outline-none resize-none"></textarea>
-          </div>
-
-          <button @click="createTicket" :disabled="isCreating" class="w-full py-4 rounded-xl bg-[#6366f1] hover:bg-indigo-600 text-white font-bold uppercase tracking-wider transition-all mt-2 flex items-center justify-center gap-2">
-             <Icon v-if="isCreating" name="lucide:loader" class="w-4 h-4 animate-spin" />
-             <span v-else>Submit Ticket</span>
+    <!-- ============================================================ NEW REQUEST -->
+    <div v-else-if="tab === 'new'" class="apex-rise min-h-0 flex-1 overflow-y-auto">
+      <div v-if="!submittedId" class="mx-auto max-w-[760px]">
+        <div class="mb-3 text-xs font-bold uppercase tracking-[0.05em] text-muted-500">
+          What do you need help with?
+        </div>
+        <div class="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <button
+            v-for="(c, key) in CATEGORIES" :key="key"
+            class="rounded-[14px] border p-[18px] text-center transition-all"
+            :class="nCat === key ? 'border-primary-500 bg-primary-500/10' : 'border-white/8 bg-muted-800 hover:border-white/15'"
+            @click="nCat = key"
+          >
+            <span class="inline-flex size-10 items-center justify-center rounded-[11px]" :class="[c.bg, c.text]">
+              <Icon :name="c.icon" class="size-5" />
+            </span>
+            <span class="mt-3 block text-sm font-semibold text-white">{{ c.label }}</span>
+            <span class="mt-0.5 block text-xs leading-[1.4] text-muted-500">{{ c.sub }}</span>
           </button>
         </div>
+
+        <div class="mt-[18px] flex flex-col gap-[18px] rounded-[28px] border border-white/8 bg-muted-800 p-6">
+          <div>
+            <label class="mb-2 block text-[12.5px] font-semibold text-white">Subject</label>
+            <input v-model="nSubject" placeholder="Briefly, what's this about?" class="w-full rounded-[11px] border border-white/8 bg-muted-700 px-3.5 py-3 text-sm text-white outline-none placeholder:text-muted-500 focus:border-primary-400">
+          </div>
+
+          <div class="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
+            <div>
+              <label class="mb-2 block text-[12.5px] font-semibold text-white">Priority</label>
+              <div class="flex gap-1.5 rounded-[11px] border border-white/8 bg-muted-700 p-1">
+                <button
+                  v-for="(p, key) in PRIORITIES" :key="key"
+                  class="flex-1 rounded-[9px] px-1 py-2 text-[12.5px] transition-all"
+                  :class="nPriority === key ? 'bg-primary-500 font-bold text-white' : 'font-semibold text-muted-400 hover:text-white'"
+                  @click="nPriority = key"
+                >
+                  {{ p.label }}
+                </button>
+              </div>
+            </div>
+            <div>
+              <label class="mb-2 block text-[12.5px] font-semibold text-white">Related project <span class="font-normal text-muted-500">(optional)</span></label>
+              <select v-model="nProject" class="w-full cursor-pointer rounded-[11px] border border-white/8 bg-muted-700 px-3.5 py-3 text-sm text-white outline-none focus:border-primary-400">
+                <option v-for="pj in projectOpts" :key="pj" :value="pj">
+                  {{ pj }}
+                </option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label class="mb-2 block text-[12.5px] font-semibold text-white">Message</label>
+            <textarea v-model="nMessage" rows="5" placeholder="Share as much detail as you can — links, error messages, what you expected to happen…" class="w-full resize-y rounded-[11px] border border-white/8 bg-muted-700 px-3.5 py-3 text-sm leading-[1.55] text-white outline-none placeholder:text-muted-500 focus:border-primary-400" />
+          </div>
+
+          <div>
+            <label class="mb-2 block text-[12.5px] font-semibold text-white">Attachments <span class="font-normal text-muted-500">(optional)</span></label>
+            <button class="flex w-full flex-col items-center gap-1.5 rounded-xl border-[1.5px] border-dashed border-white/15 bg-muted-700 p-[22px] text-muted-400 hover:border-primary-400 hover:bg-primary-500/5 hover:text-white" @click="triggerNewAttach">
+              <Icon name="lucide:upload" class="size-[22px]" />
+              <span class="text-[13px]">Drop files here or <span class="font-semibold text-primary-400">browse</span></span>
+              <span class="text-[11.5px] text-muted-500">Screenshots, PDFs, briefs — up to 20 MB each</span>
+            </button>
+            <input ref="newFileRef" type="file" multiple class="hidden" @change="onNewFiles">
+            <div v-if="nFiles.length" class="mt-2.5 flex flex-wrap gap-2">
+              <div v-for="(f, i) in nFiles" :key="i" class="flex items-center gap-2.5 rounded-[10px] border border-white/8 bg-muted-700 py-2 pl-3 pr-2">
+                <span class="inline-flex size-7 shrink-0 items-center justify-center rounded-[7px] bg-primary-500/14 text-primary-400">
+                  <Icon name="lucide:file-text" class="size-3.5" />
+                </span>
+                <span class="min-w-0">
+                  <span class="block max-w-[160px] truncate text-[12.5px] font-semibold text-white">{{ f.name }}</span>
+                  <span class="block text-[11px] text-muted-500">{{ f.size }}</span>
+                </span>
+                <button aria-label="Remove" class="inline-flex size-[22px] items-center justify-center rounded-md text-muted-500 hover:text-[#EC6453]" @click="removeNewFile(i)">
+                  <Icon name="lucide:x" class="size-3" />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-3.5 pt-1">
+            <button
+              class="rounded-full px-6 py-3 text-sm font-bold transition-all"
+              :class="canSubmit && !submitting ? 'cursor-pointer bg-primary-500 text-white shadow-[0_10px_24px_rgba(125,83,242,0.3)] hover:bg-primary-600' : 'cursor-not-allowed bg-muted-700 text-muted-500'"
+              :disabled="!canSubmit || submitting"
+              @click="submitNew"
+            >
+              {{ submitting ? 'Sending…' : 'Send request' }}
+            </button>
+            <div class="flex items-center gap-2 text-[12.5px] text-muted-400">
+              <Icon name="lucide:clock" class="size-[15px]" :style="{ color: ETA[nPriority].color }" />
+              Estimated first reply: <strong class="font-semibold text-white">{{ ETA[nPriority].label }}</strong>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div v-else class="apex-pop mx-auto mt-6 max-w-[560px] rounded-[28px] border border-white/8 bg-muted-800 px-10 py-12 text-center">
+        <span class="mb-5 inline-flex size-[66px] items-center justify-center rounded-full bg-[#22B07D]/16 text-[#22B07D]">
+          <Icon name="lucide:check" class="size-8" />
+        </span>
+        <h3 class="font-heading text-[23px] font-extrabold tracking-[-0.01em] text-white">
+          Request sent
+        </h3>
+        <p class="mb-6 mt-2.5 text-[14.5px] leading-[1.6] text-muted-400">
+          Your ticket <strong class="text-white">#{{ submittedId.slice(0, 8).toUpperCase() }}</strong> is with our team. We'll reply within <strong class="text-white">{{ ETA[nPriority].label }}</strong> — you'll get a notification here and by email.
+        </p>
+        <div class="flex flex-wrap items-center justify-center gap-3">
+          <BaseButton rounded="full" variant="primary" class="shadow-[0_10px_24px_rgba(125,83,242,0.3)]" @click="viewNewTicket">
+            View conversation
+          </BaseButton>
+          <BaseButton rounded="full" class="border border-white/8 bg-muted-700 !text-white" @click="resetNew">
+            Send another
+          </BaseButton>
+        </div>
       </div>
     </div>
 
+    <!-- ============================================================ FAQ -->
+    <div v-else class="apex-rise min-h-0 flex-1 overflow-y-auto">
+      <div class="mx-auto max-w-[820px]">
+        <div class="relative mb-5 overflow-hidden rounded-[28px] border border-white/8 p-[30px]" style="background: radial-gradient(120% 140% at 85% 15%, rgba(125,83,242,.28), transparent 50%), linear-gradient(150deg, #16252A, #101D21);">
+          <h3 class="font-heading text-2xl font-extrabold tracking-[-0.01em] text-white">
+            Find an answer in seconds
+          </h3>
+          <p class="mb-[18px] mt-2 text-sm text-muted-400">
+            Search our knowledge base, or browse the most common questions below.
+          </p>
+          <label class="flex max-w-[520px] items-center gap-2.5 rounded-[13px] border border-white/15 bg-[rgba(11,21,23,0.6)] px-4 py-3.5 focus-within:border-primary-400">
+            <Icon name="lucide:search" class="size-[18px] shrink-0 text-muted-500" />
+            <input v-model="faqQ" placeholder="Search help articles…" class="min-w-0 flex-1 border-none bg-transparent text-[14.5px] text-white outline-none placeholder:text-muted-500">
+          </label>
+        </div>
+
+        <div v-if="faqRows.length" class="flex flex-col gap-2.5">
+          <div v-for="f in faqRows" :key="f.id" class="overflow-hidden rounded-[14px] border bg-muted-800" :class="faqOpen[f.id] ? 'border-primary-500/35' : 'border-white/8'">
+            <button class="flex w-full items-center gap-3.5 px-5 py-[17px] text-left hover:bg-muted-700" @click="toggleFaq(f.id)">
+              <span class="inline-flex items-center rounded-full px-[9px] py-1 text-[10.5px] font-extrabold uppercase tracking-[0.04em]" :class="[CATEGORIES[f.cat].text, CATEGORIES[f.cat].bg]">{{ CATEGORIES[f.cat].label }}</span>
+              <span class="flex-1 text-[14.5px] font-semibold text-white">{{ f.q }}</span>
+              <Icon name="lucide:chevron-down" class="size-[18px] shrink-0 text-muted-500 transition-transform" :class="faqOpen[f.id] ? 'rotate-180' : ''" />
+            </button>
+            <div v-if="faqOpen[f.id]" class="apex-fade px-5 pb-[18px] text-[13.5px] leading-[1.65] text-muted-400">
+              {{ f.a }}
+            </div>
+          </div>
+        </div>
+        <div v-else class="rounded-[28px] border border-white/8 bg-muted-800 px-[30px] py-10 text-center text-sm text-muted-400">
+          No articles match "{{ faqQ }}".
+        </div>
+
+        <div class="mt-5 flex flex-wrap items-center justify-between gap-4 rounded-[28px] border border-white/8 bg-muted-800 px-6 py-5">
+          <div>
+            <div class="font-heading text-base font-bold text-white">
+              Still stuck?
+            </div>
+            <div class="mt-0.5 text-[13px] text-muted-400">
+              Our team is online and ready to help.
+            </div>
+          </div>
+          <BaseButton rounded="full" variant="primary" class="shadow-[0_8px_20px_rgba(125,83,242,0.28)]" @click="openNew">
+            <Icon name="lucide:plus" class="size-[15px]" />
+            <span>Contact support</span>
+          </BaseButton>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <style scoped>
-.no-select { user-select: none; -webkit-user-select: none; }
-.custom-scrollbar { scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, 0.05) transparent; scroll-behavior: smooth; overflow-y: overlay; }
-.custom-scrollbar::-webkit-scrollbar { width: 5px; height: 5px; }
-.custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-.custom-scrollbar::-webkit-scrollbar-thumb { background-color: rgba(255, 255, 255, 0.05); border-radius: 20px; border: 1px solid transparent; background-clip: content-box; }
-.custom-scrollbar:hover::-webkit-scrollbar-thumb { background-color: rgba(255, 255, 255, 0.15); }
-.custom-scrollbar::-webkit-scrollbar-thumb:active { background-color: rgba(99, 102, 241, 0.4); }
-.no-scrollbar::-webkit-scrollbar { display: none; }
-.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-@keyframes slide-in-bottom { 0% { opacity: 0; transform: translateY(10px); } 100% { opacity: 1; transform: translateY(0); } }
-.group { animation: slide-in-bottom 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) both; }
-.group:nth-child(1) { animation-delay: 0.05s; }
-.group:nth-child(2) { animation-delay: 0.1s; }
-.group:nth-child(3) { animation-delay: 0.15s; }
-.group:nth-child(4) { animation-delay: 0.2s; }
-.group:nth-child(5) { animation-delay: 0.25s; }
-@keyframes message-pop { 0% { opacity: 0; transform: scale(0.95) translateY(5px); } 100% { opacity: 1; transform: scale(1) translateY(0); } }
-.message-bubble { animation: message-pop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; transform-origin: bottom left; }
-.message-bubble.own { transform-origin: bottom right; }
-textarea { field-sizing: content; min-height: 52px; max-height: 150px; line-height: 1.5; resize: none; }
-::selection { background: rgba(99, 102, 241, 0.3); color: #fff; }
-@supports (height: 100dvh) { .h-screen { height: 100dvh; } }
-@supports not (backdrop-filter: blur(12px)) { .backdrop-blur-md { background-color: rgba(26, 30, 46, 0.95); } }
-.break-words { word-wrap: break-word; word-break: break-word; overflow-wrap: break-word; }
+.apex-rise {
+  animation: apexRise 0.3s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+.apex-fade,
+.apex-bubble {
+  animation: apexFade 0.2s both;
+}
+.apex-pop {
+  animation: apexPop 0.3s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+@keyframes apexRise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes apexFade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes apexPop {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .apex-rise,
+  .apex-fade,
+  .apex-bubble,
+  .apex-pop {
+    animation: none;
+  }
+}
 </style>

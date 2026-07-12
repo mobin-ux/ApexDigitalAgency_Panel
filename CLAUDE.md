@@ -84,7 +84,7 @@ prisma/schema.prisma          User/Project/Milestone/Transaction/Installment/Tic
 
 - Don't touch `.app/`, template demo pages (`/layouts/**`, `/starters/**`), or
   `layers/tairo` internals unless asked.
-- `wallet.vue`, `support.vue`, `settings.vue`, auth pages are still OLD style
+- `settings.vue`, auth pages are still OLD style
   (hex/USD/alerts) — they get rebuilt only when their design zip arrives.
 - Global hydration-mismatch warnings are a known pre-existing issue (shared chrome) —
   not caused by page work; don't chase per-page.

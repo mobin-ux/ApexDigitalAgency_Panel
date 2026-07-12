@@ -64,7 +64,7 @@ native `alert()`, USD). When refactoring a page, bring it in line:
 | 2 | My Orders (`orders.vue`) — Apex Design redesign (list + detail + payment plan) | ✅ Done |
 | 3 | New Order / financing wizard (`services.vue`) — Apex Design redesign | ✅ Done |
 | 4 | Wallet & Credit (`wallet.vue`) — Apex Design redesign (overview/transactions/installments/banking + top-up & credit modals) | ✅ Done |
-| 5 | Support (ticketing) | ☐ |
+| 5 | Support (`support.vue`) — Apex Design redesign (tickets inbox+thread / new request / FAQ) | ✅ Done |
 | 6 | Settings | ☐ |
 | 7 | Auth flow (login / signup / recover) | ☐ |
 
@@ -89,7 +89,7 @@ To address:
 - [ ] Stale seed scripts reference fields not in the schema: `server/api/seed-rich.get.ts`,
       `seed-wallet.get.ts`, and `prisma/seed.js` (uses `name`/`status`/`USER`). Dev-only.
 - [ ] Pages still hardcode dark hex + USD + native `alert()`/`confirm()` until refactored
-      (support, settings).
+      (settings).
 - [ ] Credit-line, expense-split (balance) and the service "from" prices / order plan
       catalogue (new order) are front-end placeholders — back them with real API/data models.
 - [ ] `orders.vue` formats prices in USD and has a hardcoded "Sarah Connor" project manager.
