@@ -278,12 +278,12 @@ const radioBase = 'flex size-[22px] shrink-0 items-center justify-center rounded
     </div>
 
     <!-- stepper -->
-    <div role="list" aria-label="Progress" class="flex flex-wrap items-center gap-1 py-1.5">
+    <div role="list" aria-label="Progress" class="flex flex-nowrap items-center gap-1 overflow-x-auto py-1.5">
       <template v-for="(label, i) in STEP_LABELS" :key="label">
         <div v-if="i > 0" class="h-0.5 w-[30px] shrink-0 rounded" :class="(i + 1) <= step ? 'bg-primary-500' : 'bg-white/10'" />
         <button
           type="button" role="listitem" :disabled="(i + 1) > maxStep"
-          class="inline-flex items-center gap-2.5 rounded-[10px] px-1.5 py-1 enabled:cursor-pointer"
+          class="inline-flex shrink-0 items-center gap-2.5 rounded-[10px] px-1.5 py-1 enabled:cursor-pointer"
           @click="goStep(i + 1)"
         >
           <span
@@ -696,7 +696,7 @@ const radioBase = 'flex size-[22px] shrink-0 items-center justify-center rounded
     <Teleport to="body">
       <Transition enter-active-class="transition-opacity duration-300" enter-from-class="opacity-0" leave-active-class="transition-opacity duration-200" leave-to-class="opacity-0">
         <div v-if="step === 6" class="fixed inset-0 z-50 flex items-center justify-center p-6" style="background: rgba(9,18,20,.82); backdrop-filter: blur(8px);">
-          <div class="apex-pop relative w-full max-w-[520px] overflow-hidden rounded-[28px] border border-primary-500/30 p-9 text-center" style="background: linear-gradient(160deg, #1B2B31, #101D21);">
+          <div class="apex-pop relative max-h-[calc(100vh-3rem)] w-full max-w-[520px] overflow-y-auto rounded-[28px] border border-primary-500/30 p-9 text-center" style="background: linear-gradient(160deg, #1B2B31, #101D21);">
             <div class="pointer-events-none absolute -top-16 left-1/2 size-60 -translate-x-1/2 rounded-full opacity-40 blur-[70px]" style="background: radial-gradient(circle at 50% 38%, #9b79f6 0%, #7d53f2 55%, #6c40e8 100%);" />
             <div class="relative mx-auto flex size-[74px] items-center justify-center rounded-full shadow-[0_16px_40px_rgba(34,176,125,.45)]" style="background: linear-gradient(150deg, #22B07D, #0f6e4d);">
               <Icon name="lucide:check" class="size-9 text-white" />
@@ -733,11 +733,11 @@ const radioBase = 'flex size-[22px] shrink-0 items-center justify-center rounded
               </div>
             </div>
 
-            <div class="relative flex gap-3">
-              <BaseButton rounded="full" variant="primary" size="lg" class="flex-1" @click="router.push('/dashboards/orders')">
+            <div class="relative flex flex-col gap-3 sm:flex-row">
+              <BaseButton rounded="full" variant="primary" size="lg" class="w-full sm:flex-1" @click="router.push('/dashboards/orders')">
                 View project<Icon name="lucide:arrow-right" class="size-4" />
               </BaseButton>
-              <BaseButton rounded="full" class="border border-white/10 bg-muted-800 !text-white hover:bg-muted-700" @click="resetFlow">
+              <BaseButton rounded="full" class="w-full border border-white/10 bg-muted-800 !text-white hover:bg-muted-700 sm:w-auto" @click="resetFlow">
                 New order
               </BaseButton>
             </div>

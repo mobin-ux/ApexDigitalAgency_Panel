@@ -331,11 +331,11 @@ function payNow() {
 
       <!-- controls -->
       <div class="mb-[22px] flex flex-wrap items-center gap-3.5">
-        <div role="tablist" class="flex gap-1 rounded-full border border-white/10 bg-muted-800 p-1">
+        <div role="tablist" class="flex min-w-0 flex-nowrap gap-1 overflow-x-auto rounded-full border border-white/10 bg-muted-800 p-1">
           <button
             v-for="[key, label] in TABS" :key="key"
             type="button" role="tab" :aria-selected="filter === key"
-            class="inline-flex items-center gap-2 rounded-full px-3.5 py-2 text-[13px] transition"
+            class="inline-flex shrink-0 items-center gap-2 rounded-full px-3.5 py-2 text-[13px] transition"
             :class="filter === key ? 'bg-primary-500 font-bold text-white' : 'font-semibold text-muted-400 hover:text-white'"
             @click="filter = key"
           >

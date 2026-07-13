@@ -346,7 +346,7 @@ const faqRows = computed(() => {
 </script>
 
 <template>
-  <div class="mx-auto flex h-[calc(100vh-64px-1px)] max-w-[1240px] flex-col pb-[22px] pt-[26px] font-sans text-muted-400">
+  <div class="mx-auto flex h-[calc(100vh-101px)] max-w-[1240px] flex-col pb-[22px] pt-[26px] font-sans text-muted-400">
     <!-- ============ TITLE ============ -->
     <div class="mb-[18px] flex flex-shrink-0 flex-wrap items-end justify-between gap-5">
       <div>
@@ -370,11 +370,11 @@ const faqRows = computed(() => {
     </div>
 
     <!-- ============ TABS ============ -->
-    <div role="tablist" class="mb-[18px] inline-flex flex-shrink-0 gap-1 self-start rounded-full border border-white/8 bg-muted-800 p-1">
+    <div role="tablist" class="mb-[18px] inline-flex max-w-full flex-shrink-0 gap-1 self-start overflow-x-auto rounded-full border border-white/8 bg-muted-800 p-1">
       <button
         v-for="[key, label] in TAB_DEFS" :key="key"
         role="tab" :aria-selected="tab === key"
-        class="inline-flex items-center rounded-full px-[18px] py-[9px] text-[13.5px] transition-all"
+        class="inline-flex shrink-0 items-center rounded-full px-[18px] py-[9px] text-[13.5px] transition-all"
         :class="tab === key ? 'bg-primary-500 font-bold text-white' : 'font-semibold text-muted-400 hover:text-white'"
         @click="tab = key"
       >
@@ -512,7 +512,7 @@ const faqRows = computed(() => {
               <div v-for="(f, i) in draftFiles" :key="i" class="flex items-center gap-2 rounded-[9px] border border-white/8 bg-muted-700 py-1.5 pl-[11px] pr-1.5 text-xs text-white">
                 <Icon name="lucide:file-text" class="size-[13px] text-primary-400" />
                 {{ f.name }}
-                <button aria-label="Remove file" class="inline-flex size-[18px] items-center justify-center rounded-md text-muted-500 hover:text-[#EC6453]" @click="removeDraftFile(i)">
+                <button aria-label="Remove file" class="inline-flex size-6 items-center justify-center rounded-md text-muted-500 hover:text-[#EC6453]" @click="removeDraftFile(i)">
                   <Icon name="lucide:x" class="size-3" />
                 </button>
               </div>
@@ -639,7 +639,7 @@ const faqRows = computed(() => {
                   <span class="block max-w-[160px] truncate text-[12.5px] font-semibold text-white">{{ f.name }}</span>
                   <span class="block text-[11px] text-muted-500">{{ f.size }}</span>
                 </span>
-                <button aria-label="Remove" class="inline-flex size-[22px] items-center justify-center rounded-md text-muted-500 hover:text-[#EC6453]" @click="removeNewFile(i)">
+                <button aria-label="Remove" class="inline-flex size-7 items-center justify-center rounded-md text-muted-500 hover:text-[#EC6453]" @click="removeNewFile(i)">
                   <Icon name="lucide:x" class="size-3" />
                 </button>
               </div>

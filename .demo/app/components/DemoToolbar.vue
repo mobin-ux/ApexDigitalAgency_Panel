@@ -26,27 +26,30 @@ const { t, locale } = useI18n()
             <span class="block w-5 h-0.5 bg-muted-500" />
           </span>
         </button>
-        <div class="flex flex-col gap-1">
-          <BaseHeading size="xl" weight="medium">
-            {{ route.meta.title }}
-          </BaseHeading>
-          <nav aria-label="Breadcrumb">
-            <ol class="flex items-center gap-1.5 text-sm">
-              <li class="text-muted-400 dark:text-muted-500">
-                Account
-              </li>
-              <li aria-hidden="true" class="text-muted-300 dark:text-muted-700">
-                /
-              </li>
-              <li aria-current="page" class="font-medium text-muted-900 dark:text-white">
-                {{ route.meta.title }}
-              </li>
-            </ol>
-          </nav>
-        </div>
+        <nav aria-label="Breadcrumb">
+          <ol class="flex items-center gap-1.5 text-sm">
+            <li class="text-muted-400 dark:text-muted-500">
+              Account
+            </li>
+            <li aria-hidden="true" class="text-muted-300 dark:text-muted-600">
+              /
+            </li>
+            <li aria-current="page" class="font-medium text-muted-900 dark:text-white">
+              {{ route.meta.title }}
+            </li>
+          </ol>
+        </nav>
       </div>
       <span aria-hidden="true" class="hidden md:block w-px self-stretch shrink-0 bg-muted-200 dark:bg-muted-800" />
       <div class="flex items-center justify-end gap-x-3 ms-auto">
+        <button
+          type="button"
+          class="border-muted-200 hover:ring-muted-200 dark:hover:ring-muted-700 dark:border-muted-700 dark:bg-muted-950 dark:ring-offset-muted-900 flex md:hidden size-8 items-center justify-center rounded-full border bg-white ring-1 ring-transparent transition-all duration-300 hover:ring-offset-4"
+          aria-label="Search"
+          @click="isSearchOpen = true"
+        >
+          <Icon name="lucide:search" class="text-muted-400 size-4" />
+        </button>
         <button
           type="button"
           class="border-muted-200 hover:ring-muted-200 dark:hover:ring-muted-700 dark:border-muted-700 dark:bg-muted-800 dark:ring-offset-muted-900 flex size-8 items-center justify-center rounded-full border bg-white ring-1 ring-transparent transition-all duration-300 hover:ring-offset-4"

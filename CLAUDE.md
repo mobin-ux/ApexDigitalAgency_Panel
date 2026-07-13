@@ -38,7 +38,9 @@ Detail lives in the docs — read on demand, don't guess:
 ## Conventions
 
 - Page skeleton: `definePageMeta({ title, layout: 'sidenav', middleware: 'auth' })`;
-  wrapper `mx-auto max-w-[1180–1240px] flex flex-col gap-6`.
+  wrapper `mx-auto max-w-[1180–1240px] flex flex-col gap-6`. Horizontal gutter comes
+  from `sidenav.vue`'s shared `px-4 md:px-6 xl:px-8` wrapper (applied to toolbar +
+  `<slot />` together) — don't add page-level `px-*`, it would double up.
 - Components: `<BaseButton variant="primary|muted|ghost" rounded="full|lg" size="lg">`,
   `<BaseCard rounded="lg">`; icons `<Icon name="lucide:...">`.
 - Headings/big numbers: `font-heading` (Yellix) + `font-extrabold` + `tracking-[-0.02em]`;

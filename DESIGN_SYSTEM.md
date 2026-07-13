@@ -78,6 +78,17 @@ Fixed:
       and `useRequestFetch()` in `useUser`.
 - [x] **App broke after a fresh `pnpm install`** (Prisma client not generated → "Named
       export 'PrismaClient' not found"). Added `postinstall: prisma generate`.
+- [x] **Page content had no horizontal gutter below ~1200px** — sections/cards ran flush
+      to the viewport edge on most laptop, tablet and mobile widths. Root cause:
+      `sidenav.vue` wrapped only `<DemoToolbar>` in `px-4 md:px-6 xl:px-8`; `<slot />`
+      (every page's actual content) rendered as an unpadded sibling, and the documented
+      page-wrapper convention (`mx-auto max-w-[1180–1240px] …`) has no `px-*` of its own —
+      so nothing provided a gutter below each page's max-width. Fixed once, in the shared
+      layout, by nesting `<slot />` inside that same padded div — every page inherits it,
+      no per-page changes needed. Same pass also fixed a couple of narrow-viewport spots
+      that predated it: the Transactions-tab filter pills on Wallet could wrap into a
+      two-row stadium shape instead of scrolling, and the New Order success modal's two
+      footer buttons didn't stack on very narrow phones.
 - [x] Duplicate `useUser.ts` (`.demo/composables/` vs `.demo/app/composables/`) and
       duplicate auth plugins (`auth.ts` + `auth-load.ts`) removed.
 

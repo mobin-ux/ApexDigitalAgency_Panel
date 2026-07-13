@@ -349,7 +349,7 @@ const VIOLET_BLOB = 'radial-gradient(circle at 50% 38%, #9b79f6 0%, #7d53f2 55%,
           <div role="img" aria-label="Spending breakdown" class="flex h-3.5 gap-0.5 overflow-hidden rounded-full">
             <div v-for="e in expenses" :key="e.label" class="h-full" :class="e.class" :style="{ flexGrow: e.value }" />
           </div>
-          <div class="mt-[18px] grid grid-cols-3 gap-4">
+          <div class="mt-[18px] grid grid-cols-1 gap-4 sm:grid-cols-3">
             <div v-for="e in expenses" :key="e.label" class="flex flex-col gap-1.5">
               <span class="inline-flex items-center gap-2 text-[13px] text-muted-400"><span class="size-[9px] rounded-[3px]" :class="e.class" />{{ e.label }}</span>
               <span class="font-heading text-[18px] font-bold text-white tabular-nums">{{ formatCurrency(e.value) }} <span class="font-sans text-xs font-medium text-muted-500">{{ Math.round((e.value / expenseTotal) * 100) }}%</span></span>

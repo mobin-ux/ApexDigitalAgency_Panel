@@ -2,13 +2,14 @@
 
 > Handoff doc for continuing work in fresh sessions. Update the relevant section
 > whenever a page ships, a decision lands, or a blocker appears.
-> Last updated: **2026-07-12** (Support redesign session).
+> Last updated: **2026-07-13** (responsive-design audit session).
 
 ## Where things stand
 
-- Branch: `master` @ `10001f1`, in sync with `origin/master`
-  (github.com/mobin-ux/ApexDigitalAgency_Panel). Support redesign commit not yet
-  pushed as of this note — push it next.
+- Branch: `master`, in sync with `origin/master`
+  (github.com/mobin-ux/ApexDigitalAgency_Panel). Support redesign (`67512ce`) and a
+  toolbar breadcrumb/divider commit (`2ef57b5`) landed since the last note; this
+  session's responsive-audit commit is next.
 - Working tree: `prisma/dev.db` modified (local test data — never commit),
   `graphify-out/` untracked (generated — never commit).
 - Stale branch `refactor/apex-dashboard` (local + origin) is superseded by master;
@@ -24,7 +25,9 @@
 | `ad12c8b` | New Order wizard (`services.vue`): 5 steps, financing calculator, e-signature, creates real orders |
 | `4c1dc3d` | My Orders (`orders.vue`): list+detail, payment-plan rail, segmented installments; `/api/orders` now includes manager |
 | `10001f1` | Wallet & Credit (`wallet.vue`): 4 tabs (Overview/Transactions/Installments/Banking) + top-up & apply-credit modals. Wired to `/api/finance/dashboard` (balance/cards), `/api/finance/transactions`, `/api/orders` (installments derived per ADR-010), real top-up via `POST /api/finance/deposit`. GBP throughout. Credit-line figures/auto-pay/invoices/bank details are TODO(api) placeholders. |
-| _(this session)_ | **Support (`support.vue`)**: 3 tabs (My tickets split-pane inbox+thread / New request / Help & FAQ). Wired to `/api/support/tickets` (list), `/api/support/[id]/messages` (full thread, fetched per-ticket), `/api/support/[id]/reply`, `/api/support/create`; project dropdown from `/api/orders`. Status/category/priority are free-text schema fields normalized via keyword matching (`catKey`/`priKey`/`statusKey`). Attachments (no upload endpoint/model), assigned-agent identity (no assignee field — renders as generic "Apex Support"), and FAQ copy are TODO(api)/static placeholders. |
+| `67512ce` | Support (`support.vue`): 3 tabs (My tickets split-pane inbox+thread / New request / Help & FAQ). Wired to `/api/support/tickets` (list), `/api/support/[id]/messages` (full thread, fetched per-ticket), `/api/support/[id]/reply`, `/api/support/create`; project dropdown from `/api/orders`. Status/category/priority are free-text schema fields normalized via keyword matching (`catKey`/`priKey`/`statusKey`). Attachments (no upload endpoint/model), assigned-agent identity (no assignee field — renders as generic "Apex Support"), and FAQ copy are TODO(api)/static placeholders. |
+| `2ef57b5` | Toolbar: breadcrumb nav + dividers added to the shared page header (`DemoToolbar.vue`). |
+| _(this session)_ | **Cross-cutting responsive audit**: fixed a shell-level bug where `sidenav.vue` padded only the toolbar, not `<slot />` — every page's content had zero guaranteed horizontal gutter and ran edge-to-edge below ~1200px width. Nested `<slot />` inside the toolbar's padded wrapper (one fix, every page inherits it). Also: wallet.vue Transactions-tab filter pills now scroll instead of wrapping into a two-row oval; services.vue success-modal footer buttons stack on narrow phones instead of cramming side-by-side. Full breakpoint audit against the user's checklist (containers, grids, typography, touch targets, overflow) across balance/orders/services/support/wallet — see DESIGN_SYSTEM.md §5 "Fixed" for the write-up. settings.vue/auth pages explicitly excluded (user confirmed) — still old-style, in scope only when their design zip arrives. |
 
 ## Wallet redesign — gotcha to remember
 
@@ -47,6 +50,14 @@ classes. If a future modal "won't close," suspect a stuck Transition-leave first
   chrome (suspect color-mode/i18n), NOT page regressions. Fix once, globally.
 - Preview **screenshots time out** on this machine — verify via `preview_eval` DOM
   checks + computed styles; curl + cookie jar for SSR auth paths.
+- **`claude-in-chrome` `resize_window` doesn't actually resize the viewport here** —
+  reports success (and `window.resizeTo`/OS unmaximize-then-resize don't help either)
+  but `window.innerWidth` never changes from whatever the Chrome window already was
+  (~1528×651 observed). Screenshots always come back at that size regardless of the
+  width/height requested. So mobile/tablet breakpoints can't be visually verified via
+  this tool on this machine — rely on Tailwind class analysis (deterministic) + SSR
+  DOM structure checks via curl; desktop-width rendering can still be screenshotted
+  fine for sanity checks.
 - Broken dev seeds: `/api/seed-rich`, `/api/seed-wallet`, `prisma/seed.js`
   (schema drift). Working: `create-admin`, `seed-orders`, `seed-support`, `seed-notifs`.
 - `.npmrc` registry mirror (runflare) 403s intermittently →

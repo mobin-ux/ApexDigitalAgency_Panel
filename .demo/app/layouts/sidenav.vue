@@ -102,8 +102,8 @@ const avatarSrc = computed(() => user.value?.avatar || '/img/avatars/10.svg')
     <TairoSidenavContent class="min-h-screen">
       <div class="px-4 md:px-6 xl:px-8">
         <DemoToolbar @toggle-mobile-nav="toggleMobileNav" />
+        <slot />
       </div>
-      <slot />
     </TairoSidenavContent>
   </TairoSidenavLayout>
 </template>

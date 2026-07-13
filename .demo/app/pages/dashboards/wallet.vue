@@ -424,11 +424,11 @@ function comingSoon(feature: string) {
     </div>
 
     <!-- ============ TABS ============ -->
-    <div role="tablist" class="mb-[26px] inline-flex gap-1 self-start rounded-full border border-white/8 bg-muted-800 p-1">
+    <div role="tablist" class="mb-[26px] inline-flex max-w-full gap-1 self-start overflow-x-auto rounded-full border border-white/8 bg-muted-800 p-1">
       <button
         v-for="[key, label] in TAB_DEFS" :key="key"
         role="tab" :aria-selected="tab === key"
-        class="rounded-full px-[18px] py-[9px] text-[13.5px] transition-all"
+        class="shrink-0 rounded-full px-[18px] py-[9px] text-[13.5px] transition-all"
         :class="tab === key ? 'bg-primary-500 font-bold text-white' : 'font-semibold text-muted-400 hover:text-white'"
         @click="goTab(key)"
       >
@@ -679,10 +679,10 @@ function comingSoon(feature: string) {
     <!-- ============================================================ TRANSACTIONS -->
     <div v-else-if="tab === 'transactions'" class="apex-rise">
       <div class="mb-[18px] flex flex-wrap items-center gap-3.5">
-        <div class="flex flex-wrap gap-1 rounded-full border border-white/8 bg-muted-800 p-1">
+        <div class="flex max-w-full flex-nowrap gap-1 overflow-x-auto rounded-full border border-white/8 bg-muted-800 p-1">
           <button
             v-for="[key, label] in TX_FILTERS" :key="key"
-            class="rounded-full px-[15px] py-2 text-[13px] transition-all"
+            class="shrink-0 rounded-full px-[15px] py-2 text-[13px] transition-all"
             :class="txFilter === key ? 'bg-primary-500 font-bold text-white' : 'font-semibold text-muted-400 hover:text-white'"
             @click="txFilter = key as any"
           >
@@ -783,31 +783,33 @@ function comingSoon(feature: string) {
           <div v-if="expanded[pl.id]" class="apex-fade border-t border-white/8 px-6 pb-[18px] pt-2.5">
             <div
               v-for="r in pl.rows" :key="r.n"
-              class="flex items-center gap-3.5 border-b border-white/[0.04] py-[11px]"
+              class="flex flex-wrap items-center gap-x-3.5 gap-y-2 border-b border-white/[0.04] py-[11px] sm:flex-nowrap"
             >
               <span
                 class="inline-flex size-[26px] shrink-0 items-center justify-center rounded-full font-heading text-[11.5px] font-bold"
                 :class="r.state === 'paid' ? 'bg-[#22B07D]/16 text-[#22B07D]' : r.state === 'next' ? 'bg-primary-500/18 text-primary-200' : 'bg-muted-700 text-muted-500'"
               >{{ r.n }}</span>
-              <div class="flex-1 text-[13.5px] font-semibold" :class="r.state === 'scheduled' ? 'text-muted-500' : 'text-white'">
+              <div class="min-w-0 flex-1 text-[13.5px] font-semibold" :class="r.state === 'scheduled' ? 'text-muted-500' : 'text-white'">
                 {{ r.label }}
               </div>
-              <span class="shrink-0 basis-[110px] text-[12.5px] text-muted-500">{{ r.date }}</span>
-              <span class="shrink-0 basis-[70px] text-right font-heading text-sm font-bold tabular-nums text-white">{{ formatCurrency(r.amount) }}</span>
               <span
                 class="inline-flex w-[86px] shrink-0 items-center justify-center rounded-full px-2.5 py-1 text-[10.5px] font-extrabold uppercase tracking-[0.05em]"
                 :class="r.state === 'paid' ? 'bg-[#22B07D]/14 text-[#22B07D]' : r.state === 'next' ? (r.dueSoon ? 'bg-[#D9A521]/16 text-[#F2C14E]' : 'bg-primary-500/16 text-primary-200') : 'bg-muted-700 text-muted-500'"
               >
                 {{ r.state === 'paid' ? 'Paid' : r.state === 'next' ? (r.dueSoon ? 'Due soon' : 'Next') : 'Scheduled' }}
               </span>
-              <button
-                v-if="r.state === 'next'"
-                class="rounded-full bg-primary-500 px-[15px] py-[7px] text-xs font-bold text-white transition-colors hover:bg-primary-600"
-                @click="payInstallment(pl)"
-              >
-                Pay now
-              </button>
-              <span v-else class="w-[79px]" />
+              <div class="flex w-full items-center gap-3.5 ps-[38px] sm:w-auto sm:ps-0">
+                <span class="shrink-0 basis-[110px] text-[12.5px] text-muted-500 sm:basis-[110px]">{{ r.date }}</span>
+                <span class="shrink-0 basis-[70px] text-right font-heading text-sm font-bold tabular-nums text-white">{{ formatCurrency(r.amount) }}</span>
+                <button
+                  v-if="r.state === 'next'"
+                  class="ms-auto shrink-0 rounded-full bg-primary-500 px-[15px] py-[7px] text-xs font-bold text-white transition-colors hover:bg-primary-600 sm:ms-0"
+                  @click="payInstallment(pl)"
+                >
+                  Pay now
+                </button>
+                <span v-else class="hidden shrink-0 sm:inline-block sm:w-[79px]" />
+              </div>
             </div>
           </div>
         </section>
@@ -994,7 +996,7 @@ function comingSoon(feature: string) {
     <div v-if="topupOpen" class="apex-fade fixed inset-0 z-[60] flex items-center justify-center bg-[rgba(5,10,12,0.66)] p-6 backdrop-blur-[4px]" @click="closeModals">
       <div
         role="dialog" aria-label="Top up wallet"
-        class="apex-pop w-[440px] max-w-full rounded-[28px] border border-white/15 p-7 shadow-[0_30px_80px_rgba(0,0,0,0.5)]"
+        class="apex-pop max-h-[calc(100vh-3rem)] w-[440px] max-w-full overflow-y-auto rounded-[28px] border border-white/15 p-7 shadow-[0_30px_80px_rgba(0,0,0,0.5)]"
         style="background: #132125;"
         @click.stop
       >
@@ -1010,7 +1012,7 @@ function comingSoon(feature: string) {
           <p class="mb-5 text-[13.5px] text-muted-500">
             Funds are available immediately and can auto-pay your installments.
           </p>
-          <div class="grid grid-cols-4 gap-2">
+          <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
             <button
               v-for="p in TOPUP_PRESETS" :key="p"
               class="rounded-[11px] border px-1.5 py-[11px] font-heading text-sm font-bold transition-all"
@@ -1078,7 +1080,7 @@ function comingSoon(feature: string) {
     <div v-if="applyOpen" class="apex-fade fixed inset-0 z-[60] flex items-center justify-center bg-[rgba(5,10,12,0.66)] p-6 backdrop-blur-[4px]" @click="closeModals">
       <div
         role="dialog" aria-label="Apply for credit"
-        class="apex-pop w-[460px] max-w-full rounded-[28px] border border-white/15 p-7 shadow-[0_30px_80px_rgba(0,0,0,0.5)]"
+        class="apex-pop max-h-[calc(100vh-3rem)] w-[460px] max-w-full overflow-y-auto rounded-[28px] border border-white/15 p-7 shadow-[0_30px_80px_rgba(0,0,0,0.5)]"
         style="background: #132125;"
         @click.stop
       >
