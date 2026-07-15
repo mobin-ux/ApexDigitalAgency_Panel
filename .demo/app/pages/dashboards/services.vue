@@ -696,7 +696,7 @@ const radioBase = 'flex size-[22px] shrink-0 items-center justify-center rounded
     <Teleport to="body">
       <Transition enter-active-class="transition-opacity duration-300" enter-from-class="opacity-0" leave-active-class="transition-opacity duration-200" leave-to-class="opacity-0">
         <div v-if="step === 6" class="fixed inset-0 z-50 flex items-center justify-center p-6" style="background: rgba(9,18,20,.82); backdrop-filter: blur(8px);">
-          <div class="apex-pop relative max-h-[calc(100vh-3rem)] w-full max-w-[520px] overflow-y-auto rounded-[28px] border border-primary-500/30 p-9 text-center" style="background: linear-gradient(160deg, #1B2B31, #101D21);">
+          <div class="apex-pop relative max-h-[calc(100dvh_-_3rem_-_env(safe-area-inset-top)_-_env(safe-area-inset-bottom))] w-full max-w-[520px] overflow-y-auto rounded-[28px] border border-primary-500/30 p-9 text-center" style="background: linear-gradient(160deg, #1B2B31, #101D21);">
             <div class="pointer-events-none absolute -top-16 left-1/2 size-60 -translate-x-1/2 rounded-full opacity-40 blur-[70px]" style="background: radial-gradient(circle at 50% 38%, #9b79f6 0%, #7d53f2 55%, #6c40e8 100%);" />
             <div class="relative mx-auto flex size-[74px] items-center justify-center rounded-full shadow-[0_16px_40px_rgba(34,176,125,.45)]" style="background: linear-gradient(150deg, #22B07D, #0f6e4d);">
               <Icon name="lucide:check" class="size-9 text-white" />

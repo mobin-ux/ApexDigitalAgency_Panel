@@ -15,7 +15,7 @@ const { t, locale } = useI18n()
 <template>
   <div class="relative z-10 mb-6">
     <div class="w-full flex items-center gap-4 min-h-14">
-      <div class="flex items-center gap-x-5">
+      <div class="flex min-w-0 items-center gap-x-5">
         <button
           type="button"
           class="flex xl:hidden items-center"
@@ -26,15 +26,16 @@ const { t, locale } = useI18n()
             <span class="block w-5 h-0.5 bg-muted-500" />
           </span>
         </button>
-        <nav aria-label="Breadcrumb">
-          <ol class="flex items-center gap-1.5 text-sm">
-            <li class="text-muted-400 dark:text-muted-500">
+        <nav aria-label="Breadcrumb" class="min-w-0">
+          <ol class="flex min-w-0 items-center gap-1.5 text-sm">
+            <!-- Hide the parent crumb on the narrowest phones so the current page never gets squeezed by the toolbar's icon cluster. -->
+            <li class="hidden text-muted-400 dark:text-muted-500 min-[400px]:block">
               Account
             </li>
-            <li aria-hidden="true" class="text-muted-300 dark:text-muted-600">
+            <li aria-hidden="true" class="hidden text-muted-300 dark:text-muted-600 min-[400px]:block">
               /
             </li>
-            <li aria-current="page" class="font-medium text-muted-900 dark:text-white">
+            <li aria-current="page" class="truncate font-medium text-muted-900 dark:text-white">
               {{ route.meta.title }}
             </li>
           </ol>

@@ -346,7 +346,14 @@ const faqRows = computed(() => {
 </script>
 
 <template>
-  <div class="mx-auto flex h-[calc(100vh-101px)] max-w-[1240px] flex-col pb-[22px] pt-[26px] font-sans text-muted-400">
+  <!--
+    Split-pane inbox needs a bounded height so the thread scrolls internally.
+    `dvh` tracks the mobile URL bar (unlike `vh`); subtracting the top+bottom
+    safe-area insets keeps the whole pane — and the composer at its foot — clear
+    of the notch and the home indicator. Insets are 0 in a normal browser tab,
+    so this equals the previous `100vh - 101px` there.
+  -->
+  <div class="mx-auto flex h-[calc(100dvh_-_101px_-_env(safe-area-inset-top)_-_env(safe-area-inset-bottom))] max-w-[1240px] flex-col pb-[22px] pt-[26px] font-sans text-muted-400">
     <!-- ============ TITLE ============ -->
     <div class="mb-[18px] flex flex-shrink-0 flex-wrap items-end justify-between gap-5">
       <div>

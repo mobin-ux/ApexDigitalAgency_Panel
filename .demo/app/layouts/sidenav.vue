@@ -100,7 +100,15 @@ const avatarSrc = computed(() => user.value?.avatar || '/img/avatars/10.svg')
       </TairoSidenavSidebarLinks>
     </TairoSidenavSidebar>
     <TairoSidenavContent class="min-h-screen">
-      <div class="px-4 md:px-6 xl:px-8">
+      <!--
+        Shared horizontal gutter for the toolbar + every page's content. The
+        `max(<gutter>, env(safe-area-inset-*))` pattern keeps the design's 16/24/32px
+        padding as the floor while also clearing the notch / rounded corners in
+        landscape on modern iPhones; the top safe-area inset clears the dynamic island at the
+        top. All are no-ops when the insets are 0 (every normal browser tab), so
+        desktop and portrait are unchanged. Needs `viewport-fit=cover` (nuxt.config).
+      -->
+      <div class="pt-[env(safe-area-inset-top)] pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] md:pl-[max(1.5rem,env(safe-area-inset-left))] md:pr-[max(1.5rem,env(safe-area-inset-right))] xl:pl-[max(2rem,env(safe-area-inset-left))] xl:pr-[max(2rem,env(safe-area-inset-right))]">
         <DemoToolbar @toggle-mobile-nav="toggleMobileNav" />
         <slot />
       </div>

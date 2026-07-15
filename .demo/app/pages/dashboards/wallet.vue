@@ -798,8 +798,8 @@ function comingSoon(feature: string) {
               >
                 {{ r.state === 'paid' ? 'Paid' : r.state === 'next' ? (r.dueSoon ? 'Due soon' : 'Next') : 'Scheduled' }}
               </span>
-              <div class="flex w-full items-center gap-3.5 ps-[38px] sm:w-auto sm:ps-0">
-                <span class="shrink-0 basis-[110px] text-[12.5px] text-muted-500 sm:basis-[110px]">{{ r.date }}</span>
+              <div class="flex w-full flex-wrap items-center gap-x-3.5 gap-y-2 ps-[38px] sm:w-auto sm:flex-nowrap sm:gap-y-0 sm:ps-0">
+                <span class="shrink-0 basis-[110px] text-[12.5px] text-muted-500">{{ r.date }}</span>
                 <span class="shrink-0 basis-[70px] text-right font-heading text-sm font-bold tabular-nums text-white">{{ formatCurrency(r.amount) }}</span>
                 <button
                   v-if="r.state === 'next'"
@@ -996,7 +996,7 @@ function comingSoon(feature: string) {
     <div v-if="topupOpen" class="apex-fade fixed inset-0 z-[60] flex items-center justify-center bg-[rgba(5,10,12,0.66)] p-6 backdrop-blur-[4px]" @click="closeModals">
       <div
         role="dialog" aria-label="Top up wallet"
-        class="apex-pop max-h-[calc(100vh-3rem)] w-[440px] max-w-full overflow-y-auto rounded-[28px] border border-white/15 p-7 shadow-[0_30px_80px_rgba(0,0,0,0.5)]"
+        class="apex-pop max-h-[calc(100dvh_-_3rem_-_env(safe-area-inset-top)_-_env(safe-area-inset-bottom))] w-[440px] max-w-full overflow-y-auto rounded-[28px] border border-white/15 p-7 shadow-[0_30px_80px_rgba(0,0,0,0.5)]"
         style="background: #132125;"
         @click.stop
       >
@@ -1080,7 +1080,7 @@ function comingSoon(feature: string) {
     <div v-if="applyOpen" class="apex-fade fixed inset-0 z-[60] flex items-center justify-center bg-[rgba(5,10,12,0.66)] p-6 backdrop-blur-[4px]" @click="closeModals">
       <div
         role="dialog" aria-label="Apply for credit"
-        class="apex-pop max-h-[calc(100vh-3rem)] w-[460px] max-w-full overflow-y-auto rounded-[28px] border border-white/15 p-7 shadow-[0_30px_80px_rgba(0,0,0,0.5)]"
+        class="apex-pop max-h-[calc(100dvh_-_3rem_-_env(safe-area-inset-top)_-_env(safe-area-inset-bottom))] w-[460px] max-w-full overflow-y-auto rounded-[28px] border border-white/15 p-7 shadow-[0_30px_80px_rgba(0,0,0,0.5)]"
         style="background: #132125;"
         @click.stop
       >

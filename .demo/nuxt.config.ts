@@ -6,6 +6,19 @@ export default defineNuxtConfig({
   devtools: { enabled: true },
 
   /**
+   * `viewport-fit=cover` lets the page extend into the notch / dynamic-island and
+   * home-indicator regions and makes `env(safe-area-inset-*)` resolve to real
+   * values — the shell gutters (main.css) and the full-height / modal calcs rely
+   * on it. Without this, safe-area insets are always 0 and mobile content can
+   * sit under the notch or the home indicator in standalone / PWA mode.
+   */
+  app: {
+    head: {
+      viewport: 'width=device-width, initial-scale=1, viewport-fit=cover',
+    },
+  },
+
+  /**
    * Apex Digi defaults to the dark theme (brand direction), while the
    * BaseThemeToggle in the toolbar still lets customers switch to light.
    * `classSuffix: ''` keeps the toggled class as `.dark` to match main.css.
