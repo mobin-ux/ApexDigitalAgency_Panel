@@ -91,6 +91,19 @@ Fixed:
       footer buttons didn't stack on very narrow phones.
 - [x] Duplicate `useUser.ts` (`.demo/composables/` vs `.demo/app/composables/`) and
       duplicate auth plugins (`auth.ts` + `auth-load.ts`) removed.
+- [x] **Flagship-phone responsive pass** (`c3f7f2b`). Safe-area/`dvh`: `viewport-fit=cover`
+      (nuxt.config) so `env(safe-area-inset-*)` resolves; shell gutters use
+      `max(<gutter>, env(inset))`; support split-pane + wallet/services modals use
+      `100dvh - env(top/bottom)` so height tracks the mobile URL bar and clears the
+      notch/home-indicator (no-ops in normal tabs). Layout: wallet installment rows reflow
+      to two lines under `sm` (no overflow at 393px); top-up presets `grid-cols-2 sm:grid-cols-4`;
+      DemoToolbar gains a `md:hidden` search icon (search had no <768px entry point) and a
+      `min-w-0`/`truncate` breadcrumb that drops the parent crumb under 400px. **Build-fix:**
+      a literal `pt-[env(...)]` written as shorthand *inside a sidenav comment* was scanned
+      by Tailwind v4, emitted invalid `padding-top: env(...)`, and lightningcss 500'd the
+      whole dev server — Tailwind scans comments too; document classes in valid form or prose.
+      Verified at 1440px + 393px, no horizontal overflow, restructured layouts revert to
+      single-line/multi-column at ≥sm.
 
 To address:
 - [ ] **Hydration mismatch warnings** ("Hydration completed but contains mismatches") on
