@@ -30,7 +30,7 @@ const { t, locale } = useI18n()
           <ol class="flex min-w-0 items-center gap-1.5 text-sm">
             <!-- Hide the parent crumb on the narrowest phones so the current page never gets squeezed by the toolbar's icon cluster. -->
             <li class="hidden text-muted-400 dark:text-muted-500 min-[400px]:block">
-              Account
+              {{ route.path.startsWith('/admin') ? 'Admin' : 'Account' }}
             </li>
             <li aria-hidden="true" class="hidden text-muted-300 dark:text-muted-600 min-[400px]:block">
               /

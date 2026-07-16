@@ -88,6 +88,13 @@ const avatarSrc = computed(() => user.value?.avatar || '/img/avatars/10.svg')
 
       <TairoSidenavSidebarLinks class="p-4 shrink-0">
         <TairoSidenavSidebarDivider />
+        <!-- Admin accounts get a shortcut into the management panel. -->
+        <TairoSidenavSidebarLink
+          v-if="user?.role === 'ADMIN'"
+          icon="solar:shield-user-linear"
+          label="Admin panel"
+          to="/admin"
+        />
         <TairoSidenavSidebarLink to="/dashboards/settings">
           <BaseAvatar size="xxs" :src="avatarSrc" />
           <span class="relative truncate">{{ displayName }}</span>

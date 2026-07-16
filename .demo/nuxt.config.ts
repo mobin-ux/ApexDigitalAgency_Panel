@@ -188,6 +188,10 @@ export default defineNuxtConfig({
     '/dashboards/**': {
       swr: false,
     },
+    // Admin panel: authenticated + role-gated, same no-cache rule.
+    '/admin/**': {
+      swr: false,
+    },
     '/layouts/**': {
       swr: 3600,
     },
