@@ -61,13 +61,19 @@ implementation. Hard rules live in CLAUDE.md; rationale in docs/decisions/.
 ## 5. Security requirements
 
 - Every customer page: `middleware: 'auth'`; every customer API route verifies the
-  JWT from the `auth_token` cookie.
+  JWT via `requireAuth(event)`; admin APIs use `requireAdmin(event)` with a
+  DB-fresh role check (ADR-013). Bad/expired tokens → clean 401, never 500.
 - Authenticated routes are never SWR/HTML-cached (ADR-008).
-- Server APIs return raw data scoped to `userId` from the verified token — no
-  cross-user data.
-- Production hardening backlog (currently dev-relaxed, ADR-007): httpOnly + secure
-  cookie, real `JWT_SECRET`, review `/api/create-admin` + `/api/seed-*` exposure
-  before any deployment.
+- Server APIs return raw data scoped to `userId` from the verified session — no
+  cross-user data. Object access is ownership-checked (404 for "not yours").
+- Every admin mutation writes an `AuditLog` row (actor, action, target,
+  before/after metadata, IP) via `recordAudit()`.
+- All request input is zod-validated server-side (`validateBody`/`validateQuery`).
+- ~~Review `/api/create-admin` + `/api/seed-*` exposure~~ **done**: dev-only,
+  404 in production builds. JWT secret now via `NUXT_JWT_SECRET` runtimeConfig.
+- Remaining hardening backlog: httpOnly cookie (blocked on reworking the client
+  auth middleware — ADR-013), rate limiting on auth endpoints, real mail
+  provider for password reset.
 - No real payment processing exists — buttons must never pretend otherwise
   (ADR-010).
 
@@ -80,4 +86,5 @@ implementation. Hard rules live in CLAUDE.md; rationale in docs/decisions/.
 | No expense categorisation | real expense breakdown on home page |
 | No invoice model/endpoint | invoices requirement (§1) |
 | Unread-message counts per project | unread chips in My Orders list (designed, hidden) |
-| Broken seeds (`seed-rich`, `seed-wallet`, `prisma/seed.js`) reference removed schema fields | realistic local test data |
+| ~~Broken seeds (`seed-rich`, `seed-wallet`)~~ fixed (schema-valid, dev-gated); `prisma/seed.js` still stale | realistic local test data |
+| Admin UI pages (the `/api/admin/**` backend foundation exists — ADR-013) | admin panel front-end |

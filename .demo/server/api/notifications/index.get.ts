@@ -1,26 +1,28 @@
-import { defineEventHandler, getCookie, createError } from 'h3'
-import jwt from 'jsonwebtoken'
-import { PrismaClient } from '@prisma/client'
+import { defineEventHandler } from 'h3'
+import { getAuthSession } from '../../utils/auth'
+import prisma from '../../utils/prisma'
 
-const prisma = new PrismaClient()
-
+/**
+ * GET /api/notifications — latest 20 + unread count.
+ * Soft-fails to an empty list for anonymous sessions: the toolbar
+ * polls this endpoint on every page, signed in or not.
+ */
 export default defineEventHandler(async (event) => {
-  const token = getCookie(event, 'auth_token')
-  if (!token) return { notifications: [] }
-  
-  const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret') as any
+  const session = getAuthSession(event)
+  if (!session) {
+    return { notifications: [], unreadCount: 0 }
+  }
 
-  // گرفتن ۲۰ اعلان آخر
-  const notifications = await prisma.notification.findMany({
-    where: { userId: decoded.id },
-    orderBy: { createdAt: 'desc' },
-    take: 20
-  })
-
-  // شمارش خوانده نشده‌ها
-  const unreadCount = await prisma.notification.count({
-    where: { userId: decoded.id, isRead: false }
-  })
+  const [notifications, unreadCount] = await Promise.all([
+    prisma.notification.findMany({
+      where: { userId: session.id },
+      orderBy: { createdAt: 'desc' },
+      take: 20,
+    }),
+    prisma.notification.count({
+      where: { userId: session.id, isRead: false },
+    }),
+  ])
 
   return { notifications, unreadCount }
 })

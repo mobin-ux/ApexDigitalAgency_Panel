@@ -1,9 +1,6 @@
-import process from 'node:process'
-import { PrismaClient } from '@prisma/client'
-import { createError, defineEventHandler, getCookie } from 'h3'
-import jwt from 'jsonwebtoken'
-
-const prisma = new PrismaClient()
+import { defineEventHandler } from 'h3'
+import { requireAuth } from '../../utils/auth'
+import prisma from '../../utils/prisma'
 
 const ACTIVE_STATUSES = ['IN_PROGRESS', 'PENDING']
 
@@ -17,12 +14,8 @@ function mapStatus(status: string) {
 }
 
 export default defineEventHandler(async (event) => {
-  const token = getCookie(event, 'auth_token')
-  if (!token)
-    throw createError({ statusCode: 401, message: 'Unauthorized' })
-
-  const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret') as any
-  const userId = decoded.id
+  const session = requireAuth(event)
+  const userId = session.id
 
   // Fetch everything in parallel for speed.
   const [user, activeProjects, recentProjects, spent] = await Promise.all([

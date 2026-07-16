@@ -1,34 +1,37 @@
-import { defineEventHandler, readBody, getCookie, createError } from 'h3'
-import jwt from 'jsonwebtoken'
 import bcrypt from 'bcryptjs'
-import { PrismaClient } from '@prisma/client'
+import { createError, defineEventHandler } from 'h3'
+import { z } from 'zod'
+import { requireAuth } from '../../utils/auth'
+import prisma from '../../utils/prisma'
+import { validateBody } from '../../utils/validate'
 
-const prisma = new PrismaClient()
+/** POST /api/settings/password — change password after verifying the current one. */
+
+const bodySchema = z.object({
+  currentPassword: z.string().min(1),
+  // Kept at 6 to match the legacy Settings page's own validation;
+  // align to 8 (signup/reset) when that page is redesigned.
+  newPassword: z.string().min(6, 'Password too short'),
+})
 
 export default defineEventHandler(async (event) => {
-  const token = getCookie(event, 'auth_token')
-  if (!token) throw createError({ statusCode: 401 })
-  const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret') as any
+  const session = requireAuth(event)
+  const { currentPassword, newPassword } = await validateBody(event, bodySchema)
 
-  const body = await readBody(event)
-  const { currentPassword, newPassword } = body
+  const user = await prisma.user.findUnique({ where: { id: session.id } })
+  if (!user) {
+    throw createError({ statusCode: 404, message: 'User not found' })
+  }
 
-  if (!currentPassword || !newPassword) throw createError({ statusCode: 400, message: 'All fields are required' })
-  if (newPassword.length < 6) throw createError({ statusCode: 400, message: 'Password too short' })
-
-  // 1. Get User
-  const user = await prisma.user.findUnique({ where: { id: decoded.id } })
-  if (!user) throw createError({ statusCode: 404 })
-
-  // 2. Verify Current Password
   const isValid = await bcrypt.compare(currentPassword, user.password)
-  if (!isValid) throw createError({ statusCode: 403, message: 'Incorrect current password' })
+  if (!isValid) {
+    throw createError({ statusCode: 403, message: 'Incorrect current password' })
+  }
 
-  // 3. Hash New Password & Update
   const hashedPassword = await bcrypt.hash(newPassword, 10)
   await prisma.user.update({
-    where: { id: decoded.id },
-    data: { password: hashedPassword }
+    where: { id: session.id },
+    data: { password: hashedPassword },
   })
 
   return { status: 'success', message: 'Password updated successfully' }

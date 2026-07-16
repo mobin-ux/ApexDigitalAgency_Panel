@@ -73,22 +73,41 @@ Yellix fonts, and reference screenshots). Integration strategy:
 
 ## 5. API surface (customer-relevant)
 
+**Server conventions (ADR-013)**: every Prisma-backed route uses the shared
+utils in `.demo/server/utils/` — `requireAuth(event)` / `requireAdmin(event)`
+(never inline JWT; bad tokens → 401, not 500), the `prisma` singleton (never
+`new PrismaClient()`), zod `validateBody`/`validateQuery` (400 with
+`data.fieldErrors`), and `recordAudit()` on every admin mutation. List
+endpoints return the `paginated()` envelope `{items,total,page,pageSize,pageCount}`.
+JWT secret: `runtimeConfig.jwtSecret` (`NUXT_JWT_SECRET` env override).
+
 | Endpoint | Notes |
 |---|---|
-| POST `/api/auth/login` | sets `auth_token` cookie (7d), returns user |
-| GET `/api/auth/me` | cookie → fresh user (id/email/names/role/avatar/adCredits) |
-| POST `/api/auth/signup`, logout, reset-password-* | template-era, functional |
-| GET `/api/dashboard/stats` | **rewritten**: raw numbers `{stats:{activeProjects, walletBalance, adCredits, totalSpent}, projects[]}` — no formatting server-side; had selected non-existent `Project.client` (crashed) |
-| GET `/api/orders` | projects + milestones + files + **manager** (added: `{firstName,lastName,avatar}`) |
-| POST `/api/orders` | contract: `{ title, category, budget }` → PENDING project + 4 default milestones (`description` intentionally omitted — not in schema) |
-| POST `/api/orders/pay` | pays FULL project amount from wallet, activates PENDING project — **not** an installment charge; do not wire to per-installment "Pay" buttons |
-| `/api/finance/*`, `/api/support/*`, `/api/settings/*`, `/api/notifications/*` | used by old-style pages; revisit per page redesign |
-| GET `/api/create-admin`, `/api/seed-orders`, `/api/seed-support`, `/api/seed-notifs` | dev seeds. **Broken (schema drift): `/api/seed-rich`, `/api/seed-wallet`, `prisma/seed.js`** |
+| POST `/api/auth/login` | uniform 401 (no account enumeration), sets `auth_token` cookie (7d, sameSite=lax, secure in prod), returns user — **token no longer in body** |
+| GET `/api/auth/me` | cookie → fresh user; `{user:null}` for anonymous (client boot calls it unconditionally) |
+| POST `/api/auth/signup` | zod-validated; always `role: CUSTOMER`; accepts firstName/lastName or single `name` |
+| logout, reset-password-* | shared cookie util; reset always answers success (no probing) |
+| GET `/api/dashboard/stats` | raw numbers `{stats:{...}, projects[]}` — no formatting server-side |
+| GET `/api/orders` | projects + milestones + files + manager |
+| POST `/api/orders` | `{ title, category, budget }` → PENDING project + 4 default milestones |
+| POST `/api/orders/pay` | pays FULL amount, activates PENDING project — ownership-checked, atomic conditional debit (no double-spend). **Not** an installment charge (ADR-010) |
+| POST `/api/finance/deposit` | writes ledger entry AND increments `User.walletBalance` (transactional — the column used to drift) |
+| `/api/support/*` | ticket create/list zod-validated; thread read/reply **ownership-checked** (were fully unauthenticated) |
+| `/api/settings/*` | schema-valid field names; `get-all` no longer returns the password hash |
+| **`/api/admin/users`** (GET) | ADMIN only — paginated/searchable/role-filterable directory (`?page&pageSize&search&role`) |
+| **`/api/admin/users/:id`** (GET/PATCH) | ADMIN only — detail w/ recent activity; whitelisted PATCH (role/adCredits/profile — not password/walletBalance/email) + audit row; self-demotion blocked |
+| **`/api/admin/stats`** (GET) | ADMIN only — aggregates + 10 latest audit entries |
+| GET `/api/create-admin`, `/api/seed-*` | **dev-only (404 in production builds)**. All seeds now schema-valid |
+
+Deleted: `/api/users` GET/POST (were unauthenticated user list/create — superseded by `/api/admin/users`).
 
 ## 6. Auth flow (ADR-007/008)
 
-1. Login sets `auth_token` (JWT, secret `process.env.JWT_SECRET || 'secret'`,
-   httpOnly:false — dev convenience, tighten for prod).
+1. Login sets `auth_token` via `setAuthCookie()` (JWT signed with
+   `runtimeConfig.jwtSecret` — override with `NUXT_JWT_SECRET`; sameSite=lax,
+   secure in prod; httpOnly:false until the client middleware stops reading
+   the cookie — see ADR-013). Session guards live in `server/utils/auth.ts`:
+   `requireAuth` (401), `requireRole`/`requireAdmin` (403, DB-fresh role).
 2. `auth` middleware: no cookie → redirect `/auth/login-1`; else `fetchUser()`.
 3. `useUser().fetchUser()` uses **`useRequestFetch()`** so the incoming request's
    cookies are forwarded during SSR — this is what keeps hard reloads logged in.
@@ -145,8 +164,8 @@ Shared UI vocabulary (see DESIGN_SYSTEM.md + CLAUDE.md): status accents
 - **Hydration mismatches**: every dashboard page logs "Hydration completed but contains
   mismatches" — pre-existing, in shared chrome (toolbar/color-mode), NOT page work.
   Candidate root causes: color-mode class stamping, i18n locale detection.
-- Stale seeds (§5) reference removed schema fields (`name`, `status`, `client`, card
-  fields).
-- `auth_token` httpOnly:false + fallback JWT secret `'secret'` — acceptable dev-only;
-  production hardening required (httpOnly, real secret, secure).
+- `auth_token` httpOnly:false — the client route middleware reads the cookie via
+  `useCookie`; flipping httpOnly requires reworking `app/middleware/auth.ts` to
+  rely on `fetchUser()` alone (tracked follow-up, ADR-013). sameSite/secure and
+  the runtimeConfig secret are already in place.
 - Legacy pages carry Persian comments; convert to English on rewrite.

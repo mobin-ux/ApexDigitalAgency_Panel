@@ -1,20 +1,24 @@
-import { defineEventHandler, getCookie, createError } from 'h3'
-import jwt from 'jsonwebtoken'
-import { PrismaClient } from '@prisma/client'
+import { createError, defineEventHandler } from 'h3'
+import { requireAuth } from '../../utils/auth'
+import prisma from '../../utils/prisma'
 
-const prisma = new PrismaClient()
-
+/**
+ * GET /api/settings/get-all — the caller's full profile + company.
+ * The password hash is stripped before the record leaves the server
+ * (the previous version returned it to the client).
+ */
 export default defineEventHandler(async (event) => {
-  const token = getCookie(event, 'auth_token')
-  if (!token) throw createError({ statusCode: 401 })
-  const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret') as any
+  const session = requireAuth(event)
 
   const user = await prisma.user.findUnique({
-    where: { id: decoded.id },
-    include: { company: true }
+    where: { id: session.id },
+    include: { company: true },
   })
 
-  if (!user) throw createError({ statusCode: 404 })
+  if (!user) {
+    throw createError({ statusCode: 404, message: 'User not found' })
+  }
 
-  return { user }
+  const { password: _password, ...userWithoutPassword } = user
+  return { user: userWithoutPassword }
 })

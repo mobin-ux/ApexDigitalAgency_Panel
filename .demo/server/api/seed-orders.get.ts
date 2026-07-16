@@ -1,12 +1,18 @@
-import { defineEventHandler, getCookie } from 'h3'
-import jwt from 'jsonwebtoken'
+import process from 'node:process'
 import { PrismaClient } from '@prisma/client'
+import { createError, defineEventHandler, getCookie } from 'h3'
+import jwt from 'jsonwebtoken'
 
 const prisma = new PrismaClient()
 
 export default defineEventHandler(async (event) => {
+  // Dev-only seed/bootstrap endpoint — must never exist in a production build.
+  if (!import.meta.dev) {
+    throw createError({ statusCode: 404, message: 'Not found' })
+  }
   const token = getCookie(event, 'auth_token')
-  if(!token) return "Login first"
+  if (!token)
+    return 'Login first'
   const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret') as any
   const userId = decoded.id
 
@@ -30,10 +36,10 @@ export default defineEventHandler(async (event) => {
           { title: 'Wireframing & UI', status: 'COMPLETED', date: new Date() },
           { title: 'Frontend Development', status: 'CURRENT', date: null }, // مرحله فعلی
           { title: 'Backend Integration', status: 'PENDING' },
-          { title: 'Testing & QA', status: 'PENDING' }
-        ]
-      }
-    }
+          { title: 'Testing & QA', status: 'PENDING' },
+        ],
+      },
+    },
   })
 
   // 3. ساخت پروژه سئو (تکمیل شده)
@@ -49,17 +55,17 @@ export default defineEventHandler(async (event) => {
         create: [
           { title: 'Keyword Research', status: 'COMPLETED', date: new Date() },
           { title: 'On-Page Optimization', status: 'COMPLETED', date: new Date() },
-          { title: 'Report Generation', status: 'COMPLETED', date: new Date() }
-        ]
+          { title: 'Report Generation', status: 'COMPLETED', date: new Date() },
+        ],
       },
       files: { // <--- این بخش را اضافه کنید
-  create: [
-    { name: 'Project_Brief.pdf', size: '1.2 MB', type: 'pdf', url: '#' },
-    { name: 'Design_Mockups_v1.zip', size: '14 MB', type: 'zip', url: '#' }
-  ]
-}
-    }
+        create: [
+          { name: 'Project_Brief.pdf', size: '1.2 MB', type: 'pdf', url: '#' },
+          { name: 'Design_Mockups_v1.zip', size: '14 MB', type: 'zip', url: '#' },
+        ],
+      },
+    },
   })
 
-  return "Orders with Milestones seeded!"
+  return 'Orders with Milestones seeded!'
 })

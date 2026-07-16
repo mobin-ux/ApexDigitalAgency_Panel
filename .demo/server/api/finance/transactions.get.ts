@@ -1,25 +1,21 @@
-import { defineEventHandler, getCookie, createError } from 'h3'
-import jwt from 'jsonwebtoken'
-import { PrismaClient } from '@prisma/client'
+import { defineEventHandler } from 'h3'
+import { requireAuth } from '../../utils/auth'
+import prisma from '../../utils/prisma'
 
-const prisma = new PrismaClient()
-
+/** GET /api/finance/transactions — the caller's 20 most recent ledger entries. */
 export default defineEventHandler(async (event) => {
-  const token = getCookie(event, 'auth_token')
-  if (!token) throw createError({ statusCode: 401 })
-  const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret') as any
+  const session = requireAuth(event)
 
-  // دریافت تراکنش‌ها
   const transactions = await prisma.transaction.findMany({
-    where: { userId: decoded.id },
+    where: { userId: session.id },
     orderBy: { createdAt: 'desc' },
-    take: 20 // فعلا ۲۰ تای آخر
+    take: 20,
   })
 
-  // محاسبه موجودی کل (جمع تمام تراکنش‌ها)
+  // Ledger sum of the returned window (kept for the existing consumers).
   const balance = transactions.reduce((acc, tx) => acc + tx.amount, 0)
 
-  return { 
+  return {
     balance,
     transactions: transactions.map(tx => ({
       id: tx.id,
@@ -27,7 +23,7 @@ export default defineEventHandler(async (event) => {
       amount: tx.amount,
       status: tx.status,
       description: tx.description,
-      date: tx.createdAt
-    }))
+      date: tx.createdAt,
+    })),
   }
 })

@@ -65,9 +65,9 @@ model User {
   company             Company?       // One-to-One
   
   // Project Management
-  // 1. پروژه‌هایی که کاربر مالک آنهاست (مشتری)
+  // 1. Projects the user owns (as the customer)
   projects            Project[]      @relation("CustomerProjects")
-  // 2. پروژه‌هایی که کاربر مدیریت می‌کند (کارمند/ادمین)
+  // 2. Projects the user manages (as an employee/admin)
   managedProjects     Project[]      @relation("AssignedEmployee")
   
   // Finance & Wallet
@@ -126,17 +126,17 @@ model Project {
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 
-  // --- روابط اصلاح شده ---
-  
-  // مالک پروژه (مشتری)
+  // --- Relations ---
+
+  // Project owner (the customer)
   userId      String
   user        User        @relation("CustomerProjects", fields: [userId], references: [id], onDelete: Cascade)
 
-  // مدیر پروژه (کارمند) - این بخش برای رفع ارور اضافه شد
-  managerId   String?     
+  // Project manager (an employee/admin)
+  managerId   String?
   manager     User?       @relation("AssignedEmployee", fields: [managerId], references: [id])
-  
-  // مراحل پروژه
+
+  // Project milestones
   milestones  Milestone[]
 
   files       ProjectFile[]
@@ -175,7 +175,7 @@ model Card {
   holderName      String
   expiryDate      String   // MM/YY
   
-  // فیلدهای مورد نیاز برای لاجیک Wallet.vue
+  // Limit/usage fields consumed by the Wallet page logic
   withdrawalLimit Float    @default(2500)
   withdrawalUsed  Float    @default(0)
   paymentLimit    Float    @default(5000)
@@ -272,12 +272,37 @@ model Notification {
 
 model ProjectFile {
   id        String   @id @default(uuid())
-  name      String   // مثلا: "Contract.pdf"
-  url       String   // لینک دانلود
-  size      String   // مثلا: "2.4 MB"
+  name      String   // e.g. "Contract.pdf"
+  url       String   // download link
+  size      String   // e.g. "2.4 MB"
   type      String   // pdf, jpg, zip
   createdAt DateTime @default(now())
-  
+
   projectId String
   project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+// ==============================
+// 7. ADMIN / GOVERNANCE
+// ==============================
+
+// Immutable trail of privileged (admin) actions. Written by
+// `recordAudit()` (server/utils/audit.ts) on every admin mutation.
+// `actorEmail` is denormalized so the trail stays readable even if
+// the actor account is later deleted; `metadata` is a JSON string
+// (SQLite has no native Json column type).
+model AuditLog {
+  id         String   @id @default(uuid())
+  actorId    String
+  actorEmail String
+  action     String   // dot-namespaced, e.g. "admin.user.update"
+  targetType String   // "User", "Project", "Ticket", ...
+  targetId   String?
+  metadata   String?  // JSON-stringified context (before/after, request details)
+  ip         String?
+  createdAt  DateTime @default(now())
+
+  @@index([actorId])
+  @@index([targetType, targetId])
+  @@index([createdAt])
 }

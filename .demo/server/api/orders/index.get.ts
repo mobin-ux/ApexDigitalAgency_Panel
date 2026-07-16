@@ -1,22 +1,17 @@
-import process from 'node:process'
-import { PrismaClient } from '@prisma/client'
-import { createError, defineEventHandler, getCookie } from 'h3'
-import jwt from 'jsonwebtoken'
+import { defineEventHandler } from 'h3'
+import { requireAuth } from '../../utils/auth'
+import prisma from '../../utils/prisma'
 
-const prisma = new PrismaClient()
-
+/**
+ * GET /api/orders — the caller's projects with milestones, files and
+ * manager. Returns raw records; all presentation mapping happens in the
+ * front-end computed properties.
+ */
 export default defineEventHandler(async (event) => {
-  // 1. Auth Check
-  const token = getCookie(event, 'auth_token')
-  if (!token)
-    throw createError({ statusCode: 401 })
-  const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret') as any
-  const userId = decoded.id
+  const session = requireAuth(event)
 
-  // 2. Fetch Projects with Milestones
-  // نکته مهم: حتما باید include: { milestones } باشد
   const projects = await prisma.project.findMany({
-    where: { userId },
+    where: { userId: session.id },
     include: {
       milestones: { orderBy: { date: 'asc' } },
       files: true,
@@ -25,10 +20,5 @@ export default defineEventHandler(async (event) => {
     orderBy: { createdAt: 'desc' },
   })
 
-  // 3. Return Raw Data
-  // ما اینجا داده خام را برمی‌گردانیم، چون فرانت‌‌اند شما (Computed Property)
-  // وظیفه تبدیل داده‌ها (Mapping) را بر عهده گرفته است.
-  return {
-    data: projects,
-  }
+  return { data: projects }
 })

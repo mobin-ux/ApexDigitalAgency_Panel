@@ -1,18 +1,14 @@
-import { defineEventHandler, getCookie } from 'h3'
-import jwt from 'jsonwebtoken'
-import { PrismaClient } from '@prisma/client'
+import { defineEventHandler } from 'h3'
+import { requireAuth } from '../../utils/auth'
+import prisma from '../../utils/prisma'
 
-const prisma = new PrismaClient()
-
+/** POST /api/notifications/mark-read — mark all of the caller's notifications read. */
 export default defineEventHandler(async (event) => {
-  const token = getCookie(event, 'auth_token')
-  if (!token) return { status: 'error' }
-  const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret') as any
+  const session = requireAuth(event)
 
-  // همه اعلان‌های این کاربر را خوانده شده کن
   await prisma.notification.updateMany({
-    where: { userId: decoded.id, isRead: false },
-    data: { isRead: true }
+    where: { userId: session.id, isRead: false },
+    data: { isRead: true },
   })
 
   return { status: 'success' }

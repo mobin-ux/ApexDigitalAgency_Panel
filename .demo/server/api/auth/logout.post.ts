@@ -1,9 +1,8 @@
+import { defineEventHandler } from 'h3'
+import { clearAuthCookie } from '../../utils/auth'
+
+/** POST /api/auth/logout — clear the session cookie. */
 export default defineEventHandler((event) => {
-  // پاک کردن کوکی احراز هویت
-  deleteCookie(event, 'auth_token')
-  
-  return {
-    status: 'success',
-    message: 'خروج با موفقیت انجام شد'
-  }
+  clearAuthCookie(event)
+  return { status: 'success' }
 })

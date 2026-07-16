@@ -1,57 +1,56 @@
-import { defineEventHandler, readBody, getCookie, createError } from 'h3'
-import jwt from 'jsonwebtoken'
-import { PrismaClient } from '@prisma/client'
+import { createError, defineEventHandler } from 'h3'
+import { z } from 'zod'
+import { requireAuth } from '../../utils/auth'
+import prisma from '../../utils/prisma'
+import { validateBody } from '../../utils/validate'
 
-const prisma = new PrismaClient()
+/**
+ * POST /api/orders/pay — pay the FULL project amount from the wallet
+ * and activate a PENDING project. This is not an installment charge
+ * (ADR-010): per-installment "Pay" buttons must not call this.
+ */
+
+const bodySchema = z.object({
+  projectId: z.string().min(1),
+})
 
 export default defineEventHandler(async (event) => {
-  const token = getCookie(event, 'auth_token')
-  if (!token) throw createError({ statusCode: 401 })
-  const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret') as any
-  const userId = decoded.id
+  const session = requireAuth(event)
+  const { projectId } = await validateBody(event, bodySchema)
 
-  const body = await readBody(event)
-  const { projectId } = body
-
-  // 1. دریافت پروژه و کاربر
   const project = await prisma.project.findUnique({ where: { id: projectId } })
-  const user = await prisma.user.findUnique({ where: { id: userId } })
+  // 404 for both "doesn't exist" and "not yours" — don't leak other users' project ids.
+  if (!project || project.userId !== session.id) {
+    throw createError({ statusCode: 404, message: 'Project not found' })
+  }
 
-  if (!project || !user) throw createError({ statusCode: 404, message: 'Not found' })
-
-  // 2. بررسی وضعیت پرداخت
-  // فرض می‌کنیم اگر پروژه PENDING باشد یعنی هنوز پرداخت نشده
   if (project.status !== 'PENDING') {
     throw createError({ statusCode: 400, message: 'This project is already active or completed.' })
   }
 
-  // 3. بررسی موجودی
-  if (user.walletBalance < project.amount) {
-    throw createError({ statusCode: 400, message: 'Insufficient wallet balance. Please deposit funds.' })
-  }
-
-  // 4. تراکنش اتمیک (کسر پول + فعال‌سازی پروژه)
-  await prisma.$transaction([
-    // کسر پول
-    prisma.user.update({
-      where: { id: userId },
-      data: { walletBalance: { decrement: project.amount } }
-    }),
-    // تغییر وضعیت پروژه به فعال
-    prisma.project.update({
+  await prisma.$transaction(async (tx) => {
+    // Conditional decrement: the balance check and the debit are one
+    // statement, so concurrent pay requests cannot double-spend.
+    const debited = await tx.user.updateMany({
+      where: { id: session.id, walletBalance: { gte: project.amount } },
+      data: { walletBalance: { decrement: project.amount } },
+    })
+    if (debited.count === 0) {
+      throw createError({ statusCode: 400, message: 'Insufficient wallet balance. Please deposit funds.' })
+    }
+    await tx.project.update({
       where: { id: projectId },
-      data: { status: 'IN_PROGRESS', progress: 5 } // شروع با 5 درصد
-    }),
-    // ثبت تراکنش
-    prisma.transaction.create({
+      data: { status: 'IN_PROGRESS', progress: 5 },
+    })
+    await tx.transaction.create({
       data: {
-        userId,
+        userId: session.id,
         amount: -project.amount,
         type: 'PAYMENT',
-        description: `Payment for project: ${project.name}`
-      }
+        description: `Payment for project: ${project.name}`,
+      },
     })
-  ])
+  })
 
   return { status: 'success', message: 'Project paid and activated!' }
 })

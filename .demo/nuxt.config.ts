@@ -1,3 +1,5 @@
+import process from 'node:process'
+
 export default defineNuxtConfig({
   compatibilityDate: '2025-03-05',
   future: {
@@ -121,6 +123,13 @@ export default defineNuxtConfig({
   },
 
   runtimeConfig: {
+    /**
+     * Server-only secret used to sign/verify the `auth_token` JWT.
+     * Override with NUXT_JWT_SECRET in any real environment; the fallback
+     * chain only exists so local dev logins keep working out of the box.
+     * server/utils/auth.ts warns loudly if production runs on the fallback.
+     */
+    jwtSecret: process.env.JWT_SECRET || 'secret',
     public: {
       // mapbox config
       mapboxToken: '', // set it via NUXT_PUBLIC_MAPBOX_TOKEN env

@@ -1,12 +1,18 @@
-import { defineEventHandler, getCookie } from 'h3'
-import jwt from 'jsonwebtoken'
+import process from 'node:process'
 import { PrismaClient } from '@prisma/client'
+import { createError, defineEventHandler, getCookie } from 'h3'
+import jwt from 'jsonwebtoken'
 
 const prisma = new PrismaClient()
 
 export default defineEventHandler(async (event) => {
+  // Dev-only seed/bootstrap endpoint — must never exist in a production build.
+  if (!import.meta.dev) {
+    throw createError({ statusCode: 404, message: 'Not found' })
+  }
   const token = getCookie(event, 'auth_token')
-  if (!token) return { error: 'Login first' }
+  if (!token)
+    return { error: 'Login first' }
   const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret') as any
   const userId = decoded.id
 
@@ -17,10 +23,8 @@ export default defineEventHandler(async (event) => {
       last4: '4479',
       holderName: 'Admin User',
       expiryDate: '12/28',
-      balance: 9543.13,
-      limit: 5000,
-      userId
-    }
+      userId,
+    },
   })
 
   // 2. Create Installments
@@ -36,7 +40,7 @@ export default defineEventHandler(async (event) => {
         nextDue: new Date('2026-02-01'),
         status: 'active',
         icon: 'lucide:monitor',
-        userId
+        userId,
       },
       {
         project: 'Server Hardware',
@@ -48,15 +52,15 @@ export default defineEventHandler(async (event) => {
         nextDue: new Date('2026-01-15'),
         status: 'urgent',
         icon: 'lucide:server',
-        userId
-      }
-    ]
+        userId,
+      },
+    ],
   })
 
   // 3. Update User Credits
   await prisma.user.update({
     where: { id: userId },
-    data: { adCredits: 1143 }
+    data: { adCredits: 1143 },
   })
 
   return { message: 'Wallet seeded!' }

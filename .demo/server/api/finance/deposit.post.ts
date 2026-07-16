@@ -1,29 +1,44 @@
-import { defineEventHandler, readBody, getCookie, createError } from 'h3'
-import jwt from 'jsonwebtoken'
-import { PrismaClient } from '@prisma/client'
+import { defineEventHandler } from 'h3'
+import { z } from 'zod'
+import { requireAuth } from '../../utils/auth'
+import prisma from '../../utils/prisma'
+import { validateBody } from '../../utils/validate'
 
-const prisma = new PrismaClient()
+/**
+ * POST /api/finance/deposit — wallet top-up.
+ * Writes the ledger entry AND increments the denormalized
+ * `User.walletBalance` in one transaction — the previous version only
+ * wrote the ledger, so the balance column (read by /dashboard/stats
+ * and debited by /orders/pay) silently drifted after every top-up.
+ *
+ * TODO(api): no real payment processing — this credits the wallet
+ * directly (dev behaviour, consistent with ADR-010).
+ */
+
+const bodySchema = z.object({
+  amount: z.coerce.number().positive().max(1_000_000),
+})
 
 export default defineEventHandler(async (event) => {
-  const token = getCookie(event, 'auth_token')
-  if (!token) throw createError({ statusCode: 401 })
-  const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret') as any
+  const session = requireAuth(event)
+  const { amount } = await validateBody(event, bodySchema)
 
-  const body = await readBody(event)
-  const amount = Number(body.amount)
+  const [, user] = await prisma.$transaction([
+    prisma.transaction.create({
+      data: {
+        userId: session.id,
+        amount, // positive = credit
+        type: 'DEPOSIT',
+        status: 'COMPLETED',
+        description: 'Wallet Top-up via Credit Card',
+      },
+    }),
+    prisma.user.update({
+      where: { id: session.id },
+      data: { walletBalance: { increment: amount } },
+      select: { walletBalance: true },
+    }),
+  ])
 
-  if (!amount || amount <= 0) throw createError({ statusCode: 400, message: 'Invalid amount' })
-
-  // ثبت تراکنش واریز
-  const tx = await prisma.transaction.create({
-    data: {
-      userId: decoded.id,
-      amount: amount, // مثبت برای واریز
-      type: 'DEPOSIT',
-      status: 'COMPLETED',
-      description: 'Wallet Top-up via Credit Card'
-    }
-  })
-
-  return { status: 'success', balance: amount }
+  return { status: 'success', balance: user.walletBalance }
 })

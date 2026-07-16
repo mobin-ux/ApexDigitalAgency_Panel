@@ -1,51 +1,34 @@
-import { defineEventHandler, readBody, setCookie, createError } from 'h3'
-import { PrismaClient } from '@prisma/client'
 import bcrypt from 'bcryptjs'
-import jwt from 'jsonwebtoken'
+import { createError, defineEventHandler } from 'h3'
+import { z } from 'zod'
+import { issueAuthToken, setAuthCookie } from '../../utils/auth'
+import prisma from '../../utils/prisma'
+import { validateBody } from '../../utils/validate'
 
-const prisma = new PrismaClient()
+/**
+ * POST /api/auth/login — verify credentials, set the session cookie.
+ * The 401 message is identical for "unknown email" and "wrong password"
+ * so the endpoint can't be used to enumerate accounts. The JWT lives
+ * only in the cookie — it is never returned in the response body.
+ */
+
+const bodySchema = z.object({
+  email: z.string().trim().toLowerCase().email(),
+  password: z.string().min(1),
+})
 
 export default defineEventHandler(async (event) => {
-  const body = await readBody(event)
-  const { email, password } = body
+  const { email, password } = await validateBody(event, bodySchema)
 
-  if (!email || !password) {
-    throw createError({ statusCode: 400, message: 'Email and password are required' })
+  const user = await prisma.user.findUnique({ where: { email } })
+  const passwordValid = user ? await bcrypt.compare(password, user.password) : false
+  if (!user || !passwordValid) {
+    throw createError({ statusCode: 401, message: 'Invalid email or password' })
   }
 
-  // 1. پیدا کردن کاربر
-  const user = await prisma.user.findUnique({
-    where: { email }
-  })
+  const token = issueAuthToken(event, user)
+  setAuthCookie(event, token)
 
-  // اگر کاربر نبود
-  if (!user) {
-    throw createError({ statusCode: 401, message: 'User not found' })
-  }
-
-  // 2. چک کردن پسورد
-  const isPasswordValid = await bcrypt.compare(password, user.password)
-
-  if (!isPasswordValid) {
-    throw createError({ statusCode: 401, message: 'Invalid password' })
-  }
-
-  // 3. ساخت توکن
-  const token = jwt.sign(
-    { id: user.id, email: user.email, role: user.role },
-    process.env.JWT_SECRET || 'secret',
-    { expiresIn: '7d' }
-  )
-
-  // 4. تنظیم کوکی
-  setCookie(event, 'auth_token', token, {
-    httpOnly: false, // برای راحتی تست فعلا false
-    secure: false,   // چون روی localhost هستیم
-    maxAge: 60 * 60 * 24 * 7, // 7 روز
-    path: '/'
-  })
-
-  // بازگرداندن اطلاعات کاربر (بدون پسورد)
-  const { password: _, ...userWithoutPassword } = user
-  return { status: 'success', user: userWithoutPassword, token }
+  const { password: _password, ...userWithoutPassword } = user
+  return { status: 'success', user: userWithoutPassword }
 })

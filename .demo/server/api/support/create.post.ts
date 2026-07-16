@@ -1,28 +1,36 @@
-import { defineEventHandler, readBody, getCookie, createError } from 'h3'
-import jwt from 'jsonwebtoken'
-import { PrismaClient } from '@prisma/client'
+import { defineEventHandler } from 'h3'
+import { z } from 'zod'
+import { requireAuth } from '../../utils/auth'
+import prisma from '../../utils/prisma'
+import { validateBody } from '../../utils/validate'
 
-const prisma = new PrismaClient()
+/** POST /api/support/create — open a ticket with its first message. */
+
+const bodySchema = z.object({
+  subject: z.string().trim().min(1).max(200),
+  category: z.string().trim().min(1).max(100),
+  priority: z.string().trim().min(1).max(50).default('NORMAL'),
+  message: z.string().trim().min(1).max(10_000),
+})
 
 export default defineEventHandler(async (event) => {
-  const token = getCookie(event, 'auth_token')
-  if (!token) throw createError({ statusCode: 401 })
-  const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret') as any
-  const body = await readBody(event)
+  const session = requireAuth(event)
+  const body = await validateBody(event, bodySchema)
 
   const ticket = await prisma.ticket.create({
     data: {
-      userId: decoded.id,
+      userId: session.id,
       subject: body.subject,
       category: body.category,
       priority: body.priority,
       messages: {
         create: {
           content: body.message,
-          isAdmin: false
-        }
-      }
-    }
+          isAdmin: false,
+          senderId: session.id,
+        },
+      },
+    },
   })
 
   return { status: 'success', ticket }

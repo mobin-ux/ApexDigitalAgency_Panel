@@ -1,23 +1,20 @@
-import { defineEventHandler, getCookie, createError } from 'h3'
-import jwt from 'jsonwebtoken'
-import { PrismaClient } from '@prisma/client'
+import { defineEventHandler } from 'h3'
+import { requireAuth } from '../../utils/auth'
+import prisma from '../../utils/prisma'
 
-const prisma = new PrismaClient()
-
+/** GET /api/support/tickets — the caller's tickets, newest activity first, with the latest message. */
 export default defineEventHandler(async (event) => {
-  const token = getCookie(event, 'auth_token')
-  if (!token) throw createError({ statusCode: 401 })
-  const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret') as any
+  const session = requireAuth(event)
 
   const tickets = await prisma.ticket.findMany({
-    where: { userId: decoded.id },
+    where: { userId: session.id },
     orderBy: { updatedAt: 'desc' },
-    include: { 
-      messages: { 
+    include: {
+      messages: {
         orderBy: { createdAt: 'desc' },
-        take: 1 
-      } 
-    }
+        take: 1,
+      },
+    },
   })
 
   return { tickets }
