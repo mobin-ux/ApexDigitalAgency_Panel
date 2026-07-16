@@ -23,6 +23,9 @@ const bodySchema = z
     city: z.string().trim().max(100).nullable().optional(),
     country: z.string().trim().max(100).nullable().optional(),
     role: z.enum(['CUSTOMER', 'ADMIN', 'EMPLOYEE']).optional(),
+    status: z.enum(['ACTIVE', 'SUSPENDED']).optional(),
+    // true stamps verifiedAt now, false clears it.
+    verified: z.boolean().optional(),
     adCredits: z.number().min(0).max(1_000_000).optional(),
   })
   .strict()
@@ -37,6 +40,8 @@ const auditedFields = {
   city: true,
   country: true,
   role: true,
+  status: true,
+  verifiedAt: true,
   adCredits: true,
 } as const
 
@@ -55,15 +60,22 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 404, message: 'User not found' })
   }
 
-  // Safety rail: admins cannot change their own role (prevents locking
-  // the last admin out of the panel mid-session).
+  // Safety rails: admins cannot change their own role or suspend
+  // themselves (prevents locking the last admin out mid-session).
   if (id === admin.id && updates.role && updates.role !== 'ADMIN') {
     throw createError({ statusCode: 400, message: 'You cannot change your own role' })
   }
+  if (id === admin.id && updates.status === 'SUSPENDED') {
+    throw createError({ statusCode: 400, message: 'You cannot suspend your own account' })
+  }
 
+  const { verified, ...fieldUpdates } = updates
   const after = await prisma.user.update({
     where: { id },
-    data: updates,
+    data: {
+      ...fieldUpdates,
+      ...(verified === undefined ? {} : { verifiedAt: verified ? new Date() : null }),
+    },
     select: auditedFields,
   })
 

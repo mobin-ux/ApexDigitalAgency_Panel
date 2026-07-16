@@ -22,7 +22,8 @@ export default defineEventHandler(async (event) => {
   }
 
   const messages = await prisma.ticketMessage.findMany({
-    where: { ticketId },
+    // Internal staff notes are admin-panel-only — never in the customer thread.
+    where: { ticketId, isInternal: false },
     orderBy: { createdAt: 'asc' },
   })
 

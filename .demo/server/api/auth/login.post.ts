@@ -26,6 +26,12 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 401, message: 'Invalid email or password' })
   }
 
+  // Suspension check only after the password is verified, so this error
+  // can't be used to probe which emails have accounts.
+  if (user.status === 'SUSPENDED') {
+    throw createError({ statusCode: 403, message: 'This account has been suspended. Contact support for assistance.' })
+  }
+
   const token = issueAuthToken(event, user)
   setAuthCookie(event, token)
 

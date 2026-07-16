@@ -26,6 +26,8 @@ export default defineEventHandler(async (event) => {
       lastName: true,
       phone: true,
       role: true,
+      status: true,
+      verifiedAt: true,
       avatar: true,
       bio: true,
       gender: true,
@@ -36,6 +38,7 @@ export default defineEventHandler(async (event) => {
       adCredits: true,
       createdAt: true,
       updatedAt: true,
+      company: true,
       projects: {
         orderBy: { createdAt: 'desc' },
         take: 10,

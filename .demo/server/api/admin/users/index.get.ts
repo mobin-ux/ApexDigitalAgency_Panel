@@ -15,20 +15,28 @@ import { validateQuery } from '../../../utils/validate'
 const querySchema = paginationQuerySchema.extend({
   search: z.string().trim().max(200).optional(),
   role: z.enum(['CUSTOMER', 'ADMIN', 'EMPLOYEE']).optional(),
+  status: z.enum(['ACTIVE', 'SUSPENDED']).optional(),
+  // Account type is derived, not stored: a user with a Company row is a
+  // company account, everyone else is an individual.
+  accountType: z.enum(['individual', 'company']).optional(),
 })
 
 export default defineEventHandler(async (event) => {
   await requireAdmin(event)
-  const { page, pageSize, search, role } = validateQuery(event, querySchema)
+  const { page, pageSize, search, role, status, accountType } = validateQuery(event, querySchema)
 
   const where = {
     ...(role ? { role } : {}),
+    ...(status ? { status } : {}),
+    ...(accountType === 'company' ? { company: { isNot: null } } : {}),
+    ...(accountType === 'individual' ? { company: { is: null } } : {}),
     ...(search
       ? {
           OR: [
             { email: { contains: search } },
             { firstName: { contains: search } },
             { lastName: { contains: search } },
+            { company: { name: { contains: search } } },
           ],
         }
       : {}),
@@ -47,12 +55,15 @@ export default defineEventHandler(async (event) => {
         lastName: true,
         phone: true,
         role: true,
+        status: true,
+        verifiedAt: true,
         avatar: true,
         city: true,
         country: true,
         walletBalance: true,
         adCredits: true,
         createdAt: true,
+        company: { select: { id: true, name: true, status: true } },
         _count: { select: { projects: true, tickets: true } },
       },
     }),

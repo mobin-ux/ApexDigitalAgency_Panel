@@ -46,6 +46,14 @@ model User {
   role          Role      @default(CUSTOMER)
   avatar        String?
   coverImage    String?
+
+  // --- Account governance (managed from the admin panel) ---
+  // String (not enum) to match Project.status convention; values are
+  // constrained by zod on the API surface: ACTIVE | SUSPENDED.
+  // Suspended accounts are refused at login.
+  status        String    @default("ACTIVE")
+  // Set when an admin (or a future email flow) verifies the account.
+  verifiedAt    DateTime?
   
   // --- Extended Profile ---
   bio           String?
@@ -78,6 +86,8 @@ model User {
   
   // Support System
   tickets             Ticket[]
+  // Tickets this user handles as a support agent (admin/employee side)
+  assignedTickets     Ticket[]       @relation("TicketAssignee")
   
   // Security
   resetTokens         PasswordResetToken[]
@@ -226,7 +236,11 @@ model Ticket {
 
   userId      String
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+
+  // Support agent handling this ticket (assigned from the admin panel).
+  assigneeId  String?
+  assignee    User?    @relation("TicketAssignee", fields: [assigneeId], references: [id])
+
   messages    TicketMessage[]
 }
 
@@ -234,7 +248,10 @@ model TicketMessage {
   id        String   @id @default(uuid())
   content   String
   isAdmin   Boolean  @default(false)
-  senderId  String?  
+  // Internal staff note: never returned by the customer-facing thread
+  // endpoints, only visible inside the admin panel.
+  isInternal Boolean @default(false)
+  senderId  String?
   createdAt DateTime @default(now())
 
   ticketId  String
@@ -291,6 +308,19 @@ model ProjectFile {
 // `actorEmail` is denormalized so the trail stays readable even if
 // the actor account is later deleted; `metadata` is a JSON string
 // (SQLite has no native Json column type).
+// Application-wide configuration managed from the admin Settings page.
+// One row per key; `value` is JSON-stringified (SQLite has no Json type)
+// so booleans/numbers/objects round-trip losslessly. `group` drives the
+// admin UI sections (general | business | finance | support | integrations).
+model Setting {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  value     String
+  group     String   @default("general")
+  updatedAt DateTime @updatedAt
+  updatedBy String?  // denormalized admin email, informational only
+}
+
 model AuditLog {
   id         String   @id @default(uuid())
   actorId    String
