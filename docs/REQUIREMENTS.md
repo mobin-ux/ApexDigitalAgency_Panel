@@ -87,4 +87,4 @@ implementation. Hard rules live in CLAUDE.md; rationale in docs/decisions/.
 | No invoice model/endpoint | invoices requirement (§1) |
 | Unread-message counts per project | unread chips in My Orders list (designed, hidden) |
 | ~~Broken seeds (`seed-rich`, `seed-wallet`)~~ fixed (schema-valid, dev-gated); `prisma/seed.js` still stale | realistic local test data |
-| Admin UI pages (the `/api/admin/**` backend foundation exists — ADR-013) | admin panel front-end |
+| ~~Admin UI pages~~ **done** — all 7 modules at `/admin/**` (overview, users, projects, payments, tickets, settings, tools) on the `/api/admin/**` backend (ADR-013) | — |

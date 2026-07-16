@@ -97,6 +97,7 @@ JWT secret: `runtimeConfig.jwtSecret` (`NUXT_JWT_SECRET` env override).
 | **`/api/admin/users`** (GET) | ADMIN only — paginated/searchable/role-filterable directory (`?page&pageSize&search&role`) |
 | **`/api/admin/users/:id`** (GET/PATCH) | ADMIN only — detail w/ recent activity; whitelisted PATCH (role/adCredits/profile — not password/walletBalance/email) + audit row; self-demotion blocked |
 | **`/api/admin/stats`** (GET) | ADMIN only — aggregates + 10 latest audit entries |
+| **`/api/admin/{projects,finance,tickets,settings,audit,milestones,notifications}`** | ADMIN only — full management surface (list/detail/create/patch/delete per module; finance = summary/transactions/refund/withdrawals/installments; tickets incl. internal notes + reply; settings key/value upsert; broadcast notifications). Same ADR-013 conventions: `requireAdmin`, zod, `paginated()`, `recordAudit()` |
 | GET `/api/create-admin`, `/api/seed-*` | **dev-only (404 in production builds)**. All seeds now schema-valid |
 
 Deleted: `/api/users` GET/POST (were unauthenticated user list/create — superseded by `/api/admin/users`).
@@ -139,8 +140,15 @@ All customer pages: `definePageMeta({ layout: 'sidenav', middleware: 'auth' })`.
   Installments presentation-derived (12-month split, paid ≈ floor(progress% × 12),
   never full while active); "Pay" routes to Wallet (ADR-010); "Message your team" →
   `/dashboards/support` (real page, not the design's stub).
-- **Old-style pages awaiting redesign**: wallet.vue, support.vue, settings.vue,
-  auth pages — still hardcoded hex/USD/native alerts; rebuild only on design arrival.
+- **Old-style pages awaiting redesign**: settings.vue, auth pages — still hardcoded
+  hex/USD/native alerts; rebuild only on design arrival.
+- **Admin panel** (`/admin/**`): `layout: 'admin'` + `middleware: 'admin'` (role gate;
+  non-admins → customer dashboard), swr:false, shared `Admin*` components. Seven
+  modules — overview, users (+detail), projects (+detail w/ milestone CRUD), payments
+  (ledger/refunds, withdrawal queue, read-only installments), tickets (split-pane
+  triage, staff reply vs internal notes), settings (typed catalogue over `Setting`
+  rows), tools (audit trail, broadcast, dev seeds). Same Apex design language as the
+  customer pages.
 
 Shared UI vocabulary (see DESIGN_SYSTEM.md + CLAUDE.md): status accents
 (`#22B07D`/`#F2C14E`/`#EC6453`/`#6EA8FE`), payment-state taxonomy
