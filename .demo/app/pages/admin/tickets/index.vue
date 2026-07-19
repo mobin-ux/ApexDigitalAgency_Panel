@@ -17,6 +17,8 @@ const route = useRoute()
 const { user: me } = useUser()
 
 // --- Inbox list ---
+const STATUS_FILTERS: [string, string][] = [['', 'All'], ['OPEN', 'Open'], ['PENDING', 'Awaiting'], ['RESOLVED', 'Resolved'], ['CLOSED', 'Closed']]
+
 const search = ref('')
 const debouncedSearch = ref('')
 const statusFilter = ref('')
@@ -158,7 +160,7 @@ function senderLabel(m: { isAdmin: boolean, isInternal: boolean, senderId?: stri
 
         <div class="flex items-center gap-2 overflow-x-auto rounded-full border border-white/8 bg-muted-700 p-[3px]" role="radiogroup" aria-label="Status filter">
           <button
-            v-for="[key, label] in [['', 'All'], ['OPEN', 'Open'], ['PENDING', 'Awaiting'], ['RESOLVED', 'Resolved'], ['CLOSED', 'Closed']]" :key="key"
+            v-for="[key, label] in STATUS_FILTERS" :key="key"
             type="button"
             role="radio"
             :aria-checked="statusFilter === key"
