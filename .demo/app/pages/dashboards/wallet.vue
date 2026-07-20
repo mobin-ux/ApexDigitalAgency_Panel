@@ -33,7 +33,7 @@ const toaster = useNuiToasts()
 // ---- fetches --------------------------------------------------------------
 const { data: finance, refresh: refreshFinance } = await useFetch('/api/finance/dashboard', { lazy: true })
 const { data: txData, refresh: refreshTx } = await useFetch('/api/finance/transactions', { lazy: true })
-const { data: ordersData } = await useFetch('/api/orders', { lazy: true })
+const { data: ordersData, refresh: refreshOrders } = await useFetch('/api/orders', { lazy: true })
 
 // ---- types + helpers ------------------------------------------------------
 type IconKind = 'web' | 'mkt' | 'uiux' | 'brand'
@@ -181,21 +181,25 @@ interface Plan {
   rows: Row[]
 }
 
+// Real Installment rows (linked to projects) — created by the New Order
+// wizard, charged via /api/finance/installments/:id/pay. `Plan.id` is the
+// installment-plan id, which is what the Pay button posts to.
 const plans = computed<Plan[]>(() => {
   const rows = (ordersData.value as any)?.data ?? []
   return rows
-    .filter((o: any) => o.status === 'IN_PROGRESS' || o.status === 'COMPLETED')
+    .filter((o: any) => o.installmentPlan)
     .map((o: any): Plan => {
-      const completed = o.status === 'COMPLETED'
-      const total = 12
-      const amount = Math.max(1, Math.round((o.amount ?? 0) / total))
-      const progress = o.progress ?? 0
-      const paid = completed ? total : Math.min(total - 1, Math.max(0, Math.floor((progress / 100) * total)))
-      const start = o.startDate ? new Date(o.startDate) : new Date()
-      // first instalment collected ~30 days after project start, then monthly
-      const dueInDays = o.deadline ? Math.ceil((new Date(o.deadline).getTime() - Date.now()) / 86_400_000) : null
+      const p = o.installmentPlan
+      const total = p.monthsTotal
+      const completed = p.status === 'settled' || p.monthsPaid >= total
+      const paid = Math.min(total, p.monthsPaid)
+      const amount = Math.max(1, Math.round(p.monthlyAmount || p.amountDue || 0))
+      const nextDue = new Date(p.nextDue)
+      const dueInDays = completed ? null : Math.ceil((nextDue.getTime() - Date.now()) / 86_400_000)
       const dueSoon = !completed && dueInDays != null && dueInDays >= 0 && dueInDays <= 5
 
+      // Schedule dates anchored on the real next due date: installment i
+      // (0-based) falls (i − paid) months from nextDue.
       const planRows: Row[] = []
       for (let i = 0; i < total; i++) {
         const isPaid = i < paid
@@ -203,7 +207,7 @@ const plans = computed<Plan[]>(() => {
         planRows.push({
           n: i + 1,
           label: `Installment ${i + 1} of ${total}`,
-          date: fmtDate(addMonths(start, i + 1)),
+          date: fmtDate(addMonths(nextDue, i - paid)),
           amount,
           state: isPaid ? 'paid' : isNext ? 'next' : 'scheduled',
           dueSoon: isNext && dueSoon,
@@ -211,7 +215,7 @@ const plans = computed<Plan[]>(() => {
       }
       const nextRow = planRows.find(r => r.state === 'next')
       return {
-        id: o.id,
+        id: p.id,
         shortId: shortId(o.id),
         name: o.name,
         service: o.category || 'General',
@@ -311,8 +315,30 @@ const billing = computed(() => ({
   email: user.value?.email || '—',
 }))
 
-// ---- auto-pay (TODO(api): no preference field on User) --------------------
+// ---- auto-pay (persisted on User.autoPayInstallments) ---------------------
 const autoPay = ref(true)
+watch(finance, (f: any) => {
+  if (f && typeof f.autoPayInstallments === 'boolean')
+    autoPay.value = f.autoPayInstallments
+}, { immediate: true })
+
+async function toggleAutoPay() {
+  const next = !autoPay.value
+  autoPay.value = next
+  try {
+    await $fetch('/api/settings/preferences', { method: 'PATCH', body: { autoPayInstallments: next } })
+    toaster.add({
+      title: next ? 'Auto-pay on' : 'Auto-pay off',
+      description: next ? 'Due installments will be paid from your wallet automatically.' : 'You’ll pay each installment manually.',
+      icon: 'lucide:check',
+      progress: true,
+    })
+  }
+  catch {
+    autoPay.value = !next
+    toaster.add({ title: 'Could not save', description: 'Auto-pay preference was not updated. Please try again.', icon: 'lucide:alert-triangle', progress: true })
+  }
+}
 
 // ---- top-up modal ---------------------------------------------------------
 const TOPUP_PRESETS = [100, 250, 500, 1000]
@@ -388,16 +414,30 @@ function closeModals() {
   applyOpen.value = false
 }
 
-// ---- installment "Pay now" (TODO(api): no per-installment charge endpoint) --
-function payInstallment(plan: Plan) {
-  toaster.add({
-    title: 'Payment scheduled',
-    description: autoPay.value
-      ? `Your next installment for ${plan.name} is set to auto-pay from your wallet.`
-      : `We’ll notify you before the next installment for ${plan.name} is due.`,
-    icon: 'lucide:check',
-    progress: true,
-  })
+// ---- installment "Pay now" — real charge from the wallet ------------------
+const payingPlan = ref<string | null>(null)
+async function payInstallment(plan: Plan) {
+  if (payingPlan.value)
+    return
+  payingPlan.value = plan.id
+  try {
+    const res: any = await $fetch(`/api/finance/installments/${plan.id}/pay`, { method: 'POST' })
+    toaster.add({
+      title: res.settled ? 'Plan fully paid 🎉' : 'Installment paid',
+      description: res.settled
+        ? `That was the final installment for ${plan.name} — the plan is settled.`
+        : `${formatCurrency(res.charged)} for ${plan.name} was paid from your wallet.`,
+      icon: 'lucide:check',
+      progress: true,
+    })
+    await Promise.all([refreshFinance(), refreshTx(), refreshOrders()])
+  }
+  catch (e: any) {
+    toaster.add({ title: 'Payment failed', description: e?.data?.message || 'Please try again in a moment.', icon: 'lucide:alert-triangle', progress: true })
+  }
+  finally {
+    payingPlan.value = null
+  }
 }
 
 function comingSoon(feature: string) {
@@ -484,7 +524,7 @@ function comingSoon(feature: string) {
               role="switch" :aria-checked="autoPay" aria-label="Toggle auto-pay installments"
               class="relative h-[25px] w-11 shrink-0 rounded-full transition-colors"
               :class="autoPay ? 'bg-primary-500' : 'bg-white/12'"
-              @click="autoPay = !autoPay"
+              @click="toggleAutoPay"
             >
               <span class="absolute top-[3px] size-[19px] rounded-full bg-white shadow-[0_2px_6px_rgba(0,0,0,0.3)] transition-all" :class="autoPay ? 'left-[22px]' : 'left-[3px]'" />
             </button>

@@ -221,9 +221,19 @@ async function placeOrder() {
     return
   placing.value = true
   try {
+    // Signature: the drawn canvas as a PNG data-URL, else the typed legal name.
+    const signature = hasDrawn.value && sigCanvas.value
+      ? sigCanvas.value.toDataURL('image/png')
+      : (signName.value.trim() || undefined)
     const res: any = await $fetch('/api/orders', {
       method: 'POST',
-      body: { title: String(form.title || serviceName.value), category: serviceName.value, budget: base.value },
+      body: {
+        title: String(form.title || serviceName.value),
+        category: serviceName.value,
+        budget: base.value,
+        termMonths: Number(term.value),
+        signature,
+      },
     })
     const id = res?.project?.id
     orderId.value = id ? `APX-${String(id).replace(/-/g, '').slice(0, 4).toUpperCase()}` : `APX-${Math.floor(1000 + Math.random() * 9000)}`

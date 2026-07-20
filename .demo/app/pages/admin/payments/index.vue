@@ -3,8 +3,9 @@
  * Admin — Payments. Financial control centre: platform aggregates on
  * top, then three tabs — the transaction ledger (with once-only wallet
  * refunds), the withdrawal-request queue (approve = audited, atomic,
- * no-overdraft debit) and platform-wide installment plans (read-only:
- * Installment has no Project FK — ADR-010 / REQUIREMENTS §6).
+ * no-overdraft debit) and platform-wide installment plans (real rows
+ * linked to projects — admins can charge the due installment from the
+ * customer's wallet or waive it, both audited).
  * Deep links: ?tab=withdrawals, ?userId=<id> (from user detail).
  */
 definePageMeta({
@@ -156,7 +157,34 @@ async function resolveWithdrawal() {
 // --- Installments tab ---
 const instPage = ref(1)
 const instQuery = computed(() => ({ page: instPage.value, pageSize: 20 }))
-const { data: instData, pending: instPending } = await useFetch('/api/admin/finance/installments', { query: instQuery })
+const { data: instData, pending: instPending, refresh: refreshInst } = await useFetch('/api/admin/finance/installments', { query: instQuery })
+
+// Admin actions on a plan: charge the due installment from the customer
+// wallet, or waive it (no money movement). Both audited server-side.
+const instBusy = ref<string | null>(null)
+async function instAction(inst: any, action: 'charge' | 'waive') {
+  if (instBusy.value)
+    return
+  instBusy.value = inst.id
+  try {
+    await $fetch(`/api/admin/finance/installments/${inst.id}`, { method: 'PATCH', body: { action } })
+    toaster.add({
+      title: action === 'charge' ? 'Installment charged' : 'Installment waived',
+      description: action === 'charge'
+        ? `Installment ${inst.monthsPaid + 1}/${inst.monthsTotal} was collected from ${inst.user.email}'s wallet.`
+        : `Installment ${inst.monthsPaid + 1}/${inst.monthsTotal} for ${inst.project} was waived.`,
+      icon: 'lucide:check',
+      progress: true,
+    })
+    await Promise.all([refreshInst(), refreshSummary()])
+  }
+  catch (e: any) {
+    toaster.add({ title: 'Action failed', description: e?.data?.message || 'Please try again.', icon: 'lucide:alert-triangle', progress: true })
+  }
+  finally {
+    instBusy.value = null
+  }
+}
 
 function fmtDate(iso: string | Date) {
   return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
@@ -369,7 +397,7 @@ function fmtDate(iso: string | Date) {
     <section v-else class="flex flex-col gap-4" aria-label="Installment plans">
       <div class="flex items-start gap-3 rounded-[14px] border border-white/10 bg-white/[0.02] px-4 py-3 text-[13px] leading-[1.5] text-muted-400">
         <Icon name="lucide:info" class="mt-0.5 size-4 shrink-0 text-[#6EA8FE]" />
-        <span>Installment plans are read-only here: the Installment model isn't linked to projects yet, so per-installment charging stays disabled until that backend lands (REQUIREMENTS §6 / ADR-010).</span>
+        <span><strong class="text-white">Charge</strong> collects the due installment from the customer's wallet (fails safely if funds are short). <strong class="text-white">Waive</strong> advances the schedule with nothing to pay — the amount is deducted from the plan total. Every action is audited.</span>
       </div>
 
       <div v-if="instPending" class="flex flex-col gap-2" aria-hidden="true">
@@ -400,7 +428,25 @@ function fmtDate(iso: string | Date) {
             <span class="w-28 shrink-0 text-right text-[13.5px] font-bold text-white tabular-nums">
               {{ formatCurrency(inst.paid) }} <span class="font-normal text-muted-500">of {{ formatCurrency(inst.total) }}</span>
             </span>
-            <AdminStatusChip :status="inst.status" :tone="inst.status === 'urgent' ? 'coral' : 'green'" />
+            <AdminStatusChip :status="inst.status" :tone="inst.status === 'urgent' ? 'coral' : inst.status === 'settled' ? 'blue' : 'green'" />
+            <div v-if="inst.status !== 'settled'" class="flex shrink-0 items-center gap-2">
+              <button
+                type="button"
+                class="rounded-full bg-primary-500 px-3.5 py-1.5 text-xs font-bold text-white transition-colors hover:bg-primary-600 disabled:cursor-not-allowed disabled:opacity-50"
+                :disabled="instBusy === inst.id"
+                @click="instAction(inst, 'charge')"
+              >
+                {{ instBusy === inst.id ? 'Working…' : 'Charge' }}
+              </button>
+              <button
+                type="button"
+                class="rounded-full border border-white/10 px-3.5 py-1.5 text-xs font-bold text-muted-400 transition-colors hover:border-white/20 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                :disabled="instBusy === inst.id"
+                @click="instAction(inst, 'waive')"
+              >
+                Waive
+              </button>
+            </div>
           </div>
         </template>
       </div>

@@ -16,6 +16,7 @@ export default defineEventHandler(async (event) => {
       milestones: { orderBy: { date: 'asc' } },
       files: true,
       manager: { select: { firstName: true, lastName: true, avatar: true } },
+      installmentPlan: true,
     },
     orderBy: { createdAt: 'desc' },
   })

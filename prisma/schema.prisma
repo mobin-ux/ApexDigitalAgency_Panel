@@ -68,9 +68,13 @@ model User {
   // --- Financial Info ---
   walletBalance Float     @default(0)
   adCredits     Float     @default(0)
+  // When true, due installments are charged from the wallet automatically
+  // (evaluated lazily on finance-dashboard load — no cron in this stack).
+  autoPayInstallments Boolean @default(true)
 
   // --- Relations (Connecting all modules) ---
   company             Company?       // One-to-One
+  creditLine          CreditLine?    // One-to-One (Apex credit product)
   
   // Project Management
   // 1. Projects the user owns (as the customer)
@@ -83,6 +87,10 @@ model User {
   cards               Card[]
   installments        Installment[]
   withdrawalRequests  WithdrawalRequest[]
+  invoices            Invoice[]
+
+  // Files this user uploaded (ticket attachments, etc.)
+  attachments         Attachment[]
   
   // Support System
   tickets             Ticket[]
@@ -129,10 +137,17 @@ model Project {
   status      String      @default("PENDING") // IN_PROGRESS, COMPLETED, CANCELLED
   amount      Float       @default(0) 
   
-  progress    Int         @default(0) 
+  progress    Int         @default(0)
   startDate   DateTime    @default(now())
   deadline    DateTime?
-  
+
+  // --- Contract (captured by the New Order wizard) ---
+  // E-signature as a data-URL image (drawn) or typed full name.
+  signature   String?
+  signedAt    DateTime?
+  // Financing term the customer chose (12 = 0%, 24 = 1%/mo — ADR-011).
+  termMonths  Int?
+
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 
@@ -150,6 +165,15 @@ model Project {
   milestones  Milestone[]
 
   files       ProjectFile[]
+
+  // Real financing plan for this project (replaces the derived
+  // presentation-only plans of ADR-010).
+  installmentPlan Installment?
+
+  invoices        Invoice[]
+
+  // Tickets the customer explicitly linked to this project.
+  relatedTickets  Ticket[]  @relation("TicketProject")
 }
 
 model Milestone {
@@ -169,13 +193,21 @@ model Milestone {
 model Transaction {
   id          String   @id @default(uuid())
   amount      Float
-  type        String   // DEPOSIT, PAYMENT, WITHDRAWAL
+  type        String   // DEPOSIT, PAYMENT, WITHDRAWAL, REFUND, CREDIT_REPAY
   status      String   @default("COMPLETED")
   description String?
+  // Spend category for expense breakdowns — the owning project's category
+  // on charges (e.g. "Web Development"); null for deposits/withdrawals.
+  category    String?
+  // Set when this row is an installment charge.
+  installmentId String?
   createdAt   DateTime @default(now())
 
   userId      String
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([installmentId])
 }
 
 model Card {
@@ -190,25 +222,42 @@ model Card {
   withdrawalUsed  Float    @default(0)
   paymentLimit    Float    @default(5000)
   paymentUsed     Float    @default(0)
-  
+
+  isDefault       Boolean  @default(false)
+
   userId          String
   user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
+// A financing PLAN for one project (one row per plan, counters advance as
+// monthly charges land). Created atomically with the project by the New
+// Order wizard; charged via POST /api/finance/installments/:id/pay.
+// `project` (display name) predates the FK and is kept for the admin list;
+// `projectId` is the real link (nullable only for legacy/seed rows).
 model Installment {
   id          String   @id @default(uuid())
   project     String
   total       Float
   paid        Float
-  amountDue   Float
+  amountDue   Float    // amount of the NEXT charge (monthly amount until settled)
   monthsTotal Int
   monthsPaid  Int
   nextDue     DateTime
-  status      String   // active, urgent
+  status      String   // active, urgent, settled
   icon        String
-  
+
+  // --- Real plan terms (ADR-011 math, computed server-side) ---
+  monthlyAmount Float  @default(0)
+  termMonths    Int    @default(12)
+  interestRate  Float  @default(0) // monthly rate: 0 for 12-mo, 0.01 for 24-mo
+
+  projectId   String?  @unique
+  projectRef  Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
   userId      String
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, nextDue])
 }
 
 model WithdrawalRequest {
@@ -216,9 +265,51 @@ model WithdrawalRequest {
   amount      Float
   status      String   // Processing, Completed, Rejected
   createdAt   DateTime @default(now())
-  
+
   userId      String
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// The "Apex credit" product: a revolving line the customer applies for and
+// an admin approves. `used` grows when credit funds a project and shrinks
+// on repayment. One line per user.
+model CreditLine {
+  id              String    @id @default(uuid())
+  status          String    @default("PENDING") // PENDING, ACTIVE, FROZEN, REJECTED
+  limit           Float     @default(0)
+  used            Float     @default(0)
+  requestedLimit  Float     @default(0)
+  appliedAt       DateTime  @default(now())
+  approvedAt      DateTime?
+  nextRepayAmount Float?
+  nextRepayDate   DateTime?
+
+  userId          String    @unique
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// Immutable billing document issued inside the same DB transaction as the
+// charge it documents (server/utils/invoices.ts). REFUND rows are negative
+// credit notes. Numbering: INV-YYYY-NNNN, sequential per year.
+model Invoice {
+  id            String   @id @default(uuid())
+  number        String   @unique
+  amount        Float    // gross, GBP
+  vatRate       Float    @default(0) // percent at issue time (Setting business.vat-rate)
+  vatAmount     Float    @default(0)
+  status        String   @default("PAID") // PAID, REFUNDED
+  description   String
+  issuedAt      DateTime @default(now())
+
+  transactionId String?  @unique
+
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  projectId     String?
+  project       Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  @@index([userId, issuedAt])
 }
 
 // ==============================
@@ -241,6 +332,14 @@ model Ticket {
   assigneeId  String?
   assignee    User?    @relation("TicketAssignee", fields: [assigneeId], references: [id])
 
+  // Project the customer linked this request to (optional).
+  relatedProjectId String?
+  relatedProject   Project? @relation("TicketProject", fields: [relatedProjectId], references: [id], onDelete: SetNull)
+
+  // Last time the customer opened the thread — anything from staff after
+  // this is "unread" in the customer inbox.
+  customerLastSeenAt DateTime?
+
   messages    TicketMessage[]
 }
 
@@ -256,6 +355,28 @@ model TicketMessage {
 
   ticketId  String
   ticket    Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  attachments Attachment[]
+}
+
+// Uploaded file attached to a ticket message. Stored on local disk under
+// /public/uploads (server/utils/uploads.ts) — the util is the seam to swap
+// in object storage (S3 etc.) without touching call sites.
+model Attachment {
+  id              String   @id @default(uuid())
+  name            String   // original filename
+  path            String   // public URL path, e.g. /uploads/tickets/xxx.pdf
+  size            Int      // bytes
+  mime            String
+  createdAt       DateTime @default(now())
+
+  uploaderId      String
+  uploader        User     @relation(fields: [uploaderId], references: [id], onDelete: Cascade)
+
+  ticketMessageId String?
+  ticketMessage   TicketMessage? @relation(fields: [ticketMessageId], references: [id], onDelete: Cascade)
+
+  @@index([ticketMessageId])
 }
 
 // ==============================

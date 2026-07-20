@@ -21,7 +21,7 @@ const { formatCurrency } = useCurrency()
 const toaster = useNuiToasts()
 
 // ---- fetch + mapping ------------------------------------------------------
-const { data: apiResponse, pending } = await useFetch('/api/orders', { lazy: true })
+const { data: apiResponse, pending, refresh: refreshOrders } = await useFetch('/api/orders', { lazy: true })
 
 type UiStatus = 'active' | 'pending' | 'completed' | 'cancelled'
 type IconKind = 'web' | 'mkt' | 'uiux' | 'brand'
@@ -44,6 +44,8 @@ interface UiProject {
   pmInitials: string
   pmGrad: string
   inst: Inst
+  instId: string | null
+  instSettled: boolean
   activity: string
   createdAt: number
   stages: Stage[]
@@ -88,7 +90,21 @@ function relTime(v: string | Date) {
   return `${w} week${w === 1 ? '' : 's'} ago`
 }
 
-// TODO(api): presentation-only installment plan derived from the project.
+// Real financing plan (Installment row linked to the project) — created by
+// the New Order wizard, charged via /api/finance/installments/:id/pay.
+function realInst(plan: any): Inst {
+  const settled = plan.status === 'settled' || plan.monthsPaid >= plan.monthsTotal
+  const dueInDays = settled ? null : Math.max(0, Math.ceil((new Date(plan.nextDue).getTime() - Date.now()) / 86_400_000))
+  return {
+    total: plan.monthsTotal,
+    paid: plan.monthsPaid,
+    amount: Math.round(plan.monthlyAmount || plan.amountDue || 0),
+    nextDate: settled ? null : dueInDays != null && dueInDays <= 7 ? `in ${dueInDays} day${dueInDays === 1 ? '' : 's'}` : fmtDate(plan.nextDue, 'Next cycle'),
+    dueInDays,
+  }
+}
+
+// Legacy fallback for projects without a plan row (pre-migration data).
 function deriveInst(status: UiStatus, amount: number, progress: number, deadline: string | null): Inst {
   const total = 12
   const per = Math.max(1, Math.round((amount || 0) / total))
@@ -139,7 +155,9 @@ const projects = computed<UiProject[]>(() => {
       pmName,
       pmInitials,
       pmGrad: PM_GRADS[i % PM_GRADS.length]!,
-      inst: deriveInst(status, o.amount ?? 0, o.progress ?? 0, o.deadline),
+      inst: o.installmentPlan ? realInst(o.installmentPlan) : deriveInst(status, o.amount ?? 0, o.progress ?? 0, o.deadline),
+      instId: o.installmentPlan?.id ?? null,
+      instSettled: o.installmentPlan ? (o.installmentPlan.status === 'settled') : status === 'completed',
       activity: relTime(o.updatedAt || o.createdAt),
       createdAt: new Date(o.createdAt).getTime(),
       stages,
@@ -282,11 +300,34 @@ const detailPay = computed(() => {
 const RING_C = 2 * Math.PI * 36
 const ringOffset = computed(() => detail.value ? RING_C * (1 - detail.value.progress / 100) : RING_C)
 
-function payNow() {
-  // TODO(api): no installment-charge endpoint yet — installments are settled
-  // from the Wallet. Send the customer there rather than faking a payment.
-  toaster.add({ title: 'Pay from your wallet', description: 'Installments are settled from your Wallet & Credit page.', icon: 'lucide:wallet', progress: true })
-  router.push('/dashboards/wallet')
+const paying = ref(false)
+async function payNow() {
+  const d = detail.value
+  if (!d || paying.value)
+    return
+  // Legacy projects without a real plan row still settle from the Wallet.
+  if (!d.instId) {
+    toaster.add({ title: 'Pay from your wallet', description: 'Installments are settled from your Wallet & Credit page.', icon: 'lucide:wallet', progress: true })
+    router.push('/dashboards/wallet')
+    return
+  }
+  paying.value = true
+  try {
+    const res: any = await $fetch(`/api/finance/installments/${d.instId}/pay`, { method: 'POST' })
+    toaster.add({
+      title: res.settled ? 'Plan fully paid 🎉' : 'Installment paid',
+      description: res.settled ? 'That was the final installment — the plan is settled.' : `${formatCurrency(res.charged)} was paid from your wallet.`,
+      icon: 'lucide:check',
+      progress: true,
+    })
+    await refreshOrders()
+  }
+  catch (e: any) {
+    toaster.add({ title: 'Payment failed', description: e?.data?.message || 'Please try again in a moment.', icon: 'lucide:alert-triangle', progress: true })
+  }
+  finally {
+    paying.value = false
+  }
 }
 </script>
 

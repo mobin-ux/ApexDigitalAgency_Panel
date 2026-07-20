@@ -1,20 +1,27 @@
 import { defineEventHandler } from 'h3'
 import { requireAuth } from '../../utils/auth'
+import { runAutoPay } from '../../utils/finance'
 import prisma from '../../utils/prisma'
 
 /**
  * GET /api/finance/dashboard — wallet overview: balances, recent
  * activity, installments, cards and withdrawal requests, pre-shaped
  * for the Wallet page.
+ *
+ * Lazy auto-pay runs first: due installments are charged from the
+ * wallet here when the user has auto-pay on (there is no cron in this
+ * stack — the wallet page is the natural heartbeat, see ADR-014).
  */
 export default defineEventHandler(async (event) => {
   const session = requireAuth(event)
   const userId = session.id
 
+  await runAutoPay(userId)
+
   const [user, transactions, installments, cards, requests] = await Promise.all([
-    prisma.user.findUnique({ where: { id: userId }, select: { adCredits: true } }),
+    prisma.user.findUnique({ where: { id: userId }, select: { adCredits: true, autoPayInstallments: true, walletBalance: true } }),
     prisma.transaction.findMany({ where: { userId }, orderBy: { createdAt: 'desc' }, take: 10 }),
-    prisma.installment.findMany({ where: { userId } }),
+    prisma.installment.findMany({ where: { userId }, orderBy: { nextDue: 'asc' } }),
     prisma.card.findMany({ where: { userId } }),
     prisma.withdrawalRequest.findMany({ where: { userId }, orderBy: { createdAt: 'desc' } }),
   ])
@@ -36,10 +43,13 @@ export default defineEventHandler(async (event) => {
     balanceOverview: {
       cash: cashBalance,
       credits: user?.adCredits || 0,
-      monthlyChange: 12.5, // TODO(api): compute a real month-over-month delta
+      walletBalance: user?.walletBalance ?? 0,
+      monthlyChange: 12.5, // TODO(api): computed properly in Phase 6 (expenses work)
     },
+    autoPayInstallments: user?.autoPayInstallments ?? true,
     installments: installments.map(ins => ({
       ...ins,
+      nextDueISO: ins.nextDue,
       nextDue: new Date(ins.nextDue).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
     })),
     cards,
