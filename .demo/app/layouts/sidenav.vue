@@ -51,6 +51,11 @@ const displayName = computed(() => {
 })
 
 const avatarSrc = computed(() => user.value?.avatar || '/img/avatars/10.svg')
+
+// Maintenance banner — driven by the admin Setting general.maintenance-mode
+// via /api/config (Nuxt dedupes this useFetch with the per-page calls).
+const { data: appConfig } = useFetch('/api/config', { lazy: true })
+const maintenanceMode = computed(() => (appConfig.value as any)?.maintenanceMode === true)
 </script>
 
 <template>
@@ -117,6 +122,10 @@ const avatarSrc = computed(() => user.value?.avatar || '/img/avatars/10.svg')
       -->
       <div class="pt-[env(safe-area-inset-top)] pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] md:pl-[max(1.5rem,env(safe-area-inset-left))] md:pr-[max(1.5rem,env(safe-area-inset-right))] xl:pl-[max(2rem,env(safe-area-inset-left))] xl:pr-[max(2rem,env(safe-area-inset-right))]">
         <DemoToolbar @toggle-mobile-nav="toggleMobileNav" />
+        <div v-if="maintenanceMode" role="status" class="mb-5 flex items-start gap-3 rounded-[14px] border border-[#D9A521]/30 bg-[#D9A521]/10 px-4 py-3 text-[13px] leading-[1.5] text-[#F2C14E]">
+          <Icon name="lucide:hard-hat" class="mt-0.5 size-4 shrink-0" />
+          <span><strong>Scheduled maintenance in progress.</strong> Some actions may be briefly unavailable — your data and payments are safe.</span>
+        </div>
         <slot />
       </div>
     </TairoSidenavContent>

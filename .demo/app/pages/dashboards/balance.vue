@@ -36,13 +36,19 @@ const credit = computed(() => {
   return { limit, used, remaining: limit - used, pct: Math.round((used / limit) * 100) }
 })
 
-// Service catalogue (static catalogue — pricing is "from / month").
-const services = [
-  { key: 'marketing', name: 'Digital marketing', desc: 'Zero upfront cost · ROI-focused campaigns', from: 290, icon: 'lucide:megaphone', badge: 'HOT', badgeClass: 'text-[#EC6453] bg-[#EC6453]/15' },
-  { key: 'development', name: 'Web development', desc: 'Modern stack · high-performance builds', from: 420, icon: 'lucide:code-2', badge: 'NEW', badgeClass: 'text-primary-200 bg-primary-500/20' },
-  { key: 'seo', name: 'SEO Optimization', desc: 'Rank #1 on Google Search', from: 190, icon: 'lucide:search', badge: 'POPULAR', badgeClass: 'text-muted-400 bg-white/5' },
-  { key: 'branding', name: 'Branding & Design', desc: 'Logo, UI/UX & visual identity', from: 250, icon: 'lucide:palette', badge: 'POPULAR', badgeClass: 'text-muted-400 bg-white/5' },
+// Service catalogue — "from £X/mo" prices come from /api/config
+// (Setting catalog.from-prices, admin-editable); card chrome stays local.
+const { data: appConfig } = await useFetch('/api/config', { lazy: true })
+const SERVICE_CARDS = [
+  { key: 'marketing', name: 'Digital marketing', desc: 'Zero upfront cost · ROI-focused campaigns', fallback: 290, icon: 'lucide:megaphone', badge: 'HOT', badgeClass: 'text-[#EC6453] bg-[#EC6453]/15' },
+  { key: 'development', name: 'Web development', desc: 'Modern stack · high-performance builds', fallback: 420, icon: 'lucide:code-2', badge: 'NEW', badgeClass: 'text-primary-200 bg-primary-500/20' },
+  { key: 'seo', name: 'SEO Optimization', desc: 'Rank #1 on Google Search', fallback: 190, icon: 'lucide:search', badge: 'POPULAR', badgeClass: 'text-muted-400 bg-white/5' },
+  { key: 'branding', name: 'Branding & Design', desc: 'Logo, UI/UX & visual identity', fallback: 250, icon: 'lucide:palette', badge: 'POPULAR', badgeClass: 'text-muted-400 bg-white/5' },
 ]
+const services = computed(() => SERVICE_CARDS.map(card => ({
+  ...card,
+  from: (appConfig.value as any)?.fromPrices?.[card.key] ?? card.fallback,
+})))
 
 // TODO(api): per-category spend breakdown — illustrative split for now.
 const expenses = [

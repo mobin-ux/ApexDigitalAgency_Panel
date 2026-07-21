@@ -290,18 +290,15 @@ const invoices = computed(() => {
   }))
 })
 
-// ---- banking: bank transfer (static agency details) -----------------------
-// TODO(api): expose the agency's receiving account via config rather than inline.
-const BANK_ROWS = [
-  { key: 'name', label: 'Account name', value: 'Apex Digital Agency Ltd' },
-  { key: 'sort', label: 'Sort code', value: '04-00-04' },
-  { key: 'acct', label: 'Account number', value: '2847 1196' },
-  { key: 'iban', label: 'IBAN', value: 'GB29 APEX 0400 0428 4711 96' },
-]
+// ---- banking: bank transfer (agency receiving account from /api/config) ---
+const { data: appConfig } = await useFetch('/api/config', { lazy: true })
+const BANK_ROWS = computed<{ key: string, label: string, value: string }[]>(() =>
+  (appConfig.value as any)?.bank ?? [],
+)
 const copied = ref<string | null>(null)
 let copyTimer: ReturnType<typeof setTimeout> | undefined
 function copyBank(key: string) {
-  const row = BANK_ROWS.find(b => b.key === key)
+  const row = BANK_ROWS.value.find(b => b.key === key)
   if (row && import.meta.client && navigator.clipboard)
     navigator.clipboard.writeText(row.value).catch(() => {})
   copied.value = key

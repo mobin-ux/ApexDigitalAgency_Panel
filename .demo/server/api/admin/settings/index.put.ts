@@ -17,7 +17,7 @@ const bodySchema = z.object({
     .array(
       z.object({
         key: z.string().trim().min(1).max(100).regex(/^[\w.-]+$/, 'Keys are dot/dash/word characters only'),
-        value: z.union([z.string().max(5000), z.number(), z.boolean(), z.record(z.string(), z.unknown())]),
+        value: z.union([z.string().max(5000), z.number(), z.boolean(), z.array(z.unknown()).max(200), z.record(z.string(), z.unknown())]),
         group: z.string().trim().min(1).max(50).default('general'),
       }),
     )

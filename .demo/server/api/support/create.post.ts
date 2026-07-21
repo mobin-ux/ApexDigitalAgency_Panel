@@ -2,6 +2,7 @@ import { defineEventHandler } from 'h3'
 import { z } from 'zod'
 import { requireAuth } from '../../utils/auth'
 import prisma from '../../utils/prisma'
+import { getSetting } from '../../utils/settings'
 import { validateBody } from '../../utils/validate'
 
 /** POST /api/support/create — open a ticket with its first message. */
@@ -9,20 +10,23 @@ import { validateBody } from '../../utils/validate'
 const bodySchema = z.object({
   subject: z.string().trim().min(1).max(200),
   category: z.string().trim().min(1).max(100),
-  priority: z.string().trim().min(1).max(50).default('NORMAL'),
+  // When omitted, the admin-configured default applies (Setting
+  // support.default-priority).
+  priority: z.string().trim().min(1).max(50).optional(),
   message: z.string().trim().min(1).max(10_000),
 })
 
 export default defineEventHandler(async (event) => {
   const session = requireAuth(event)
   const body = await validateBody(event, bodySchema)
+  const priority = body.priority ?? await getSetting('support.default-priority', 'NORMAL')
 
   const ticket = await prisma.ticket.create({
     data: {
       userId: session.id,
       subject: body.subject,
       category: body.category,
-      priority: body.priority,
+      priority,
       messages: {
         create: {
           content: body.message,

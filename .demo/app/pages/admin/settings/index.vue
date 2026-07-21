@@ -43,7 +43,7 @@ const catalogue: SettingGroup[] = [
     items: [
       { key: 'general.site-name', label: 'Platform name', type: 'text', default: 'Apex Digi Dashboard' },
       { key: 'general.support-email', label: 'Support email', hint: 'Shown to customers on error states and the Support page.', type: 'text', default: 'support@apexdigi.co.uk' },
-      { key: 'general.maintenance-mode', label: 'Maintenance mode', hint: 'Marks the platform as under maintenance for customers.', type: 'boolean', default: false },
+      { key: 'general.maintenance-mode', label: 'Maintenance mode', hint: 'Shows a maintenance banner on every customer page.', type: 'boolean', default: false },
       { key: 'general.default-locale', label: 'Default language', type: 'select', options: [{ value: 'en', label: 'English' }, { value: 'fr', label: 'Français' }, { value: 'es', label: 'Español' }, { value: 'de', label: 'Deutsch' }, { value: 'ar', label: 'العربية' }, { value: 'ja', label: '日本語' }], default: 'en' },
     ],
   },
@@ -67,8 +67,8 @@ const catalogue: SettingGroup[] = [
     items: [
       { key: 'finance.withdrawal-min', label: 'Minimum withdrawal (£)', type: 'number', default: 25 },
       { key: 'finance.withdrawal-max', label: 'Maximum withdrawal (£)', type: 'number', default: 10000 },
-      { key: 'finance.enable-24mo-plans', label: '24-month financing', hint: 'Offer the 1%/month 24-month plan in the New Order wizard.', type: 'boolean', default: true },
-      { key: 'finance.first-installment-days', label: 'First instalment after (days)', hint: 'Contractual: 30 days after project start.', type: 'number', default: 30 },
+      { key: 'finance.enable-24mo-plans', label: '24-month financing', hint: 'Live: gates the 1%/month option in the New Order wizard and the orders API.', type: 'boolean', default: true },
+      { key: 'finance.first-installment-days', label: 'First instalment after (days)', hint: 'Live: sets the first due date on every new financing plan.', type: 'number', default: 30 },
     ],
   },
   {
@@ -77,7 +77,7 @@ const catalogue: SettingGroup[] = [
     icon: 'lucide:life-buoy',
     accent: 'bg-[#F2C14E]',
     items: [
-      { key: 'support.default-priority', label: 'Default ticket priority', type: 'select', options: [{ value: 'LOW', label: 'Low' }, { value: 'NORMAL', label: 'Normal' }, { value: 'HIGH', label: 'High' }], default: 'NORMAL' },
+      { key: 'support.default-priority', label: 'Default ticket priority', hint: 'Live: applied when a new request doesn\'t specify one.', type: 'select', options: [{ value: 'LOW', label: 'Low' }, { value: 'NORMAL', label: 'Normal' }, { value: 'HIGH', label: 'High' }], default: 'NORMAL' },
       { key: 'support.auto-close-days', label: 'Auto-close resolved after (days)', hint: '0 disables auto-closing.', type: 'number', default: 7 },
       { key: 'support.satisfaction-survey', label: 'Satisfaction survey', hint: 'Ask customers to rate resolved tickets.', type: 'boolean', default: false },
     ],
@@ -171,7 +171,7 @@ const inputClass = 'w-full rounded-[11px] border border-white/8 bg-muted-700 px-
     <div class="flex items-start gap-3 rounded-[14px] border border-white/10 bg-white/[0.02] px-4 py-3 text-[13px] leading-[1.5] text-muted-400">
       <Icon name="lucide:info" class="mt-0.5 size-4 shrink-0 text-[#6EA8FE]" />
       <span>
-        Values are stored and audited immediately; each setting takes effect where its feature reads it. Settings for features that haven't shipped yet (invoicing VAT, webhooks) are stored ready for wiring.
+        Values are stored, audited and served to customers through <span class="text-white">/api/config</span>. Live today: maintenance banner, 24-month plan gate, first-instalment days, default ticket priority, support ETA/FAQ, bank-transfer details and catalogue pricing. Webhooks fire once the event bus ships.
         <template v-if="lastSaved"> Last change: <span class="text-white">{{ lastSaved.key }}</span> by {{ lastSaved.updatedBy || 'unknown' }}.</template>
       </span>
     </div>

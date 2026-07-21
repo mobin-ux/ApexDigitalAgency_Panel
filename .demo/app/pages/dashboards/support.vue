@@ -324,16 +324,14 @@ function goFaq() {
   tab.value = 'faq'
 }
 
-// ---- FAQ ------------------------------------------------------------------------
+// ---- FAQ (served by /api/config — Setting support.faq, admin-editable) -----------
 interface Faq { id: string, cat: CatKey, q: string, a: string }
-const FAQS: Faq[] = [
-  { id: 'f1', cat: 'billing', q: 'How do installments and monthly payments work?', a: 'Every project can be split into equal monthly installments — 3, 6 or 12 months depending on the service. Payments are taken automatically from your wallet first, then your default card. You can see the full schedule and pay early any time from the Wallet & credit page.' },
-  { id: 'f2', cat: 'technical', q: 'How do I share access or files with my project team?', a: 'Attach files directly to any support conversation, or drag them into a new request. For site access, share credentials through a request marked as Technical — we\'ll confirm receipt and never store passwords in plain text.' },
-  { id: 'f3', cat: 'project', q: 'Where can I track the progress of my active projects?', a: 'Your Dashboard shows every active project with a live progress bar and next milestone. For project-specific questions, open a request and tag the related project so the right specialist picks it up.' },
-  { id: 'f4', cat: 'presales', q: 'Can I get a quote before committing to a project?', a: 'Absolutely. Start a Pre-sales request describing what you have in mind and our team will send a detailed quote — usually within one working day — including scope, timeline and installment options.' },
-  { id: 'f5', cat: 'aftersales', q: 'What happens after a project is delivered?', a: 'You get a full handover pack with all source files, plus 30 days of complimentary support for tweaks and questions. After that, ongoing care plans are available — just ask via an After-sales request.' },
-  { id: 'f6', cat: 'general', q: 'What are your support hours and response times?', a: 'Our team is online Monday–Friday, 9am–6pm GMT, with a target first response of 15 minutes for standard requests and under 5 minutes for urgent ones. Outside hours, urgent tickets are monitored on-call.' },
-]
+const { data: appConfig } = await useFetch('/api/config', { lazy: true })
+const FAQS = computed<Faq[]>(() =>
+  (((appConfig.value as any)?.support?.faq ?? []) as { cat: string, q: string, a: string }[])
+    .map((f, i) => ({ id: `f${i + 1}`, cat: f.cat as CatKey, q: f.q, a: f.a })),
+)
+const replyEta = computed<string>(() => (appConfig.value as any)?.support?.replyEta ?? '~15 min')
 const faqQ = ref('')
 const faqOpen = ref<Record<string, boolean>>({ f1: true })
 function toggleFaq(id: string) {
@@ -341,7 +339,7 @@ function toggleFaq(id: string) {
 }
 const faqRows = computed(() => {
   const needle = faqQ.value.trim().toLowerCase()
-  return FAQS.filter(f => !needle || f.q.toLowerCase().includes(needle) || f.a.toLowerCase().includes(needle))
+  return FAQS.value.filter(f => !needle || f.q.toLowerCase().includes(needle) || f.a.toLowerCase().includes(needle))
 })
 </script>
 
@@ -367,7 +365,7 @@ const faqRows = computed(() => {
       <div class="flex items-center gap-3">
         <div class="flex items-center gap-2.5 rounded-full border border-[#22B07D]/24 bg-[#22B07D]/10 px-3.5 py-2">
           <span class="size-2 rounded-full bg-[#22B07D] shadow-[0_0_0_3px_rgba(34,176,125,0.18)]" />
-          <span class="text-[12.5px] font-semibold text-white">Team online · replies in ~15 min</span>
+          <span class="text-[12.5px] font-semibold text-white">Team online · replies in {{ replyEta }}</span>
         </div>
         <BaseButton rounded="full" size="lg" variant="primary" class="shadow-[0_10px_24px_rgba(125,83,242,0.32)]" @click="openNew">
           <Icon name="lucide:plus" class="size-4" />

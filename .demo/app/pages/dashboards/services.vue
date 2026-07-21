@@ -16,38 +16,15 @@ const router = useRouter()
 const { formatCurrency } = useCurrency()
 const toaster = useNuiToasts()
 
-// ---- catalogue ----------------------------------------------------------
+// ---- catalogue (served by /api/config — admin-editable Setting rows) ----
 interface Plan { id: string, name: string, base: number, tier: 0 | 1 | 2, popular?: boolean, desc: string, features: string[] }
 
-const services = [
-  { id: 'web', name: 'Web development', desc: 'WordPress, React & custom code', icon: 'lucide:code-2', tone: 'text-primary-400 bg-primary-500/14' },
-  { id: 'mkt', name: 'Marketing & ads', desc: 'SEO, PPC & growth', icon: 'lucide:megaphone', tone: 'text-[#EC6453] bg-[#EC6453]/14' },
-  { id: 'uiux', name: 'UI/UX design', desc: 'Product design & prototyping', icon: 'lucide:pen-tool', tone: 'text-primary-400 bg-primary-500/14' },
-  { id: 'brand', name: 'Branding', desc: 'Identity, logo & strategy', icon: 'lucide:target', tone: 'text-[#F2C14E] bg-[#D9A521]/14' },
-] as const
+const { data: appConfig } = await useFetch('/api/config', { lazy: false })
 
-const plansByService: Record<string, Plan[]> = {
-  web: [
-    { id: 'web-launch', name: 'Launch', base: 2400, tier: 0, desc: 'A polished one-page site to get you online fast.', features: ['Up to 3 sections', 'Mobile-first build', 'Basic SEO setup', '30 days of support'] },
-    { id: 'web-growth', name: 'Growth', base: 4800, tier: 1, popular: true, desc: 'A multi-page custom site built to convert visitors.', features: ['Up to 8 pages', 'Custom UI/UX design', 'Lead-capture forms', 'SEO + analytics', '90 days of support'] },
-    { id: 'web-scale', name: 'Scale', base: 9600, tier: 2, desc: 'A high-performance React/Next.js platform with integrations.', features: ['Unlimited pages', 'React / Next.js build', 'API & CRM integrations', 'Priority delivery', '12 months of support'] },
-  ],
-  mkt: [
-    { id: 'mkt-spark', name: 'Spark', base: 1800, tier: 0, desc: 'Kickstart demand with a focused single-channel campaign.', features: ['1 ad channel', 'Audience research', '5 ad creatives', 'Monthly report'] },
-    { id: 'mkt-momentum', name: 'Momentum', base: 3600, tier: 1, popular: true, desc: 'A multi-channel growth engine tuned for leads.', features: ['3 ad channels', 'Landing page', 'A/B testing', 'Weekly optimisation', 'Conversion tracking'] },
-    { id: 'mkt-dominate', name: 'Dominate', base: 7200, tier: 2, desc: 'Full-funnel growth with a dedicated strategist.', features: ['Unlimited channels', 'Dedicated strategist', 'Creative studio', 'Retargeting', 'Priority support'] },
-  ],
-  uiux: [
-    { id: 'ux-essential', name: 'Essential', base: 2400, tier: 0, desc: 'Clean, usable screens for your core flow.', features: ['Up to 6 screens', 'Wireframes', '1 revision round', 'Figma handoff'] },
-    { id: 'ux-product', name: 'Product', base: 4800, tier: 1, popular: true, desc: 'End-to-end product design with a clickable prototype.', features: ['Up to 20 screens', 'Interactive prototype', 'UX research', 'Design QA', 'Unlimited revisions'] },
-    { id: 'ux-system', name: 'Design system', base: 8400, tier: 2, desc: 'A scalable design system your team can build on.', features: ['Design system', 'Component library', 'Accessibility audit', 'Dev handoff', 'Ongoing support'] },
-  ],
-  brand: [
-    { id: 'br-identity', name: 'Identity', base: 1800, tier: 0, desc: 'The essentials to launch a memorable brand.', features: ['Logo suite', 'Colour & type', 'Brand guidelines (lite)', '3 concepts'] },
-    { id: 'br-studio', name: 'Studio', base: 3600, tier: 1, popular: true, desc: 'A complete brand kit across every touchpoint.', features: ['Full logo system', 'Brand guidelines', 'Business cards', 'Social-media kit', '2 revision rounds'] },
-    { id: 'br-signature', name: 'Signature', base: 7200, tier: 2, desc: 'Premium, end-to-end brand strategy & identity.', features: ['Brand strategy', 'Full identity system', 'Messaging & voice', 'Launch assets', 'Priority support'] },
-  ],
-}
+const services = computed(() => (appConfig.value as any)?.catalog?.services ?? [])
+const plansByService = computed<Record<string, Plan[]>>(() => (appConfig.value as any)?.catalog?.plans ?? {})
+const enable24mo = computed(() => (appConfig.value as any)?.finance?.enable24moPlans !== false)
+const firstDueDays = computed(() => (appConfig.value as any)?.finance?.firstInstallmentDays ?? 30)
 
 const tierIcon = ['lucide:zap', 'lucide:trending-up', 'lucide:award']
 
@@ -94,6 +71,12 @@ const maxStep = ref(1)
 const serviceId = ref<string | null>(null)
 const planId = ref<string | null>(null)
 const term = ref<'12' | '24'>('24')
+// If the admin disables 24-month plans (Setting finance.enable-24mo-plans),
+// the option disappears and any selection falls back to 12 months.
+watch(enable24mo, (on) => {
+  if (!on && term.value === '24')
+    term.value = '12'
+}, { immediate: true })
 const form = reactive<Record<string, any>>({})
 const agreed = ref(false)
 const signName = ref('')
@@ -118,9 +101,9 @@ function amort(b: number) {
   return b * r / (1 - (1 + r) ** -n)
 }
 
-const service = computed(() => services.find(s => s.id === serviceId.value) || null)
+const service = computed(() => services.value.find((s: any) => s.id === serviceId.value) || null)
 const serviceName = computed(() => service.value?.name ?? '')
-const plans = computed(() => plansByService[serviceId.value ?? ''] ?? [])
+const plans = computed(() => plansByService.value[serviceId.value ?? ''] ?? [])
 const plan = computed(() => plans.value.find(p => p.id === planId.value) || null)
 const base = computed(() => plan.value?.base ?? 0)
 const m12 = computed(() => base.value / 12)
@@ -254,7 +237,7 @@ function resetFlow() {
   maxStep.value = 1
   serviceId.value = null
   planId.value = null
-  term.value = '24'
+  term.value = enable24mo.value ? '24' : '12'
   agreed.value = false
   signName.value = ''
   hasDrawn.value = false
@@ -450,8 +433,8 @@ const radioBase = 'flex size-[22px] shrink-0 items-center justify-center rounded
                   <Icon name="lucide:info" class="size-3.5" />Pay the least overall
                 </div>
               </button>
-              <!-- 24 months -->
-              <button type="button" :aria-pressed="term === '24'" class="relative flex flex-col rounded-[20px] border p-[22px] text-left transition" :class="term === '24' ? 'border-primary-500 bg-primary-500/[0.06] ring-4 ring-primary-500/15' : 'border-white/10 bg-white/[0.02] hover:border-white/15'" @click="term = '24'">
+              <!-- 24 months (hidden when the admin disables the plan) -->
+              <button v-if="enable24mo" type="button" :aria-pressed="term === '24'" class="relative flex flex-col rounded-[20px] border p-[22px] text-left transition" :class="term === '24' ? 'border-primary-500 bg-primary-500/[0.06] ring-4 ring-primary-500/15' : 'border-white/10 bg-white/[0.02] hover:border-white/15'" @click="term = '24'">
                 <div class="flex items-center justify-between">
                   <span class="rounded-full bg-primary-500/18 px-2.5 py-[5px] text-[11px] font-extrabold tracking-[0.05em] text-primary-200">LOWEST MONTHLY</span>
                   <span :class="[radioBase, term === '24' ? 'bg-primary-500' : 'border-2 border-white/15']"><span v-if="term === '24'" class="size-2.5 rounded-full bg-white" /></span>
@@ -569,7 +552,7 @@ const radioBase = 'flex size-[22px] shrink-0 items-center justify-center rounded
               2. Fees &amp; payment schedule
             </p>
             <p class="mb-3.5">
-              Project value of <strong class="font-semibold text-white">{{ money(base) }}</strong>, payable as <strong class="font-semibold text-white">{{ monthsText }}</strong> of <strong class="font-semibold text-white">{{ money(monthly) }}</strong>. Total payable <strong class="font-semibold text-white">{{ money(total) }}</strong> ({{ term === '12' ? '0% interest' : `includes ${money(interest24)} interest` }}). The first instalment is collected 30 days after the project start date.
+              Project value of <strong class="font-semibold text-white">{{ money(base) }}</strong>, payable as <strong class="font-semibold text-white">{{ monthsText }}</strong> of <strong class="font-semibold text-white">{{ money(monthly) }}</strong>. Total payable <strong class="font-semibold text-white">{{ money(total) }}</strong> ({{ term === '12' ? '0% interest' : `includes ${money(interest24)} interest` }}). The first instalment is collected {{ firstDueDays }} days after the project start date.
             </p>
             <p class="mb-2 font-semibold text-white">
               3. Revisions &amp; support
@@ -738,7 +721,7 @@ const radioBase = 'flex size-[22px] shrink-0 items-center justify-center rounded
                 <div class="text-[11.5px] text-muted-500">
                   First payment
                 </div><div class="text-sm font-semibold text-white">
-                  {{ money(monthly) }} · in 30 days
+                  {{ money(monthly) }} · in {{ firstDueDays }} days
                 </div>
               </div>
             </div>
