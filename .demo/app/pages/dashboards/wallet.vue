@@ -260,21 +260,24 @@ const upcoming = computed(() =>
     .sort((a, b) => Number(b.dueSoon) - Number(a.dueSoon)),
 )
 
-// ---- credit line (TODO(api): no credit model on User yet) -----------------
-// Illustrative figures, mirroring the balance page. Gate the "approved" view on
-// whether the client has any projects so brand-new accounts see the apply CTA.
-const applied = ref(false)
-const hasCredit = computed(() => plans.value.length > 0)
+// ---- credit line (real CreditLine record from /api/finance/dashboard) -----
+const creditLine = computed<any>(() => (finance.value as any)?.credit ?? null)
+const applied = computed(() => creditLine.value?.status === 'PENDING')
+const hasCredit = computed(() => creditLine.value?.status === 'ACTIVE' || creditLine.value?.status === 'FROZEN')
 const credit = computed(() => {
-  const limit = 5000
-  const used = 1800
+  const line = creditLine.value
+  const limit = line?.limit ?? 0
+  const used = line?.used ?? 0
   return {
     limit,
     used,
-    available: limit - used,
-    pct: Math.round((used / limit) * 100),
-    repayAmount: 450,
-    repayDate: '20 Mar 2026',
+    available: Math.max(0, limit - used),
+    pct: limit > 0 ? Math.round((used / limit) * 100) : 0,
+    frozen: line?.status === 'FROZEN',
+    repayAmount: line?.nextRepayAmount ?? null,
+    repayDate: line?.nextRepayDate
+      ? new Date(line.nextRepayDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+      : null,
   }
 })
 
@@ -401,14 +404,55 @@ function openApply() {
 function closeApply() {
   applyOpen.value = false
 }
-function submitApply() {
-  applySubmitted.value = true
-  applied.value = true
+const applyBusy = ref(false)
+async function submitApply() {
+  if (applyBusy.value)
+    return
+  applyBusy.value = true
+  try {
+    await $fetch('/api/finance/credit/apply', { method: 'POST', body: { requestedLimit: applyAmount.value } })
+    applySubmitted.value = true
+    await refreshFinance()
+  }
+  catch (e: any) {
+    toaster.add({ title: 'Application failed', description: e?.data?.message || 'Please try again in a moment.', icon: 'lucide:alert-triangle', progress: true })
+  }
+  finally {
+    applyBusy.value = false
+  }
+}
+
+// ---- repay early (real: wallet → credit balance) ---------------------------
+const repayOpen = ref(false)
+const repayAmount = ref('')
+const repayBusy = ref(false)
+function openRepay() {
+  repayAmount.value = String(Math.min(credit.value.used, Math.floor((finance.value as any)?.balanceOverview?.walletBalance ?? credit.value.used)))
+  repayOpen.value = true
+}
+async function submitRepay() {
+  const amt = Number(repayAmount.value)
+  if (!amt || amt <= 0 || repayBusy.value)
+    return
+  repayBusy.value = true
+  try {
+    const res: any = await $fetch('/api/finance/credit/repay', { method: 'POST', body: { amount: amt } })
+    toaster.add({ title: 'Repayment received', description: `${formatCurrency(res.repaid)} was paid off your Apex credit from your wallet.`, icon: 'lucide:check', progress: true })
+    repayOpen.value = false
+    await Promise.all([refreshFinance(), refreshTx()])
+  }
+  catch (e: any) {
+    toaster.add({ title: 'Repayment failed', description: e?.data?.message || 'Please try again in a moment.', icon: 'lucide:alert-triangle', progress: true })
+  }
+  finally {
+    repayBusy.value = false
+  }
 }
 
 function closeModals() {
   topupOpen.value = false
   applyOpen.value = false
+  repayOpen.value = false
 }
 
 // ---- installment "Pay now" — real charge from the wallet ------------------
@@ -571,21 +615,21 @@ function comingSoon(feature: string) {
             <div class="relative mt-[18px] flex items-center justify-between gap-3 rounded-xl border border-primary-500/20 bg-primary-500/[0.08] px-[15px] py-[13px]">
               <div>
                 <div class="text-[11.5px] font-bold uppercase tracking-[0.04em] text-primary-200">
-                  Next repayment
+                  {{ credit.frozen ? 'Line frozen' : credit.used > 0 ? 'Outstanding balance' : 'All clear' }}
                 </div>
                 <div class="mt-[3px] text-[13px] font-semibold text-white">
-                  {{ credit.repayDate }}
+                  {{ credit.frozen ? 'Contact support to restore access' : credit.used > 0 ? (credit.repayDate || 'Repay any time — no fees') : 'Nothing to repay right now' }}
                 </div>
               </div>
-              <div class="font-heading text-[20px] font-extrabold tabular-nums text-white">
-                {{ formatCurrency(credit.repayAmount) }}
+              <div v-if="credit.used > 0" class="font-heading text-[20px] font-extrabold tabular-nums text-white">
+                {{ formatCurrency(credit.repayAmount || credit.used) }}
               </div>
             </div>
             <div class="relative mt-3.5 flex gap-2.5">
-              <BaseButton rounded="lg" class="flex-1 border border-white/8 bg-muted-700 !text-white" @click="comingSoon('Repay early')">
+              <BaseButton rounded="lg" class="flex-1 border border-white/8 bg-muted-700 !text-white disabled:opacity-50" :disabled="credit.used <= 0 || credit.frozen" @click="openRepay">
                 Repay early
               </BaseButton>
-              <BaseButton rounded="lg" class="flex-1 border border-white/8 bg-muted-700 !text-white" @click="openApply">
+              <BaseButton rounded="lg" class="flex-1 border border-white/8 bg-muted-700 !text-white disabled:opacity-50" :disabled="credit.frozen" @click="openApply">
                 Increase limit
               </BaseButton>
             </div>
@@ -1159,8 +1203,8 @@ function comingSoon(feature: string) {
             <span class="text-[13px] text-muted-400">Estimated monthly repayment</span>
             <span class="font-heading text-[17px] font-extrabold tabular-nums text-white">{{ formatCurrency(applyMonthly) }}/mo</span>
           </div>
-          <BaseButton rounded="lg" variant="primary" class="mt-[18px] w-full shadow-[0_8px_20px_rgba(125,83,242,0.28)]" @click="submitApply">
-            {{ isIncrease ? 'Request increase' : 'Submit application' }}
+          <BaseButton rounded="lg" variant="primary" class="mt-[18px] w-full shadow-[0_8px_20px_rgba(125,83,242,0.28)]" :disabled="applyBusy" @click="submitApply">
+            {{ applyBusy ? 'Submitting…' : isIncrease ? 'Request increase' : 'Submit application' }}
           </BaseButton>
         </template>
         <div v-else class="px-1 pb-1.5 pt-2.5 text-center">
@@ -1177,6 +1221,39 @@ function comingSoon(feature: string) {
             Done
           </BaseButton>
         </div>
+      </div>
+    </div>
+
+    <!-- ============ REPAY EARLY MODAL ============ -->
+    <div v-if="repayOpen" class="apex-fade fixed inset-0 z-[60] flex items-center justify-center bg-[rgba(5,10,12,0.66)] p-6 backdrop-blur-[4px]" @click="repayOpen = false">
+      <div
+        role="dialog" aria-label="Repay Apex credit"
+        class="apex-pop w-[440px] max-w-full rounded-[28px] border border-white/15 p-7 shadow-[0_30px_80px_rgba(0,0,0,0.5)]"
+        style="background: #132125;"
+        @click.stop
+      >
+        <div class="mb-1.5 flex items-center justify-between">
+          <h3 class="font-heading text-[21px] font-extrabold tracking-[-0.01em] text-white">
+            Repay early
+          </h3>
+          <button aria-label="Close" class="inline-flex size-8 items-center justify-center rounded-[9px] border border-white/8 bg-muted-700 text-muted-400 hover:text-white" @click="repayOpen = false">
+            <Icon name="lucide:x" class="size-[15px]" />
+          </button>
+        </div>
+        <p class="mb-5 text-[13.5px] text-muted-500">
+          Pay down your Apex credit from your wallet — no early-repayment fees, ever. Outstanding: <strong class="text-white">{{ formatCurrency(credit.used) }}</strong>.
+        </p>
+        <label class="flex items-center gap-2.5 rounded-xl border border-white/8 bg-muted-700 px-3.5 py-3 focus-within:border-primary-400">
+          <span class="font-heading text-[17px] font-bold text-muted-500">£</span>
+          <input
+            :value="repayAmount" inputmode="numeric" placeholder="Amount to repay"
+            class="min-w-0 flex-1 border-none bg-transparent text-base font-semibold text-white outline-none placeholder:text-muted-500"
+            @input="repayAmount = ($event.target as HTMLInputElement).value.replace(/\D/g, '')"
+          >
+        </label>
+        <BaseButton rounded="lg" variant="primary" class="mt-[18px] w-full shadow-[0_8px_20px_rgba(125,83,242,0.28)]" :disabled="repayBusy || !Number(repayAmount)" @click="submitRepay">
+          {{ repayBusy ? 'Processing…' : `Repay ${Number(repayAmount) ? formatCurrency(Number(repayAmount)) : ''}` }}
+        </BaseButton>
       </div>
     </div>
   </div>

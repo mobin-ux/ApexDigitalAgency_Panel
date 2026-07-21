@@ -89,6 +89,12 @@ model User {
   withdrawalRequests  WithdrawalRequest[]
   invoices            Invoice[]
 
+  // Real payment rails (ADR-015)
+  paymentMethods      PaymentMethod[]
+  paymentIntents      PaymentIntent[]
+  payouts             Payout[]
+  ledgerEntries       LedgerEntry[]
+
   // Files this user uploaded (ticket attachments, etc.)
   attachments         Attachment[]
   
@@ -456,4 +462,179 @@ model AuditLog {
   @@index([actorId])
   @@index([targetType, targetId])
   @@index([createdAt])
+}
+
+// ==============================
+// 8. PAYMENT RAILS (ADR-015)
+// ==============================
+// Everything below stores money as INTEGER MINOR UNITS (pence) — never Float.
+// Conversion at the boundary lives in server/utils/money.ts. The legacy Float
+// columns above are unchanged on purpose (own migration phase).
+
+/// A payment instrument held at a provider. We store provider TOKENS and
+/// display metadata only — never a PAN or CVV (PCI DSS SAQ-A, ADR-015 §8).
+model PaymentMethod {
+  id                 String   @id @default(uuid())
+  provider           String   // stripe | gocardless | paypal | truelayer | mock
+  kind               String   // card | bacs_debit | paypal | open_banking
+  /// Provider-side customer handle (Stripe cus_…, GoCardless CU…).
+  providerCustomerId String?
+  /// Provider-side instrument handle (Stripe pm_…, GoCardless mandate MD…).
+  providerMethodId   String
+  /// Display metadata returned by the provider — safe to render.
+  brand              String?  // visa, mastercard, or the bank name
+  last4              String?
+  expMonth           Int?
+  expYear            Int?
+  accountHolder      String?
+  /// Direct-debit lifecycle: pending_submission | submitted | active | cancelled | failed
+  mandateStatus      String?
+  status             String   @default("active") // active | removed
+  isDefault          Boolean  @default(false)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  userId             String
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  intents            PaymentIntent[]
+
+  @@unique([provider, providerMethodId])
+  @@index([userId, status])
+}
+
+/// One attempt to move real money. Our `reference` is the idempotency anchor:
+/// it is generated before the provider is called and replayed on retry, so a
+/// dropped response can never double-charge.
+model PaymentIntent {
+  id               String    @id @default(uuid())
+  reference        String    @unique // APX-PI-XXXXXXXX, shown to support
+  provider         String
+  providerIntentId String?
+  /// wallet_topup | order_deposit | installment | credit_repay
+  purpose          String
+  /// requires_action | processing | succeeded | failed | cancelled
+  status           String    @default("requires_action")
+  /// MINOR UNITS (pence).
+  amount           Int
+  currency         String    @default("GBP")
+  /// Provider fee in minor units, filled from the webhook when known.
+  feeAmount        Int       @default(0)
+  /// Sent to the provider as its idempotency key.
+  idempotencyKey   String    @unique
+  failureCode      String?
+  failureMessage   String?
+  /// JSON blob of our own context (never provider secrets).
+  metadata         String?
+  settledAt        DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  userId           String
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  paymentMethodId  String?
+  paymentMethod    PaymentMethod? @relation(fields: [paymentMethodId], references: [id], onDelete: SetNull)
+
+  /// Set when this intent collects a scheduled installment.
+  installmentId    String?
+  projectId        String?
+
+  refunds          Refund[]
+  ledgerEntries    LedgerEntry[]
+
+  @@unique([provider, providerIntentId])
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+  @@index([installmentId])
+}
+
+model Refund {
+  id               String   @id @default(uuid())
+  provider         String
+  providerRefundId String?
+  amount           Int      // minor units
+  reason           String?
+  status           String   @default("processing") // processing | succeeded | failed
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  paymentIntentId  String
+  paymentIntent    PaymentIntent @relation(fields: [paymentIntentId], references: [id], onDelete: Cascade)
+
+  /// Admin who issued it (audited separately in AuditLog).
+  initiatedById    String?
+
+  @@unique([provider, providerRefundId])
+  @@index([paymentIntentId])
+}
+
+/// Money leaving the platform to a customer (withdrawal fulfilment).
+model Payout {
+  id                  String   @id @default(uuid())
+  provider            String
+  providerPayoutId    String?
+  amount              Int      // minor units
+  currency            String   @default("GBP")
+  status              String   @default("pending") // pending | paid | failed | cancelled
+  failureMessage      String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  userId              String
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// The customer request this payout fulfils.
+  withdrawalRequestId String?  @unique
+
+  @@unique([provider, providerPayoutId])
+  @@index([userId, createdAt])
+}
+
+/// Raw provider webhooks. The unique constraint IS the idempotency guarantee:
+/// Stripe and GoCardless both deliver at-least-once with retries for up to
+/// 72h, so duplicates are normal traffic (ADR-015 §7).
+model WebhookEvent {
+  id              String    @id @default(uuid())
+  provider        String
+  providerEventId String
+  type            String
+  /// Verbatim verified payload — handlers are re-runnable from this.
+  payload         String
+  signatureValid  Boolean   @default(false)
+  status          String    @default("received") // received | processed | failed | ignored
+  attempts        Int       @default(0)
+  lastError       String?
+  receivedAt      DateTime  @default(now())
+  processedAt     DateTime?
+
+  @@unique([provider, providerEventId])
+  @@index([status, receivedAt])
+  @@index([type])
+}
+
+/// Double-entry ledger — the reconciliation source of truth. Every journal
+/// (rows sharing `journalId`) must balance: Σ DEBIT == Σ CREDIT.
+/// PROVIDER_CLEARING must track the provider's own reported balance.
+model LedgerEntry {
+  id              String   @id @default(uuid())
+  /// Groups the balanced rows of one economic event.
+  journalId       String
+  /// USER_WALLET | PROVIDER_CLEARING | REVENUE | VAT | CREDIT_RECEIVABLE | FEES
+  account         String
+  direction       String   // DEBIT | CREDIT
+  amount          Int      // minor units, always positive
+  currency        String   @default("GBP")
+  description     String
+  createdAt       DateTime @default(now())
+
+  userId          String?
+  user            User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  paymentIntentId String?
+  paymentIntent   PaymentIntent? @relation(fields: [paymentIntentId], references: [id], onDelete: SetNull)
+
+  @@index([journalId])
+  @@index([account, createdAt])
+  @@index([userId, createdAt])
 }

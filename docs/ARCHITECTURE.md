@@ -98,6 +98,9 @@ JWT secret: `runtimeConfig.jwtSecret` (`NUXT_JWT_SECRET` env override).
 | **`/api/admin/users/:id`** (GET/PATCH) | ADMIN only — detail w/ recent activity; whitelisted PATCH (role/adCredits/profile — not password/walletBalance/email) + audit row; self-demotion blocked |
 | **`/api/admin/stats`** (GET) | ADMIN only — aggregates + 10 latest audit entries |
 | **`/api/admin/{projects,finance,tickets,settings,audit,milestones,notifications}`** | ADMIN only — full management surface (list/detail/create/patch/delete per module; finance = summary/transactions/refund/withdrawals/installments; tickets incl. internal notes + reply; settings key/value upsert; broadcast notifications). Same ADR-013 conventions: `requireAdmin`, zod, `paginated()`, `recordAudit()` |
+| POST `/api/finance/topup` | **real gateway top-up** (ADR-015). Creates a `PaymentIntent` *before* calling the provider, returns redirect/clientSecret; the wallet moves only in `settleIntent`. Supersedes `/api/finance/deposit` for the UI |
+| POST `/api/webhooks/:provider` | **the only unauthenticated writes** — the HMAC signature is the auth. Raw body → constant-time verify → unique `(provider, providerEventId)` insert → 200. `stripe`\|`gocardless`\|`paypal`\|`mock` |
+| GET `/api/admin/payments/health` | ADMIN — rails status: configured providers + mode, trial balance, stuck intents, webhook failures, provider balances |
 | GET `/api/create-admin`, `/api/seed-*` | **dev-only (404 in production builds)**. All seeds now schema-valid |
 
 Deleted: `/api/users` GET/POST (were unauthenticated user list/create — superseded by `/api/admin/users`).
@@ -167,7 +170,46 @@ Shared UI vocabulary (see DESIGN_SYSTEM.md + CLAUDE.md): status accents
 - Registry: `.npmrc` points at an Iran-friendly mirror (runflare) that intermittently
   403s; use `pnpm install --registry=https://registry.npmmirror.com/`.
 
-## 9. Known issues (technical detail)
+## 9. Payment rails (ADR-015)
+
+Real money infrastructure, provider-agnostic by construction.
+
+```
+.demo/server/payments/
+  types.ts       PaymentProvider interface — the ONLY thing call sites import
+  registry.ts    per-capability routing from Settings; live-mode safety gate
+  service.ts     orchestration: startPayment / settleIntent / applyWebhookEvent
+  ledger.ts      double-entry posting + trial balance
+  client.ts      shared transport: timeouts, jittered retry, error normalisation
+  stripe.ts | gocardless.ts | paypal.ts | truelayer.ts | mock.ts
+```
+
+- **Providers**: Stripe (cards/wallets/payouts), GoCardless (Bacs Direct Debit
+  — the installment rail, fees capped at £4), PayPal (top-ups only),
+  TrueLayer VRP (stubbed for the UKPI migration). No vendor SDKs: REST over
+  `fetch` + `node:crypto`, so swapping a provider is one file.
+- **Routing is per capability** (`charge`/`mandate`/`recurring`/`refund`/
+  `payout`/`bank_link`) via `payments.provider.*` Settings. With no
+  credentials the registry serves `mock`, so a missing key can never become
+  a real charge. Live keys additionally require `payments.live-mode`.
+- **Money**: integer minor units (`utils/money.ts`) throughout the payment
+  models. The legacy `Float` pound columns are unchanged — conversion is
+  explicit at the boundary.
+- **Idempotency, twice over**: `WebhookEvent @@unique([provider, providerEventId])`
+  rejects duplicate deliveries, and `settleIntent` claims the row with a
+  conditional update so even *distinct* events settling one intent move
+  money exactly once. Verified: 3 distinct events → 1 wallet credit.
+- **Ledger**: every settlement posts a balanced journal
+  (`USER_WALLET`/`PROVIDER_CLEARING`/`REVENUE`/`VAT`/`CREDIT_RECEIVABLE`/`FEES`).
+  `PROVIDER_CLEARING` is what reconciliation compares against the provider's
+  own balance.
+- **PCI DSS SAQ-A**: card entry only ever happens in provider-hosted
+  iframes/redirects. We store tokens and display metadata (brand/last4/expiry);
+  `utils/logger.ts` Luhn-redacts anything PAN-shaped as a backstop.
+- **Secrets** live in `runtimeConfig.payments` (server-only) with publishable
+  keys under `public.payments`; `.env.example` documents every variable.
+
+## 10. Known issues (technical detail)
 
 - **Hydration mismatches**: every dashboard page logs "Hydration completed but contains
   mismatches" — pre-existing, in shared chrome (toolbar/color-mode), NOT page work.

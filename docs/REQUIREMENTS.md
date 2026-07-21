@@ -74,8 +74,22 @@ implementation. Hard rules live in CLAUDE.md; rationale in docs/decisions/.
 - Remaining hardening backlog: httpOnly cookie (blocked on reworking the client
   auth middleware — ADR-013), rate limiting on auth endpoints, real mail
   provider for password reset.
-- No real payment processing exists — buttons must never pretend otherwise
-  (ADR-010).
+- ~~No real payment processing exists~~ **superseded by ADR-015**: real rails
+  are in place (Stripe / GoCardless / PayPal, sandbox-first). Security
+  requirements that come with them:
+  - **PCI DSS SAQ-A** — card data never reaches our servers, logs or DB; all
+    entry happens in provider-hosted iframes/redirects. Moving to self-hosted
+    card fields (SAQ-A-EP) is explicitly out of scope.
+  - Webhook endpoints authenticate by **HMAC signature only**, verified in
+    constant time against the **raw** body, with a 5-minute timestamp
+    tolerance (replay defence) and unique-event-id dedupe.
+  - Money moves exactly once: `settleIntent` claims each intent with a
+    conditional update, so duplicate or racing webhooks cannot double-credit.
+  - Live credentials are inert until `payments.live-mode` is enabled; with no
+    credentials the mock rail is served rather than falling back to anything
+    that could charge.
+  - Provider secrets are server-only `runtimeConfig`; only publishable keys
+    are exposed to the browser.
 
 ## 6. Data/API gaps that block requirement completion (backlog)
 

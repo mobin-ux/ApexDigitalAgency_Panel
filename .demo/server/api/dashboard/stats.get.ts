@@ -18,7 +18,7 @@ export default defineEventHandler(async (event) => {
   const userId = session.id
 
   // Fetch everything in parallel for speed.
-  const [user, activeProjects, recentProjects, spent] = await Promise.all([
+  const [user, activeProjects, recentProjects, spent, credit] = await Promise.all([
     prisma.user.findUnique({
       where: { id: userId },
       select: { walletBalance: true, adCredits: true },
@@ -47,6 +47,7 @@ export default defineEventHandler(async (event) => {
       where: { userId, amount: { lt: 0 } },
       _sum: { amount: true },
     }),
+    prisma.creditLine.findUnique({ where: { userId } }),
   ])
 
   // Raw numbers only — formatting (GBP) happens in the UI via useCurrency().
@@ -57,6 +58,19 @@ export default defineEventHandler(async (event) => {
       adCredits: user?.adCredits ?? 0,
       totalSpent: Math.abs(spent._sum.amount ?? 0),
     },
+    // Real credit line (null until the customer applies) — the balance page
+    // renders the none/pending/active states from this.
+    credit: credit
+      ? {
+          status: credit.status,
+          limit: credit.limit,
+          used: credit.used,
+          available: Math.max(0, credit.limit - credit.used),
+          requestedLimit: credit.requestedLimit,
+          nextRepayAmount: credit.nextRepayAmount,
+          nextRepayDate: credit.nextRepayDate,
+        }
+      : null,
     projects: recentProjects.map(p => ({
       id: p.id,
       name: p.name,

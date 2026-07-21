@@ -130,10 +130,44 @@ export default defineNuxtConfig({
      * server/utils/auth.ts warns loudly if production runs on the fallback.
      */
     jwtSecret: process.env.JWT_SECRET || 'secret',
+
+    /**
+     * Payment provider credentials (ADR-015). ALL server-only — a secret key
+     * under `public` would ship to the browser. Empty by default: the
+     * registry falls back to the mock provider when a rail has no
+     * credentials, so a missing key can never become a real charge.
+     * See .env.example for the full set and where to obtain each one.
+     */
+    payments: {
+      stripe: {
+        secretKey: '', // NUXT_PAYMENTS_STRIPE_SECRET_KEY (sk_test_… / sk_live_…)
+        webhookSecret: '', // NUXT_PAYMENTS_STRIPE_WEBHOOK_SECRET (whsec_…)
+      },
+      gocardless: {
+        accessToken: '', // NUXT_PAYMENTS_GOCARDLESS_ACCESS_TOKEN (sandbox_… / live_…)
+        webhookSecret: '', // NUXT_PAYMENTS_GOCARDLESS_WEBHOOK_SECRET
+      },
+      paypal: {
+        clientId: '', // NUXT_PAYMENTS_PAYPAL_CLIENT_ID
+        clientSecret: '', // NUXT_PAYMENTS_PAYPAL_CLIENT_SECRET
+        webhookId: '', // NUXT_PAYMENTS_PAYPAL_WEBHOOK_ID
+        environment: 'sandbox', // NUXT_PAYMENTS_PAYPAL_ENV
+      },
+    },
+
     public: {
       // mapbox config
       mapboxToken: '', // set it via NUXT_PUBLIC_MAPBOX_TOKEN env
       siteUrl: '', // set it via NUXT_PUBLIC_SITE_URL
+      /**
+       * Publishable keys only — these are designed to be public and are what
+       * Stripe Elements / the PayPal JS SDK need in the browser. Never put a
+       * secret key here.
+       */
+      payments: {
+        stripePublishableKey: '', // NUXT_PUBLIC_PAYMENTS_STRIPE_PUBLISHABLE_KEY (pk_test_…)
+        paypalClientId: '', // NUXT_PUBLIC_PAYMENTS_PAYPAL_CLIENT_ID
+      },
     },
   },
 
