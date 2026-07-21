@@ -2,6 +2,7 @@ import crypto from 'node:crypto'
 import { defineEventHandler } from 'h3'
 import { z } from 'zod'
 import prisma from '../../utils/prisma'
+import { rateLimit, RateLimits } from '../../utils/ratelimit'
 import { validateBody } from '../../utils/validate'
 
 /**
@@ -18,6 +19,9 @@ const bodySchema = z.object({
 })
 
 export default defineEventHandler(async (event) => {
+  // Reset mail is expensive and abusable as a harassment vector.
+  rateLimit(event, RateLimits.passwordReset)
+
   const { email } = await validateBody(event, bodySchema)
 
   const user = await prisma.user.findUnique({ where: { email } })

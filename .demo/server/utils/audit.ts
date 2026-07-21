@@ -29,7 +29,14 @@ export interface AuditEntry {
   metadata?: unknown
 }
 
-export async function recordAudit(event: H3Event, actor: AuthSession, entry: AuditEntry): Promise<void> {
+/**
+ * Actor of an audited action. Usually a full `AuthSession`, but
+ * authentication events (failed logins, resets) are recorded before any
+ * session exists — those pass just an identifier and the email attempted.
+ */
+export type AuditActor = AuthSession | { id: string, email: string }
+
+export async function recordAudit(event: H3Event, actor: AuditActor, entry: AuditEntry): Promise<void> {
   try {
     await prisma.auditLog.create({
       data: {

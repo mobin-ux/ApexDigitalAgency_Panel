@@ -326,22 +326,57 @@ export async function applyWebhookEvent(provider: ProviderName, event: Normalise
       break
     }
     case 'mandate.active': {
-      if (event.providerMethodId) {
-        await prisma.paymentMethod.updateMany({
-          where: { provider, providerMethodId: event.providerMethodId },
-          data: { mandateStatus: 'active' },
+      const method = await findMethod(provider, event)
+      if (method) {
+        await prisma.paymentMethod.update({
+          where: { id: method.id },
+          data: {
+            mandateStatus: 'active',
+            // Adopt the real mandate id: setup stored the billing-request id,
+            // and every future collection must reference the mandate.
+            providerMethodId: event.providerMethodId ?? method.providerMethodId,
+          },
+        })
+        // First usable instrument on the account becomes the default.
+        const hasDefault = await prisma.paymentMethod.count({
+          where: { userId: method.userId, status: 'active', isDefault: true },
+        })
+        if (hasDefault === 0) {
+          await prisma.paymentMethod.update({ where: { id: method.id }, data: { isDefault: true } })
+        }
+        await prisma.notification.create({
+          data: {
+            userId: method.userId,
+            title: 'Direct Debit ready',
+            message: 'Your Direct Debit mandate is active. Instalments will be collected automatically.',
+            type: 'SUCCESS',
+            link: '/dashboards/wallet',
+          },
         })
       }
       break
     }
     case 'mandate.cancelled':
     case 'mandate.failed': {
-      if (event.providerMethodId) {
-        await prisma.paymentMethod.updateMany({
-          where: { provider, providerMethodId: event.providerMethodId },
+      const method = await findMethod(provider, event)
+      if (method) {
+        await prisma.paymentMethod.update({
+          where: { id: method.id },
           data: {
             mandateStatus: event.kind === 'mandate.failed' ? 'failed' : 'cancelled',
             status: 'removed',
+            isDefault: false,
+          },
+        })
+        await prisma.notification.create({
+          data: {
+            userId: method.userId,
+            title: 'Direct Debit ended',
+            message: event.kind === 'mandate.failed'
+              ? 'Your Direct Debit mandate could not be set up. Please add another payment method.'
+              : 'Your Direct Debit mandate was cancelled. Add another method to keep instalments on track.',
+            type: 'WARNING',
+            link: '/dashboards/wallet',
           },
         })
       }
@@ -370,6 +405,20 @@ async function findIntent(provider: ProviderName, providerIntentId?: string) {
     return null
   }
   return prisma.paymentIntent.findFirst({ where: { provider, providerIntentId } })
+}
+
+/**
+ * Locate the local PaymentMethod for a mandate event, by the mandate id if
+ * we already adopted it, otherwise by the setup-time id we stored.
+ */
+async function findMethod(provider: ProviderName, event: NormalisedEvent) {
+  const candidates = [event.providerMethodId, event.setupReferenceId].filter(Boolean) as string[]
+  if (candidates.length === 0) {
+    return null
+  }
+  return prisma.paymentMethod.findFirst({
+    where: { provider, providerMethodId: { in: candidates } },
+  })
 }
 
 /**

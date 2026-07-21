@@ -312,14 +312,21 @@ function normaliseGoCardlessEvent(event: any): NormalisedEvent {
   }
 
   if (event.resource_type === 'mandates') {
+    // `setupReferenceId` carries the billing-request id we stored when the
+    // flow began — the mandate id below is newly minted at activation and
+    // would otherwise match no local row.
+    const ids = {
+      providerMethodId: links.mandate,
+      setupReferenceId: links.billing_request,
+    }
     switch (event.action) {
       case 'active':
-        return { ...base, kind: 'mandate.active', providerMethodId: links.mandate }
+        return { ...base, kind: 'mandate.active', ...ids }
       case 'cancelled':
       case 'expired':
-        return { ...base, kind: 'mandate.cancelled', providerMethodId: links.mandate }
+        return { ...base, kind: 'mandate.cancelled', ...ids }
       case 'failed':
-        return { ...base, kind: 'mandate.failed', providerMethodId: links.mandate, failureMessage: event.details?.description }
+        return { ...base, kind: 'mandate.failed', ...ids, failureMessage: event.details?.description }
     }
   }
 

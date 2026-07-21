@@ -4,6 +4,7 @@ import { startPayment } from '../../payments/service'
 import { requireAuth } from '../../utils/auth'
 import { toMajor, toMinor } from '../../utils/money'
 import prisma from '../../utils/prisma'
+import { rateLimit, RateLimits } from '../../utils/ratelimit'
 import { getSetting } from '../../utils/settings'
 import { validateBody } from '../../utils/validate'
 
@@ -29,6 +30,10 @@ const bodySchema = z.object({
 
 export default defineEventHandler(async (event) => {
   const session = requireAuth(event)
+  // Each call hits a paid provider API and creates a PaymentIntent — cap it
+  // so a runaway client can't generate thousands of abandoned intents.
+  rateLimit(event, { ...RateLimits.payment, identity: session.id })
+
   const { amount, paymentMethodId, returnUrl } = await validateBody(event, bodySchema)
 
   const minAmount = await getSetting<number>('finance.topup-min', 5)

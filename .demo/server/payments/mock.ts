@@ -133,6 +133,9 @@ export function createMockProvider(): PaymentProvider {
         providerIntentId: event.providerIntentId,
         providerRefundId: event.providerRefundId,
         providerMethodId: event.providerMethodId,
+        // Mirrors GoCardless: a mandate activates under a new id, and this
+        // carries the setup-time id so the local row still resolves.
+        setupReferenceId: event.setupReferenceId,
         providerPayoutId: event.providerPayoutId,
         amount: event.amount,
         currency: event.currency ?? 'GBP',

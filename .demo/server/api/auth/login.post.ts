@@ -1,8 +1,10 @@
 import bcrypt from 'bcryptjs'
 import { createError, defineEventHandler } from 'h3'
 import { z } from 'zod'
+import { recordAudit } from '../../utils/audit'
 import { issueAuthToken, setAuthCookie } from '../../utils/auth'
 import prisma from '../../utils/prisma'
+import { clientIp, rateLimit, RateLimits } from '../../utils/ratelimit'
 import { validateBody } from '../../utils/validate'
 
 /**
@@ -18,11 +20,27 @@ const bodySchema = z.object({
 })
 
 export default defineEventHandler(async (event) => {
+  // Per-IP budget first: this must apply even to malformed bodies, or the
+  // validation step becomes a free oracle for hammering the endpoint.
+  rateLimit(event, RateLimits.login)
+
   const { email, password } = await validateBody(event, bodySchema)
+
+  // Second budget keyed on the email being tried, so distributing an attack
+  // across many IPs still cannot brute-force a single account.
+  rateLimit(event, { ...RateLimits.login, bucket: 'auth:login:email', identity: email })
 
   const user = await prisma.user.findUnique({ where: { email } })
   const passwordValid = user ? await bcrypt.compare(password, user.password) : false
   if (!user || !passwordValid) {
+    // Failed attempts are an audit trail: this is the signal that shows a
+    // credential-stuffing run in progress.
+    await recordAudit(event, { id: user?.id ?? 'anonymous', email }, {
+      action: 'auth.login.failed',
+      targetType: 'User',
+      targetId: user?.id,
+      metadata: { reason: user ? 'bad_password' : 'unknown_email', ip: clientIp(event) },
+    })
     throw createError({ statusCode: 401, message: 'Invalid email or password' })
   }
 

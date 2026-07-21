@@ -2,6 +2,7 @@ import bcrypt from 'bcryptjs'
 import { createError, defineEventHandler } from 'h3'
 import { z } from 'zod'
 import prisma from '../../utils/prisma'
+import { rateLimit, RateLimits } from '../../utils/ratelimit'
 import { validateBody } from '../../utils/validate'
 
 /**
@@ -22,6 +23,9 @@ const bodySchema = z
   .refine(data => data.firstName || data.name, { message: 'A name is required', path: ['firstName'] })
 
 export default defineEventHandler(async (event) => {
+  // Caps automated account creation from one source.
+  rateLimit(event, RateLimits.signup)
+
   const body = await validateBody(event, bodySchema)
 
   // Normalize the two accepted name shapes into schema fields.

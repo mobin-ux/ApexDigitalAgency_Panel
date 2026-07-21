@@ -109,15 +109,17 @@ export function issueAuthToken(event: H3Event, user: { id: string, email: string
 
 /**
  * One place for cookie attributes so login/signup/logout can't drift.
- * `httpOnly` stays false for now: the client route middleware
- * (app/middleware/auth.ts) reads the cookie via `useCookie` as its
- * fast-path check and would break on client-side navigation. Flipping
- * it (and reworking that middleware to rely on fetchUser alone) is a
- * tracked production-hardening follow-up.
+ *
+ * `httpOnly: true` — the token is unreadable from JavaScript, so an XSS
+ * payload cannot exfiltrate a session. This required reworking the client
+ * route guards (app/middleware/{auth,admin}.ts), which previously read the
+ * cookie via `useCookie` as a fast path; they now rely on `fetchUser()`,
+ * whose answer is server-verified anyway. The old fast path was never a
+ * security control — a forged cookie value passed it just as easily.
  */
 export function setAuthCookie(event: H3Event, token: string): void {
   setCookie(event, AUTH_COOKIE, token, {
-    httpOnly: false,
+    httpOnly: true,
     secure: !import.meta.dev,
     sameSite: 'lax',
     maxAge: TOKEN_TTL_SECONDS,

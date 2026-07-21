@@ -1,19 +1,15 @@
 /**
- * Route guard for /admin/** pages. Same flow as the `auth` middleware
- * (cookie fast-path, then a server-verified fetchUser) plus a role gate:
- * non-admin accounts are sent to their customer dashboard, never to a
- * 403 page — the admin panel simply doesn't exist for them.
+ * Route guard for /admin/** pages: authentication plus a role gate.
+ * Non-admin accounts are sent to their customer dashboard rather than a
+ * 403 — the admin panel simply doesn't exist for them.
  *
- * The client-side role check is UX only; every /api/admin/** endpoint
- * re-verifies the role server-side (DB-fresh) via requireAdmin.
+ * The session cookie is httpOnly, so authentication is resolved through
+ * `fetchUser()` (server-verified). The role check here is UX only; every
+ * /api/admin/** endpoint re-verifies the role server-side against the
+ * database via `requireAdmin`, so a tampered client cannot gain anything.
  */
 export default defineNuxtRouteMiddleware(async () => {
   const { user, fetchUser } = useUser()
-
-  const token = useCookie('auth_token')
-  if (!token.value) {
-    return navigateTo('/auth/login-1')
-  }
 
   if (!user.value) {
     await fetchUser()

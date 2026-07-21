@@ -143,6 +143,13 @@ export interface NormalisedEvent {
   providerRefundId?: string
   providerMethodId?: string
   providerPayoutId?: string
+  /**
+   * The id we stored when the flow STARTED, when the provider issues a
+   * different one on completion. GoCardless does exactly this: setup begins
+   * against a billing-request id and the activated mandate has its own id,
+   * so without this the confirmation webhook matches nothing.
+   */
+  setupReferenceId?: string
   amount?: number
   currency?: string
   feeAmount?: number
