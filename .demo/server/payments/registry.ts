@@ -1,3 +1,4 @@
+import type { Capability, PaymentProvider, ProviderName } from './types'
 import process from 'node:process'
 import { useRuntimeConfig } from '#imports'
 import { createLogger } from '../utils/logger'
@@ -7,7 +8,7 @@ import { createMockProvider } from './mock'
 import { createPayPalProvider } from './paypal'
 import { createStripeProvider } from './stripe'
 import { createTrueLayerProvider } from './truelayer'
-import { type Capability, type PaymentProvider, PaymentProviderError, type ProviderName } from './types'
+import { PaymentProviderError } from './types'
 
 /**
  * Provider resolution (ADR-015 §4).
@@ -55,10 +56,19 @@ function build(name: ProviderName): PaymentProvider | null {
     case 'stripe': {
       const secretKey = payments.stripe?.secretKey || process.env.NUXT_PAYMENTS_STRIPE_SECRET_KEY
       const webhookSecret = payments.stripe?.webhookSecret || process.env.NUXT_PAYMENTS_STRIPE_WEBHOOK_SECRET
-      if (!secretKey || !webhookSecret) {
+      // The API key alone is enough to CHARGE. The webhook secret is only
+      // needed to VERIFY callbacks, so a missing one must not silently
+      // demote the whole rail to mock — that would look like the
+      // integration failing. verifyWebhook throws its own clear error, and
+      // plugins/startup-checks.ts still fails production closed on the
+      // incomplete pair.
+      if (!secretKey) {
         return null
       }
-      return createStripeProvider({ secretKey, webhookSecret })
+      if (!webhookSecret) {
+        log.warn('Stripe is configured without a webhook secret — charges will work, but confirmations cannot be verified. Set NUXT_PAYMENTS_STRIPE_WEBHOOK_SECRET.')
+      }
+      return createStripeProvider({ secretKey, webhookSecret: webhookSecret ?? '' })
     }
     case 'gocardless': {
       const accessToken = payments.gocardless?.accessToken || process.env.NUXT_PAYMENTS_GOCARDLESS_ACCESS_TOKEN

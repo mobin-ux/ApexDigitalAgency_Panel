@@ -1,3 +1,4 @@
+import { Buffer } from 'node:buffer'
 import { createHmac, timingSafeEqual } from 'node:crypto'
 import { createLogger } from '../utils/logger'
 import { providerFetch } from './client'

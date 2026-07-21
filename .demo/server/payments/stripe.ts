@@ -1,16 +1,12 @@
+import type { ChargeResult, CreateChargeInput, IntentStatus, NormalisedEvent, PaymentProvider, ProviderBalance, RefundInput, RefundResult } from './types'
+import { Buffer } from 'node:buffer'
 import { createHmac, timingSafeEqual } from 'node:crypto'
 import { createLogger } from '../utils/logger'
 import { formEncode, providerFetch } from './client'
 import {
-  type ChargeResult,
-  type CreateChargeInput,
-  type IntentStatus,
-  type NormalisedEvent,
-  type PaymentProvider,
+
   PaymentProviderError,
-  type ProviderBalance,
-  type RefundInput,
-  type RefundResult,
+
   WebhookSignatureError,
 } from './types'
 
@@ -184,6 +180,15 @@ export function createStripeProvider(config: { secretKey: string, webhookSecret:
     },
 
     async verifyWebhook(rawBody: string, headers): Promise<NormalisedEvent> {
+      // Refuse rather than skip verification: an unverified webhook is an
+      // unauthenticated write to financial state.
+      if (!config.webhookSecret) {
+        throw new WebhookSignatureError(
+          'stripe',
+          'No Stripe webhook secret configured — cannot verify this callback. Set NUXT_PAYMENTS_STRIPE_WEBHOOK_SECRET.',
+        )
+      }
+
       const header = headers['stripe-signature']
       if (!header) {
         throw new WebhookSignatureError('stripe', 'Missing Stripe-Signature header')
