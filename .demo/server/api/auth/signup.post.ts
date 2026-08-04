@@ -4,7 +4,6 @@ import { z } from 'zod'
 import { issueAuthToken, setAuthCookie } from '../../utils/auth'
 import { identifierWhere, parseIdentifier } from '../../utils/identifier'
 import prisma from '../../utils/prisma'
-import { rateLimit, RateLimits } from '../../utils/ratelimit'
 import { validateBody } from '../../utils/validate'
 
 /**
@@ -34,9 +33,7 @@ const bodySchema = z
   })
 
 export default defineEventHandler(async (event) => {
-  // Caps automated account creation from one source.
-  rateLimit(event, RateLimits.signup)
-
+  // No rate limit on registration — new users can sign up immediately.
   const body = await validateBody(event, bodySchema)
 
   const parsed = parseIdentifier(body.identifier ?? body.email ?? '')
