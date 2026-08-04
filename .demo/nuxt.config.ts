@@ -58,6 +58,13 @@ export default defineNuxtConfig({
     '@nuxt/content',
     '@nuxt/fonts',
   ],
+  // --- Production build tuning (VPS deploy) ---
+  // @shuriken-ui/nuxt pulls in nuxt-component-meta, which prerenders metadata for
+  // its ENTIRE component library at build time — minutes of CPU and >1.5GB RAM that
+  // the running app never uses. Exclude every component so extraction is a no-op.
+  componentMeta: {
+    exclude: [/.*/],
+  },
   content: {
     build: {
       markdown: {
@@ -110,6 +117,15 @@ export default defineNuxtConfig({
   fonts: {
     experimental: {
       processCSSVariables: true,
+    },
+    // Fonts are self-hosted (Yellix .woff + Inter). Disable the remote providers so
+    // @nuxt/fonts doesn't stall the build reaching Google/Bunny CDNs (10s timeouts
+    // each; this box has no working IPv6 route to them).
+    providers: {
+      google: false,
+      googleicons: false,
+      bunny: false,
+      adobe: false,
     },
   },
 
@@ -247,6 +263,34 @@ export default defineNuxtConfig({
       options: {
         target: 'esnext',
       },
+    },
+    // No route needs static prerendering: this is a fully dynamic, authenticated
+    // dashboard. The `/` redirect and every SWR rule are handled at runtime. Booting
+    // a second in-process Nitro server to prerender the @nuxt/content SQL dump OOMs a
+    // small VPS, so we switch it off entirely.
+    prerender: {
+      crawlLinks: false,
+      routes: [],
+    },
+  },
+
+  hooks: {
+    // This is a fully dynamic, authenticated dashboard: nothing needs static
+    // prerendering. Some module still queues prerender routes, and merely booting
+    // the prerender server loads this heavyweight template's whole dependency graph
+    // (mapbox-gl, apexcharts, zxcvbn packs…), which OOMs a small VPS. Neutralise it
+    // both statically (build:before) and dynamically (prerender:routes fires right
+    // before any route is rendered, so clearing there prevents the render pass).
+    'nitro:build:before': (nitro) => {
+      nitro.options.prerender ||= {}
+      nitro.options.prerender.routes = []
+      nitro.options.prerender.crawlLinks = false
+      // Modules add prerender routes via the dynamic `prerender:routes` hook,
+      // which fires just before any route is rendered — clear them there so the
+      // render pass does nothing (the render, not the boot, is the memory cost).
+      nitro.hooks.hook('prerender:routes', (routes) => {
+        routes?.clear?.()
+      })
     },
   },
 
