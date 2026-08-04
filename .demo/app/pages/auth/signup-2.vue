@@ -19,11 +19,22 @@ definePageMeta({
 })
 
 const VALIDATION_TEXT = {
-  EMAIL_REQUIRED: 'A valid email is required',
+  IDENTIFIER_REQUIRED: 'An email address or phone number is required',
+  IDENTIFIER_INVALID: 'Enter a valid email address or phone number',
   PASSWORD_LENGTH: 'Password must be at least 8 characters',
-  PASSWORD_CONTAINS_EMAIL: 'Password cannot contain your email',
   PASSWORD_MATCH: 'Passwords do not match',
   TERMS_REQUIRED: 'You must agree to the terms and conditions',
+}
+
+// Client-side mirror of the server's parseIdentifier heuristic (utils/identifier):
+// an `@` means email, otherwise 7–15 digits means phone. The server re-validates.
+function looksLikeIdentifier(value: string): boolean {
+  const v = value.trim()
+  if (v.includes('@')) {
+    return /^[^\s@]+@[^\s@][^\s.@]*\.[^\s@]+$/.test(v)
+  }
+  const digits = v.replace(/\D/g, '')
+  return digits.length >= 7 && digits.length <= 15
 }
 
 const passwordRef = ref<InstanceType<typeof AddonInputPassword>>()
@@ -32,7 +43,10 @@ const passwordRef = ref<InstanceType<typeof AddonInputPassword>>()
 // It's used to define the shape that the form data will have
 const zodSchema = z
   .object({
-    email: z.string().email(VALIDATION_TEXT.EMAIL_REQUIRED),
+    identifier: z
+      .string()
+      .min(1, VALIDATION_TEXT.IDENTIFIER_REQUIRED)
+      .refine(looksLikeIdentifier, VALIDATION_TEXT.IDENTIFIER_INVALID),
     password: z.string().min(8, VALIDATION_TEXT.PASSWORD_LENGTH),
     confirmPassword: z.string(),
     terms: z.boolean(),
@@ -69,7 +83,7 @@ type FormInput = z.infer<typeof zodSchema>
 
 const validationSchema = toTypedSchema(zodSchema)
 const initialValues = {
-  email: '',
+  identifier: '',
   password: '',
   confirmPassword: '',
   terms: false,
@@ -80,28 +94,39 @@ const { values, handleSubmit, isSubmitting } = useForm({
   initialValues,
 })
 
+const { fetchUser } = useUser()
 const router = useRouter()
 const toaster = useNuiToasts()
 
-// This is where you would send the form data to the server
-const onSubmit = handleSubmit(async (_values) => {
-  // here you have access to the validated form values
-  // console.log('auth-success', values)
-
+// Register the account, then (signup sets the session cookie) sign in and
+// go straight to the dashboard.
+const onSubmit = handleSubmit(async (formValues) => {
   try {
-    // fake delay, this will make isSubmitting value to be true
-    await new Promise(resolve => setTimeout(resolve, 4000))
+    await $fetch('/api/auth/signup', {
+      method: 'POST',
+      body: {
+        identifier: formValues.identifier,
+        password: formValues.password,
+      },
+    })
 
     toaster.add({
-      title: 'Success',
-      description: `Account created!`,
+      title: 'Welcome to Apex',
+      description: 'Your account has been created.',
       icon: 'ph:user-circle-fill',
       progress: true,
     })
-    router.push('/layouts/onboarding-1')
+
+    await fetchUser({ force: true })
+    await router.push('/dashboards/balance')
   }
-  catch {
-    // handle error
+  catch (error: any) {
+    toaster.add({
+      title: 'Sign up failed',
+      description: error.data?.message || 'Something went wrong. Please try again.',
+      icon: 'ph:warning-circle-fill',
+      progress: true,
+    })
   }
 })
 </script>
@@ -140,21 +165,21 @@ const onSubmit = handleSubmit(async (_values) => {
                 size="3xl"
                 weight="medium"
               >
-                Welcome to Tairo
+                Create your account
               </BaseHeading>
               <BaseParagraph size="sm" class="text-muted-400 mb-6">
-                Let's start by creating you account
+                Sign up with your email or mobile number
               </BaseParagraph>
             </div>
             <div class="px-8 py-4">
               <div class="mb-4 space-y-4">
                 <Field
                   v-slot="{ field, errorMessage, handleChange, handleBlur }"
-                  name="email"
+                  name="identifier"
                 >
                   <BaseField
                     v-slot="{ inputAttrs, inputRef }"
-                    label="Email address"
+                    label="Email or phone number"
                     :state="errorMessage ? 'error' : 'idle'"
                     :error="errorMessage"
                     :disabled="isSubmitting"
@@ -164,9 +189,9 @@ const onSubmit = handleSubmit(async (_values) => {
                       :ref="inputRef"
                       v-bind="inputAttrs"
                       :model-value="field.value"
-                      type="email"
-                      placeholder="ex: maya@cssninja.io"
-                      autocomplete="email"
+                      type="text"
+                      placeholder="you@example.com or 07911 123456"
+                      autocomplete="username"
                       @update:model-value="handleChange"
                       @blur="handleBlur"
                     />
@@ -190,7 +215,7 @@ const onSubmit = handleSubmit(async (_values) => {
                       v-bind="inputAttrs"
                       :model-value="field.value"
                       :error="errorMessage"
-                      :user-inputs="[values.email ?? '']"
+                      :user-inputs="[values.identifier ?? '']"
                       placeholder="••••••••••"
                       autocomplete="new-password"
                       class="rounded-s-none ring-0!"
@@ -262,48 +287,14 @@ const onSubmit = handleSubmit(async (_values) => {
                   Sign Up
                 </BaseButton>
               </div>
-              <div class="mb-6 grid gap-0 sm:grid-cols-3">
-                <hr
-                  class="border-muted-200 dark:border-muted-700 mt-3 hidden border-t sm:block"
-                >
-                <span
-                  class="bg-muted-100 dark:bg-muted-900 text-muted-400 relative top-0.5 text-center font-sans text-sm"
-                >
-                  Or continue with
-                </span>
-                <hr
-                  class="border-muted-200 dark:border-muted-700 mt-3 hidden border-t sm:block"
-                >
-              </div>
-              <!-- Social signup -->
-              <div class="grid grid-cols-3 gap-2">
-                <button
-                  type="button"
-                  class="bg-muted-200 dark:bg-muted-700 dark:hover:bg-muted-600 text-muted-600 dark:text-muted-400 focus-visible:nui-focus relative inline-flex w-full items-center justify-center rounded-md cursor-pointer px-0 py-3 text-center text-sm font-semibold shadow-xs transition-all duration-300 hover:bg-white"
-                >
-                  <Icon name="fa6-brands:google" class="size-5" />
-                </button>
-                <button
-                  type="button"
-                  class="bg-muted-200 dark:bg-muted-700 dark:hover:bg-muted-600 text-muted-600 dark:text-muted-400 focus-visible:nui-focus relative inline-flex w-full items-center justify-center rounded-md cursor-pointer px-0 py-3 text-center text-sm font-semibold shadow-xs transition-all duration-300 hover:bg-white"
-                >
-                  <Icon name="fa6-brands:x-twitter" class="size-5" />
-                </button>
-                <button
-                  type="button"
-                  class="bg-muted-200 dark:bg-muted-700 dark:hover:bg-muted-600 text-muted-600 dark:text-muted-400 focus-visible:nui-focus relative inline-flex w-full items-center justify-center rounded-md cursor-pointer px-0 py-3 text-center text-sm font-semibold shadow-xs transition-all duration-300 hover:bg-white"
-                >
-                  <Icon name="fa6-brands:linkedin-in" class="size-5" />
-                </button>
-              </div>
 
-              <!-- No account link -->
+              <!-- Already have an account link -->
               <p
                 class="text-muted-400 mt-4 flex justify-between font-sans text-sm leading-5"
               >
                 <span>Already have an account?</span>
                 <NuxtLink
-                  to="/auth/login-2"
+                  to="/auth/login-1"
                   class="text-primary-600 hover:text-primary-500 font-medium underline-offset-4 transition duration-150 ease-in-out hover:underline"
                 >
                   Sign in

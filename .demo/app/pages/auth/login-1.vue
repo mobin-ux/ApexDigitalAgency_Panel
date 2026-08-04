@@ -1,76 +1,78 @@
 <script setup lang="ts">
-import { ref } from 'vue'
 import { toTypedSchema } from '@vee-validate/zod'
+import { Field, useForm } from 'vee-validate'
+import { ref } from 'vue'
 import { z } from 'zod'
-import { useForm, Field } from 'vee-validate'
 
-// 1. تنظیمات صفحه
+// Page settings
 definePageMeta({
   layout: 'empty',
   title: 'Login',
-  middleware: [] 
+  middleware: [],
 })
 
-// 2. ابزارها
+// Tools
 const { fetchUser } = useUser()
 const router = useRouter()
+const toaster = useNuiToasts()
 const errorMessage = ref('')
 
-// 3. اعتبارسنجی (Zod)
+// Validation — the identifier is an email OR a mobile number, so we only
+// require a non-empty value here; the server decides which it is.
 const validationSchema = toTypedSchema(
   z.object({
-    email: z.string().min(1, 'Email is required').email('Format is wrong'),
+    identifier: z.string().min(1, 'Email or phone is required'),
     password: z.string().min(1, 'Password is required'),
     trustDevice: z.boolean().optional(),
-  })
+  }),
 )
 
-// 4. فرم
 const { handleSubmit, isSubmitting } = useForm({
   validationSchema,
 })
 
-// 5. تابع هوشمند ارسال (با قابلیت شناسایی خطای فرم)
 const onSubmit = handleSubmit(
-  // الف) اگر فرم صحیح بود و همه چیز اوکی بود این اجرا می‌شود:
+  // Valid form → attempt login.
   async (values) => {
-    console.log('Form is valid, sending request...', values) // برای دیباگ
     errorMessage.value = ''
-    
+
     try {
       await $fetch('/api/auth/login', {
         method: 'POST',
         body: {
-          email: values.email,
-          password: values.password
-        }
+          identifier: values.identifier,
+          password: values.password,
+        },
       })
 
-      // دریافت یوزر و ریدایرکت
-      await fetchUser()
+      // Establish the session then go to the dashboard.
+      await fetchUser({ force: true })
       await router.push('/dashboards/balance')
-
-    } catch (error: any) {
-      console.error('API Error:', error)
-      errorMessage.value = error.data?.message || 'Login failed.'
-      alert(errorMessage.value) // نمایش خطا به صورت آلرت برای اطمینان
+    }
+    catch (error: any) {
+      errorMessage.value = error.data?.message || 'Login failed. Please try again.'
+      toaster.add({
+        title: 'Login failed',
+        description: errorMessage.value,
+        icon: 'ph:warning-circle-fill',
+        progress: true,
+      })
     }
   },
-  
-  // ب) اگر فرم نامعتبر بود (مثلا ایمیل غلط بود) این اجرا می‌شود:
+  // Invalid form → surface the first field error.
   ({ errors }) => {
-    console.log('Validation Errors:', errors)
-    // این خط به ما می‌گوید چرا دکمه کار نمی‌کند
     const firstError = Object.values(errors)[0]
-    alert('Form Error: ' + firstError)
-  }
+    if (firstError) {
+      errorMessage.value = String(firstError)
+    }
+  },
 )
 </script>
 
 <template>
   <div v-if="errorMessage" class="mb-4 rounded bg-red-100 p-3 text-sm text-red-600 dark:bg-red-900/30 dark:text-red-400">
-  {{ errorMessage }}
-</div>
+    {{ errorMessage }}
+  </div>
   <div class="dark:bg-muted-800 flex min-h-screen bg-white">
     <div
       class="bg-muted-100 dark:bg-muted-900 relative hidden w-0 flex-1 items-center justify-center lg:flex lg:w-3/5"
@@ -165,11 +167,11 @@ const onSubmit = handleSubmit(
               <div class="space-y-4">
                 <Field
                   v-slot="{ field, errorMessage, handleChange, handleBlur }"
-                  name="email"
+                  name="identifier"
                 >
                   <BaseField
                     v-slot="{ inputAttrs, inputRef }"
-                    label="Email address"
+                    label="Email or phone number"
                     :state="errorMessage ? 'error' : 'idle'"
                     :error="errorMessage"
                     :disabled="isSubmitting"
@@ -179,7 +181,8 @@ const onSubmit = handleSubmit(
                       :ref="inputRef"
                       v-bind="inputAttrs"
                       :model-value="field.value"
-                      autocomplete="email"
+                      autocomplete="username"
+                      placeholder="you@example.com or 07911 123456"
                       rounded="lg"
                       @update:model-value="handleChange"
                       @blur="handleBlur"
@@ -265,7 +268,7 @@ const onSubmit = handleSubmit(
                 to="/auth/signup-2"
                 class="text-primary-600 hover:text-primary-500 font-medium underline-offset-4 transition duration-150 ease-in-out hover:underline"
               >
-                start your 14-day free trial
+                Sign Up
               </NuxtLink>
             </p>
           </div>

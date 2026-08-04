@@ -16,10 +16,14 @@ import prisma from './prisma'
  * harder to spot than an explicit guard at the top of each handler.
  */
 
-/** Verified JWT payload — what `jwt.sign` receives at login/signup. */
+/**
+ * Verified JWT payload — what `jwt.sign` receives at login/signup.
+ * `id` is the identity and `role` drives authorization; `email` is
+ * informational and null for accounts that registered with a phone only.
+ */
 export interface AuthSession {
   id: string
-  email: string
+  email: string | null
   role: Role
 }
 
@@ -53,10 +57,10 @@ export function getAuthSession(event: H3Event): AuthSession | null {
       return null
     }
     const { id, email, role } = decoded as Record<string, unknown>
-    if (typeof id !== 'string' || typeof email !== 'string' || typeof role !== 'string') {
+    if (typeof id !== 'string' || typeof role !== 'string') {
       return null
     }
-    return { id, email, role: role as Role }
+    return { id, email: typeof email === 'string' ? email : null, role: role as Role }
   }
   catch {
     return null
@@ -99,7 +103,7 @@ export function requireAdmin(event: H3Event): Promise<AuthSession> {
 }
 
 /** Sign a session token. Payload shape must stay in sync with AuthSession. */
-export function issueAuthToken(event: H3Event, user: { id: string, email: string, role: Role }): string {
+export function issueAuthToken(event: H3Event, user: { id: string, email: string | null, role: Role }): string {
   return jwt.sign(
     { id: user.id, email: user.email, role: user.role },
     jwtSecret(event),

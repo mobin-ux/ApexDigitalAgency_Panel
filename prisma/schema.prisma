@@ -36,13 +36,16 @@ enum MilestoneStatus {
 
 model User {
   id            String    @id @default(uuid())
-  email         String    @unique
+  // Either email or phone is the login identifier; a customer may sign up with
+  // just one, so both are nullable but unique. (SQLite treats NULLs as distinct,
+  // so many phone-only or email-only accounts coexist without collision.)
+  email         String?   @unique
   password      String
-  
+
   // --- Personal Info ---
   firstName     String?
   lastName      String?
-  phone         String?
+  phone         String?   @unique
   role          Role      @default(CUSTOMER)
   avatar        String?
   coverImage    String?
