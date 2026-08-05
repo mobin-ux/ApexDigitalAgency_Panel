@@ -20,6 +20,25 @@ const { data, refresh } = await useFetch(`/api/admin/projects/${projectId}`)
 
 const project = computed(() => data.value?.project ?? null)
 const staff = computed(() => data.value?.staff ?? [])
+const contract = computed<any>(() => project.value?.contract ?? null)
+
+// Client brief captured by the New Order wizard — stored as a JSON array of
+// { label, value } pairs (see /api/orders). Parse defensively.
+const brief = computed<{ label: string, value: string }[]>(() => {
+  const raw = project.value?.brief
+  if (!raw)
+    return []
+  try {
+    const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw
+    return Array.isArray(parsed) ? parsed.filter((x: any) => x?.label && x?.value) : []
+  }
+  catch {
+    return []
+  }
+})
+
+const signature = computed<string | null>(() => contract.value?.signature ?? project.value?.signature ?? null)
+const signatureIsImage = computed(() => typeof signature.value === 'string' && signature.value.startsWith('data:image'))
 
 function shortRef(id: string) {
   return `APX-${id.replaceAll('-', '').slice(0, 8).toUpperCase()}`
@@ -277,6 +296,26 @@ const labelClass = 'mb-2 block text-[12.5px] font-semibold text-white'
             </form>
           </section>
 
+          <!-- client brief -->
+          <section class="rounded-[20px] border border-white/10 bg-muted-800 p-6" aria-label="Client brief">
+            <h2 class="mb-5 flex items-center gap-2.5 font-heading text-[15px] font-bold uppercase tracking-[0.04em] text-muted-500">
+              <span class="h-[18px] w-1.5 rounded-full bg-[#6EA8FE]" />Client brief
+            </h2>
+            <dl v-if="brief.length" class="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
+              <div v-for="item in brief" :key="item.label" class="min-w-0">
+                <dt class="text-[12px] font-semibold uppercase tracking-[0.03em] text-muted-500">
+                  {{ item.label }}
+                </dt>
+                <dd class="mt-1 break-words text-[13.5px] leading-[1.5] text-white">
+                  {{ item.value }}
+                </dd>
+              </div>
+            </dl>
+            <p v-else class="text-[13px] text-muted-500">
+              No brief was captured for this project. Orders placed through the New Order wizard include the client's requirements here.
+            </p>
+          </section>
+
           <!-- milestones -->
           <section class="rounded-[20px] border border-white/10 bg-muted-800 p-6" aria-label="Milestones">
             <h2 class="mb-5 flex items-center gap-2.5 font-heading text-[15px] font-bold uppercase tracking-[0.04em] text-muted-500">
@@ -394,6 +433,49 @@ const labelClass = 'mb-2 block text-[12.5px] font-semibold text-white'
             </div>
             <p v-else class="text-[13px] text-muted-500">
               Unassigned — pick a manager in the details form.
+            </p>
+          </section>
+
+          <!-- contract & signature -->
+          <section class="rounded-[20px] border border-white/10 bg-muted-800 p-6" aria-label="Contract and signature">
+            <h2 class="mb-4 flex items-center gap-2.5 font-heading text-[15px] font-bold uppercase tracking-[0.04em] text-muted-500">
+              <span class="h-[18px] w-1.5 rounded-full bg-[#22B07D]" />Contract &amp; signature
+            </h2>
+            <template v-if="contract">
+              <div class="mb-3 flex items-center gap-2.5">
+                <span class="font-mono text-[13px] font-bold text-primary-300">{{ contract.reference }}</span>
+                <AdminStatusChip :status="contract.status" />
+              </div>
+            </template>
+
+            <div v-if="signature" class="rounded-[12px] border border-white/10 bg-white p-3.5">
+              <img v-if="signatureIsImage" :src="signature" alt="Customer signature" class="mx-auto max-h-24 w-auto">
+              <div v-else class="py-3 text-center font-[cursive] text-[22px] text-muted-950">
+                {{ signature }}
+              </div>
+            </div>
+            <div v-else class="rounded-[12px] border border-dashed border-white/15 bg-white/[0.02] p-5 text-center text-[13px] text-muted-500">
+              No signature captured
+            </div>
+
+            <div class="mt-3 flex flex-col gap-1.5 text-[12.5px] text-muted-500">
+              <div v-if="contract?.signerName" class="flex items-center gap-2">
+                <Icon name="lucide:pen-line" class="size-3.5" />Signed by <span class="font-semibold text-white">{{ contract.signerName }}</span>
+              </div>
+              <div v-if="contract?.signedAt" class="flex items-center gap-2">
+                <Icon name="lucide:calendar-check" class="size-3.5" />{{ fmtDate(contract.signedAt) }}
+              </div>
+            </div>
+
+            <NuxtLink
+              v-if="contract"
+              :to="`/admin/contracts/${contract.id}`"
+              class="mt-4 inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-primary-300 transition hover:text-primary-200"
+            >
+              View full contract &amp; legal record <Icon name="lucide:arrow-right" class="size-3.5" />
+            </NuxtLink>
+            <p v-else class="mt-1 text-[12.5px] text-muted-500">
+              No financing contract — this project was created without a financed amount.
             </p>
           </section>
 

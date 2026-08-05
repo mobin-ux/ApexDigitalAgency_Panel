@@ -25,6 +25,23 @@ export default defineEventHandler(async (event) => {
       manager: { select: { id: true, email: true, firstName: true, lastName: true, avatar: true } },
       milestones: { orderBy: { date: 'asc' } },
       files: { orderBy: { createdAt: 'desc' } },
+      // The signed financing agreement (legal record + e-signature) so the
+      // project detail can surface it and deep-link to the full dossier.
+      contract: {
+        select: {
+          id: true,
+          reference: true,
+          status: true,
+          signature: true,
+          signatureType: true,
+          signerName: true,
+          signedIp: true,
+          signedUserAgent: true,
+          documentVersion: true,
+          documentHash: true,
+          signedAt: true,
+        },
+      },
     },
   })
 

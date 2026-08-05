@@ -160,6 +160,12 @@ model Project {
   // Financing term the customer chose (12 = 0%, 24 = 1%/mo — ADR-011).
   termMonths  Int?
 
+  // Client brief captured by the New Order wizard: the service-specific detail
+  // questions (current website, pages needed, tech preference, target launch,
+  // notes, …) as a JSON array of { label, value } pairs so the admin panel can
+  // render them without coupling to the wizard's field schema.
+  brief       String?
+
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 
@@ -324,6 +330,26 @@ model Contract {
   // E-signature: a drawn PNG data-URL or the typed legal name, captured at signing.
   signature      String?
   signedAt       DateTime @default(now())
+
+  // --- Electronic-signature legal record (UK: Electronic Communications Act
+  // 2000, eIDAS). Together these fields make the agreement admissible evidence
+  // of the customer's intent to be bound. Written once, at signing; immutable. ---
+  // How the signature was captured: "drawn" (canvas) | "typed".
+  signatureType   String?
+  // The signatory's printed full legal name (always captured, even when drawn).
+  signerName      String?
+  // Identifier snapshot at signing (the account may change later).
+  signerEmail     String?
+  signerPhone     String?
+  // Attribution evidence: where and with what the signature was made.
+  signedIp        String?
+  signedUserAgent String?
+  // The exact agreement the customer saw and agreed to, plus a tamper-evident
+  // hash of it. `documentVersion` pins the clause set; `documentHash` is the
+  // SHA-256 of `agreementText` so any later alteration is detectable.
+  documentVersion String?
+  documentHash    String?
+  agreementText   String?
 
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt

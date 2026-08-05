@@ -1,5 +1,6 @@
-import { createError, defineEventHandler } from 'h3'
+import { createError, defineEventHandler, getRequestHeader, getRequestIP } from 'h3'
 import { z } from 'zod'
+import { AGREEMENT_VERSION, buildAgreementText, hashAgreement } from '../../utils/agreement'
 import { recordAudit } from '../../utils/audit'
 import { requireAuth } from '../../utils/auth'
 import { nextContractReference } from '../../utils/contracts'
@@ -31,11 +32,20 @@ const bodySchema = z.object({
   termMonths: z.union([z.literal(12), z.literal(24)]).default(12),
   // Drawn signature (data-URL PNG, ~10-100KB) or typed full name.
   signature: z.string().max(300_000).optional(),
+  // How the signature was captured, and the signatory's printed legal name.
+  signatureType: z.enum(['drawn', 'typed']).optional(),
+  signerName: z.string().trim().min(2).max(120).optional(),
+  // Client brief: the wizard's service-specific detail answers, already
+  // resolved to human labels so the admin panel can render them generically.
+  brief: z.array(z.object({
+    label: z.string().trim().min(1).max(120),
+    value: z.string().trim().min(1).max(2000),
+  })).max(40).optional(),
 })
 
 export default defineEventHandler(async (event) => {
   const session = requireAuth(event)
-  const { title, category, budget, termMonths, signature } = await validateBody(event, bodySchema)
+  const { title, category, budget, termMonths, signature, signatureType, signerName, brief } = await validateBody(event, bodySchema)
 
   if (termMonths === 24) {
     const enabled = await getSetting('finance.enable-24mo-plans', true)
@@ -61,9 +71,26 @@ export default defineEventHandler(async (event) => {
 
   const firstDueDays = await getSetting('finance.first-installment-days', 30)
   const financing = planFor(budget, termMonths)
-  const nextDue = new Date(Date.now() + firstDueDays * 24 * 60 * 60 * 1000)
+  const signedAt = new Date()
+  const nextDue = new Date(signedAt.getTime() + firstDueDays * 24 * 60 * 60 * 1000)
   const monthly = Math.round(financing.monthlyAmount * 100) / 100
   const totalRepayable = Math.round(financing.totalAmount * 100) / 100
+  const briefJson = brief && brief.length > 0 ? JSON.stringify(brief) : null
+
+  // --- Electronic-signature evidence (see utils/agreement.ts for the legal
+  // rationale). Captured server-side so it can't be spoofed by the client. ---
+  const signedIp = getRequestIP(event, { xForwardedFor: true }) ?? null
+  const signedUserAgent = (getRequestHeader(event, 'user-agent') ?? '').slice(0, 400) || null
+  const signer = await prisma.user.findUnique({
+    where: { id: session.id },
+    select: { email: true, phone: true, firstName: true, lastName: true },
+  })
+  const signerContact = signer?.email || signer?.phone || '—'
+  const accountName = [signer?.firstName, signer?.lastName].filter(Boolean).join(' ').trim()
+  // Printed legal name: the value the customer typed, else their account name.
+  const printedName = (signerName || accountName || signerContact).slice(0, 120)
+  const agencyName = await getSetting('general.site-name', 'Apex Digital Agency')
+  const vatRate = await getSetting('business.vat-rate', 20)
 
   // Project + installment plan + contract commit together (or not at all).
   const { project, contract } = await prisma.$transaction(async (tx) => {
@@ -79,7 +106,8 @@ export default defineEventHandler(async (event) => {
         userId: session.id,
         termMonths,
         signature: signature ?? null,
-        signedAt: signature ? new Date() : null,
+        signedAt: signature ? signedAt : null,
+        brief: briefJson,
         milestones: {
           create: [
             { title: 'Order Review', status: 'PENDING' },
@@ -114,6 +142,24 @@ export default defineEventHandler(async (event) => {
     let contractRow = null
     if (financed) {
       const reference = await nextContractReference(tx)
+      // Build the exact agreed text with the real reference, then hash it —
+      // the immutable, tamper-evident legal record of what was signed.
+      const agreementText = buildAgreementText({
+        agencyName,
+        vatRate,
+        reference,
+        serviceName: category,
+        planName: title,
+        amount: budget,
+        termMonths,
+        interestRate: financing.interestRate,
+        monthlyAmount: monthly,
+        totalRepayable,
+        firstDueDays,
+        signerName: printedName,
+        signerContact,
+        signedAt,
+      })
       contractRow = await tx.contract.create({
         data: {
           reference,
@@ -124,7 +170,17 @@ export default defineEventHandler(async (event) => {
           monthlyAmount: monthly,
           totalRepayable,
           signature: signature ?? null,
-          signedAt: signature ? new Date() : new Date(),
+          signedAt,
+          // --- Electronic-signature legal record ---
+          signatureType: signatureType ?? (signature ? (signature.startsWith('data:image') ? 'drawn' : 'typed') : null),
+          signerName: printedName,
+          signerEmail: signer?.email ?? null,
+          signerPhone: signer?.phone ?? null,
+          signedIp,
+          signedUserAgent,
+          documentVersion: AGREEMENT_VERSION,
+          documentHash: hashAgreement(agreementText),
+          agreementText,
           userId: session.id,
           projectId: created.id,
         },

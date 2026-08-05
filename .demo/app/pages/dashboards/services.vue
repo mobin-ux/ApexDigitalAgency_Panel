@@ -79,12 +79,20 @@ watch(enable24mo, (on) => {
 }, { immediate: true })
 const form = reactive<Record<string, any>>({})
 const agreed = ref(false)
+// Electronic-signature consent (Electronic Communications Act 2000) — a
+// distinct, explicit act from agreeing to the service terms.
+const esignConsent = ref(false)
 const signName = ref('')
+// Printed full legal name — always captured as part of the signing evidence,
+// even when the customer draws their signature.
+const legalName = ref('')
 const hasDrawn = ref(false)
 const showErr = ref(false)
 const placing = ref(false)
 const orderId = ref('')
 const statusStarted = ref(false)
+
+const { user } = useUser()
 
 // Preselect service from ?service= (links from the home page).
 const QUERY_MAP: Record<string, string> = { web: 'web', development: 'web', dev: 'web', marketing: 'mkt', mkt: 'mkt', seo: 'mkt', uiux: 'uiux', design: 'uiux', branding: 'brand', brand: 'brand' }
@@ -92,6 +100,10 @@ onMounted(() => {
   const q = String(route.query.service || '').toLowerCase()
   if (QUERY_MAP[q])
     serviceId.value = QUERY_MAP[q]
+  // Pre-fill the printed legal name from the account (editable).
+  const accountName = [user.value?.firstName, user.value?.lastName].filter(Boolean).join(' ').trim()
+  if (accountName && !legalName.value)
+    legalName.value = accountName
 })
 
 // ---- pricing ------------------------------------------------------------
@@ -197,16 +209,77 @@ function clearSig() {
   hasDrawn.value = false
 }
 
-const canSign = computed(() => agreed.value && (hasDrawn.value || signName.value.trim().length > 1))
+/**
+ * Flatten the drawn signature to dark-ink-on-white PNG. The on-screen canvas
+ * draws white strokes on a transparent/dark background (for contrast in the
+ * dark wizard); exported as-is it is invisible on the light admin contract
+ * card. Here we recolour the strokes to ink and composite onto white "paper".
+ */
+function exportSignature(): string | undefined {
+  const c = sigCanvas.value
+  if (!c)
+    return undefined
+  const src = c.getContext('2d')!.getImageData(0, 0, c.width, c.height)
+  const d = src.data
+  for (let i = 0; i < d.length; i += 4) {
+    if (d[i + 3] > 0) {
+      d[i] = 20
+      d[i + 1] = 24
+      d[i + 2] = 33 // ink ≈ #141821
+    }
+  }
+  const ink = document.createElement('canvas')
+  ink.width = c.width
+  ink.height = c.height
+  ink.getContext('2d')!.putImageData(src, 0, 0)
+  const out = document.createElement('canvas')
+  out.width = c.width
+  out.height = c.height
+  const octx = out.getContext('2d')!
+  octx.fillStyle = '#ffffff'
+  octx.fillRect(0, 0, out.width, out.height)
+  octx.drawImage(ink, 0, 0)
+  return out.toDataURL('image/png')
+}
+
+// Collect the service-specific detail answers into label/value pairs the admin
+// panel can render generically (see /api/orders + admin project detail).
+function buildBrief(): { label: string, value: string }[] {
+  const out: { label: string, value: string }[] = []
+  for (const f of fields.value) {
+    if (f.key === 'title')
+      continue
+    const label = f.label.replace(/\s*\*$/, '')
+    if (f.type === 'checkboxes') {
+      const picked = (f.boxes ?? []).filter(b => form[b.key]).map(b => b.label)
+      if (picked.length)
+        out.push({ label, value: picked.join(', ') })
+      continue
+    }
+    // A select shows its first option by default even before interaction.
+    const raw = f.type === 'select' ? (form[f.key] ?? f.options?.[0]) : form[f.key]
+    const value = raw == null ? '' : String(raw).trim()
+    if (value)
+      out.push({ label, value })
+  }
+  return out
+}
+
+const canSign = computed(() =>
+  agreed.value
+  && esignConsent.value
+  && legalName.value.trim().length > 1
+  && (hasDrawn.value || signName.value.trim().length > 1))
 
 async function placeOrder() {
   if (!canSign.value || placing.value)
     return
   placing.value = true
   try {
-    // Signature: the drawn canvas as a PNG data-URL, else the typed legal name.
-    const signature = hasDrawn.value && sigCanvas.value
-      ? sigCanvas.value.toDataURL('image/png')
+    // Signature: the drawn canvas flattened to a PNG data-URL, else the typed name.
+    const drawn = hasDrawn.value
+    const signature = drawn
+      ? exportSignature()
       : (signName.value.trim() || undefined)
     const res: any = await $fetch('/api/orders', {
       method: 'POST',
@@ -216,6 +289,9 @@ async function placeOrder() {
         budget: base.value,
         termMonths: Number(term.value),
         signature,
+        signatureType: drawn ? 'drawn' : 'typed',
+        signerName: legalName.value.trim(),
+        brief: buildBrief(),
       },
     })
     const id = res?.project?.id
@@ -239,6 +315,7 @@ function resetFlow() {
   planId.value = null
   term.value = enable24mo.value ? '24' : '12'
   agreed.value = false
+  esignConsent.value = false
   signName.value = ''
   hasDrawn.value = false
   showErr.value = false
@@ -566,9 +643,22 @@ const radioBase = 'flex size-[22px] shrink-0 items-center justify-center rounded
             <p>The Client may cancel at no cost before work begins. Once started, completed milestones are payable. There are no early-repayment fees on instalments.</p>
           </div>
 
-          <label class="mt-5 flex cursor-pointer items-start gap-3">
+          <!-- Printed legal name — part of the signing evidence. -->
+          <div class="mt-5">
+            <label for="legal-name" class="mb-2 block text-xs font-semibold uppercase tracking-[0.04em] text-muted-500">Full legal name *</label>
+            <input
+              id="legal-name" v-model="legalName" autocomplete="name" placeholder="Your full legal name"
+              class="w-full rounded-xl border border-white/10 bg-white/5 px-3.5 py-3 text-sm text-white outline-none transition focus:border-primary-400"
+            >
+          </div>
+
+          <label class="mt-4 flex cursor-pointer items-start gap-3">
             <input v-model="agreed" type="checkbox" class="mt-0.5 size-[18px] shrink-0 accent-primary-500">
             <span class="text-sm leading-[1.5] text-muted-400">I have read and agree to the service agreement, the payment schedule, and Apex's <a href="#" class="text-primary-400 no-underline">terms of service</a>.</span>
+          </label>
+          <label class="mt-3 flex cursor-pointer items-start gap-3">
+            <input v-model="esignConsent" type="checkbox" class="mt-0.5 size-[18px] shrink-0 accent-primary-500">
+            <span class="text-sm leading-[1.5] text-muted-400">I consent to signing this agreement electronically and agree that my electronic signature is legally binding and has the same effect as a handwritten signature (Electronic Communications Act 2000).</span>
           </label>
 
           <div class="mt-5 grid items-end gap-5 sm:grid-cols-[1.3fr_1fr]">
@@ -593,6 +683,12 @@ const radioBase = 'flex size-[22px] shrink-0 items-center justify-center rounded
               </div>
             </div>
           </div>
+
+          <!-- Evidence notice — transparency about what is recorded as proof. -->
+          <p class="mt-4 flex items-start gap-2 rounded-[10px] border border-white/10 bg-white/[0.02] px-3.5 py-2.5 text-[12.5px] leading-[1.55] text-muted-500">
+            <Icon name="lucide:shield-check" class="mt-0.5 size-4 shrink-0 text-[#22B07D]" />
+            For your protection and ours, we record your name, the date and time, your IP address and device as tamper-evident proof that you signed this agreement.
+          </p>
 
           <div class="mt-6 flex flex-wrap items-center justify-between gap-4">
             <div class="flex items-center gap-2 text-[13px] text-muted-500">

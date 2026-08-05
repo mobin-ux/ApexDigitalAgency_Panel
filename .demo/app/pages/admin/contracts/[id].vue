@@ -27,6 +27,23 @@ function fmtDate(iso: string | Date | null) {
   return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
+// Full timestamp with time + UTC — the precise moment of signing is part of
+// the legal evidence, so show it to the second.
+function fmtDateTime(iso: string | Date | null) {
+  if (!iso)
+    return '—'
+  return `${new Date(iso).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: 'UTC' })} UTC`
+}
+
+const sigTypeLabel = computed(() => {
+  const t = contract.value?.signatureType
+  if (t === 'drawn')
+    return 'Hand-drawn signature'
+  if (t === 'typed')
+    return 'Typed signature'
+  return signatureIsImage.value ? 'Hand-drawn signature' : 'Typed signature'
+})
+
 function customerName(u: any) {
   if (!u)
     return '—'
@@ -166,6 +183,21 @@ const cardClass = 'rounded-[20px] border border-white/10 bg-muted-800 p-6'
             </div>
           </div>
 
+          <!-- Signed agreement document (the exact text the customer agreed to) -->
+          <div v-if="contract.agreementText" :class="cardClass">
+            <div class="mb-4 flex items-center justify-between gap-3">
+              <h2 class="text-[13px] font-bold uppercase tracking-[0.05em] text-muted-500">
+                Signed agreement
+              </h2>
+              <span v-if="contract.documentVersion" class="rounded-full bg-white/5 px-2.5 py-1 font-mono text-[11px] text-muted-400">{{ contract.documentVersion }}</span>
+            </div>
+            <pre class="max-h-[360px] overflow-y-auto whitespace-pre-wrap rounded-[12px] border border-white/10 bg-muted-900/60 p-4 font-mono text-[12px] leading-[1.6] text-muted-300">{{ contract.agreementText }}</pre>
+            <div v-if="contract.documentHash" class="mt-3 flex items-start gap-2 text-[11.5px] text-muted-500">
+              <Icon name="lucide:shield-check" class="mt-0.5 size-3.5 shrink-0 text-[#22B07D]" />
+              <span>SHA-256 integrity hash — any change to the text above would change this value.<br><span class="break-all font-mono text-muted-400">{{ contract.documentHash }}</span></span>
+            </div>
+          </div>
+
           <!-- Repayment plan -->
           <div v-if="plan" :class="cardClass">
             <h2 class="mb-4 text-[13px] font-bold uppercase tracking-[0.05em] text-muted-500">
@@ -258,7 +290,76 @@ const cardClass = 'rounded-[20px] border border-white/10 bg-muted-800 p-6'
               No signature captured
             </div>
             <p class="mt-3 text-[12px] text-muted-500">
-              Captured {{ fmtDate(contract.signedAt) }}. This agreement is legally binding under the Apex financing terms.
+              {{ sigTypeLabel }} · captured {{ fmtDateTime(contract.signedAt) }}.
+            </p>
+          </div>
+
+          <!-- Legal record / evidence -->
+          <div :class="cardClass">
+            <h2 class="mb-4 flex items-center gap-2 text-[13px] font-bold uppercase tracking-[0.05em] text-muted-500">
+              <Icon name="lucide:scale" class="size-4 text-primary-400" />Legal record
+            </h2>
+            <dl class="flex flex-col divide-y divide-white/5 text-[13px]">
+              <div class="flex items-start justify-between gap-4 py-2.5">
+                <dt class="shrink-0 text-muted-500">
+                  Signatory
+                </dt>
+                <dd class="text-right font-semibold text-white">
+                  {{ contract.signerName || customerName(contract.user) }}
+                </dd>
+              </div>
+              <div class="flex items-start justify-between gap-4 py-2.5">
+                <dt class="shrink-0 text-muted-500">
+                  Contact at signing
+                </dt>
+                <dd class="break-all text-right text-white">
+                  {{ contract.signerEmail || contract.signerPhone || '—' }}
+                </dd>
+              </div>
+              <div class="flex items-start justify-between gap-4 py-2.5">
+                <dt class="shrink-0 text-muted-500">
+                  Method
+                </dt>
+                <dd class="text-right text-white">
+                  {{ sigTypeLabel }}
+                </dd>
+              </div>
+              <div class="flex items-start justify-between gap-4 py-2.5">
+                <dt class="shrink-0 text-muted-500">
+                  Signed at
+                </dt>
+                <dd class="text-right text-white">
+                  {{ fmtDateTime(contract.signedAt) }}
+                </dd>
+              </div>
+              <div class="flex items-start justify-between gap-4 py-2.5">
+                <dt class="shrink-0 text-muted-500">
+                  IP address
+                </dt>
+                <dd class="break-all text-right font-mono text-[12px] text-white">
+                  {{ contract.signedIp || '—' }}
+                </dd>
+              </div>
+              <div class="flex items-start justify-between gap-4 py-2.5">
+                <dt class="shrink-0 text-muted-500">
+                  Device
+                </dt>
+                <dd class="break-all text-right text-[11.5px] text-muted-300">
+                  {{ contract.signedUserAgent || '—' }}
+                </dd>
+              </div>
+              <div v-if="contract.documentVersion" class="flex items-start justify-between gap-4 py-2.5">
+                <dt class="shrink-0 text-muted-500">
+                  Terms version
+                </dt>
+                <dd class="text-right font-mono text-[12px] text-white">
+                  {{ contract.documentVersion }}
+                </dd>
+              </div>
+            </dl>
+            <p class="mt-3 flex items-start gap-2 rounded-[10px] border border-white/8 bg-white/[0.02] px-3 py-2.5 text-[11.5px] leading-[1.55] text-muted-500">
+              <Icon name="lucide:lock" class="mt-0.5 size-3.5 shrink-0 text-[#22B07D]" />
+              Electronically signed under the Electronic Communications Act 2000. This record — the agreement text, signature, timestamp, IP and device — is admissible as evidence of the customer's intent to be bound.
             </p>
           </div>
         </div>
