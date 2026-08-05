@@ -262,8 +262,6 @@ const upcoming = computed(() =>
 
 // ---- credit line (real CreditLine record from /api/finance/dashboard) -----
 const creditLine = computed<any>(() => (finance.value as any)?.credit ?? null)
-const applied = computed(() => creditLine.value?.status === 'PENDING')
-const hasCredit = computed(() => creditLine.value?.status === 'ACTIVE' || creditLine.value?.status === 'FROZEN')
 const credit = computed(() => {
   const line = creditLine.value
   const limit = line?.limit ?? 0
@@ -486,7 +484,9 @@ function brandBadge(m: UiPaymentMethod) {
 const TOPUP_PRESETS = [100, 250, 500, 1000]
 const topupOpen = ref(false)
 const topupAmount = ref('250')
-const topupMethod = ref<'card' | 'bank'>('card')
+// The saved payment method that will fund the top-up (defaults to the
+// customer's default instrument). Undefined only when they have none saved.
+const topupMethodId = ref<string | undefined>(undefined)
 const topupDone = ref(false)
 const topupBusy = ref(false)
 const topupAddedAmount = ref(0)
@@ -497,7 +497,7 @@ function openTopup() {
   topupOpen.value = true
   topupDone.value = false
   topupAmount.value = '250'
-  topupMethod.value = 'card'
+  topupMethodId.value = defaultMethodId.value
 }
 function closeTopup() {
   topupOpen.value = false
@@ -524,7 +524,7 @@ async function confirmTopup() {
       method: 'POST',
       body: {
         amount: amt,
-        paymentMethodId: topupMethod.value === 'card' ? defaultMethodId.value : undefined,
+        paymentMethodId: topupMethodId.value,
       },
     })
 
@@ -557,78 +557,10 @@ async function confirmTopup() {
   }
 }
 
-// ---- apply / increase credit modal (TODO(api): stub, no backend) ----------
-const APPLY_TERMS = [
-  { months: 3, label: '3 months', sub: '0% interest' },
-  { months: 6, label: '6 months', sub: '3.9% APR' },
-  { months: 12, label: '12 months', sub: '6.9% APR' },
-]
-const applyOpen = ref(false)
-const applyAmount = ref(5000)
-const applyTerm = ref(6)
-const applySubmitted = ref(false)
-
-const isIncrease = computed(() => hasCredit.value)
-const applyMonthly = computed(() => Math.ceil((applyAmount.value / applyTerm.value) / 5) * 5)
-
-function openApply() {
-  applyOpen.value = true
-  applySubmitted.value = false
-}
-function closeApply() {
-  applyOpen.value = false
-}
-const applyBusy = ref(false)
-async function submitApply() {
-  if (applyBusy.value)
-    return
-  applyBusy.value = true
-  try {
-    await $fetch('/api/finance/credit/apply', { method: 'POST', body: { requestedLimit: applyAmount.value } })
-    applySubmitted.value = true
-    await refreshFinance()
-  }
-  catch (e: any) {
-    toaster.add({ title: 'Application failed', description: e?.data?.message || 'Please try again in a moment.', icon: 'lucide:alert-triangle', progress: true })
-  }
-  finally {
-    applyBusy.value = false
-  }
-}
-
-// ---- repay early (real: wallet → credit balance) ---------------------------
-const repayOpen = ref(false)
-const repayAmount = ref('')
-const repayBusy = ref(false)
-function openRepay() {
-  repayAmount.value = String(Math.min(credit.value.used, Math.floor((finance.value as any)?.balanceOverview?.walletBalance ?? credit.value.used)))
-  repayOpen.value = true
-}
-async function submitRepay() {
-  const amt = Number(repayAmount.value)
-  if (!amt || amt <= 0 || repayBusy.value)
-    return
-  repayBusy.value = true
-  try {
-    const res: any = await $fetch('/api/finance/credit/repay', { method: 'POST', body: { amount: amt } })
-    toaster.add({ title: 'Repayment received', description: `${formatCurrency(res.repaid)} was paid off your Apex credit from your wallet.`, icon: 'lucide:check', progress: true })
-    repayOpen.value = false
-    await Promise.all([refreshFinance(), refreshTx()])
-  }
-  catch (e: any) {
-    toaster.add({ title: 'Repayment failed', description: e?.data?.message || 'Please try again in a moment.', icon: 'lucide:alert-triangle', progress: true })
-  }
-  finally {
-    repayBusy.value = false
-  }
-}
-
 function closeModals() {
   addMethodOpen.value = false
   removeTarget.value = null
   topupOpen.value = false
-  applyOpen.value = false
-  repayOpen.value = false
 }
 
 // ---- installment "Pay now" — real charge from the wallet ------------------
@@ -763,80 +695,57 @@ function comingSoon(feature: string) {
             </div>
             <span
               class="inline-flex items-center rounded-full px-2.5 py-1 text-[10.5px] font-extrabold uppercase tracking-[0.05em]"
-              :class="hasCredit ? 'bg-[#22B07D]/14 text-[#22B07D]' : applied ? 'bg-[#D9A521]/16 text-[#F2C14E]' : 'bg-primary-500/16 text-primary-200'"
+              :class="credit.frozen ? 'bg-[#EC6453]/16 text-[#EC6453]' : 'bg-[#22B07D]/14 text-[#22B07D]'"
             >
-              {{ hasCredit ? 'Active' : applied ? 'Under review' : 'Available' }}
+              {{ credit.frozen ? 'On hold' : 'Active' }}
             </span>
           </div>
 
-          <!-- approved -->
-          <template v-if="hasCredit">
-            <div class="relative mt-[22px]">
-              <div class="text-[12.5px] text-muted-500">
-                Available to spend
+          <div class="relative mt-[22px]">
+            <div class="text-[12.5px] text-muted-500">
+              Available to spend
+            </div>
+            <div class="mt-1.5 font-heading text-[42px] font-extrabold leading-[1.05] tracking-[-0.02em] tabular-nums text-white">
+              {{ formatCurrency(credit.available) }}
+            </div>
+            <div class="mt-4">
+              <div class="h-2 overflow-hidden rounded-full bg-white/[0.07]">
+                <div class="h-full rounded-full" :style="{ width: `${credit.pct}%`, background: 'linear-gradient(90deg, var(--color-primary-400), var(--color-primary-500))' }" />
               </div>
-              <div class="mt-1.5 font-heading text-[42px] font-extrabold leading-[1.05] tracking-[-0.02em] tabular-nums text-white">
-                {{ formatCurrency(credit.available) }}
-              </div>
-              <div class="mt-4">
-                <div class="h-2 overflow-hidden rounded-full bg-white/[0.07]">
-                  <div class="h-full rounded-full" :style="{ width: `${credit.pct}%`, background: 'linear-gradient(90deg, var(--color-primary-400), var(--color-primary-500))' }" />
-                </div>
-                <div class="mt-2 flex justify-between text-[12.5px] text-muted-500">
-                  <span>{{ formatCurrency(credit.used) }} in use</span>
-                  <span>{{ formatCurrency(credit.limit) }} limit</span>
-                </div>
+              <div class="mt-2 flex justify-between text-[12.5px] text-muted-500">
+                <span>{{ formatCurrency(credit.used) }} in use</span>
+                <span>{{ formatCurrency(credit.limit) }} limit</span>
               </div>
             </div>
-            <div class="relative mt-[18px] flex items-center justify-between gap-3 rounded-xl border border-primary-500/20 bg-primary-500/[0.08] px-[15px] py-[13px]">
-              <div>
-                <div class="text-[11.5px] font-bold uppercase tracking-[0.04em] text-primary-200">
-                  {{ credit.frozen ? 'Line frozen' : credit.used > 0 ? 'Outstanding balance' : 'All clear' }}
-                </div>
-                <div class="mt-[3px] text-[13px] font-semibold text-white">
-                  {{ credit.frozen ? 'Contact support to restore access' : credit.used > 0 ? (credit.repayDate || 'Repay any time — no fees') : 'Nothing to repay right now' }}
-                </div>
-              </div>
-              <div v-if="credit.used > 0" class="font-heading text-[20px] font-extrabold tabular-nums text-white">
-                {{ formatCurrency(credit.repayAmount || credit.used) }}
-              </div>
-            </div>
-            <div class="relative mt-3.5 flex gap-2.5">
-              <BaseButton rounded="lg" class="flex-1 border border-white/8 bg-muted-700 !text-white disabled:opacity-50" :disabled="credit.used <= 0 || credit.frozen" @click="openRepay">
-                Repay early
-              </BaseButton>
-              <BaseButton rounded="lg" class="flex-1 border border-white/8 bg-muted-700 !text-white disabled:opacity-50" :disabled="credit.frozen" @click="openApply">
-                Increase limit
-              </BaseButton>
-            </div>
-          </template>
+          </div>
 
-          <!-- no credit -->
-          <template v-else>
-            <div class="relative mt-5 flex flex-1 flex-col">
-              <div class="font-heading text-[21px] font-bold leading-[1.2] tracking-[-0.01em] text-white">
-                Spread project costs with an Apex credit line
-              </div>
-              <div class="mt-4 flex flex-col gap-[9px]">
-                <div v-for="perk in ['Up to £10,000 for approved clients', '0% interest on 3-month terms', 'Decision within one working day']" :key="perk" class="flex items-center gap-2.5 text-[13.5px] text-muted-400">
-                  <span class="inline-flex size-[18px] shrink-0 items-center justify-center rounded-full bg-[#22B07D]">
-                    <Icon name="lucide:check" class="size-[11px] text-white" />
-                  </span>
-                  {{ perk }}
-                </div>
-              </div>
-              <div class="flex-1" />
-              <BaseButton v-if="!applied" rounded="lg" variant="primary" class="mt-5 w-full shadow-[0_8px_20px_rgba(125,83,242,0.28)]" @click="openApply">
-                Apply for credit
-              </BaseButton>
-              <div v-else class="mt-5 flex items-center gap-2.5 rounded-xl border border-[#D9A521]/24 bg-[#D9A521]/[0.08] px-[15px] py-[13px]">
-                <Icon name="lucide:clock" class="size-[17px] shrink-0 text-[#F2C14E]" />
-                <div class="text-[13px] text-muted-400">
-                  Application under review — we'll email you within one working day.
-                </div>
-              </div>
+          <!-- how it works: instant facility, no application -->
+          <div class="relative mt-[18px] rounded-xl border border-primary-500/20 bg-primary-500/[0.08] px-[15px] py-[13px]">
+            <div class="text-[11.5px] font-bold uppercase tracking-[0.04em] text-primary-200">
+              No application needed
             </div>
-          </template>
+            <div class="mt-[3px] text-[13px] text-muted-300">
+              Spend up to {{ formatCurrency(credit.limit) }} on any project. Pick
+              <strong class="font-semibold text-white">0% over 12 months</strong> or spread it over
+              <strong class="font-semibold text-white">24 months</strong> at checkout — a repayment plan is set up automatically.
+            </div>
+          </div>
+
+          <div v-if="credit.frozen" class="relative mt-3.5 flex items-center gap-2.5 rounded-xl border border-[#EC6453]/24 bg-[#EC6453]/[0.08] px-[15px] py-[13px]">
+            <Icon name="lucide:pause-circle" class="size-[17px] shrink-0 text-[#EC6453]" />
+            <div class="text-[13px] text-muted-400">
+              Your credit is on hold. Contact support to restore access.
+            </div>
+          </div>
+
+          <div class="relative mt-3.5 flex gap-2.5">
+            <BaseButton to="/dashboards/services" rounded="lg" variant="primary" class="flex-1 shadow-[0_8px_20px_rgba(125,83,242,0.28)]" :disabled="credit.frozen || credit.available <= 0">
+              Start a project
+            </BaseButton>
+            <BaseButton rounded="lg" class="flex-1 border border-white/8 bg-muted-700 !text-white" @click="goTab('installments')">
+              View plans
+            </BaseButton>
+          </div>
         </section>
       </div>
 
@@ -1307,30 +1216,47 @@ function comingSoon(feature: string) {
           <div class="mb-2.5 mt-5 text-xs font-bold uppercase tracking-[0.05em] text-muted-500">
             Pay with
           </div>
-          <div class="flex flex-col gap-2">
+          <!-- Real saved instruments from /api/finance/payment-methods -->
+          <div v-if="usableMethods.length" class="flex flex-col gap-2">
             <button
-              v-for="m in [{ key: 'card', title: cards[0] ? `${cards[0].type} •••• ${cards[0].last4}` : 'Card', sub: 'Instant', icon: 'lucide:credit-card' }, { key: 'bank', title: 'Bank transfer', sub: '1–2 working days', icon: 'lucide:landmark' }]" :key="m.key"
+              v-for="m in usableMethods" :key="m.id"
               class="flex w-full items-center gap-3 rounded-xl border px-3.5 py-3 transition-all"
-              :class="topupMethod === m.key ? 'border-primary-500 bg-primary-500/10' : 'border-white/8 bg-muted-700'"
-              @click="topupMethod = m.key as any"
+              :class="topupMethodId === m.id ? 'border-primary-500 bg-primary-500/10' : 'border-white/8 bg-muted-700'"
+              @click="topupMethodId = m.id"
             >
-              <span class="inline-flex size-[34px] items-center justify-center rounded-[9px] border border-white/8 bg-muted-800 text-muted-400">
-                <Icon :name="m.icon" class="size-[15px]" />
+              <span class="inline-flex h-[34px] min-w-[46px] items-center justify-center rounded-[9px] border border-white/8 bg-muted-800 text-[10px] font-extrabold tracking-wide text-muted-300">
+                {{ brandBadge(m) }}
               </span>
               <span class="flex-1 text-left">
-                <span class="block text-[13.5px] font-semibold text-white">{{ m.title }}</span>
-                <span class="mt-0.5 block text-[11.5px] text-muted-500">{{ m.sub }}</span>
+                <span class="block text-[13.5px] font-semibold text-white">
+                  {{ m.kind === 'bacs_debit' ? 'Direct Debit' : 'Card' }} •••• {{ m.last4 }}
+                </span>
+                <span class="mt-0.5 block text-[11.5px] text-muted-500">
+                  {{ m.kind === 'bacs_debit' ? 'Bacs · 1–3 working days' : 'Instant' }}<span v-if="m.isDefault"> · Default</span>
+                </span>
               </span>
-              <span class="box-border size-[18px] shrink-0 rounded-full" :class="topupMethod === m.key ? 'border-[5px] border-primary-500 bg-white' : 'border-2 border-white/15'" />
+              <span class="box-border size-[18px] shrink-0 rounded-full" :class="topupMethodId === m.id ? 'border-[5px] border-primary-500 bg-white' : 'border-2 border-white/15'" />
             </button>
+            <button type="button" class="mt-0.5 inline-flex items-center gap-1.5 self-start text-[12.5px] font-semibold text-primary-300 hover:text-primary-200" @click="openAddMethod">
+              <Icon name="lucide:plus" class="size-3.5" /> Add another method
+            </button>
+          </div>
+          <!-- No saved instrument: prompt to add one (details entered on the provider's secure page) -->
+          <div v-else class="flex flex-col items-start gap-3 rounded-xl border border-dashed border-white/12 bg-white/[0.02] px-4 py-4">
+            <div class="text-[13px] text-muted-400">
+              No saved payment method yet. Add one for faster, more secure top-ups.
+            </div>
+            <BaseButton rounded="lg" variant="primary" @click="openAddMethod">
+              <Icon name="lucide:plus" class="size-4" /> Add a payment method
+            </BaseButton>
           </div>
           <button
             class="mt-5 w-full rounded-xl py-3 text-sm font-bold transition-all"
-            :class="topupValue > 0 && !topupBusy ? 'cursor-pointer bg-primary-500 text-white shadow-[0_8px_20px_rgba(125,83,242,0.28)] hover:bg-primary-600' : 'cursor-not-allowed bg-muted-700 text-muted-500'"
-            :disabled="topupValue <= 0 || topupBusy"
+            :class="topupValue > 0 && topupMethodId && !topupBusy ? 'cursor-pointer bg-primary-500 text-white shadow-[0_8px_20px_rgba(125,83,242,0.28)] hover:bg-primary-600' : 'cursor-not-allowed bg-muted-700 text-muted-500'"
+            :disabled="topupValue <= 0 || topupBusy || !topupMethodId"
             @click="confirmTopup"
           >
-            {{ topupBusy ? 'Adding…' : topupValue > 0 ? `Add ${formatCurrency(topupValue)} to wallet` : 'Enter an amount' }}
+            {{ topupBusy ? 'Adding…' : !topupMethodId ? 'Add a payment method to continue' : topupValue > 0 ? `Add ${formatCurrency(topupValue)} to wallet` : 'Enter an amount' }}
           </button>
         </template>
         <div v-else class="px-1 pb-1.5 pt-2.5 text-center">
@@ -1347,106 +1273,6 @@ function comingSoon(feature: string) {
             Done
           </BaseButton>
         </div>
-      </div>
-    </div>
-
-    <!-- ============================================================ APPLY / INCREASE CREDIT MODAL -->
-    <div v-if="applyOpen" class="apex-fade fixed inset-0 z-[60] flex items-center justify-center bg-[rgba(5,10,12,0.66)] p-6 backdrop-blur-[4px]" @click="closeModals">
-      <div
-        role="dialog" aria-label="Apply for credit"
-        class="apex-pop max-h-[calc(100dvh_-_3rem_-_env(safe-area-inset-top)_-_env(safe-area-inset-bottom))] w-[460px] max-w-full overflow-y-auto rounded-[28px] border border-white/15 p-7 shadow-[0_30px_80px_rgba(0,0,0,0.5)]"
-        style="background: #132125;"
-        @click.stop
-      >
-        <template v-if="!applySubmitted">
-          <div class="mb-1.5 flex items-center justify-between">
-            <h3 class="font-heading text-[21px] font-extrabold tracking-[-0.01em] text-white">
-              {{ isIncrease ? 'Increase credit limit' : 'Apply for credit' }}
-            </h3>
-            <button aria-label="Close" class="inline-flex size-8 items-center justify-center rounded-[9px] border border-white/8 bg-muted-700 text-muted-400 hover:text-white" @click="closeApply">
-              <Icon name="lucide:x" class="size-[15px]" />
-            </button>
-          </div>
-          <p class="mb-[22px] text-[13.5px] text-muted-500">
-            No impact on your credit score. Decision within one working day.
-          </p>
-          <div class="flex items-baseline justify-between">
-            <span class="text-xs font-bold uppercase tracking-[0.05em] text-muted-500">{{ isIncrease ? 'New limit' : 'Credit amount' }}</span>
-            <span class="font-heading text-[26px] font-extrabold tracking-[-0.01em] tabular-nums text-white">{{ formatCurrency(applyAmount) }}</span>
-          </div>
-          <input v-model.number="applyAmount" type="range" min="1000" max="10000" step="500" class="mt-3 w-full cursor-pointer accent-primary-500">
-          <div class="mt-1 flex justify-between text-[11.5px] text-muted-500">
-            <span>£1,000</span><span>£10,000</span>
-          </div>
-          <div class="mb-2.5 mt-5 text-xs font-bold uppercase tracking-[0.05em] text-muted-500">
-            Repayment term
-          </div>
-          <div class="grid grid-cols-3 gap-2">
-            <button
-              v-for="t in APPLY_TERMS" :key="t.months"
-              class="rounded-[11px] border px-1.5 py-[11px] text-center transition-all"
-              :class="applyTerm === t.months ? 'border-primary-500 bg-primary-500/16 text-white' : 'border-white/8 bg-muted-700 text-muted-400'"
-              @click="applyTerm = t.months"
-            >
-              <span class="block font-heading text-[15px] font-bold">{{ t.label }}</span>
-              <span class="mt-0.5 block text-[11px] opacity-75">{{ t.sub }}</span>
-            </button>
-          </div>
-          <div class="mt-4 flex items-center justify-between rounded-xl border border-primary-500/20 bg-primary-500/[0.08] px-4 py-3">
-            <span class="text-[13px] text-muted-400">Estimated monthly repayment</span>
-            <span class="font-heading text-[17px] font-extrabold tabular-nums text-white">{{ formatCurrency(applyMonthly) }}/mo</span>
-          </div>
-          <BaseButton rounded="lg" variant="primary" class="mt-[18px] w-full shadow-[0_8px_20px_rgba(125,83,242,0.28)]" :disabled="applyBusy" @click="submitApply">
-            {{ applyBusy ? 'Submitting…' : isIncrease ? 'Request increase' : 'Submit application' }}
-          </BaseButton>
-        </template>
-        <div v-else class="px-1 pb-1.5 pt-2.5 text-center">
-          <span class="mb-[18px] inline-flex size-[62px] items-center justify-center rounded-full bg-primary-500/16 text-primary-400">
-            <Icon name="lucide:send" class="size-7" />
-          </span>
-          <h3 class="font-heading text-[21px] font-extrabold text-white">
-            Application submitted
-          </h3>
-          <p class="mb-[22px] mt-2.5 text-[13.5px] leading-[1.55] text-muted-500">
-            We're reviewing your request for <strong class="text-white">{{ formatCurrency(applyAmount) }}</strong> over {{ applyTerm }} months. You'll hear from us within one working day.
-          </p>
-          <BaseButton rounded="lg" variant="primary" class="w-full" @click="closeApply">
-            Done
-          </BaseButton>
-        </div>
-      </div>
-    </div>
-
-    <!-- ============ REPAY EARLY MODAL ============ -->
-    <div v-if="repayOpen" class="apex-fade fixed inset-0 z-[60] flex items-center justify-center bg-[rgba(5,10,12,0.66)] p-6 backdrop-blur-[4px]" @click="repayOpen = false">
-      <div
-        role="dialog" aria-label="Repay Apex credit"
-        class="apex-pop w-[440px] max-w-full rounded-[28px] border border-white/15 p-7 shadow-[0_30px_80px_rgba(0,0,0,0.5)]"
-        style="background: #132125;"
-        @click.stop
-      >
-        <div class="mb-1.5 flex items-center justify-between">
-          <h3 class="font-heading text-[21px] font-extrabold tracking-[-0.01em] text-white">
-            Repay early
-          </h3>
-          <button aria-label="Close" class="inline-flex size-8 items-center justify-center rounded-[9px] border border-white/8 bg-muted-700 text-muted-400 hover:text-white" @click="repayOpen = false">
-            <Icon name="lucide:x" class="size-[15px]" />
-          </button>
-        </div>
-        <p class="mb-5 text-[13.5px] text-muted-500">
-          Pay down your Apex credit from your wallet — no early-repayment fees, ever. Outstanding: <strong class="text-white">{{ formatCurrency(credit.used) }}</strong>.
-        </p>
-        <label class="flex items-center gap-2.5 rounded-xl border border-white/8 bg-muted-700 px-3.5 py-3 focus-within:border-primary-400">
-          <span class="font-heading text-[17px] font-bold text-muted-500">£</span>
-          <input
-            :value="repayAmount" inputmode="numeric" placeholder="Amount to repay"
-            class="min-w-0 flex-1 border-none bg-transparent text-base font-semibold text-white outline-none placeholder:text-muted-500"
-            @input="repayAmount = ($event.target as HTMLInputElement).value.replace(/\D/g, '')"
-          >
-        </label>
-        <BaseButton rounded="lg" variant="primary" class="mt-[18px] w-full shadow-[0_8px_20px_rgba(125,83,242,0.28)]" :disabled="repayBusy || !Number(repayAmount)" @click="submitRepay">
-          {{ repayBusy ? 'Processing…' : `Repay ${Number(repayAmount) ? formatCurrency(Number(repayAmount)) : ''}` }}
-        </BaseButton>
       </div>
     </div>
 

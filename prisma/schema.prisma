@@ -92,6 +92,9 @@ model User {
   withdrawalRequests  WithdrawalRequest[]
   invoices            Invoice[]
 
+  // Signed financing agreements (one per financed project)
+  contracts           Contract[]
+
   // Real payment rails (ADR-015)
   paymentMethods      PaymentMethod[]
   paymentIntents      PaymentIntent[]
@@ -178,6 +181,9 @@ model Project {
   // Real financing plan for this project (replaces the derived
   // presentation-only plans of ADR-010).
   installmentPlan Installment?
+
+  // The signed financing agreement for this project (auto-created with the order).
+  contract        Contract?
 
   invoices        Invoice[]
 
@@ -295,6 +301,41 @@ model CreditLine {
 
   userId          String    @unique
   user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// A signed financing agreement, created automatically when a customer places a
+// financed order. It is the authoritative contract record surfaced in the admin
+// Contract Management module: a snapshot of the amount, the chosen repayment
+// term (12-mo 0% or 24-mo — ADR-011), the e-signature and the lifecycle status.
+// The linked Installment plan is the live repayment schedule.
+model Contract {
+  id             String   @id @default(uuid())
+  // Human-facing reference, e.g. CTR-2026-0001.
+  reference      String   @unique
+  // SIGNED → ACTIVE (work in progress) → COMPLETED (plan settled) | CANCELLED.
+  status         String   @default("ACTIVE")
+
+  amount         Float                // financed principal (project amount), GBP
+  termMonths     Int                  // 12 or 24
+  interestRate   Float    @default(0) // monthly rate: 0 for 12-mo, 0.01 for 24-mo
+  monthlyAmount  Float                // scheduled monthly repayment
+  totalRepayable Float                // principal + interest over the term
+
+  // E-signature: a drawn PNG data-URL or the typed legal name, captured at signing.
+  signature      String?
+  signedAt       DateTime @default(now())
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  projectId      String   @unique
+  project        Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([status, createdAt])
+  @@index([userId])
 }
 
 // Immutable billing document issued inside the same DB transaction as the

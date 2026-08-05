@@ -107,6 +107,14 @@ export async function chargeInstallment(planId: string, opts?: { actorNote?: str
       },
     })
 
+    // When the repayment plan settles, the linked contract is fulfilled.
+    if (settled && plan.projectId) {
+      await tx.contract.updateMany({
+        where: { projectId: plan.projectId, status: { notIn: ['CANCELLED', 'COMPLETED'] } },
+        data: { status: 'COMPLETED' },
+      })
+    }
+
     const projectName = plan.projectRef?.name ?? plan.project
     await tx.transaction.create({
       data: {

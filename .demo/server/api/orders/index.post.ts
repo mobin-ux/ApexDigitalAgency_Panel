@@ -1,6 +1,9 @@
 import { createError, defineEventHandler } from 'h3'
 import { z } from 'zod'
+import { recordAudit } from '../../utils/audit'
 import { requireAuth } from '../../utils/auth'
+import { nextContractReference } from '../../utils/contracts'
+import { ensureCredit } from '../../utils/credit'
 import { planFor, planIcon } from '../../utils/finance'
 import prisma from '../../utils/prisma'
 import { getSetting } from '../../utils/settings'
@@ -8,11 +11,17 @@ import { validateBody } from '../../utils/validate'
 
 /**
  * POST /api/orders — create a PENDING project from the New Order wizard,
- * together with its real financing plan (ADR-011 math, computed here —
- * never trusted from the client) and the signed contract.
+ * financed against the customer's instant Apex credit facility.
  *
- * First installment is due `finance.first-installment-days` after
- * creation (Setting, default 30 — "£0 today").
+ * Flow (2026 strategy — no credit application, no manager approval):
+ *  1. The project amount is checked against available Apex credit (≤ £20,000).
+ *  2. Project + real Installment plan (ADR-011 math, computed here — never
+ *     trusted from the client) + a signed Contract are created atomically.
+ *  3. The contract is pushed to the admin panel (audit trail + admin
+ *     notifications) so administrators see every agreement as it is signed.
+ *
+ * First installment is due `finance.first-installment-days` after creation
+ * (Setting, default 30 — "£0 today").
  */
 
 const bodySchema = z.object({
@@ -35,55 +44,136 @@ export default defineEventHandler(async (event) => {
     }
   }
 
+  // --- Credit gate: financed projects draw on the instant Apex facility ------
+  const financed = budget > 0
+  if (financed) {
+    const credit = await ensureCredit(session.id)
+    if (credit.status === 'FROZEN') {
+      throw createError({ statusCode: 403, message: 'Your Apex credit is currently on hold. Please contact support.' })
+    }
+    if (budget > credit.available) {
+      throw createError({
+        statusCode: 400,
+        message: `This project (£${budget.toLocaleString('en-GB')}) exceeds your available Apex credit of £${credit.available.toLocaleString('en-GB')}. Reduce the scope or repay an existing plan first.`,
+      })
+    }
+  }
+
   const firstDueDays = await getSetting('finance.first-installment-days', 30)
   const financing = planFor(budget, termMonths)
   const nextDue = new Date(Date.now() + firstDueDays * 24 * 60 * 60 * 1000)
+  const monthly = Math.round(financing.monthlyAmount * 100) / 100
+  const totalRepayable = Math.round(financing.totalAmount * 100) / 100
 
-  const newProject = await prisma.project.create({
-    data: {
-      name: title,
-      category,
-      amount: budget,
-      status: 'PENDING',
-      progress: 0,
-      startDate: new Date(),
-      deadline: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000), // default 2-week deadline
-      userId: session.id,
-      termMonths,
-      signature: signature ?? null,
-      signedAt: signature ? new Date() : null,
-      // Default milestones so the order timeline renders immediately.
-      milestones: {
-        create: [
-          { title: 'Order Review', status: 'PENDING' },
-          { title: 'Requirements', status: 'PENDING' },
-          { title: 'Development', status: 'PENDING' },
-          { title: 'Delivery', status: 'PENDING' },
-        ],
+  // Project + installment plan + contract commit together (or not at all).
+  const { project, contract } = await prisma.$transaction(async (tx) => {
+    const created = await tx.project.create({
+      data: {
+        name: title,
+        category,
+        amount: budget,
+        status: 'PENDING',
+        progress: 0,
+        startDate: new Date(),
+        deadline: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+        userId: session.id,
+        termMonths,
+        signature: signature ?? null,
+        signedAt: signature ? new Date() : null,
+        milestones: {
+          create: [
+            { title: 'Order Review', status: 'PENDING' },
+            { title: 'Requirements', status: 'PENDING' },
+            { title: 'Development', status: 'PENDING' },
+            { title: 'Delivery', status: 'PENDING' },
+          ],
+        },
+        installmentPlan: financed
+          ? {
+              create: {
+                project: title,
+                total: totalRepayable,
+                paid: 0,
+                amountDue: monthly,
+                monthsTotal: termMonths,
+                monthsPaid: 0,
+                nextDue,
+                status: 'active',
+                icon: planIcon(category),
+                monthlyAmount: monthly,
+                termMonths,
+                interestRate: financing.interestRate,
+                userId: session.id,
+              },
+            }
+          : undefined,
       },
-      // The real payment schedule (replaces ADR-010's derived plans).
-      installmentPlan: budget > 0
-        ? {
-            create: {
-              project: title,
-              total: Math.round(financing.totalAmount * 100) / 100,
-              paid: 0,
-              amountDue: Math.round(financing.monthlyAmount * 100) / 100,
-              monthsTotal: termMonths,
-              monthsPaid: 0,
-              nextDue,
-              status: 'active',
-              icon: planIcon(category),
-              monthlyAmount: Math.round(financing.monthlyAmount * 100) / 100,
-              termMonths,
-              interestRate: financing.interestRate,
-              userId: session.id,
-            },
-          }
-        : undefined,
-    },
-    include: { installmentPlan: true },
+      include: { installmentPlan: true },
+    })
+
+    let contractRow = null
+    if (financed) {
+      const reference = await nextContractReference(tx)
+      contractRow = await tx.contract.create({
+        data: {
+          reference,
+          status: 'ACTIVE',
+          amount: budget,
+          termMonths,
+          interestRate: financing.interestRate,
+          monthlyAmount: monthly,
+          totalRepayable,
+          signature: signature ?? null,
+          signedAt: signature ? new Date() : new Date(),
+          userId: session.id,
+          projectId: created.id,
+        },
+      })
+    }
+
+    return { project: created, contract: contractRow }
   })
 
-  return { status: 'success', project: newProject }
+  // Refresh the derived credit usage now the new plan exists.
+  if (financed) {
+    await ensureCredit(session.id)
+  }
+
+  // Push the signed contract to the admin panel: audit trail + admin inbox.
+  if (contract) {
+    try {
+      await recordAudit(event, { id: session.id, email: session.email }, {
+        action: 'contract.created',
+        targetType: 'Contract',
+        targetId: contract.id,
+        metadata: {
+          reference: contract.reference,
+          projectId: project.id,
+          project: project.name,
+          amount: contract.amount,
+          termMonths: contract.termMonths,
+          monthlyAmount: contract.monthlyAmount,
+        },
+      })
+
+      const admins = await prisma.user.findMany({ where: { role: 'ADMIN' }, select: { id: true } })
+      if (admins.length > 0) {
+        await prisma.notification.createMany({
+          data: admins.map(a => ({
+            userId: a.id,
+            title: 'New contract signed',
+            message: `${contract.reference}: ${project.name} — £${contract.amount.toLocaleString('en-GB')} over ${contract.termMonths} months.`,
+            type: 'INFO',
+            link: `/admin/contracts/${contract.id}`,
+          })),
+        })
+      }
+    }
+    catch {
+      // Best-effort notification — never fail the order because the admin
+      // fan-out hiccuped. The Contract row itself is the source of truth.
+    }
+  }
+
+  return { status: 'success', project, contract }
 })

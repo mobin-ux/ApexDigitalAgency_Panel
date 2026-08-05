@@ -1,5 +1,6 @@
 import { defineEventHandler } from 'h3'
 import { requireAuth } from '../../utils/auth'
+import { ensureCredit } from '../../utils/credit'
 import { runAutoPay } from '../../utils/finance'
 import prisma from '../../utils/prisma'
 
@@ -18,13 +19,15 @@ export default defineEventHandler(async (event) => {
 
   await runAutoPay(userId)
 
-  const [user, transactions, installments, cards, requests, credit] = await Promise.all([
+  // Instant Apex credit facility — ensured (and usage recomputed) on every load.
+  const creditSummary = await ensureCredit(userId)
+
+  const [user, transactions, installments, cards, requests] = await Promise.all([
     prisma.user.findUnique({ where: { id: userId }, select: { adCredits: true, autoPayInstallments: true, walletBalance: true } }),
     prisma.transaction.findMany({ where: { userId }, orderBy: { createdAt: 'desc' }, take: 10 }),
     prisma.installment.findMany({ where: { userId }, orderBy: { nextDue: 'asc' } }),
     prisma.card.findMany({ where: { userId } }),
     prisma.withdrawalRequest.findMany({ where: { userId }, orderBy: { createdAt: 'desc' } }),
-    prisma.creditLine.findUnique({ where: { userId } }),
   ])
 
   // Cash = ledger sum of the recent transactions window.
@@ -48,8 +51,15 @@ export default defineEventHandler(async (event) => {
       monthlyChange: 12.5, // TODO(api): computed properly in Phase 6 (expenses work)
     },
     autoPayInstallments: user?.autoPayInstallments ?? true,
-    // The real Apex credit line (null until the customer applies).
-    credit,
+    // Instant Apex credit facility: fixed limit (default £20,000), no
+    // application. `used` = outstanding principal across active financed
+    // projects; `available` = limit − used.
+    credit: {
+      status: creditSummary.status,
+      limit: creditSummary.limit,
+      used: creditSummary.used,
+      available: creditSummary.available,
+    },
     installments: installments.map(ins => ({
       ...ins,
       nextDueISO: ins.nextDue,
