@@ -23,6 +23,11 @@ const menu = [
     to: '/admin/projects',
   },
   {
+    label: 'Services',
+    icon: 'solar:box-linear',
+    to: '/admin/services',
+  },
+  {
     label: 'Contracts',
     icon: 'solar:document-text-linear',
     to: '/admin/contracts',
