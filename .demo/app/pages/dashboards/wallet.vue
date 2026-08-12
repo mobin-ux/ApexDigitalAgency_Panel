@@ -364,52 +364,21 @@ const methods = computed(() => methodsData.value?.methods ?? [])
 /** Only usable instruments can fund a top-up or an instalment collection. */
 const usableMethods = computed(() => methods.value.filter(m => m.usable))
 
-const addMethodOpen = ref(false)
-const addMethodKind = ref<'card' | 'bacs_debit'>('card')
-const addMethodBusy = ref(false)
 const methodBusyId = ref<string | null>(null)
 
-function openAddMethod() {
-  addMethodOpen.value = true
-  addMethodKind.value = 'card'
+// ---- payment flow (top-up + add-method) → <WalletTopUp> -------------------
+// One component drives both the "Top up wallet" and "Add a payment method"
+// journeys (card + UK Direct Debit, full validation and all states). On any
+// success we re-pull the balance, transaction feed and saved methods.
+const payOpen = ref(false)
+const payMode = ref<'topup' | 'add-method'>('topup')
+async function onPaySuccess() {
+  await Promise.all([refreshFinance(), refreshTx(), refreshMethods()])
 }
 
-async function submitAddMethod() {
-  if (addMethodBusy.value)
-    return
-  addMethodBusy.value = true
-  try {
-    const res = await $fetch<{ status: string, redirectUrl?: string, message?: string }>(
-      '/api/finance/payment-methods/setup',
-      { method: 'POST', body: { kind: addMethodKind.value } },
-    )
-
-    // A hosted flow (Direct Debit authorisation, 3-D Secure) needs the
-    // customer on the provider's own page — that is what keeps bank and card
-    // details out of this application entirely.
-    if (res.redirectUrl && !res.redirectUrl.startsWith('/')) {
-      window.location.href = res.redirectUrl
-      return
-    }
-
-    addMethodOpen.value = false
-    await refreshMethods()
-    toaster.add({
-      title: res.status === 'pending' ? 'Authorisation needed' : 'Payment method added',
-      description: res.message ?? 'Your payment method is ready to use.',
-      icon: res.status === 'pending' ? 'lucide:clock' : 'lucide:check-circle-2',
-    })
-  }
-  catch (error: any) {
-    toaster.add({
-      title: 'Couldn’t add that method',
-      description: error?.data?.message ?? 'Please try again in a moment.',
-      icon: 'lucide:alert-triangle',
-    })
-  }
-  finally {
-    addMethodBusy.value = false
-  }
+function openAddMethod() {
+  payMode.value = 'add-method'
+  payOpen.value = true
 }
 
 async function makeDefault(method: UiPaymentMethod) {
@@ -461,11 +430,6 @@ async function confirmRemove() {
   }
 }
 
-/** Instrument the top-up charges when the customer picks "card". */
-const defaultMethodId = computed(() =>
-  usableMethods.value.find(m => m.isDefault)?.id ?? usableMethods.value[0]?.id,
-)
-
 /** Brand badge text for the card chip. */
 function brandBadge(m: UiPaymentMethod) {
   if (m.kind === 'bacs_debit')
@@ -480,87 +444,10 @@ function brandBadge(m: UiPaymentMethod) {
   return 'CARD'
 }
 
-// ---- top-up modal ---------------------------------------------------------
-const TOPUP_PRESETS = [100, 250, 500, 1000]
-const topupOpen = ref(false)
-const topupAmount = ref('250')
-// The saved payment method that will fund the top-up (defaults to the
-// customer's default instrument). Undefined only when they have none saved.
-const topupMethodId = ref<string | undefined>(undefined)
-const topupDone = ref(false)
-const topupBusy = ref(false)
-const topupAddedAmount = ref(0)
-
-const topupValue = computed(() => Number.parseInt(topupAmount.value, 10) || 0)
-
+// ---- top-up ---------------------------------------------------------------
 function openTopup() {
-  topupOpen.value = true
-  topupDone.value = false
-  topupAmount.value = '250'
-  topupMethodId.value = defaultMethodId.value
-}
-function closeTopup() {
-  topupOpen.value = false
-  topupDone.value = false
-}
-function onTopupAmount(e: Event) {
-  topupAmount.value = (e.target as HTMLInputElement).value.replace(/\D/g, '')
-}
-async function confirmTopup() {
-  const amt = topupValue.value
-  if (amt <= 0 || topupBusy.value)
-    return
-  topupBusy.value = true
-  try {
-    // Real gateway (ADR-015). The old /api/finance/deposit simply incremented
-    // the balance with no money behind it; here nothing is credited until the
-    // provider confirms, either synchronously or via webhook.
-    const res = await $fetch<{
-      settled: boolean
-      redirectUrl?: string
-      intentStatus: string
-      reference: string
-    }>('/api/finance/topup', {
-      method: 'POST',
-      body: {
-        amount: amt,
-        paymentMethodId: topupMethodId.value,
-      },
-    })
-
-    // Provider needs the customer present (hosted checkout / 3-D Secure).
-    if (res.redirectUrl && !res.redirectUrl.startsWith('/')) {
-      window.location.href = res.redirectUrl
-      return
-    }
-
-    if (res.settled) {
-      topupAddedAmount.value = amt
-      topupDone.value = true
-    }
-    else {
-      // Bank debits clear over days — say so instead of implying instant funds.
-      topupOpen.value = false
-      toaster.add({
-        title: 'Payment in progress',
-        description: `Reference ${res.reference}. Your balance updates as soon as the payment clears.`,
-        icon: 'lucide:clock',
-      })
-    }
-    await Promise.all([refreshFinance(), refreshTx()])
-  }
-  catch (error: any) {
-    toaster.add({ title: 'Top-up failed', description: error?.data?.message ?? 'We couldn’t add funds just now. Please try again.', icon: 'lucide:alert-triangle' })
-  }
-  finally {
-    topupBusy.value = false
-  }
-}
-
-function closeModals() {
-  addMethodOpen.value = false
-  removeTarget.value = null
-  topupOpen.value = false
+  payMode.value = 'topup'
+  payOpen.value = true
 }
 
 // ---- installment "Pay now" — real charge from the wallet ------------------
@@ -1175,176 +1062,13 @@ function comingSoon(feature: string) {
       </div>
     </div>
 
-    <!-- ============================================================ TOP-UP MODAL -->
-    <div v-if="topupOpen" class="apex-fade fixed inset-0 z-[60] flex items-center justify-center bg-[rgba(5,10,12,0.66)] p-6 backdrop-blur-[4px]" @click="closeModals">
-      <div
-        role="dialog" aria-label="Top up wallet"
-        class="apex-pop max-h-[calc(100dvh_-_3rem_-_env(safe-area-inset-top)_-_env(safe-area-inset-bottom))] w-[440px] max-w-full overflow-y-auto rounded-[28px] border border-white/15 p-7 shadow-[0_30px_80px_rgba(0,0,0,0.5)]"
-        style="background: #132125;"
-        @click.stop
-      >
-        <template v-if="!topupDone">
-          <div class="mb-1.5 flex items-center justify-between">
-            <h3 class="font-heading text-[21px] font-extrabold tracking-[-0.01em] text-white">
-              Top up wallet
-            </h3>
-            <button aria-label="Close" class="inline-flex size-8 items-center justify-center rounded-[9px] border border-white/8 bg-muted-700 text-muted-400 hover:text-white" @click="closeTopup">
-              <Icon name="lucide:x" class="size-[15px]" />
-            </button>
-          </div>
-          <p class="mb-5 text-[13.5px] text-muted-500">
-            Funds are available immediately and can auto-pay your installments.
-          </p>
-          <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            <button
-              v-for="p in TOPUP_PRESETS" :key="p"
-              class="rounded-[11px] border px-1.5 py-[11px] font-heading text-sm font-bold transition-all"
-              :class="String(p) === topupAmount ? 'border-primary-500 bg-primary-500/16 text-white' : 'border-white/8 bg-muted-700 text-muted-400'"
-              @click="topupAmount = String(p)"
-            >
-              £{{ p }}
-            </button>
-          </div>
-          <label class="mt-3 flex items-center gap-2.5 rounded-xl border border-white/8 bg-muted-700 px-3.5 py-3 focus-within:border-primary-400">
-            <span class="font-heading text-[17px] font-bold text-muted-500">£</span>
-            <input
-              :value="topupAmount" inputmode="numeric" placeholder="Custom amount"
-              class="min-w-0 flex-1 border-none bg-transparent text-base font-semibold text-white outline-none placeholder:text-muted-500"
-              @input="onTopupAmount"
-            >
-          </label>
-          <div class="mb-2.5 mt-5 text-xs font-bold uppercase tracking-[0.05em] text-muted-500">
-            Pay with
-          </div>
-          <!-- Real saved instruments from /api/finance/payment-methods -->
-          <div v-if="usableMethods.length" class="flex flex-col gap-2">
-            <button
-              v-for="m in usableMethods" :key="m.id"
-              class="flex w-full items-center gap-3 rounded-xl border px-3.5 py-3 transition-all"
-              :class="topupMethodId === m.id ? 'border-primary-500 bg-primary-500/10' : 'border-white/8 bg-muted-700'"
-              @click="topupMethodId = m.id"
-            >
-              <span class="inline-flex h-[34px] min-w-[46px] items-center justify-center rounded-[9px] border border-white/8 bg-muted-800 text-[10px] font-extrabold tracking-wide text-muted-300">
-                {{ brandBadge(m) }}
-              </span>
-              <span class="flex-1 text-left">
-                <span class="block text-[13.5px] font-semibold text-white">
-                  {{ m.kind === 'bacs_debit' ? 'Direct Debit' : 'Card' }} •••• {{ m.last4 }}
-                </span>
-                <span class="mt-0.5 block text-[11.5px] text-muted-500">
-                  {{ m.kind === 'bacs_debit' ? 'Bacs · 1–3 working days' : 'Instant' }}<span v-if="m.isDefault"> · Default</span>
-                </span>
-              </span>
-              <span class="box-border size-[18px] shrink-0 rounded-full" :class="topupMethodId === m.id ? 'border-[5px] border-primary-500 bg-white' : 'border-2 border-white/15'" />
-            </button>
-            <button type="button" class="mt-0.5 inline-flex items-center gap-1.5 self-start text-[12.5px] font-semibold text-primary-300 hover:text-primary-200" @click="openAddMethod">
-              <Icon name="lucide:plus" class="size-3.5" /> Add another method
-            </button>
-          </div>
-          <!-- No saved instrument: prompt to add one (details entered on the provider's secure page) -->
-          <div v-else class="flex flex-col items-start gap-3 rounded-xl border border-dashed border-white/12 bg-white/[0.02] px-4 py-4">
-            <div class="text-[13px] text-muted-400">
-              No saved payment method yet. Add one for faster, more secure top-ups.
-            </div>
-            <BaseButton rounded="lg" variant="primary" @click="openAddMethod">
-              <Icon name="lucide:plus" class="size-4" /> Add a payment method
-            </BaseButton>
-          </div>
-          <button
-            class="mt-5 w-full rounded-xl py-3 text-sm font-bold transition-all"
-            :class="topupValue > 0 && topupMethodId && !topupBusy ? 'cursor-pointer bg-primary-500 text-white shadow-[0_8px_20px_rgba(125,83,242,0.28)] hover:bg-primary-600' : 'cursor-not-allowed bg-muted-700 text-muted-500'"
-            :disabled="topupValue <= 0 || topupBusy || !topupMethodId"
-            @click="confirmTopup"
-          >
-            {{ topupBusy ? 'Adding…' : !topupMethodId ? 'Add a payment method to continue' : topupValue > 0 ? `Add ${formatCurrency(topupValue)} to wallet` : 'Enter an amount' }}
-          </button>
-        </template>
-        <div v-else class="px-1 pb-1.5 pt-2.5 text-center">
-          <span class="mb-[18px] inline-flex size-[62px] items-center justify-center rounded-full bg-[#22B07D]/16 text-[#22B07D]">
-            <Icon name="lucide:check" class="size-[30px]" />
-          </span>
-          <h3 class="font-heading text-[21px] font-extrabold text-white">
-            {{ formatCurrency(topupAddedAmount) }} added
-          </h3>
-          <p class="mb-[22px] mt-2.5 text-[13.5px] text-muted-500">
-            Your new balance is <strong class="text-white">{{ formatCurrency(balance) }}</strong>.
-          </p>
-          <BaseButton rounded="lg" variant="primary" class="w-full" @click="closeTopup">
-            Done
-          </BaseButton>
-        </div>
-      </div>
-    </div>
-
-    <!-- ==================================================== ADD PAYMENT METHOD -->
-    <div v-if="addMethodOpen" class="apex-fade fixed inset-0 z-[60] flex items-center justify-center bg-[rgba(5,10,12,0.66)] p-6 backdrop-blur-[4px]" @click="addMethodOpen = false">
-      <div
-        role="dialog" aria-label="Add a payment method"
-        class="apex-pop max-h-[calc(100dvh_-_3rem_-_env(safe-area-inset-top)_-_env(safe-area-inset-bottom))] w-[460px] max-w-full overflow-y-auto rounded-[28px] border border-white/15 p-7 shadow-[0_30px_80px_rgba(0,0,0,0.5)]"
-        style="background: #132125;"
-        @click.stop
-      >
-        <div class="mb-1.5 flex items-center justify-between">
-          <h3 class="font-heading text-[21px] font-extrabold tracking-[-0.01em] text-white">
-            Add a payment method
-          </h3>
-          <button aria-label="Close" class="inline-flex size-8 items-center justify-center rounded-[9px] border border-white/8 bg-muted-700 text-muted-400 hover:text-white" @click="addMethodOpen = false">
-            <Icon name="lucide:x" class="size-[15px]" />
-          </button>
-        </div>
-        <p class="mb-5 text-[13.5px] text-muted-500">
-          Choose how you'd like to pay. Your details are entered on your bank's or
-          card provider's own secure page — they never reach Apex.
-        </p>
-
-        <div class="flex flex-col gap-2.5" role="radiogroup" aria-label="Payment method type">
-          <button
-            v-for="opt in [
-              { key: 'bacs_debit' as const, title: 'Direct Debit', sub: 'Best for instalments · no card expiry', icon: 'lucide:landmark' },
-              { key: 'card' as const, title: 'Debit or credit card', sub: 'Instant · Visa, Mastercard, Amex', icon: 'lucide:credit-card' },
-            ]"
-            :key="opt.key"
-            role="radio"
-            :aria-checked="addMethodKind === opt.key"
-            class="flex items-center gap-3.5 rounded-[13px] border bg-muted-700 px-4 py-3.5 text-left transition-all hover:border-primary-400/50"
-            :class="addMethodKind === opt.key ? 'border-primary-500/60 bg-primary-500/8' : 'border-white/8'"
-            @click="addMethodKind = opt.key"
-          >
-            <span class="inline-flex size-9 shrink-0 items-center justify-center rounded-[10px] border border-white/10 bg-muted-800">
-              <Icon :name="opt.icon" class="size-[17px]" :class="addMethodKind === opt.key ? 'text-primary-300' : 'text-muted-400'" />
-            </span>
-            <span class="min-w-0 flex-1">
-              <span class="block text-sm font-semibold text-white">{{ opt.title }}</span>
-              <span class="mt-0.5 block text-xs text-muted-500">{{ opt.sub }}</span>
-            </span>
-            <Icon
-              v-if="addMethodKind === opt.key"
-              name="lucide:check-circle-2"
-              class="size-[18px] shrink-0 text-primary-400"
-            />
-          </button>
-        </div>
-
-        <!-- Direct Debit carries a statutory guarantee; saying so is both
-             required practice and the main reason customers choose it. -->
-        <div v-if="addMethodKind === 'bacs_debit'" class="mt-4 flex items-start gap-2.5 rounded-xl border border-white/8 bg-muted-700/60 px-3.5 py-3">
-          <Icon name="lucide:shield-check" class="mt-px size-[15px] shrink-0 text-[#22B07D]" />
-          <p class="text-xs leading-relaxed text-muted-400">
-            Protected by the <strong class="text-muted-300">Direct Debit Guarantee</strong>.
-            You'll authorise the mandate with your bank, and can cancel any time.
-          </p>
-        </div>
-
-        <BaseButton
-          rounded="lg" variant="primary"
-          class="mt-[18px] w-full shadow-[0_8px_20px_rgba(125,83,242,0.28)]"
-          :disabled="addMethodBusy"
-          @click="submitAddMethod"
-        >
-          {{ addMethodBusy ? 'Setting up…' : addMethodKind === 'bacs_debit' ? 'Continue to authorisation' : 'Continue to card details' }}
-        </BaseButton>
-      </div>
-    </div>
+    <!-- ==================================== TOP-UP / ADD PAYMENT METHOD FLOW -->
+    <WalletTopUp
+      :open="payOpen"
+      :mode="payMode"
+      @close="payOpen = false"
+      @success="onPaySuccess"
+    />
 
     <!-- ================================================= REMOVE METHOD CONFIRM -->
     <div v-if="removeTarget" class="apex-fade fixed inset-0 z-[60] flex items-center justify-center bg-[rgba(5,10,12,0.66)] p-6 backdrop-blur-[4px]" @click="removeTarget = null">
