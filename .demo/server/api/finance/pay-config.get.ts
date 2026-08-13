@@ -57,6 +57,16 @@ export default defineEventHandler(async (event) => {
   const mandateIsMock = !mandateProvider || mandateProvider.name === 'mock'
   const liveMode = Boolean(chargeProvider?.liveMode && liveEnabled)
 
+  // Publishable key — designed to be public; it is what Stripe Elements needs
+  // in the browser to render the hosted card fields. NEVER the secret key.
+  const { useRuntimeConfig } = await import('#imports')
+  const publishableKey = (useRuntimeConfig() as any).public?.payments?.stripePublishableKey || ''
+
+  // Hosted entry needs BOTH a real provider and a publishable key. Without the
+  // key Elements cannot mount, so say so plainly rather than rendering a card
+  // form that could never work.
+  const cardEntry = chargeIsMock ? 'inline' : (publishableKey ? 'hosted' : 'unavailable')
+
   return {
     currency: 'GBP',
     // Sandbox = no real money will move. Surfaced as a badge so nobody mistakes
@@ -66,8 +76,9 @@ export default defineEventHandler(async (event) => {
     topupMin,
     topupMax,
     card: {
-      enabled: true,
-      entry: chargeIsMock ? 'inline' : 'hosted',
+      enabled: cardEntry !== 'unavailable',
+      entry: cardEntry,
+      publishableKey: cardEntry === 'hosted' ? publishableKey : '',
       brands: ['visa', 'mastercard', 'amex'],
     },
     directDebit: {

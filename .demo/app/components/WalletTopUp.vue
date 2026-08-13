@@ -46,7 +46,7 @@ interface PayConfig {
   liveMode: boolean
   topupMin: number
   topupMax: number
-  card: { enabled: boolean, entry: 'inline' | 'hosted', brands: string[] }
+  card: { enabled: boolean, entry: 'inline' | 'hosted' | 'unavailable', publishableKey?: string, brands: string[] }
   directDebit: { enabled: boolean, entry: 'inline' | 'hosted' | 'disabled', advanceNoticeDays: number }
 }
 interface SavedMethod {
@@ -311,7 +311,132 @@ function showCardErr(field: string) {
   return cardTouched[field] && cardErrors.value[field]
 }
 
+// ---- hosted card entry (Stripe Elements) ---------------------------------
+// When a real Stripe account is connected, the card is collected inside
+// Stripe's own iframes: the PAN never touches this page's DOM or our servers,
+// which is what keeps the integration PCI DSS SAQ-A. The sandbox path above
+// is used only when no live provider is configured.
+const cardEntry = computed(() => config.value?.card.entry ?? 'inline')
+const hostedReady = ref(false)
+const hostedError = ref('')
+const cardMount = ref<HTMLElement | null>(null)
+let stripeJs: any = null
+let stripeElements: any = null
+let hostedMethodId = ''
+
+/** Load Stripe.js on demand. Returns null if the script can't be reached. */
+async function loadStripeJs(publishableKey: string): Promise<any | null> {
+  const w = window as any
+  if (!w.Stripe) {
+    const loaded = await new Promise<boolean>((resolve) => {
+      const s = document.createElement('script')
+      s.src = 'https://js.stripe.com/v3/'
+      s.async = true
+      s.onload = () => resolve(true)
+      s.onerror = () => resolve(false)
+      document.head.appendChild(s)
+    })
+    if (!loaded || !w.Stripe) {
+      return null
+    }
+  }
+  return w.Stripe(publishableKey)
+}
+
+/** Start a SetupIntent and mount the Payment Element into the card screen. */
+async function initHostedCard() {
+  hostedReady.value = false
+  hostedError.value = ''
+  try {
+    const setup = await $fetch<{ methodId: string, clientSecret: string }>(
+      '/api/finance/payment-methods/setup',
+      { method: 'POST', body: { kind: 'card' } },
+    )
+    hostedMethodId = setup.methodId
+
+    stripeJs = await loadStripeJs(config.value?.card.publishableKey ?? '')
+    if (!stripeJs) {
+      hostedError.value = 'We couldn’t reach Stripe to load the secure card form. Check your connection and try again.'
+      return
+    }
+    stripeElements = stripeJs.elements({
+      clientSecret: setup.clientSecret,
+      // Match the Apex dark surface so the hosted fields don't look bolted on.
+      appearance: {
+        theme: 'night',
+        variables: {
+          colorPrimary: '#7d53f2',
+          colorBackground: '#16252a',
+          colorText: '#ffffff',
+          colorDanger: '#EC6453',
+          fontFamily: 'Inter, system-ui, sans-serif',
+          borderRadius: '12px',
+        },
+      },
+    })
+    const paymentElement = stripeElements.create('payment', { layout: 'tabs' })
+    await nextTick()
+    if (cardMount.value) {
+      paymentElement.mount(cardMount.value)
+      hostedReady.value = true
+    }
+  }
+  catch (err: any) {
+    hostedError.value = err?.data?.message ?? err?.message ?? 'We couldn’t open the secure card form. Please try again.'
+  }
+}
+
+async function submitHostedCard() {
+  if (busy.value || !stripeJs || !stripeElements) {
+    return
+  }
+  busy.value = true
+  hostedError.value = ''
+  try {
+    // Stripe collects + verifies the card (incl. any 3-D Secure challenge).
+    const { error, setupIntent } = await stripeJs.confirmSetup({
+      elements: stripeElements,
+      redirect: 'if_required',
+    })
+    if (error) {
+      hostedError.value = error.message ?? 'Your card could not be verified. Please check the details.'
+      return
+    }
+    if (setupIntent?.status !== 'succeeded') {
+      hostedError.value = 'Your card could not be verified. Please try another card.'
+      return
+    }
+
+    // The server re-reads the SetupIntent and adopts the real pm_… id.
+    const res = await $fetch<{ method: { id: string, brand: string | null, last4: string | null } }>(
+      '/api/finance/payment-methods/confirm',
+      { method: 'POST', body: { methodId: hostedMethodId, setDefault: usableMethods.value.length === 0 } },
+    )
+    const label = `${res.method.brand ?? 'Card'} •••• ${res.method.last4 ?? ''}`.trim()
+    savedMethods.value = []
+
+    if (props.mode === 'add-method') {
+      lastReceipt.value = { kind: 'method', title: `${label} added` }
+      screen.value = 'success'
+      emit('success', { methodId: res.method.id })
+    }
+    else {
+      await pay(res.method.id, label)
+    }
+  }
+  catch (err: any) {
+    fail('We couldn’t save that card', err?.data?.message ?? 'Please try again in a moment.')
+  }
+  finally {
+    busy.value = false
+  }
+}
+
 async function submitCard() {
+  if (cardEntry.value === 'hosted') {
+    await submitHostedCard()
+    return
+  }
   Object.keys(card).forEach(k => (cardTouched[k] = true))
   if (!cardValid.value || busy.value) {
     return
@@ -650,8 +775,19 @@ watch(() => props.open, (open) => {
   lastReceipt.value = null
   failure.title = ''
   failure.message = ''
+  hostedReady.value = false
+  hostedError.value = ''
+  stripeElements = null
+  hostedMethodId = ''
   loadContext()
 }, { immediate: true })
+
+// Entering the card step on a live Stripe account mounts the hosted fields.
+watch(screen, (s) => {
+  if (s === 'card' && cardEntry.value === 'hosted' && !hostedReady.value) {
+    initHostedCard()
+  }
+})
 </script>
 
 <template>
@@ -758,6 +894,7 @@ watch(() => props.open, (open) => {
           </div>
           <div class="mt-2 flex flex-col gap-2.5">
             <button
+              v-if="config?.card.enabled !== false"
               type="button"
               class="flex items-center gap-3.5 rounded-xl border px-4 py-3.5 text-left transition"
               :class="newMethod === 'card' ? 'border-primary-500 bg-primary-500/10' : 'border-white/8 bg-muted-700 hover:border-white/20'"
@@ -810,7 +947,22 @@ watch(() => props.open, (open) => {
           <p v-if="mode === 'topup'" class="mb-4 text-[13px] text-muted-400">
             Paying <strong class="font-semibold text-white">{{ formatCurrency(amountNum) }}</strong> to your Apex wallet.
           </p>
-          <div class="flex flex-col gap-3.5">
+
+          <!-- HOSTED: Stripe Elements. The card fields live inside Stripe's
+               iframes — the number never enters this page or our servers. -->
+          <template v-if="cardEntry === 'hosted'">
+            <div v-show="hostedReady" ref="cardMount" class="min-h-[180px]" />
+            <div v-if="!hostedReady && !hostedError" class="flex flex-col gap-3">
+              <div class="h-11 animate-pulse rounded-xl bg-white/5" />
+              <div class="h-11 animate-pulse rounded-xl bg-white/5" />
+              <div class="h-11 animate-pulse rounded-xl bg-white/5" />
+            </div>
+            <div v-if="hostedError" class="flex items-start gap-2 rounded-[10px] border border-[#EC6453]/30 bg-[#EC6453]/10 px-3.5 py-2.5 text-[12.5px] text-[#EC6453]">
+              <Icon name="lucide:alert-circle" class="mt-0.5 size-4 shrink-0" />{{ hostedError }}
+            </div>
+          </template>
+
+          <div v-else class="flex flex-col gap-3.5">
             <!-- number -->
             <div>
               <label for="cc-num" class="mb-1.5 block text-xs font-semibold uppercase tracking-[0.04em] text-muted-500">Card number</label>
@@ -888,7 +1040,7 @@ watch(() => props.open, (open) => {
             </div>
           </div>
 
-          <div v-if="config?.sandbox" class="mt-4 flex items-start gap-2 rounded-[10px] border border-white/8 bg-white/[0.02] px-3 py-2.5 text-[11.5px] leading-[1.5] text-muted-500">
+          <div v-if="config?.sandbox && cardEntry === 'inline'" class="mt-4 flex items-start gap-2 rounded-[10px] border border-white/8 bg-white/[0.02] px-3 py-2.5 text-[11.5px] leading-[1.5] text-muted-500">
             <Icon name="lucide:flask-conical" class="mt-0.5 size-3.5 shrink-0 text-[#F2C14E]" />
             <span>Sandbox: use any test card (e.g. 4242 4242 4242 4242), any future expiry and CVC. End the amount in <strong class="text-muted-300">.01</strong> to see a decline, <strong class="text-muted-300">.02</strong> for bank verification, <strong class="text-muted-300">.03</strong> for a processing state.</span>
           </div>
@@ -896,8 +1048,8 @@ watch(() => props.open, (open) => {
           <button
             type="button"
             class="mt-5 flex w-full items-center justify-center gap-2 rounded-full py-3.5 text-[14px] font-bold transition"
-            :class="cardValid && !busy ? 'cursor-pointer bg-primary-500 text-white shadow-[0_8px_20px_rgba(125,83,242,0.28)] hover:bg-primary-600' : 'cursor-not-allowed bg-muted-700 text-muted-500'"
-            :disabled="!cardValid || busy"
+            :class="(cardEntry === 'hosted' ? hostedReady : cardValid) && !busy ? 'cursor-pointer bg-primary-500 text-white shadow-[0_8px_20px_rgba(125,83,242,0.28)] hover:bg-primary-600' : 'cursor-not-allowed bg-muted-700 text-muted-500'"
+            :disabled="(cardEntry === 'hosted' ? !hostedReady : !cardValid) || busy"
             @click="submitCard"
           >
             <Icon v-if="!busy" name="lucide:lock" class="size-4" />
@@ -906,7 +1058,8 @@ watch(() => props.open, (open) => {
           </button>
           <p class="mt-3 flex items-center justify-center gap-1.5 text-[11.5px] text-muted-500">
             <Icon name="lucide:shield-check" class="size-3.5 text-[#22B07D]" />
-            Encrypted. Your card number and CVC never reach our servers.
+            <span v-if="cardEntry === 'hosted'">Secured by Stripe. Your card details go straight to Stripe — never to Apex.</span>
+            <span v-else>Encrypted. Your card number and CVC never reach our servers.</span>
           </p>
         </template>
 
