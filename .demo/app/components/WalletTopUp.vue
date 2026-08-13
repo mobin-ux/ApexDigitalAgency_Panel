@@ -506,6 +506,21 @@ async function verify3ds() {
     if (lastReceipt.value) {
       lastReceipt.value.balance = res.walletBalance
     }
+
+    // The server now settles only on the provider's word, so a confirm can
+    // legitimately come back still-clearing. Claiming success here would tell
+    // the customer their money landed when it has not.
+    if (res.status !== 'succeeded') {
+      if (lastReceipt.value) {
+        lastReceipt.value.pending = true
+      }
+      screen.value = 'processing'
+      if (lastReceipt.value?.reference) {
+        pollStatus(lastReceipt.value.reference)
+      }
+      return
+    }
+
     screen.value = 'success'
     emit('success', { balance: res.walletBalance })
   }
