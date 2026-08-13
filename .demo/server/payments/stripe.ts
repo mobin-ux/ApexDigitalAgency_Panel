@@ -147,18 +147,23 @@ export function createStripeProvider(config: { secretKey: string, webhookSecret:
     },
 
     /**
-     * Set up a UK Bacs Direct Debit mandate.
+     * Set up a UK Bacs Direct Debit mandate via Stripe Checkout in `setup` mode.
      *
-     * Unlike GoCardless (which hosts the whole authorisation on its own page),
-     * Stripe collects the sort code and account number inside Elements, so this
-     * returns a `clientSecret` rather than a `redirectUrl`. Stripe renders the
-     * Direct Debit Guarantee and the mandate wording itself, which is what the
-     * Bacs scheme requires — we must not reimplement that text.
+     * Why Checkout and not Elements: Stripe does NOT support creating a
+     * SetupIntent for `bacs_debit` directly, and the Payment Element cannot
+     * collect a Bacs mandate at all. The documented — and only — way to save
+     * Bacs details for later collection is a Checkout Session in setup mode,
+     * which is also what keeps us compliant with the Bacs scheme rules: Stripe
+     * renders the Direct Debit Instruction and the Direct Debit Guarantee, and
+     * sends the customer the advance-notice emails the scheme requires. We must
+     * not reimplement any of that.
      *
-     * Bacs mandates are not usable immediately: the SetupIntent reports
-     * `processing` while the mandate is lodged with the bank (about three
-     * working days), then `succeeded`. `setup_intent.succeeded` activates the
-     * saved method — see normaliseStripeEvent.
+     * So this returns a `redirectUrl` (the hosted Checkout page), exactly like
+     * the GoCardless model — the mandate flow is redirect-based for both rails.
+     *
+     * Bacs mandates are not usable immediately: it takes several working days
+     * to lodge the mandate with the bank. `setup_intent.succeeded` marks the
+     * saved method active — see normaliseStripeEvent.
      */
     async createMandate(input: CreateMandateInput): Promise<MandateResult> {
       // Collecting off-session requires a Stripe Customer to attach to.
@@ -178,28 +183,30 @@ export function createStripeProvider(config: { secretKey: string, webhookSecret:
         customerId = customer.id
       }
 
-      const setupIntent = await providerFetch({
+      const session = await providerFetch({
         provider: 'stripe',
         method: 'POST',
-        url: `${API}/setup_intents`,
+        url: `${API}/checkout/sessions`,
         headers: authHeaders(input.idempotencyKey),
         body: formEncode({
+          mode: 'setup',
           customer: customerId,
+          currency: 'gbp',
           payment_method_types: ['bacs_debit'],
-          // Declares intent to collect instalments with the customer absent.
-          usage: 'off_session',
+          success_url: `${input.returnUrl}${input.returnUrl.includes('?') ? '&' : '?'}dd_setup=done`,
+          cancel_url: `${input.returnUrl}${input.returnUrl.includes('?') ? '&' : '?'}dd_setup=cancelled`,
           metadata: { apex_reference: input.reference, apex_user_id: input.customer.userId },
         }),
       })
 
-      log.info('bacs mandate setup started', { reference: input.reference, setupIntentId: setupIntent.id })
+      log.info('bacs mandate checkout created', { reference: input.reference, sessionId: session.id })
 
       return {
-        // The SetupIntent id until the mandate exists; the real pm_… is adopted
-        // on confirmation (payment-methods/confirm) or by the webhook.
-        providerMethodId: setupIntent.id,
+        // The Checkout Session's SetupIntent id — the real pm_… is adopted on
+        // confirmation (payment-methods/confirm) or by the webhook.
+        providerMethodId: session.setup_intent ?? session.id,
         status: 'pending_submission',
-        clientSecret: setupIntent.client_secret,
+        redirectUrl: session.url,
         kind: 'bacs_debit',
         brand: 'Bank account',
         accountHolder: input.customer.name,

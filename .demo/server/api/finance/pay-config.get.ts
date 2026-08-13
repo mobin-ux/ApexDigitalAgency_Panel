@@ -81,19 +81,15 @@ export default defineEventHandler(async (event) => {
       publishableKey: cardEntry === 'hosted' ? publishableKey : '',
       brands: ['visa', 'mastercard', 'amex'],
     },
-    directDebit: (() => {
-      // Stripe collects Bacs details in Elements (needs the publishable key);
-      // GoCardless hosts the whole authorisation page (needs no key).
-      const stripeBacs = mandateProvider?.name === 'stripe'
-      const entry = mandateIsMock
-        ? 'inline'
-        : (stripeBacs && !publishableKey) ? 'unavailable' : 'hosted'
-      return {
-        enabled: Boolean(mandateProvider) && entry !== 'unavailable',
-        entry,
-        publishableKey: entry === 'hosted' && stripeBacs ? publishableKey : '',
-        advanceNoticeDays: ddNoticeDays,
-      }
-    })(),
+    directDebit: {
+      // Both real rails authorise the mandate on their own hosted page —
+      // Stripe via Checkout in setup mode, GoCardless via its billing-request
+      // flow. Neither is embeddable (the Bacs scheme requires the provider to
+      // render the Direct Debit Instruction and Guarantee), so there is no
+      // publishable key to hand out here.
+      enabled: Boolean(mandateProvider),
+      entry: mandateIsMock ? 'inline' : 'hosted',
+      advanceNoticeDays: ddNoticeDays,
+    },
   }
 })

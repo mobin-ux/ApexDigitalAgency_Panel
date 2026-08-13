@@ -358,13 +358,22 @@ async function initHosted(kind: 'card' | 'bacs_debit') {
   hostedReady.value = false
   hostedError.value = ''
   try {
-    const setup = await $fetch<{ methodId: string, clientSecret: string }>(
+    const setup = await $fetch<{ methodId: string, clientSecret?: string, redirectUrl?: string }>(
       '/api/finance/payment-methods/setup',
       { method: 'POST', body: { kind } },
     )
     hostedMethodId = setup.methodId
 
-    const pk = (kind === 'bacs_debit' ? config.value?.directDebit.publishableKey : config.value?.card.publishableKey) ?? ''
+    // Direct Debit is authorised on the provider's own hosted page (Stripe
+    // Checkout in setup mode, or the GoCardless mandate page). Stripe renders
+    // the Direct Debit Instruction and Guarantee there and sends the scheme's
+    // advance-notice emails — that flow is not embeddable, by design.
+    if (setup.redirectUrl) {
+      window.location.href = setup.redirectUrl
+      return
+    }
+
+    const pk = config.value?.card.publishableKey ?? ''
     stripeJs = await loadStripeJs(pk)
     if (!stripeJs) {
       hostedError.value = 'We couldn’t reach Stripe to load the secure card form. Check your connection and try again.'
@@ -1122,39 +1131,23 @@ watch(screen, (s) => {
             Set up a UK Direct Debit. We only ever debit amounts you’ve agreed, with advance notice.
           </p>
 
-          <!-- HOSTED: Stripe Elements renders the Bacs form together with the
-               Direct Debit Guarantee and the scheme's mandate wording. -->
+          <!-- HOSTED: the mandate is authorised on the provider's own page
+               (Stripe Checkout in setup mode). We send the customer there. -->
           <template v-if="ddEntry === 'hosted'">
-            <div v-show="hostedReady" ref="bankMount" class="min-h-[200px]" />
-            <div v-if="!hostedReady && !hostedError" class="flex flex-col gap-3">
-              <div class="h-11 animate-pulse rounded-xl bg-white/5" />
-              <div class="h-11 animate-pulse rounded-xl bg-white/5" />
-              <div class="h-11 animate-pulse rounded-xl bg-white/5" />
-            </div>
             <div v-if="hostedError" class="flex items-start gap-2 rounded-[10px] border border-[#EC6453]/30 bg-[#EC6453]/10 px-3.5 py-2.5 text-[12.5px] text-[#EC6453]">
               <Icon name="lucide:alert-circle" class="mt-0.5 size-4 shrink-0" />{{ hostedError }}
             </div>
-
-            <div class="mt-4 flex items-start gap-2 rounded-[10px] border border-white/8 bg-white/[0.02] px-3 py-2.5 text-[11.5px] leading-[1.55] text-muted-500">
-              <Icon name="lucide:clock" class="mt-0.5 size-3.5 shrink-0 text-[#F2C14E]" />
-              Direct Debits take about 3 working days to set up with your bank. We’ll confirm by email, and give you at least {{ advanceDays }} working days’ notice before any collection.
+            <div v-else class="flex flex-col items-center py-6 text-center">
+              <Icon name="lucide:loader-circle" class="size-7 animate-spin text-primary-400" />
+              <p class="mt-4 text-[13.5px] text-muted-400">
+                Taking you to our secure Direct Debit page…
+              </p>
             </div>
 
-            <button
-              type="button"
-              class="mt-5 flex w-full items-center justify-center gap-2 rounded-full py-3.5 text-[14px] font-bold transition"
-              :class="hostedReady && !busy ? 'cursor-pointer bg-primary-500 text-white shadow-[0_8px_20px_rgba(125,83,242,0.28)] hover:bg-primary-600' : 'cursor-not-allowed bg-muted-700 text-muted-500'"
-              :disabled="!hostedReady || busy"
-              @click="submitHosted"
-            >
-              <Icon v-if="busy" name="lucide:loader-circle" class="size-4 animate-spin" />
-              <Icon v-else name="lucide:lock" class="size-4" />
-              {{ busy ? 'Setting up…' : 'Authorise Direct Debit' }}
-            </button>
-            <p class="mt-3 flex items-center justify-center gap-1.5 text-[11.5px] text-muted-500">
-              <Icon name="lucide:shield-check" class="size-3.5 text-[#22B07D]" />
-              Protected by the Direct Debit Guarantee. Secured by Stripe.
-            </p>
+            <div class="mt-2 flex items-start gap-2 rounded-[10px] border border-white/8 bg-white/[0.02] px-3 py-2.5 text-[11.5px] leading-[1.55] text-muted-500">
+              <Icon name="lucide:clock" class="mt-0.5 size-3.5 shrink-0 text-[#F2C14E]" />
+              You’ll enter your sort code and account number, and confirm the Direct Debit Guarantee. Setting up takes a few working days, and you’ll get at least {{ advanceDays }} working days’ notice before any collection.
+            </div>
           </template>
 
           <div v-else class="flex flex-col gap-3.5">

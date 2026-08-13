@@ -1,5 +1,5 @@
 import { randomBytes, randomUUID } from 'node:crypto'
-import { createError, defineEventHandler } from 'h3'
+import { createError, defineEventHandler, getRequestURL } from 'h3'
 import { z } from 'zod'
 import { getProvider } from '../../../payments/registry'
 import { requireAuth } from '../../../utils/auth'
@@ -75,7 +75,9 @@ export default defineEventHandler(async (event) => {
       customer: { userId: session.id, email: user.email, name },
       reference,
       idempotencyKey,
-      returnUrl: returnUrl ?? '/dashboards/wallet?tab=banking',
+      // MUST be absolute: Stripe Checkout rejects relative success/cancel URLs
+      // (and GoCardless needs somewhere real to send the customer back to).
+      returnUrl: absoluteUrl(event, returnUrl ?? '/dashboards/wallet?tab=banking'),
       description: 'Apex Digi instalment plan mandate',
     })
 
@@ -175,6 +177,27 @@ export default defineEventHandler(async (event) => {
     setDefaultRequested: setDefault,
   }
 })
+
+/**
+ * Turn a site-relative path into an absolute URL the provider can redirect to.
+ *
+ * Prefers the configured public site URL; otherwise derives it from the
+ * request, honouring the X-Forwarded-* headers Caddy sets — without those the
+ * app would advertise its internal 127.0.0.1:3000 origin to Stripe.
+ */
+function absoluteUrl(event: Parameters<typeof getRequestURL>[0], pathOrUrl: string): string {
+  if (/^https?:\/\//i.test(pathOrUrl)) {
+    return pathOrUrl
+  }
+  const { useRuntimeConfig } = globalThis as any
+  const configured = typeof useRuntimeConfig === 'function'
+    ? (useRuntimeConfig().public?.siteUrl as string | undefined)
+    : undefined
+  const base = configured && /^https?:\/\//i.test(configured)
+    ? configured.replace(/\/$/, '')
+    : getRequestURL(event, { xForwardedHost: true, xForwardedProto: true }).origin
+  return `${base}${pathOrUrl.startsWith('/') ? '' : '/'}${pathOrUrl}`
+}
 
 async function clearOtherDefaults(userId: string, keepId: string) {
   await prisma.paymentMethod.updateMany({
