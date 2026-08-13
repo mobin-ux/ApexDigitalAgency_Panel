@@ -22,10 +22,20 @@
     "demo:dev": "pnpm --filter=demo dev",
     "demo:build": "pnpm --filter=demo build",
     "clean:all": "pnpm -r clean && rimraf .nuxt .output node_modules",
+    "verify:payments": "node scripts/verify-payments.mjs",
     "test": "run-p test:*",
     "test:tsc-demo": "pnpm --filter=demo typecheck",
     "test:lint": "eslint --cache .",
     "lint": "eslint --cache --fix ."
+  },
+  "dependencies": {
+    "@pinia/nuxt": "^0.11.3",
+    "@prisma/client": "6.19.2",
+    "@types/bcryptjs": "^3.0.0",
+    "bcryptjs": "^3.0.3",
+    "cookie-es": "^2.0.0",
+    "jsonwebtoken": "^9.0.3",
+    "pinia": "^3.0.4"
   },
   "devDependencies": {
     "@antfu/eslint-config": "^4.11.0",
@@ -50,14 +60,5 @@
     "*.(ts|vue)": [
       "eslint --fix"
     ]
-  },
-  "dependencies": {
-    "@pinia/nuxt": "^0.11.3",
-    "@prisma/client": "6.19.2",
-    "@types/bcryptjs": "^3.0.0",
-    "bcryptjs": "^3.0.3",
-    "cookie-es": "^2.0.0",
-    "jsonwebtoken": "^9.0.3",
-    "pinia": "^3.0.4"
   }
 }
