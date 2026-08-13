@@ -1,4 +1,4 @@
-import type { ChargeResult, CreateChargeInput, IntentStatus, NormalisedEvent, PaymentProvider, ProviderBalance, RefundInput, RefundResult } from './types'
+import type { ChargeResult, CreateChargeInput, CreateMandateInput, IntentStatus, MandateResult, MandateStatus, NormalisedEvent, PaymentProvider, ProviderBalance, RefundInput, RefundResult } from './types'
 import { Buffer } from 'node:buffer'
 import { createHmac, timingSafeEqual } from 'node:crypto'
 import { createLogger } from '../utils/logger'
@@ -41,6 +41,21 @@ function mapStatus(stripeStatus: string): IntentStatus {
       return 'requires_action'
     default:
       return 'processing'
+  }
+}
+
+/** Stripe SetupIntent states → our mandate lifecycle. */
+function mapSetupStatus(status: string): MandateStatus {
+  switch (status) {
+    case 'succeeded':
+      return 'active'
+    case 'processing':
+      return 'submitted'
+    case 'canceled':
+      return 'cancelled'
+    default:
+      // requires_payment_method / requires_confirmation / requires_action
+      return 'pending_submission'
   }
 }
 
@@ -129,6 +144,113 @@ export function createStripeProvider(config: { secretKey: string, webhookSecret:
         headers: authHeaders(),
       })
       return toChargeResult(intent)
+    },
+
+    /**
+     * Set up a UK Bacs Direct Debit mandate.
+     *
+     * Unlike GoCardless (which hosts the whole authorisation on its own page),
+     * Stripe collects the sort code and account number inside Elements, so this
+     * returns a `clientSecret` rather than a `redirectUrl`. Stripe renders the
+     * Direct Debit Guarantee and the mandate wording itself, which is what the
+     * Bacs scheme requires — we must not reimplement that text.
+     *
+     * Bacs mandates are not usable immediately: the SetupIntent reports
+     * `processing` while the mandate is lodged with the bank (about three
+     * working days), then `succeeded`. `setup_intent.succeeded` activates the
+     * saved method — see normaliseStripeEvent.
+     */
+    async createMandate(input: CreateMandateInput): Promise<MandateResult> {
+      // Collecting off-session requires a Stripe Customer to attach to.
+      let customerId = input.customer.providerCustomerId
+      if (!customerId) {
+        const customer = await providerFetch({
+          provider: 'stripe',
+          method: 'POST',
+          url: `${API}/customers`,
+          headers: authHeaders(`${input.idempotencyKey}-cus`),
+          body: formEncode({
+            email: input.customer.email,
+            name: input.customer.name,
+            metadata: { apex_user_id: input.customer.userId },
+          }),
+        })
+        customerId = customer.id
+      }
+
+      const setupIntent = await providerFetch({
+        provider: 'stripe',
+        method: 'POST',
+        url: `${API}/setup_intents`,
+        headers: authHeaders(input.idempotencyKey),
+        body: formEncode({
+          customer: customerId,
+          payment_method_types: ['bacs_debit'],
+          // Declares intent to collect instalments with the customer absent.
+          usage: 'off_session',
+          metadata: { apex_reference: input.reference, apex_user_id: input.customer.userId },
+        }),
+      })
+
+      log.info('bacs mandate setup started', { reference: input.reference, setupIntentId: setupIntent.id })
+
+      return {
+        // The SetupIntent id until the mandate exists; the real pm_… is adopted
+        // on confirmation (payment-methods/confirm) or by the webhook.
+        providerMethodId: setupIntent.id,
+        status: 'pending_submission',
+        clientSecret: setupIntent.client_secret,
+        kind: 'bacs_debit',
+        brand: 'Bank account',
+        accountHolder: input.customer.name,
+      }
+    },
+
+    async getMandate(providerMethodId: string): Promise<MandateResult> {
+      // Accepts either the pm_… (adopted) or the si_… (setup still pending).
+      if (providerMethodId.startsWith('pm_')) {
+        const pm = await providerFetch({
+          provider: 'stripe',
+          method: 'GET',
+          url: `${API}/payment_methods/${encodeURIComponent(providerMethodId)}`,
+          headers: authHeaders(),
+        })
+        return {
+          providerMethodId: pm.id,
+          status: 'active',
+          kind: 'bacs_debit',
+          brand: 'Bank account',
+          last4: pm.bacs_debit?.last4,
+          accountHolder: pm.billing_details?.name ?? undefined,
+        }
+      }
+
+      const setupIntent = await providerFetch({
+        provider: 'stripe',
+        method: 'GET',
+        url: `${API}/setup_intents/${encodeURIComponent(providerMethodId)}`,
+        headers: authHeaders(),
+      })
+      return {
+        providerMethodId: setupIntent.payment_method ?? setupIntent.id,
+        status: mapSetupStatus(setupIntent.status),
+        kind: 'bacs_debit',
+        brand: 'Bank account',
+      }
+    },
+
+    /** Detaching the PaymentMethod cancels the Bacs mandate with the bank. */
+    async cancelMandate(providerMethodId: string): Promise<void> {
+      if (!providerMethodId.startsWith('pm_')) {
+        // Setup never completed — there is no mandate to cancel.
+        return
+      }
+      await providerFetch({
+        provider: 'stripe',
+        method: 'POST',
+        url: `${API}/payment_methods/${encodeURIComponent(providerMethodId)}/detach`,
+        headers: authHeaders(),
+      })
     },
 
     async refund(input: RefundInput): Promise<RefundResult> {
@@ -288,6 +410,26 @@ function normaliseStripeEvent(event: any): NormalisedEvent {
         ...base,
         kind: object.status === 'active' ? 'mandate.active' : 'mandate.cancelled',
         providerMethodId: object.payment_method,
+      }
+    // Bacs Direct Debit: the mandate is lodged with the bank asynchronously,
+    // so the saved method only becomes chargeable when the SetupIntent
+    // succeeds. `setupReferenceId` carries the si_… we stored at setup time so
+    // the local row still resolves before the pm_… has been adopted.
+    case 'setup_intent.succeeded':
+      return {
+        ...base,
+        kind: 'mandate.active',
+        providerMethodId: object.payment_method,
+        setupReferenceId: object.id,
+      }
+    case 'setup_intent.setup_failed':
+      return {
+        ...base,
+        kind: 'mandate.failed',
+        providerMethodId: object.payment_method,
+        setupReferenceId: object.id,
+        failureCode: object.last_setup_error?.code,
+        failureMessage: object.last_setup_error?.message,
       }
     case 'payout.paid':
       return { ...base, kind: 'payout.paid', providerPayoutId: object.id }

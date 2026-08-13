@@ -97,14 +97,21 @@ export default defineEventHandler(async (event) => {
 
     log.info('mandate setup started', { userId: session.id, methodId: record.id, provider: provider.name })
 
+    // Two provider models, one response shape:
+    //  - clientSecret → the bank details are collected in embedded provider
+    //    fields (Stripe Bacs via Elements) and confirmed client-side.
+    //  - redirectUrl  → the provider hosts the whole authorisation page
+    //    (GoCardless Billing Request Flow).
     return {
-      status: 'pending',
+      status: mandate.clientSecret ? 'requires_confirmation' : 'pending',
       methodId: record.id,
       kind: 'bacs_debit',
-      // The customer authorises on the provider's page; nothing to collect here.
+      clientSecret: mandate.clientSecret,
       redirectUrl: mandate.redirectUrl,
       setDefaultRequested: setDefault,
-      message: 'Complete the Direct Debit authorisation with your bank to activate this method.',
+      message: mandate.clientSecret
+        ? 'Enter your bank details to authorise the Direct Debit.'
+        : 'Complete the Direct Debit authorisation with your bank to activate this method.',
     }
   }
 

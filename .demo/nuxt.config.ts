@@ -259,6 +259,13 @@ export default defineNuxtConfig({
     logging: {
       compressedSizes: false,
     },
+    // Minifying the server bundle is the peak-memory stage of the build and
+    // repeatedly OOM-killed the 4GB production VPS (the rollup pass holds the
+    // whole bundle in memory twice). The server bundle is never downloaded by
+    // a browser, so minifying it buys nothing but build risk — the client
+    // assets are still minified by Vite. Same reasoning for source maps.
+    minify: false,
+    sourceMap: false,
     esbuild: {
       options: {
         target: 'esnext',

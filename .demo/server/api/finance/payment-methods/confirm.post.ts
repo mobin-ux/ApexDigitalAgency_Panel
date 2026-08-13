@@ -44,7 +44,7 @@ export default defineEventHandler(async (event) => {
   if (!method) {
     throw createError({ statusCode: 404, message: 'Payment method not found.' })
   }
-  if (method.provider !== 'stripe' || method.kind !== 'card') {
+  if (method.provider !== 'stripe' || (method.kind !== 'card' && method.kind !== 'bacs_debit')) {
     throw createError({ statusCode: 400, message: 'This payment method does not need confirmation.' })
   }
   // Already finalised (duplicate submit / refresh) — idempotent.
@@ -75,19 +75,61 @@ export default defineEventHandler(async (event) => {
     headers,
   })
 
-  if (setupIntent.status !== 'succeeded') {
+  const isBacs = method.kind === 'bacs_debit'
+
+  // Bacs mandates are lodged with the bank over ~3 working days, so
+  // `processing` is a normal, successful outcome here — the method is saved
+  // but not yet chargeable. `setup_intent.succeeded` activates it later.
+  const acceptable = isBacs
+    ? ['succeeded', 'processing']
+    : ['succeeded']
+
+  if (!acceptable.includes(setupIntent.status)) {
     // Not set up: leave the row pending so a retry can finish it.
     const reason = setupIntent.last_setup_error?.message
     throw createError({
       statusCode: 402,
-      message: reason || 'Your card could not be verified. Please check the details and try again.',
+      message: reason || (isBacs
+        ? 'Your Direct Debit could not be set up. Please check your bank details and try again.'
+        : 'Your card could not be verified. Please check the details and try again.'),
     })
   }
 
   const pm = setupIntent.payment_method
   if (!pm || typeof pm !== 'object') {
-    throw createError({ statusCode: 502, message: 'Stripe did not return the card details. Please try again.' })
+    throw createError({ statusCode: 502, message: 'Stripe did not return the payment details. Please try again.' })
   }
+
+  if (isBacs) {
+    const bacs = pm.bacs_debit ?? {}
+    const mandateStatus = setupIntent.status === 'succeeded' ? 'active' : 'submitted'
+    const updatedBacs = await prisma.paymentMethod.update({
+      where: { id: method.id },
+      data: {
+        providerMethodId: pm.id,
+        providerCustomerId: typeof setupIntent.customer === 'string' ? setupIntent.customer : method.providerCustomerId,
+        brand: 'Bank account',
+        last4: bacs.last4 ?? null,
+        accountHolder: pm.billing_details?.name ?? method.accountHolder,
+        mandateStatus,
+        // Only a live mandate may become the default instrument.
+        isDefault: mandateStatus === 'active' && setDefault,
+      },
+    })
+    if (updatedBacs.isDefault) {
+      await prisma.paymentMethod.updateMany({
+        where: { userId: session.id, id: { not: updatedBacs.id } },
+        data: { isDefault: false },
+      })
+    }
+    log.info('bacs mandate confirmed', { userId: session.id, methodId: updatedBacs.id, mandateStatus })
+    return {
+      status: mandateStatus === 'active' ? 'active' : 'pending',
+      mandateStatus,
+      method: publicShape(updatedBacs),
+    }
+  }
+
   const cardInfo = pm.card ?? {}
 
   // 2 + 3. Adopt the pm_… id and store display metadata.
@@ -143,6 +185,7 @@ function publicShape(m: {
   last4: string | null
   expMonth: number | null
   expYear: number | null
+  mandateStatus?: string | null
   isDefault: boolean
 }) {
   return {
@@ -152,6 +195,7 @@ function publicShape(m: {
     last4: m.last4,
     expMonth: m.expMonth,
     expYear: m.expYear,
+    mandateStatus: m.mandateStatus ?? null,
     isDefault: m.isDefault,
   }
 }

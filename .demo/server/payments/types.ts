@@ -16,13 +16,13 @@ export type ProviderName = 'stripe' | 'gocardless' | 'paypal' | 'truelayer' | 'm
  * capability*, so cards can route to Stripe while direct debit routes to
  * GoCardless in the same deployment.
  */
-export type Capability =
-  | 'charge' // one-off pull from a card/wallet
-  | 'mandate' // set up a reusable direct-debit authority
-  | 'recurring' // collect against an existing mandate
-  | 'refund'
-  | 'payout' // push money out to a customer
-  | 'bank_link' // read-only bank account verification/linking
+export type Capability
+  = | 'charge' // one-off pull from a card/wallet
+    | 'mandate' // set up a reusable direct-debit authority
+    | 'recurring' // collect against an existing mandate
+    | 'refund'
+    | 'payout' // push money out to a customer
+    | 'bank_link' // read-only bank account verification/linking
 
 export type IntentStatus = 'requires_action' | 'processing' | 'succeeded' | 'failed' | 'cancelled'
 export type MandateStatus = 'pending_submission' | 'submitted' | 'active' | 'cancelled' | 'failed'
@@ -86,6 +86,13 @@ export interface MandateResult {
   status: MandateStatus
   /** Hosted mandate-authorisation page — the customer must visit it. */
   redirectUrl?: string
+  /**
+   * Client-side confirmation handle, for rails that collect the bank details
+   * in embedded provider-hosted fields rather than on a redirect page
+   * (Stripe Bacs via Elements). Mutually exclusive with `redirectUrl` in
+   * practice: a provider offers one model or the other.
+   */
+  clientSecret?: string
   kind: PaymentKind
   brand?: string
   last4?: string

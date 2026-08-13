@@ -81,10 +81,19 @@ export default defineEventHandler(async (event) => {
       publishableKey: cardEntry === 'hosted' ? publishableKey : '',
       brands: ['visa', 'mastercard', 'amex'],
     },
-    directDebit: {
-      enabled: Boolean(mandateProvider),
-      entry: mandateIsMock ? 'inline' : 'hosted',
-      advanceNoticeDays: ddNoticeDays,
-    },
+    directDebit: (() => {
+      // Stripe collects Bacs details in Elements (needs the publishable key);
+      // GoCardless hosts the whole authorisation page (needs no key).
+      const stripeBacs = mandateProvider?.name === 'stripe'
+      const entry = mandateIsMock
+        ? 'inline'
+        : (stripeBacs && !publishableKey) ? 'unavailable' : 'hosted'
+      return {
+        enabled: Boolean(mandateProvider) && entry !== 'unavailable',
+        entry,
+        publishableKey: entry === 'hosted' && stripeBacs ? publishableKey : '',
+        advanceNoticeDays: ddNoticeDays,
+      }
+    })(),
   }
 })

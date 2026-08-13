@@ -47,7 +47,7 @@ interface PayConfig {
   topupMin: number
   topupMax: number
   card: { enabled: boolean, entry: 'inline' | 'hosted' | 'unavailable', publishableKey?: string, brands: string[] }
-  directDebit: { enabled: boolean, entry: 'inline' | 'hosted' | 'disabled', advanceNoticeDays: number }
+  directDebit: { enabled: boolean, entry: 'inline' | 'hosted' | 'unavailable', publishableKey?: string, advanceNoticeDays: number }
 }
 interface SavedMethod {
   id: string
@@ -87,7 +87,7 @@ async function loadContext() {
 }
 
 // ---- state machine --------------------------------------------------------
-type Screen = 'choose' | 'card' | 'bank' | 'ddauth' | 'verify' | 'processing' | 'success' | 'error'
+type Screen = 'choose' | 'card' | 'bank' | 'ddauth' | 'ddpending' | 'verify' | 'processing' | 'success' | 'error'
 const screen = ref<Screen>('choose')
 const busy = ref(false)
 
@@ -317,12 +317,15 @@ function showCardErr(field: string) {
 // which is what keeps the integration PCI DSS SAQ-A. The sandbox path above
 // is used only when no live provider is configured.
 const cardEntry = computed(() => config.value?.card.entry ?? 'inline')
+const ddEntry = computed(() => config.value?.directDebit.entry ?? 'inline')
 const hostedReady = ref(false)
 const hostedError = ref('')
 const cardMount = ref<HTMLElement | null>(null)
+const bankMount = ref<HTMLElement | null>(null)
 let stripeJs: any = null
 let stripeElements: any = null
 let hostedMethodId = ''
+let hostedKind: 'card' | 'bacs_debit' = 'card'
 
 /** Load Stripe.js on demand. Returns null if the script can't be reached. */
 async function loadStripeJs(publishableKey: string): Promise<any | null> {
@@ -343,18 +346,26 @@ async function loadStripeJs(publishableKey: string): Promise<any | null> {
   return w.Stripe(publishableKey)
 }
 
-/** Start a SetupIntent and mount the Payment Element into the card screen. */
-async function initHostedCard() {
+/**
+ * Start a SetupIntent and mount the Payment Element.
+ *
+ * One code path serves both instruments — Stripe renders card fields for
+ * `card` and the Bacs sort-code/account-number form (plus the Direct Debit
+ * Guarantee and mandate wording the scheme requires) for `bacs_debit`.
+ */
+async function initHosted(kind: 'card' | 'bacs_debit') {
+  hostedKind = kind
   hostedReady.value = false
   hostedError.value = ''
   try {
     const setup = await $fetch<{ methodId: string, clientSecret: string }>(
       '/api/finance/payment-methods/setup',
-      { method: 'POST', body: { kind: 'card' } },
+      { method: 'POST', body: { kind } },
     )
     hostedMethodId = setup.methodId
 
-    stripeJs = await loadStripeJs(config.value?.card.publishableKey ?? '')
+    const pk = (kind === 'bacs_debit' ? config.value?.directDebit.publishableKey : config.value?.card.publishableKey) ?? ''
+    stripeJs = await loadStripeJs(pk)
     if (!stripeJs) {
       hostedError.value = 'We couldn’t reach Stripe to load the secure card form. Check your connection and try again.'
       return
@@ -376,44 +387,68 @@ async function initHostedCard() {
     })
     const paymentElement = stripeElements.create('payment', { layout: 'tabs' })
     await nextTick()
-    if (cardMount.value) {
-      paymentElement.mount(cardMount.value)
+    const target = kind === 'bacs_debit' ? bankMount.value : cardMount.value
+    if (target) {
+      paymentElement.mount(target)
       hostedReady.value = true
     }
   }
   catch (err: any) {
-    hostedError.value = err?.data?.message ?? err?.message ?? 'We couldn’t open the secure card form. Please try again.'
+    hostedError.value = err?.data?.message ?? err?.message ?? 'We couldn’t open the secure form. Please try again.'
   }
 }
 
-async function submitHostedCard() {
+async function submitHosted() {
   if (busy.value || !stripeJs || !stripeElements) {
     return
   }
+  const isBacs = hostedKind === 'bacs_debit'
   busy.value = true
   hostedError.value = ''
   try {
-    // Stripe collects + verifies the card (incl. any 3-D Secure challenge).
+    // Stripe verifies the instrument (card: any 3-D Secure challenge;
+    // Bacs: captures the mandate authorisation).
     const { error, setupIntent } = await stripeJs.confirmSetup({
       elements: stripeElements,
       redirect: 'if_required',
     })
     if (error) {
-      hostedError.value = error.message ?? 'Your card could not be verified. Please check the details.'
+      hostedError.value = error.message
+        ?? (isBacs ? 'Your Direct Debit could not be set up. Please check your details.' : 'Your card could not be verified. Please check the details.')
       return
     }
-    if (setupIntent?.status !== 'succeeded') {
-      hostedError.value = 'Your card could not be verified. Please try another card.'
+    // Bacs mandates report `processing` while they are lodged with the bank —
+    // that is a normal success, not a failure.
+    const ok = isBacs
+      ? ['succeeded', 'processing'].includes(setupIntent?.status)
+      : setupIntent?.status === 'succeeded'
+    if (!ok) {
+      hostedError.value = isBacs
+        ? 'Your Direct Debit could not be set up. Please try again.'
+        : 'Your card could not be verified. Please try another card.'
       return
     }
 
     // The server re-reads the SetupIntent and adopts the real pm_… id.
-    const res = await $fetch<{ method: { id: string, brand: string | null, last4: string | null } }>(
-      '/api/finance/payment-methods/confirm',
-      { method: 'POST', body: { methodId: hostedMethodId, setDefault: usableMethods.value.length === 0 } },
-    )
-    const label = `${res.method.brand ?? 'Card'} •••• ${res.method.last4 ?? ''}`.trim()
+    const res = await $fetch<{
+      status: string
+      mandateStatus?: string
+      method: { id: string, brand: string | null, last4: string | null }
+    }>('/api/finance/payment-methods/confirm', {
+      method: 'POST',
+      body: { methodId: hostedMethodId, setDefault: usableMethods.value.length === 0 },
+    })
+    const label = `${res.method.brand ?? (isBacs ? 'Bank account' : 'Card')} •••• ${res.method.last4 ?? ''}`.trim()
     savedMethods.value = []
+
+    // A Bacs mandate that is still being lodged cannot be charged yet, so we
+    // never pretend the payment went through — we explain the timeline.
+    if (isBacs && res.mandateStatus !== 'active') {
+      lastReceipt.value = { kind: 'method', title: `${label} — Direct Debit being set up` }
+      screen.value = 'ddpending'
+      emit('success', { methodId: res.method.id })
+      return
+    }
 
     if (props.mode === 'add-method') {
       lastReceipt.value = { kind: 'method', title: `${label} added` }
@@ -425,7 +460,10 @@ async function submitHostedCard() {
     }
   }
   catch (err: any) {
-    fail('We couldn’t save that card', err?.data?.message ?? 'Please try again in a moment.')
+    fail(
+      isBacs ? 'We couldn’t set up that Direct Debit' : 'We couldn’t save that card',
+      err?.data?.message ?? 'Please try again in a moment.',
+    )
   }
   finally {
     busy.value = false
@@ -434,7 +472,7 @@ async function submitHostedCard() {
 
 async function submitCard() {
   if (cardEntry.value === 'hosted') {
-    await submitHostedCard()
+    await submitHosted()
     return
   }
   Object.keys(card).forEach(k => (cardTouched[k] = true))
@@ -782,10 +820,25 @@ watch(() => props.open, (open) => {
   loadContext()
 }, { immediate: true })
 
-// Entering the card step on a live Stripe account mounts the hosted fields.
+// Entering a payment step on a live Stripe account mounts the hosted fields.
+// Going back to the chooser tears them down, so switching between card and
+// Direct Debit mounts a fresh Element for the right instrument.
 watch(screen, (s) => {
-  if (s === 'card' && cardEntry.value === 'hosted' && !hostedReady.value) {
-    initHostedCard()
+  if (s === 'choose') {
+    hostedReady.value = false
+    hostedError.value = ''
+    stripeElements = null
+    hostedMethodId = ''
+    return
+  }
+  if (hostedReady.value) {
+    return
+  }
+  if (s === 'card' && cardEntry.value === 'hosted') {
+    initHosted('card')
+  }
+  else if (s === 'bank' && ddEntry.value === 'hosted') {
+    initHosted('bacs_debit')
   }
 })
 </script>
@@ -1068,7 +1121,43 @@ watch(screen, (s) => {
           <p class="mb-4 text-[13px] text-muted-400">
             Set up a UK Direct Debit. We only ever debit amounts you’ve agreed, with advance notice.
           </p>
-          <div class="flex flex-col gap-3.5">
+
+          <!-- HOSTED: Stripe Elements renders the Bacs form together with the
+               Direct Debit Guarantee and the scheme's mandate wording. -->
+          <template v-if="ddEntry === 'hosted'">
+            <div v-show="hostedReady" ref="bankMount" class="min-h-[200px]" />
+            <div v-if="!hostedReady && !hostedError" class="flex flex-col gap-3">
+              <div class="h-11 animate-pulse rounded-xl bg-white/5" />
+              <div class="h-11 animate-pulse rounded-xl bg-white/5" />
+              <div class="h-11 animate-pulse rounded-xl bg-white/5" />
+            </div>
+            <div v-if="hostedError" class="flex items-start gap-2 rounded-[10px] border border-[#EC6453]/30 bg-[#EC6453]/10 px-3.5 py-2.5 text-[12.5px] text-[#EC6453]">
+              <Icon name="lucide:alert-circle" class="mt-0.5 size-4 shrink-0" />{{ hostedError }}
+            </div>
+
+            <div class="mt-4 flex items-start gap-2 rounded-[10px] border border-white/8 bg-white/[0.02] px-3 py-2.5 text-[11.5px] leading-[1.55] text-muted-500">
+              <Icon name="lucide:clock" class="mt-0.5 size-3.5 shrink-0 text-[#F2C14E]" />
+              Direct Debits take about 3 working days to set up with your bank. We’ll confirm by email, and give you at least {{ advanceDays }} working days’ notice before any collection.
+            </div>
+
+            <button
+              type="button"
+              class="mt-5 flex w-full items-center justify-center gap-2 rounded-full py-3.5 text-[14px] font-bold transition"
+              :class="hostedReady && !busy ? 'cursor-pointer bg-primary-500 text-white shadow-[0_8px_20px_rgba(125,83,242,0.28)] hover:bg-primary-600' : 'cursor-not-allowed bg-muted-700 text-muted-500'"
+              :disabled="!hostedReady || busy"
+              @click="submitHosted"
+            >
+              <Icon v-if="busy" name="lucide:loader-circle" class="size-4 animate-spin" />
+              <Icon v-else name="lucide:lock" class="size-4" />
+              {{ busy ? 'Setting up…' : 'Authorise Direct Debit' }}
+            </button>
+            <p class="mt-3 flex items-center justify-center gap-1.5 text-[11.5px] text-muted-500">
+              <Icon name="lucide:shield-check" class="size-3.5 text-[#22B07D]" />
+              Protected by the Direct Debit Guarantee. Secured by Stripe.
+            </p>
+          </template>
+
+          <div v-else class="flex flex-col gap-3.5">
             <div>
               <label for="dd-name" class="mb-1.5 block text-xs font-semibold uppercase tracking-[0.04em] text-muted-500">Account holder name</label>
               <input
@@ -1213,6 +1302,29 @@ watch(screen, (s) => {
               {{ lastReceipt?.reference }}
             </div>
             <button type="button" class="mt-6 w-full rounded-full bg-primary-500 py-3.5 text-[14px] font-bold text-white transition hover:bg-primary-600" @click="close">
+              Done
+            </button>
+          </div>
+        </template>
+
+        <!-- ============ DIRECT DEBIT BEING SET UP ============ -->
+        <template v-else-if="screen === 'ddpending'">
+          <div class="flex flex-col items-center py-4 text-center">
+            <span class="mb-4 flex size-16 items-center justify-center rounded-full bg-[#F2C14E]/14 text-[#F2C14E]">
+              <Icon name="lucide:landmark" class="size-8" />
+            </span>
+            <h3 class="font-heading text-[19px] font-extrabold text-white">
+              Direct Debit is being set up
+            </h3>
+            <p class="mt-2 max-w-[340px] text-[13px] leading-[1.6] text-muted-400">
+              Your mandate has been sent to your bank. It takes about <strong class="text-white">3 working days</strong> to become active — we’ll email you the moment it’s ready, and you’ll get at least {{ advanceDays }} working days’ notice before any collection.
+            </p>
+            <p v-if="mode === 'topup'" class="mt-3 max-w-[340px] text-[12.5px] leading-[1.55] text-muted-500">
+              Nothing has been charged yet. To add funds right now, use a debit or credit card instead.
+            </p>
+          </div>
+          <div class="mt-3 flex flex-col gap-2.5">
+            <button type="button" class="w-full rounded-full bg-primary-500 py-3.5 text-[14px] font-bold text-white transition hover:bg-primary-600" @click="close">
               Done
             </button>
           </div>
