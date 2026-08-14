@@ -1,5 +1,16 @@
 generator client {
   provider = "prisma-client-js"
+
+  // The production bundle is built off-box (a dev machine) and shipped to the
+  // Linux VPS, because the 3.9GB server cannot complete a Nuxt build without
+  // thrashing swap. `binaryTargets` defaults to "native" alone, which would
+  // emit only the build machine's query engine — a Windows/macOS engine in a
+  // bundle that has to run on Linux, so every Prisma call 500s on the server.
+  //
+  // "native" keeps local dev working; the debian targets cover the VPS. Both
+  // OpenSSL variants are listed so this does not silently break if the box is
+  // rebuilt on a different Ubuntu release (3.0.x = 22.04/24.04, 1.1.x = 20.04).
+  binaryTargets = ["native", "debian-openssl-3.0.x", "debian-openssl-1.1.x"]
 }
 
 datasource db {

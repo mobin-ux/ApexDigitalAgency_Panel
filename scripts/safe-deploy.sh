@@ -1,7 +1,18 @@
 #!/usr/bin/env bash
 # ============================================================================
-#  Apex Digi — safe production build
+#  Apex Digi — safe production build   ***SUPERSEDED — see ship-bundle.sh***
 # ============================================================================
+#  DO NOT USE THIS FOR ROUTINE DEPLOYS.
+#
+#  This builds ON the server, which means stopping the app for the ~10 minutes
+#  the build takes (step 2 below) — ten minutes of downtime on a live payment
+#  system, every release. Use scripts/ship-bundle.sh instead: it builds on a
+#  machine with enough RAM and uploads the result, so downtime is a few
+#  seconds and a failed build never touches production at all.
+#
+#  Kept only as a last resort for the case where no dev machine is available
+#  and the server must rebuild itself.
+#
 #  Usage on the server:   sudo bash /opt/apex/safe-deploy.sh
 #
 #  Why this exists: the production VPS has 3.9GB of RAM and the Nuxt bundler
