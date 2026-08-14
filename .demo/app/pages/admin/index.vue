@@ -131,7 +131,7 @@ function timeAgo(iso: string | Date) {
     </section>
 
     <!-- ========== MODULES + AUDIT FEED ========== -->
-    <div class="grid items-start gap-7 xl:grid-cols-[1.4fr_1fr]">
+    <div class="grid grid-cols-1 items-start gap-7 xl:grid-cols-[1.4fr_1fr]">
       <section class="flex flex-col gap-4" aria-label="Management modules">
         <h2 class="flex items-center gap-2.5 font-heading text-[15px] font-bold uppercase tracking-[0.04em] text-muted-500">
           <span class="h-[18px] w-1.5 rounded-full bg-primary-500" />Manage

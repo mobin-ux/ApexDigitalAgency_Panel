@@ -191,9 +191,12 @@ function resetChanges() {
   hydrate()
 }
 
-const inputClass = 'w-full rounded-[11px] border border-white/8 bg-muted-700 px-3.5 py-2.5 text-sm text-white outline-none placeholder:text-muted-500 focus:border-primary-400'
+// `min-w-0` matters as much as `w-full` here: these inputs sit inside flex rows,
+// and an input's automatic minimum size is its intrinsic ~170px, which stops the
+// row shrinking on a phone and pushes the page into horizontal scroll.
+const inputClass = 'w-full min-w-0 rounded-[11px] border border-white/8 bg-muted-700 px-3.5 py-3 sm:py-2.5 text-sm text-white outline-none placeholder:text-muted-500 focus:border-primary-400'
 const labelClass = 'mb-1.5 block text-[12px] font-semibold text-muted-400'
-const selectClass = 'w-full cursor-pointer rounded-[11px] border border-white/8 bg-muted-700 px-3 py-2.5 text-[13px] text-white outline-none focus:border-primary-400'
+const selectClass = 'w-full cursor-pointer rounded-[11px] border border-white/8 bg-muted-700 px-3 py-3 sm:py-2.5 text-[13px] text-white outline-none focus:border-primary-400'
 </script>
 
 <template>
@@ -225,7 +228,7 @@ const selectClass = 'w-full cursor-pointer rounded-[11px] border border-white/8 
           <Icon :name="service.icon" class="size-6" />
         </span>
         <div class="min-w-0 flex-1">
-          <div class="grid gap-3 sm:grid-cols-2">
+          <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label :class="labelClass">Service name</label>
               <input v-model="service.name" :class="inputClass" placeholder="e.g. Web development">
@@ -257,7 +260,7 @@ const selectClass = 'w-full cursor-pointer rounded-[11px] border border-white/8 
         </div>
         <button
           type="button" aria-label="Remove service"
-          class="flex size-9 shrink-0 items-center justify-center rounded-[10px] border border-[#EC6453]/25 bg-[#EC6453]/10 text-[#EC6453] transition hover:bg-[#EC6453]/20"
+          class="flex size-11 shrink-0 items-center justify-center rounded-[10px] border border-[#EC6453]/25 bg-[#EC6453]/10 text-[#EC6453] transition hover:bg-[#EC6453]/20 sm:size-9"
           @click="removeService(sIdx)"
         >
           <Icon name="lucide:trash-2" class="size-4" />
@@ -270,21 +273,21 @@ const selectClass = 'w-full cursor-pointer rounded-[11px] border border-white/8 
           <h3 class="text-[12.5px] font-bold uppercase tracking-[0.05em] text-muted-500">
             Plans ({{ plansOf(service.id).length }})
           </h3>
-          <button type="button" class="inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-primary-300 hover:text-primary-200" @click="addPlan(service.id)">
+          <button type="button" class="-my-2 inline-flex min-h-11 items-center gap-1.5 py-2 text-[12.5px] font-semibold text-primary-300 hover:text-primary-200 sm:my-0 sm:min-h-0 sm:py-0" @click="addPlan(service.id)">
             <Icon name="lucide:plus" class="size-3.5" /> Add plan
           </button>
         </div>
 
         <div class="flex flex-col gap-3">
           <div v-for="(plan, pIdx) in plansOf(service.id)" :key="plan.id" class="rounded-[14px] border border-white/8 bg-muted-700/40 p-4">
-            <div class="grid gap-3 sm:grid-cols-[1.4fr_1fr_1fr_auto]">
+            <div class="grid grid-cols-1 gap-3 sm:grid-cols-[1.4fr_1fr_1fr_auto]">
               <div>
                 <label :class="labelClass">Plan name</label>
                 <input v-model="plan.name" :class="inputClass">
               </div>
               <div>
                 <label :class="labelClass">Price (GBP)</label>
-                <div class="flex items-center rounded-[11px] border border-white/8 bg-muted-700 px-3 focus-within:border-primary-400">
+                <div class="flex min-w-0 items-center rounded-[11px] border border-white/8 bg-muted-700 px-3 focus-within:border-primary-400">
                   <span class="text-sm font-semibold text-muted-500">£</span>
                   <input v-model.number="plan.base" type="number" min="0" step="50" class="min-w-0 flex-1 border-none bg-transparent px-2 py-2.5 text-sm text-white outline-none tabular-nums">
                 </div>
@@ -320,19 +323,19 @@ const selectClass = 'w-full cursor-pointer rounded-[11px] border border-white/8 
                 <div v-for="(_f, fIdx) in plan.features" :key="fIdx" class="flex items-center gap-2">
                   <Icon name="lucide:check" class="size-4 shrink-0 text-[#22B07D]" />
                   <input v-model="plan.features[fIdx]" :class="inputClass" placeholder="e.g. Up to 8 pages">
-                  <button type="button" aria-label="Remove feature" class="flex size-8 shrink-0 items-center justify-center rounded-[9px] text-muted-500 transition hover:text-[#EC6453]" @click="removeFeature(plan, fIdx)">
+                  <button type="button" aria-label="Remove feature" class="flex size-11 shrink-0 items-center justify-center rounded-[9px] text-muted-500 transition hover:text-[#EC6453] sm:size-8" @click="removeFeature(plan, fIdx)">
                     <Icon name="lucide:x" class="size-4" />
                   </button>
                 </div>
               </div>
-              <button type="button" class="mt-2 inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-primary-300 hover:text-primary-200" @click="addFeature(plan)">
+              <button type="button" class="mt-2 inline-flex min-h-11 items-center gap-1.5 py-2 text-[12.5px] font-semibold text-primary-300 hover:text-primary-200 sm:min-h-0 sm:py-0" @click="addFeature(plan)">
                 <Icon name="lucide:plus" class="size-3.5" /> Add feature
               </button>
             </div>
 
             <div class="mt-3 flex items-center justify-between border-t border-white/8 pt-3">
               <label class="flex cursor-pointer items-center gap-2 text-[13px] text-muted-300">
-                <input type="checkbox" :checked="!!plan.popular" class="size-4 accent-primary-500" @change="setPopular(service.id, plan.id)">
+                <input type="checkbox" :checked="!!plan.popular" class="size-5 accent-primary-500 sm:size-4" @change="setPopular(service.id, plan.id)">
                 Most popular
               </label>
               <span class="text-[12px] text-muted-500">
@@ -360,22 +363,22 @@ const selectClass = 'w-full cursor-pointer rounded-[11px] border border-white/8 
       <p class="mt-1 text-[13px] text-muted-500">
         The monthly “from £X” figures shown on the customer dashboard service cards.
       </p>
-      <div class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+      <div class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
         <div v-for="key in fromPriceKeys" :key="key" class="flex items-center gap-2">
-          <span class="w-28 shrink-0 truncate text-[13px] font-semibold capitalize text-white">{{ key }}</span>
-          <div class="flex flex-1 items-center rounded-[11px] border border-white/8 bg-muted-700 px-3 focus-within:border-primary-400">
+          <span class="w-20 shrink-0 truncate text-[13px] font-semibold capitalize text-white sm:w-28">{{ key }}</span>
+          <div class="flex min-w-0 flex-1 items-center rounded-[11px] border border-white/8 bg-muted-700 px-3 focus-within:border-primary-400">
             <span class="text-sm font-semibold text-muted-500">£</span>
             <input v-model.number="state.fromPrices[key]" type="number" min="0" step="10" class="min-w-0 flex-1 border-none bg-transparent px-2 py-2.5 text-sm text-white outline-none tabular-nums">
             <span class="text-[12px] text-muted-500">/mo</span>
           </div>
-          <button type="button" aria-label="Remove" class="flex size-8 shrink-0 items-center justify-center rounded-[9px] text-muted-500 transition hover:text-[#EC6453]" @click="removeFromPrice(key)">
+          <button type="button" aria-label="Remove" class="flex size-11 shrink-0 items-center justify-center rounded-[9px] text-muted-500 transition hover:text-[#EC6453] sm:size-8" @click="removeFromPrice(key)">
             <Icon name="lucide:x" class="size-4" />
           </button>
         </div>
       </div>
       <div class="mt-4 flex items-center gap-2">
-        <input v-model="newFromKey" placeholder="New key (e.g. seo)" class="w-48 rounded-[11px] border border-white/8 bg-muted-700 px-3.5 py-2 text-[13px] text-white outline-none placeholder:text-muted-500 focus:border-primary-400" @keydown.enter.prevent="addFromPrice">
-        <button type="button" class="inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-primary-300 hover:text-primary-200" @click="addFromPrice">
+        <input v-model="newFromKey" placeholder="New key (e.g. seo)" class="w-48 min-w-0 rounded-[11px] border border-white/8 bg-muted-700 px-3.5 py-2 text-[13px] text-white outline-none placeholder:text-muted-500 focus:border-primary-400" @keydown.enter.prevent="addFromPrice">
+        <button type="button" class="-my-2 inline-flex min-h-11 items-center gap-1.5 py-2 text-[12.5px] font-semibold text-primary-300 hover:text-primary-200 sm:my-0 sm:min-h-0 sm:py-0" @click="addFromPrice">
           <Icon name="lucide:plus" class="size-3.5" /> Add price
         </button>
       </div>

@@ -226,7 +226,7 @@ function fmtDate(iso: string | Date) {
         type="button"
         role="tab"
         :aria-selected="tab === t.key"
-        class="inline-flex shrink-0 items-center gap-2 rounded-full px-4 py-2 text-[13px] font-bold transition"
+        class="inline-flex shrink-0 items-center gap-2 rounded-full px-4 py-2.5 text-[13px] font-bold transition sm:py-2"
         :class="tab === t.key ? 'bg-primary-500 text-white shadow-[0_6px_16px_rgba(125,83,242,0.32)]' : 'text-muted-400 hover:text-white'"
         @click="tab = t.key"
       >
@@ -244,12 +244,12 @@ function fmtDate(iso: string | Date) {
         </button>
       </div>
 
-      <div class="grid gap-3 rounded-[20px] border border-white/10 bg-muted-800 p-4 sm:grid-cols-2 xl:grid-cols-[1.8fr_1fr_1fr]">
+      <div class="grid grid-cols-1 gap-3 rounded-[20px] border border-white/10 bg-muted-800 p-4 sm:grid-cols-2 xl:grid-cols-[1.8fr_1fr_1fr]">
         <label class="flex items-center gap-2.5 rounded-[11px] border border-white/8 bg-muted-700 px-3.5 py-2.5 focus-within:border-primary-400">
           <Icon name="lucide:search" class="size-4 shrink-0 text-muted-500" />
           <input v-model="txSearch" placeholder="Search description, id or customer email…" class="min-w-0 flex-1 border-none bg-transparent text-[13.5px] text-white outline-none placeholder:text-muted-500">
         </label>
-        <select v-model="txType" aria-label="Filter by type" class="w-full cursor-pointer rounded-[11px] border border-white/8 bg-muted-700 px-3.5 py-2.5 text-[13px] text-white outline-none focus:border-primary-400">
+        <select v-model="txType" aria-label="Filter by type" class="w-full cursor-pointer rounded-[11px] border border-white/8 bg-muted-700 px-3.5 py-3 sm:py-2.5 text-[13px] text-white outline-none focus:border-primary-400">
           <option value="">
             All types
           </option>
@@ -269,7 +269,7 @@ function fmtDate(iso: string | Date) {
             Adjustments
           </option>
         </select>
-        <select v-model="txStatus" aria-label="Filter by status" class="w-full cursor-pointer rounded-[11px] border border-white/8 bg-muted-700 px-3.5 py-2.5 text-[13px] text-white outline-none focus:border-primary-400">
+        <select v-model="txStatus" aria-label="Filter by status" class="w-full cursor-pointer rounded-[11px] border border-white/8 bg-muted-700 px-3.5 py-3 sm:py-2.5 text-[13px] text-white outline-none focus:border-primary-400">
           <option value="">
             All statuses
           </option>

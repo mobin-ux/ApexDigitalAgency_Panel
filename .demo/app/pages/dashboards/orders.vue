@@ -343,7 +343,7 @@ async function payNow() {
       <!-- title + primary action -->
       <div class="mb-6 flex flex-wrap items-end justify-between gap-5">
         <div>
-          <h1 class="font-heading text-[34px] font-extrabold leading-[1.05] tracking-[-0.02em] text-white">
+          <h1 class="font-heading text-[28px] font-extrabold leading-[1.05] tracking-[-0.02em] text-white sm:text-[34px]">
             My <span class="text-primary-400">orders</span>
           </h1>
           <p class="mt-2 text-[15px] text-muted-400">
@@ -376,7 +376,7 @@ async function payNow() {
           <button
             v-for="[key, label] in TABS" :key="key"
             type="button" role="tab" :aria-selected="filter === key"
-            class="inline-flex shrink-0 items-center gap-2 rounded-full px-3.5 py-2 text-[13px] transition"
+            class="inline-flex shrink-0 items-center gap-2 rounded-full px-3.5 py-2.5 text-[13px] transition sm:py-2"
             :class="filter === key ? 'bg-primary-500 font-bold text-white' : 'font-semibold text-muted-400 hover:text-white'"
             @click="filter = key"
           >
@@ -385,13 +385,18 @@ async function payNow() {
           </button>
         </div>
         <div class="flex-1" />
-        <label class="flex w-full items-center gap-2 rounded-[11px] border border-white/10 bg-muted-800 px-3 py-2 transition focus-within:border-primary-400 sm:w-[230px]">
+        <!-- py-3 under sm keeps both controls at a 44px touch height; the design's
+             tighter py-2 returns at sm where these are pointer targets. -->
+        <label class="flex w-full items-center gap-2 rounded-[11px] border border-white/10 bg-muted-800 px-3 py-3 transition focus-within:border-primary-400 sm:w-[230px] sm:py-2">
           <Icon name="lucide:search" class="size-4 shrink-0 text-muted-500" />
           <input v-model="q" placeholder="Search name or ID" class="w-full min-w-0 border-none bg-transparent text-[13.5px] text-white outline-none placeholder:text-muted-500">
         </label>
-        <label class="flex items-center gap-2 rounded-[11px] border border-white/10 bg-muted-800 px-3 py-2 text-[13px] text-muted-500">
+        <!-- The padding lives on the <select>, not the <label>: it is the select
+             that has to be 44px tall, since tapping the label's padding does not
+             open a native dropdown on mobile Safari. -->
+        <label class="flex w-full items-center gap-2 rounded-[11px] border border-white/10 bg-muted-800 px-3 text-[13px] text-muted-500 sm:w-auto sm:py-2">
           <span class="whitespace-nowrap">Sort</span>
-          <select v-model="sort" class="cursor-pointer border-none bg-transparent text-[13.5px] font-semibold text-white outline-none [color-scheme:dark]">
+          <select v-model="sort" class="w-full min-w-0 cursor-pointer border-none bg-transparent py-3 text-[13.5px] font-semibold text-white outline-none [color-scheme:dark] sm:w-auto sm:py-0">
             <option value="recent">Recent activity</option>
             <option value="progress">Progress</option>
             <option value="due">Next payment</option>
@@ -516,7 +521,7 @@ async function payNow() {
         </div>
       </div>
 
-      <div class="grid items-start gap-[22px] lg:grid-cols-[minmax(0,1fr)_360px]">
+      <div class="grid grid-cols-1 items-start gap-[22px] lg:grid-cols-[minmax(0,1fr)_360px]">
         <!-- LEFT column -->
         <div class="flex min-w-0 flex-col gap-[22px]">
           <!-- header + milestones -->
@@ -593,7 +598,7 @@ async function payNow() {
               </h3>
               <span class="rounded-full bg-white/5 px-2 py-px text-xs text-muted-500">{{ detail.files.length }}</span>
             </div>
-            <div v-if="detail.files.length" class="grid gap-3 sm:grid-cols-2">
+            <div v-if="detail.files.length" class="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <a v-for="f in detail.files" :key="f.id" :href="f.url || '#'" class="flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 px-3.5 py-3 transition hover:border-white/15">
                 <span class="flex size-[38px] shrink-0 items-center justify-center rounded-[10px] bg-primary-500/14 text-primary-400"><Icon :name="f.type === 'zip' ? 'lucide:folder-archive' : 'lucide:file-text'" class="size-[18px]" /></span>
                 <div class="min-w-0 flex-1">

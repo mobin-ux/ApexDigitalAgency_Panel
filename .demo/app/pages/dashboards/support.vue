@@ -348,26 +348,37 @@ const faqRows = computed(() => {
     Split-pane inbox needs a bounded height so the thread scrolls internally.
     `dvh` tracks the mobile URL bar (unlike `vh`); subtracting the top+bottom
     safe-area insets keeps the whole pane — and the composer at its foot — clear
-    of the notch and the home indicator. Insets are 0 in a normal browser tab,
-    so this equals the previous `100vh - 101px` there.
+    of the notch and the home indicator. Insets are 0 in a normal browser tab.
+
+    That bounded height is right on desktop, where both panes are on screen at
+    once, and right on a phone *while reading a thread* — it is what keeps the
+    composer pinned above the keyboard. It is wrong on a phone showing the
+    ticket list: the header and filters leave barely 250px of actual list, so
+    the list is given the normal page flow instead and the whole page scrolls.
   -->
-  <div class="mx-auto flex h-[calc(100dvh_-_101px_-_env(safe-area-inset-top)_-_env(safe-area-inset-bottom))] max-w-[1240px] flex-col pb-[22px] pt-[26px] font-sans text-muted-400">
+  <div
+    class="apex-support mx-auto flex max-w-[1240px] flex-col pb-[22px] pt-[26px] font-sans text-muted-400"
+    :class="{ 'apex-pane-h': tab === 'tickets' && mobileShowDetail }"
+  >
     <!-- ============ TITLE ============ -->
-    <div class="mb-[18px] flex flex-shrink-0 flex-wrap items-end justify-between gap-5">
+    <div class="mb-[18px] flex flex-shrink-0 flex-wrap items-end justify-between gap-4 sm:gap-5">
       <div>
-        <h1 class="font-heading text-[34px] font-extrabold leading-[1.05] tracking-[-0.02em] text-white">
+        <h1 class="font-heading text-[28px] font-extrabold leading-[1.05] tracking-[-0.02em] text-white sm:text-[34px]">
           Support <span class="text-primary-400">center</span>
         </h1>
-        <p class="mt-2 text-[15px] text-muted-400">
+        <p class="mt-2 text-[14px] text-muted-400 sm:text-[15px]">
           Message our team, track requests and find quick answers — all in one place.
         </p>
       </div>
-      <div class="flex items-center gap-3">
-        <div class="flex items-center gap-2.5 rounded-full border border-[#22B07D]/24 bg-[#22B07D]/10 px-3.5 py-2">
+      <div class="flex w-full items-center gap-3 sm:w-auto">
+        <!-- The availability pill is reassurance, not a control; on a phone the
+             vertical space it costs is better spent on the list itself. The same
+             ETA is repeated inside every thread. -->
+        <div class="hidden items-center gap-2.5 rounded-full border border-[#22B07D]/24 bg-[#22B07D]/10 px-3.5 py-2 sm:flex">
           <span class="size-2 rounded-full bg-[#22B07D] shadow-[0_0_0_3px_rgba(34,176,125,0.18)]" />
           <span class="text-[12.5px] font-semibold text-white">Team online · replies in {{ replyEta }}</span>
         </div>
-        <BaseButton rounded="full" size="lg" variant="primary" class="shadow-[0_10px_24px_rgba(125,83,242,0.32)]" @click="openNew">
+        <BaseButton rounded="full" size="lg" variant="primary" class="w-full shadow-[0_10px_24px_rgba(125,83,242,0.32)] sm:w-auto" @click="openNew">
           <Icon name="lucide:plus" class="size-4" />
           <span>New request</span>
         </BaseButton>
@@ -379,7 +390,7 @@ const faqRows = computed(() => {
       <button
         v-for="[key, label] in TAB_DEFS" :key="key"
         role="tab" :aria-selected="tab === key"
-        class="inline-flex shrink-0 items-center rounded-full px-[18px] py-[9px] text-[13.5px] transition-all"
+        class="inline-flex shrink-0 items-center rounded-full px-[18px] py-[11px] text-[13.5px] transition-all sm:py-[9px]"
         :class="tab === key ? 'bg-primary-500 font-bold text-white' : 'font-semibold text-muted-400 hover:text-white'"
         @click="tab = key"
       >
@@ -401,14 +412,14 @@ const faqRows = computed(() => {
             <div class="mt-2.5 flex items-center gap-2 overflow-x-auto rounded-full border border-white/8 bg-muted-700 p-[3px]">
               <button
                 v-for="[key, label] in [['all', 'All'], ['open', 'Open'], ['pending', 'Awaiting'], ['resolved', 'Resolved']]" :key="key"
-                class="whitespace-nowrap rounded-full px-3.5 py-1.5 text-[12.5px] transition-all"
+                class="whitespace-nowrap rounded-full px-3.5 py-2.5 text-[12.5px] transition-all sm:py-1.5"
                 :class="statusFilter === key ? 'bg-primary-500 font-bold text-white' : 'font-semibold text-muted-400 hover:text-white'"
                 @click="statusFilter = key as any"
               >
                 {{ label }}
               </button>
             </div>
-            <select v-model="catFilter" class="mt-2.5 w-full cursor-pointer rounded-[10px] border border-white/8 bg-muted-700 px-3 py-2.5 text-[13px] text-white outline-none">
+            <select v-model="catFilter" class="mt-2.5 w-full cursor-pointer rounded-[10px] border border-white/8 bg-muted-700 px-3 py-3 sm:py-2.5 text-[13px] text-white outline-none">
               <option value="all">
                 All categories
               </option>
@@ -517,7 +528,7 @@ const faqRows = computed(() => {
               <div v-for="(f, i) in draftFiles" :key="i" class="flex items-center gap-2 rounded-[9px] border border-white/8 bg-muted-700 py-1.5 pl-[11px] pr-1.5 text-xs text-white">
                 <Icon name="lucide:file-text" class="size-[13px] text-primary-400" />
                 {{ f.name }}
-                <button aria-label="Remove file" class="inline-flex size-6 items-center justify-center rounded-md text-muted-500 hover:text-[#EC6453]" @click="removeDraftFile(i)">
+                <button aria-label="Remove file" class="inline-flex size-8 items-center justify-center rounded-md text-muted-500 hover:text-[#EC6453] sm:size-6" @click="removeDraftFile(i)">
                   <Icon name="lucide:x" class="size-3" />
                 </button>
               </div>
@@ -529,10 +540,10 @@ const faqRows = computed(() => {
                 @keydown="onDraftKey"
               />
               <input ref="fileRef" type="file" multiple class="hidden" @change="onPickFiles">
-              <button aria-label="Attach file" class="inline-flex size-[38px] shrink-0 items-center justify-center rounded-[10px] border border-white/8 text-muted-400 hover:border-white/15 hover:text-white" @click="triggerAttach">
+              <button aria-label="Attach file" class="inline-flex size-11 shrink-0 items-center justify-center rounded-[10px] border border-white/8 text-muted-400 hover:border-white/15 hover:text-white sm:size-[38px]" @click="triggerAttach">
                 <Icon name="lucide:paperclip" class="size-[17px]" />
               </button>
-              <button aria-label="Send reply" class="inline-flex size-[38px] shrink-0 items-center justify-center rounded-[10px] bg-primary-500 text-white shadow-[0_6px_16px_rgba(125,83,242,0.32)] disabled:cursor-not-allowed disabled:opacity-50" :disabled="!draft.trim() || sending" @click="sendReply">
+              <button aria-label="Send reply" class="inline-flex size-11 shrink-0 items-center justify-center rounded-[10px] bg-primary-500 text-white shadow-[0_6px_16px_rgba(125,83,242,0.32)] disabled:cursor-not-allowed disabled:opacity-50 sm:size-[38px]" :disabled="!draft.trim() || sending" @click="sendReply">
                 <Icon name="lucide:send" class="size-[17px]" />
               </button>
             </div>
@@ -644,7 +655,7 @@ const faqRows = computed(() => {
                   <span class="block max-w-[160px] truncate text-[12.5px] font-semibold text-white">{{ f.name }}</span>
                   <span class="block text-[11px] text-muted-500">{{ f.size }}</span>
                 </span>
-                <button aria-label="Remove" class="inline-flex size-7 items-center justify-center rounded-md text-muted-500 hover:text-[#EC6453]" @click="removeNewFile(i)">
+                <button aria-label="Remove" class="inline-flex size-9 items-center justify-center rounded-md text-muted-500 hover:text-[#EC6453] sm:size-7" @click="removeNewFile(i)">
                   <Icon name="lucide:x" class="size-3" />
                 </button>
               </div>
@@ -692,7 +703,7 @@ const faqRows = computed(() => {
     <!-- ============================================================ FAQ -->
     <div v-else class="apex-rise min-h-0 flex-1 overflow-y-auto">
       <div class="mx-auto max-w-[820px]">
-        <div class="relative mb-5 overflow-hidden rounded-[28px] border border-white/8 p-[30px]" style="background: radial-gradient(120% 140% at 85% 15%, rgba(125,83,242,.28), transparent 50%), linear-gradient(150deg, #16252A, #101D21);">
+        <div class="relative mb-5 overflow-hidden rounded-[28px] border border-white/8 p-6 sm:p-[30px]" style="background: radial-gradient(120% 140% at 85% 15%, rgba(125,83,242,.28), transparent 50%), linear-gradient(150deg, #16252A, #101D21);">
           <h3 class="font-heading text-2xl font-extrabold tracking-[-0.01em] text-white">
             Find an answer in seconds
           </h3>
@@ -741,6 +752,21 @@ const faqRows = computed(() => {
 </template>
 
 <style scoped>
+/*
+ * Bounded pane height, in one place (see the template comment for when it is
+ * applied). Written as CSS rather than an arbitrary utility because it is
+ * toggled per-state and per-breakpoint, and because `env()` inside a Tailwind
+ * arbitrary value has bitten this project before.
+ */
+.apex-pane-h {
+  height: calc(100dvh - 101px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+}
+/* From lg up both panes are visible together, so the shell is always bounded. */
+@media (min-width: 1024px) {
+  .apex-support {
+    height: calc(100dvh - 101px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  }
+}
 .apex-rise {
   animation: apexRise 0.3s cubic-bezier(0.22, 0.61, 0.36, 1) both;
 }

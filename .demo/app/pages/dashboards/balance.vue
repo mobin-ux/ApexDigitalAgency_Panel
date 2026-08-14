@@ -107,7 +107,7 @@ const VIOLET_BLOB = 'radial-gradient(circle at 50% 38%, #9b79f6 0%, #7d53f2 55%,
       <section
         v-if="showPromo"
         aria-label="Promotion"
-        class="relative overflow-hidden rounded-[28px] border border-white/10 p-7 sm:p-10"
+        class="relative overflow-hidden rounded-[28px] border border-white/10 p-5 sm:p-7 lg:p-10"
         style="background: radial-gradient(120% 140% at 82% 18%, rgba(125,83,242,.32) 0%, rgba(125,83,242,0) 46%), linear-gradient(150deg, #16252A 0%, #101D21 60%, #0E181B 100%);"
       >
         <div class="pointer-events-none absolute -top-16 right-28 size-72 rounded-full opacity-45 blur-[70px]" :style="{ background: VIOLET_BLOB }" />
@@ -115,13 +115,13 @@ const VIOLET_BLOB = 'radial-gradient(circle at 50% 38%, #9b79f6 0%, #7d53f2 55%,
 
         <button
           type="button" aria-label="Dismiss promotion"
-          class="absolute right-4 top-4 z-10 flex size-8 items-center justify-center rounded-[9px] border border-white/10 bg-white/5 text-muted-400 transition hover:bg-white/10 hover:text-white"
+          class="absolute right-3 top-3 z-10 flex size-11 items-center justify-center rounded-[9px] border border-white/10 bg-white/5 text-muted-400 transition hover:bg-white/10 hover:text-white sm:right-4 sm:top-4 sm:size-8"
           @click="showPromo = false"
         >
           <Icon name="lucide:x" class="size-4" />
         </button>
 
-        <div class="relative z-[2] grid items-center gap-7 lg:grid-cols-[1.15fr_0.85fr]">
+        <div class="relative z-[2] grid grid-cols-1 items-center gap-7 lg:grid-cols-[1.15fr_0.85fr]">
           <div>
             <div class="mb-5 flex flex-wrap gap-2.5">
               <span class="inline-flex items-center gap-1.5 rounded-full border border-[#D9A521]/30 bg-[#D9A521]/15 px-3 py-1.5 text-xs font-bold tracking-[0.03em] text-[#F2C14E]">🔥 HOT OFFER</span>
@@ -185,7 +185,7 @@ const VIOLET_BLOB = 'radial-gradient(circle at 50% 38%, #9b79f6 0%, #7d53f2 55%,
         <span class="h-[18px] w-1.5 rounded-full bg-primary-500" />Financial status
       </h2>
 
-      <div class="grid items-stretch gap-[18px] lg:grid-cols-[1fr_1.32fr]">
+      <div class="grid grid-cols-1 items-stretch gap-[18px] lg:grid-cols-[1fr_1.32fr]">
         <!-- cash balance (emphasised) -->
         <div class="relative flex flex-col overflow-hidden rounded-[20px] border border-primary-500/30 p-6" style="background: linear-gradient(150deg, #241846, #16252A 72%);">
           <div class="pointer-events-none absolute -top-12 -right-6 size-40 rounded-full opacity-50 blur-[50px]" :style="{ background: VIOLET_BLOB }" />
@@ -194,7 +194,7 @@ const VIOLET_BLOB = 'radial-gradient(circle at 50% 38%, #9b79f6 0%, #7d53f2 55%,
             <span class="text-[12.5px] font-bold tracking-[0.06em] text-primary-200">CASH BALANCE</span>
           </div>
           <div class="relative flex items-baseline gap-2">
-            <span class="font-heading text-[46px] font-extrabold leading-none tracking-[-0.02em] text-white tabular-nums">{{ formatCurrency(stats.walletBalance) }}</span>
+            <span class="font-heading text-[36px] font-extrabold leading-none tracking-[-0.02em] text-white tabular-nums sm:text-[46px]">{{ formatCurrency(stats.walletBalance) }}</span>
           </div>
           <div class="relative mt-2 text-[13px] text-muted-400">
             Available to spend right now
@@ -218,7 +218,7 @@ const VIOLET_BLOB = 'radial-gradient(circle at 50% 38%, #9b79f6 0%, #7d53f2 55%,
             <span class="inline-flex items-center gap-1.5 rounded-full bg-[#22B07D]/14 px-2.5 py-1 text-[11px] font-bold text-[#22B07D]"><Icon name="lucide:check" class="size-3" />Approved</span>
           </div>
           <div class="flex flex-wrap items-baseline gap-2">
-            <span class="font-heading text-[42px] font-extrabold leading-none tracking-[-0.02em] text-white tabular-nums">{{ formatCurrency(credit.remaining) }}</span>
+            <span class="font-heading text-[34px] font-extrabold leading-none tracking-[-0.02em] text-white tabular-nums sm:text-[42px]">{{ formatCurrency(credit.remaining) }}</span>
             <span class="text-sm font-semibold text-muted-400">remaining</span>
             <span class="ml-auto text-[13.5px] text-muted-500">of <span class="font-semibold text-white tabular-nums">{{ formatCurrency(credit.limit) }}</span> limit</span>
           </div>
@@ -339,12 +339,12 @@ const VIOLET_BLOB = 'radial-gradient(circle at 50% 38%, #9b79f6 0%, #7d53f2 55%,
       <h2 class="flex items-center gap-2.5 font-heading text-[15px] font-bold uppercase tracking-[0.04em] text-muted-500">
         <span class="h-[18px] w-1.5 rounded-full bg-primary-200" />Expenses
       </h2>
-      <div class="grid items-center gap-8 rounded-[20px] border border-white/10 bg-muted-800 p-6 md:grid-cols-[minmax(200px,260px)_1fr]">
+      <div class="grid grid-cols-1 items-center gap-8 rounded-[20px] border border-white/10 bg-muted-800 p-6 md:grid-cols-[minmax(200px,260px)_1fr]">
         <div>
           <div class="text-[13px] font-medium text-muted-500">
             Total spent this quarter
           </div>
-          <div class="mt-1.5 font-heading text-[40px] font-extrabold leading-[1.1] tracking-[-0.02em] text-white tabular-nums">
+          <div class="mt-1.5 font-heading text-[32px] font-extrabold leading-[1.1] tracking-[-0.02em] text-white tabular-nums sm:text-[40px]">
             {{ formatCurrency(stats.totalSpent || expenseTotal) }}
           </div>
           <div class="mt-2 inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-[#22B07D]">

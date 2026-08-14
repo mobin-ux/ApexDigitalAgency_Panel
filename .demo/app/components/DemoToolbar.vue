@@ -16,9 +16,16 @@ const { t, locale } = useI18n()
   <div class="relative z-10 mb-6">
     <div class="w-full flex items-center gap-4 min-h-14">
       <div class="flex min-w-0 items-center gap-x-5">
+        <!--
+          Primary mobile navigation control. The bars are decorative (20x10px of
+          ink); the tap area is the button, so it carries the size explicitly —
+          `-ms-2.5` pulls the extra width back so the icon stays optically flush
+          with the breadcrumb below it rather than indenting the whole header.
+        -->
         <button
           type="button"
-          class="flex xl:hidden items-center"
+          aria-label="Open navigation menu"
+          class="-ms-2.5 flex size-11 shrink-0 items-center justify-center rounded-lg xl:hidden hover:bg-muted-100 dark:hover:bg-muted-800 transition-colors"
           @click="emits('toggleMobileNav')"
         >
           <span class="flex flex-col gap-1.5">
@@ -45,7 +52,7 @@ const { t, locale } = useI18n()
       <div class="flex items-center justify-end gap-x-3 ms-auto">
         <button
           type="button"
-          class="border-muted-200 hover:ring-muted-200 dark:hover:ring-muted-700 dark:border-muted-700 dark:bg-muted-950 dark:ring-offset-muted-900 flex md:hidden size-8 items-center justify-center rounded-full border bg-white ring-1 ring-transparent transition-all duration-300 hover:ring-offset-4"
+          class="border-muted-200 hover:ring-muted-200 dark:hover:ring-muted-700 dark:border-muted-700 dark:bg-muted-950 dark:ring-offset-muted-900 flex md:hidden size-10 items-center justify-center rounded-full border bg-white ring-1 ring-transparent transition-all duration-300 hover:ring-offset-4"
           aria-label="Search"
           @click="isSearchOpen = true"
         >
@@ -53,7 +60,8 @@ const { t, locale } = useI18n()
         </button>
         <button
           type="button"
-          class="border-muted-200 hover:ring-muted-200 dark:hover:ring-muted-700 dark:border-muted-700 dark:bg-muted-800 dark:ring-offset-muted-900 flex size-8 items-center justify-center rounded-full border bg-white ring-1 ring-transparent transition-all duration-300 hover:ring-offset-4"
+          class="border-muted-200 hover:ring-muted-200 dark:hover:ring-muted-700 dark:border-muted-700 dark:bg-muted-800 dark:ring-offset-muted-900 flex size-10 md:size-8 items-center justify-center rounded-full border bg-white ring-1 ring-transparent transition-all duration-300 hover:ring-offset-4"
+          aria-label="Change language"
           @click="open(DemoPanelLanguage)"
         >
           <img
@@ -64,7 +72,8 @@ const { t, locale } = useI18n()
         </button>
         <button
           type="button"
-          class="border-muted-200 hover:ring-muted-200 dark:hover:ring-muted-700 dark:border-muted-700 dark:bg-muted-950 dark:ring-offset-muted-900 flex size-8 items-center justify-center rounded-full border bg-white ring-1 ring-transparent transition-all duration-300 hover:ring-offset-4"
+          class="border-muted-200 hover:ring-muted-200 dark:hover:ring-muted-700 dark:border-muted-700 dark:bg-muted-950 dark:ring-offset-muted-900 flex size-10 md:size-8 items-center justify-center rounded-full border bg-white ring-1 ring-transparent transition-all duration-300 hover:ring-offset-4"
+          aria-label="Open activity panel"
           @click="open(DemoPanelActivity)"
         >
           <Icon name="solar:widget-2-outline" class="text-muted-400 size-4" />
@@ -108,6 +117,8 @@ const { t, locale } = useI18n()
           <template #button>
             <button
               type="button"
+              aria-label="Open account menu"
+              class="flex size-10 md:size-8 items-center justify-center rounded-full"
             >
               <BaseChip size="sm" color="custom" :offset="3" class="text-success-500">
                 <img

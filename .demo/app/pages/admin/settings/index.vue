@@ -199,7 +199,7 @@ async function saveAll() {
   }
 }
 
-const inputClass = 'w-full rounded-[11px] border border-white/8 bg-muted-700 px-3.5 py-2.5 text-sm text-white outline-none placeholder:text-muted-500 focus:border-primary-400'
+const inputClass = 'w-full rounded-[11px] border border-white/8 bg-muted-700 px-3.5 py-3 sm:py-2.5 text-sm text-white outline-none placeholder:text-muted-500 focus:border-primary-400'
 </script>
 
 <template>
@@ -223,7 +223,7 @@ const inputClass = 'w-full rounded-[11px] border border-white/8 bg-muted-700 px-
       </span>
     </div>
 
-    <div class="grid items-start gap-6 lg:grid-cols-2">
+    <div class="grid grid-cols-1 items-start gap-6 lg:grid-cols-2">
       <section
         v-for="group in catalogue" :key="group.group"
         class="rounded-[20px] border border-white/10 bg-muted-800 p-6"
@@ -250,7 +250,7 @@ const inputClass = 'w-full rounded-[11px] border border-white/8 bg-muted-700 px-
                 role="switch"
                 :aria-checked="Boolean(values[item.key])"
                 :aria-label="item.label"
-                class="relative h-6 w-11 shrink-0 rounded-full transition"
+                class="apex-tap relative h-6 w-11 shrink-0 rounded-full transition"
                 :class="values[item.key] ? 'bg-[#22B07D]' : 'bg-white/10'"
                 @click="values[item.key] = !values[item.key]"
               >

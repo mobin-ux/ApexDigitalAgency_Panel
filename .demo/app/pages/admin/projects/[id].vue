@@ -189,13 +189,13 @@ async function deleteProject() {
   }
 }
 
-const inputClass = 'w-full rounded-[11px] border border-white/8 bg-muted-700 px-3.5 py-2.5 text-sm text-white outline-none placeholder:text-muted-500 focus:border-primary-400'
+const inputClass = 'w-full rounded-[11px] border border-white/8 bg-muted-700 px-3.5 py-3 sm:py-2.5 text-sm text-white outline-none placeholder:text-muted-500 focus:border-primary-400'
 const labelClass = 'mb-2 block text-[12.5px] font-semibold text-white'
 </script>
 
 <template>
   <div class="mx-auto flex max-w-[1240px] flex-col gap-6 pb-8 font-sans text-muted-400">
-    <NuxtLink to="/admin/projects" class="inline-flex items-center gap-1.5 text-[13.5px] font-semibold text-primary-400 transition hover:text-white">
+    <NuxtLink to="/admin/projects" class="-my-2 inline-flex min-h-11 w-fit items-center gap-1.5 py-2 text-[13.5px] font-semibold text-primary-400 transition hover:text-white sm:my-0 sm:min-h-0 sm:py-0">
       <Icon name="lucide:arrow-left" class="size-3.5" />All projects
     </NuxtLink>
 
@@ -228,7 +228,7 @@ const labelClass = 'mb-2 block text-[12.5px] font-semibold text-white'
         </div>
       </div>
 
-      <div class="grid items-start gap-6 xl:grid-cols-[1.55fr_1fr]">
+      <div class="grid grid-cols-1 items-start gap-6 xl:grid-cols-[1.55fr_1fr]">
         <!-- ========== LEFT COLUMN ========== -->
         <div class="flex flex-col gap-6">
           <!-- details form -->
@@ -251,7 +251,7 @@ const labelClass = 'mb-2 block text-[12.5px] font-semibold text-white'
               </div>
               <div>
                 <label for="pj-status" :class="labelClass">Status</label>
-                <select id="pj-status" v-model="form.status" class="w-full cursor-pointer rounded-[11px] border border-white/8 bg-muted-700 px-3.5 py-2.5 text-sm text-white outline-none focus:border-primary-400">
+                <select id="pj-status" v-model="form.status" class="w-full cursor-pointer rounded-[11px] border border-white/8 bg-muted-700 px-3.5 py-3 sm:py-2.5 text-sm text-white outline-none focus:border-primary-400">
                   <option value="PENDING">
                     Pending
                   </option>
@@ -272,7 +272,7 @@ const labelClass = 'mb-2 block text-[12.5px] font-semibold text-white'
               </div>
               <div>
                 <label for="pj-manager" :class="labelClass">Project manager</label>
-                <select id="pj-manager" v-model="form.managerId" class="w-full cursor-pointer rounded-[11px] border border-white/8 bg-muted-700 px-3.5 py-2.5 text-sm text-white outline-none focus:border-primary-400">
+                <select id="pj-manager" v-model="form.managerId" class="w-full cursor-pointer rounded-[11px] border border-white/8 bg-muted-700 px-3.5 py-3 sm:py-2.5 text-sm text-white outline-none focus:border-primary-400">
                   <option value="">
                     Unassigned
                   </option>
@@ -329,7 +329,7 @@ const labelClass = 'mb-2 block text-[12.5px] font-semibold text-white'
                   <button
                     type="button"
                     :aria-label="`Milestone ${m.title}: ${milestoneMeta(m.status).label}. Click to advance.`"
-                    class="shrink-0 transition hover:scale-110"
+                    class="-my-2 flex size-11 shrink-0 items-center justify-center transition hover:scale-110 sm:my-0 sm:size-5"
                     @click="cycleMilestone(m)"
                   >
                     <Icon :name="milestoneMeta(m.status).icon" class="size-5" :class="milestoneMeta(m.status).class" />
@@ -338,7 +338,7 @@ const labelClass = 'mb-2 block text-[12.5px] font-semibold text-white'
                     {{ m.title }}
                   </span>
                   <span class="hidden text-[12px] text-muted-500 sm:block">{{ milestoneMeta(m.status).label }}</span>
-                  <button type="button" :aria-label="`Remove milestone ${m.title}`" class="flex size-7 shrink-0 items-center justify-center rounded-[8px] text-muted-500 transition hover:bg-[#EC6453]/14 hover:text-[#EC6453]" @click="deleteMilestone(m.id)">
+                  <button type="button" :aria-label="`Remove milestone ${m.title}`" class="-my-2 flex size-11 shrink-0 items-center justify-center rounded-[8px] text-muted-500 transition hover:bg-[#EC6453]/14 hover:text-[#EC6453] sm:my-0 sm:size-7" @click="deleteMilestone(m.id)">
                     <Icon name="lucide:trash-2" class="size-3.5" />
                   </button>
                 </div>

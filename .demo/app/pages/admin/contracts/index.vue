@@ -79,12 +79,12 @@ function fmtDate(iso: string | Date | null) {
     </div>
 
     <!-- ========== FILTER BAR ========== -->
-    <div class="grid gap-3 rounded-[20px] border border-white/10 bg-muted-800 p-4 sm:grid-cols-[1.8fr_1fr]">
+    <div class="grid grid-cols-1 gap-3 rounded-[20px] border border-white/10 bg-muted-800 p-4 sm:grid-cols-[1.8fr_1fr]">
       <label class="flex items-center gap-2.5 rounded-[11px] border border-white/8 bg-muted-700 px-3.5 py-2.5 focus-within:border-primary-400">
         <Icon name="lucide:search" class="size-4 shrink-0 text-muted-500" />
         <input v-model="search" placeholder="Search reference, project or customer email…" class="min-w-0 flex-1 border-none bg-transparent text-[13.5px] text-white outline-none placeholder:text-muted-500">
       </label>
-      <select v-model="status" aria-label="Filter by status" class="w-full cursor-pointer rounded-[11px] border border-white/8 bg-muted-700 px-3.5 py-2.5 text-[13px] text-white outline-none focus:border-primary-400">
+      <select v-model="status" aria-label="Filter by status" class="w-full cursor-pointer rounded-[11px] border border-white/8 bg-muted-700 px-3.5 py-3 sm:py-2.5 text-[13px] text-white outline-none focus:border-primary-400">
         <option value="">
           All statuses
         </option>

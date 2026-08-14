@@ -775,11 +775,18 @@ function downloadReceipt() {
     ['Date', r.when ?? new Date().toLocaleString('en-GB')],
     ['New wallet balance', r.balance != null ? formatCurrency(r.balance) : '—'],
   ]
-  const html = `<!doctype html><html><head><meta charset="utf-8"><title>Apex Digi receipt ${r.reference ?? ''}</title>
-<style>body{font-family:Inter,Arial,sans-serif;color:#16252a;max-width:520px;margin:40px auto;padding:0 24px}
-h1{font-size:20px}table{width:100%;border-collapse:collapse;margin-top:16px}
-td{padding:10px 0;border-bottom:1px solid #e5e7eb;font-size:14px}td:last-child{text-align:right;font-weight:600}
-.muted{color:#6b7280;font-size:12px;margin-top:24px}</style></head>
+  // Standalone document: it needs its own viewport meta, or a phone renders it
+  // at desktop width and the customer gets a zoomed-out receipt. The table cells
+  // wrap rather than overflow on narrow screens.
+  const html = `<!doctype html><html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Apex Digi receipt ${r.reference ?? ''}</title>
+<style>body{font-family:Inter,Arial,sans-serif;color:#16252a;max-width:520px;margin:40px auto;padding:0 20px}
+h1{font-size:20px;line-height:1.3}table{width:100%;border-collapse:collapse;margin-top:16px}
+td{padding:10px 0;border-bottom:1px solid #e5e7eb;font-size:14px;vertical-align:top;word-break:break-word}
+td:first-child{padding-right:12px}td:last-child{text-align:right;font-weight:600}
+.muted{color:#6b7280;font-size:12px;margin-top:24px}
+@media(max-width:420px){body{margin:24px auto}h1{font-size:18px}td{font-size:13px}}</style></head>
 <body><h1>Apex Digital Agency — payment receipt</h1>
 <table>${rows.map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join('')}</table>
 <p class="muted">${config.value?.sandbox ? 'Sandbox payment — no real money was moved.' : 'Thank you for your payment.'} apexdigi.co.uk</p>
@@ -864,7 +871,7 @@ watch(screen, (s) => {
           <button
             v-if="['card', 'bank', 'ddauth'].includes(screen)"
             type="button" aria-label="Back"
-            class="flex size-8 items-center justify-center rounded-full text-muted-400 transition hover:bg-white/5 hover:text-white"
+            class="flex size-11 items-center justify-center rounded-full text-muted-400 transition hover:bg-white/5 hover:text-white sm:size-8"
             @click="screen === 'ddauth' ? (screen = 'bank') : (screen = 'choose')"
           >
             <Icon name="lucide:arrow-left" class="size-4" />
@@ -877,7 +884,7 @@ watch(screen, (s) => {
           <span v-if="config?.sandbox" class="rounded-full bg-[#F2C14E]/14 px-2.5 py-1 text-[10.5px] font-bold uppercase tracking-[0.06em] text-[#F2C14E]">Sandbox</span>
           <button
             type="button" aria-label="Close"
-            class="flex size-8 items-center justify-center rounded-full text-muted-400 transition hover:bg-white/5 hover:text-white disabled:opacity-40"
+            class="flex size-11 items-center justify-center rounded-full text-muted-400 transition hover:bg-white/5 hover:text-white sm:size-8 disabled:opacity-40"
             :disabled="busy"
             @click="close"
           >

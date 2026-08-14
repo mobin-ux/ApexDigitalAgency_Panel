@@ -342,7 +342,7 @@ const radioBase = 'flex size-[22px] shrink-0 items-center justify-center rounded
       <div class="mb-1.5 text-xs font-bold tracking-[0.06em] text-primary-400">
         NEW ORDER
       </div>
-      <h1 class="font-heading text-[34px] font-extrabold leading-[1.05] tracking-[-0.02em] text-white">
+      <h1 class="font-heading text-[28px] font-extrabold leading-[1.05] tracking-[-0.02em] text-white sm:text-[34px]">
         Start your <span class="text-primary-400">project</span>
       </h1>
     </div>
@@ -353,7 +353,7 @@ const radioBase = 'flex size-[22px] shrink-0 items-center justify-center rounded
         <div v-if="i > 0" class="h-0.5 w-[30px] shrink-0 rounded" :class="(i + 1) <= step ? 'bg-primary-500' : 'bg-white/10'" />
         <button
           type="button" role="listitem" :disabled="(i + 1) > maxStep"
-          class="inline-flex shrink-0 items-center gap-2.5 rounded-[10px] px-1.5 py-1 enabled:cursor-pointer"
+          class="inline-flex shrink-0 items-center gap-2.5 rounded-[10px] px-1.5 py-2.5 enabled:cursor-pointer sm:py-1"
           @click="goStep(i + 1)"
         >
           <span
@@ -372,7 +372,7 @@ const radioBase = 'flex size-[22px] shrink-0 items-center justify-center rounded
     </div>
 
     <!-- content + rail -->
-    <div class="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_344px]">
+    <div class="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_344px]">
       <!-- ===================== LEFT: STEP CONTENT ===================== -->
       <div>
         <!-- STEP 1 — SERVICE -->
@@ -383,7 +383,7 @@ const radioBase = 'flex size-[22px] shrink-0 items-center justify-center rounded
           <p class="mb-6 mt-1.5 text-[14.5px] text-muted-400">
             Choose the service you need. You'll pick a plan and a payment schedule next.
           </p>
-          <div class="grid gap-4 sm:grid-cols-2">
+          <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <button
               v-for="svc in services" :key="svc.id"
               type="button" :aria-pressed="serviceId === svc.id"
@@ -420,7 +420,7 @@ const radioBase = 'flex size-[22px] shrink-0 items-center justify-center rounded
               <Icon name="lucide:arrow-left" class="size-3.5" />Change service
             </button>
           </div>
-          <div class="mt-5 grid gap-4 md:grid-cols-3">
+          <div class="mt-5 grid grid-cols-1 gap-4 md:grid-cols-3">
             <button
               v-for="p in plans" :key="p.id"
               type="button" :aria-pressed="planId === p.id"
@@ -485,7 +485,7 @@ const radioBase = 'flex size-[22px] shrink-0 items-center justify-center rounded
             <p class="mb-5 text-sm text-muted-400">
               Spread the cost of your <strong class="font-semibold text-white">{{ plan?.name }}</strong> plan. Switch anytime before signing.
             </p>
-            <div class="grid gap-4 sm:grid-cols-2">
+            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <!-- 12 months -->
               <button type="button" :aria-pressed="term === '12'" class="relative flex flex-col rounded-[20px] border p-[22px] text-left transition" :class="term === '12' ? 'border-primary-500 bg-primary-500/[0.06] ring-4 ring-primary-500/15' : 'border-white/10 bg-white/[0.02] hover:border-white/15'" @click="term = '12'">
                 <div class="flex items-center justify-between">
@@ -496,7 +496,7 @@ const radioBase = 'flex size-[22px] shrink-0 items-center justify-center rounded
                   12 monthly payments
                 </div>
                 <div class="mt-2.5 flex items-baseline gap-1.5">
-                  <span class="font-heading text-[36px] font-extrabold tracking-[-0.02em] text-white tabular-nums">{{ money(m12) }}</span><span class="text-sm text-muted-500">/mo</span>
+                  <span class="font-heading text-[30px] font-extrabold tracking-[-0.02em] text-white tabular-nums sm:text-[36px]">{{ money(m12) }}</span><span class="text-sm text-muted-500">/mo</span>
                 </div>
                 <div class="mt-4 flex flex-col gap-2 text-[13px]">
                   <div class="flex justify-between text-muted-400">
@@ -520,7 +520,7 @@ const radioBase = 'flex size-[22px] shrink-0 items-center justify-center rounded
                   24 monthly payments
                 </div>
                 <div class="mt-2.5 flex items-baseline gap-1.5">
-                  <span class="font-heading text-[36px] font-extrabold tracking-[-0.02em] text-white tabular-nums">{{ money(m24) }}</span><span class="text-sm text-muted-500">/mo</span>
+                  <span class="font-heading text-[30px] font-extrabold tracking-[-0.02em] text-white tabular-nums sm:text-[36px]">{{ money(m24) }}</span><span class="text-sm text-muted-500">/mo</span>
                 </div>
                 <div class="mt-4 flex flex-col gap-2 text-[13px]">
                   <div class="flex justify-between text-muted-400">
@@ -570,7 +570,7 @@ const radioBase = 'flex size-[22px] shrink-0 items-center justify-center rounded
             <p class="mb-5 text-sm text-muted-400">
               A few details so the right team is ready the moment you sign. <span class="text-muted-500">Tailored to your {{ serviceName }} order.</span>
             </p>
-            <div class="grid gap-[18px] sm:grid-cols-2">
+            <div class="grid grid-cols-1 gap-[18px] sm:grid-cols-2">
               <div v-for="field in fields" :key="field.key" :class="field.full ? 'sm:col-span-2' : ''">
                 <label class="mb-2 block text-xs font-semibold uppercase tracking-[0.04em] text-muted-500">{{ field.label }}</label>
                 <input
@@ -661,7 +661,7 @@ const radioBase = 'flex size-[22px] shrink-0 items-center justify-center rounded
             <span class="text-sm leading-[1.5] text-muted-400">I consent to signing this agreement electronically and agree that my electronic signature is legally binding and has the same effect as a handwritten signature (Electronic Communications Act 2000).</span>
           </label>
 
-          <div class="mt-5 grid items-end gap-5 sm:grid-cols-[1.3fr_1fr]">
+          <div class="mt-5 grid grid-cols-1 items-end gap-5 sm:grid-cols-[1.3fr_1fr]">
             <div>
               <div class="mb-2 flex items-center justify-between">
                 <label class="text-xs font-semibold uppercase tracking-[0.04em] text-muted-500">Draw your signature</label>

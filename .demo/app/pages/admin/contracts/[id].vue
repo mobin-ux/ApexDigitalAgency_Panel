@@ -123,7 +123,7 @@ const cardClass = 'rounded-[20px] border border-white/10 bg-muted-800 p-6'
         </div>
       </div>
 
-      <div class="grid gap-6 lg:grid-cols-[1.5fr_1fr]">
+      <div class="grid grid-cols-1 gap-6 lg:grid-cols-[1.5fr_1fr]">
         <!-- LEFT: terms + project + plan -->
         <div class="flex flex-col gap-6">
           <!-- Agreement terms -->

@@ -208,13 +208,13 @@ async function removeCompany() {
   }
 }
 
-const inputClass = 'w-full rounded-[11px] border border-white/8 bg-muted-700 px-3.5 py-2.5 text-sm text-white outline-none placeholder:text-muted-500 focus:border-primary-400'
+const inputClass = 'w-full rounded-[11px] border border-white/8 bg-muted-700 px-3.5 py-3 sm:py-2.5 text-sm text-white outline-none placeholder:text-muted-500 focus:border-primary-400'
 const labelClass = 'mb-2 block text-[12.5px] font-semibold text-white'
 </script>
 
 <template>
   <div class="mx-auto flex max-w-[1240px] flex-col gap-6 pb-8 font-sans text-muted-400">
-    <NuxtLink to="/admin/users" class="inline-flex items-center gap-1.5 text-[13.5px] font-semibold text-primary-400 transition hover:text-white">
+    <NuxtLink to="/admin/users" class="-my-2 inline-flex min-h-11 w-fit items-center gap-1.5 py-2 text-[13.5px] font-semibold text-primary-400 transition hover:text-white sm:my-0 sm:min-h-0 sm:py-0">
       <Icon name="lucide:arrow-left" class="size-3.5" />All users
     </NuxtLink>
 
@@ -249,7 +249,7 @@ const labelClass = 'mb-2 block text-[12.5px] font-semibold text-white'
         </div>
       </div>
 
-      <div class="grid items-start gap-6 xl:grid-cols-[1.55fr_1fr]">
+      <div class="grid grid-cols-1 items-start gap-6 xl:grid-cols-[1.55fr_1fr]">
         <!-- ========== LEFT COLUMN ========== -->
         <div class="flex flex-col gap-6">
           <!-- profile -->
@@ -342,7 +342,7 @@ const labelClass = 'mb-2 block text-[12.5px] font-semibold text-white'
               </div>
               <div>
                 <label for="co-status" :class="labelClass">Status</label>
-                <select id="co-status" v-model="companyForm.status" class="w-full cursor-pointer rounded-[11px] border border-white/8 bg-muted-700 px-3.5 py-2.5 text-sm text-white outline-none focus:border-primary-400">
+                <select id="co-status" v-model="companyForm.status" class="w-full cursor-pointer rounded-[11px] border border-white/8 bg-muted-700 px-3.5 py-3 sm:py-2.5 text-sm text-white outline-none focus:border-primary-400">
                   <option value="Active">
                     Active
                   </option>
@@ -455,7 +455,7 @@ const labelClass = 'mb-2 block text-[12.5px] font-semibold text-white'
                 <span class="flex size-9 items-center justify-center rounded-[10px] bg-white/10 text-white"><Icon name="lucide:wallet" class="size-[18px]" /></span>WALLET BALANCE
               </span>
             </div>
-            <div class="font-heading text-[38px] font-extrabold leading-none tracking-[-0.02em] text-white tabular-nums">
+            <div class="font-heading text-[30px] font-extrabold leading-none tracking-[-0.02em] text-white tabular-nums sm:text-[38px]">
               {{ formatCurrency(detail.walletBalance) }}
             </div>
             <div class="mt-2 text-[13px] text-muted-400">
@@ -480,7 +480,7 @@ const labelClass = 'mb-2 block text-[12.5px] font-semibold text-white'
                   id="acc-role"
                   :value="detail.role"
                   :disabled="isSelf || savingAccount"
-                  class="w-full cursor-pointer rounded-[11px] border border-white/8 bg-muted-700 px-3.5 py-2.5 text-sm text-white outline-none focus:border-primary-400 disabled:cursor-not-allowed disabled:opacity-50"
+                  class="w-full cursor-pointer rounded-[11px] border border-white/8 bg-muted-700 px-3.5 py-3 sm:py-2.5 text-sm text-white outline-none focus:border-primary-400 disabled:cursor-not-allowed disabled:opacity-50"
                   @change="patchAccount({ role: ($event.target as HTMLSelectElement).value }, 'Role updated')"
                 >
                   <option value="CUSTOMER">
@@ -513,7 +513,7 @@ const labelClass = 'mb-2 block text-[12.5px] font-semibold text-white'
                   :aria-checked="Boolean(detail.verifiedAt)"
                   aria-label="Toggle verification"
                   :disabled="savingAccount"
-                  class="relative h-6 w-11 shrink-0 rounded-full transition disabled:opacity-50"
+                  class="apex-tap relative h-6 w-11 shrink-0 rounded-full transition disabled:opacity-50"
                   :class="detail.verifiedAt ? 'bg-[#22B07D]' : 'bg-white/10'"
                   @click="patchAccount({ verified: !detail.verifiedAt }, detail.verifiedAt ? 'Verification removed' : 'Account verified')"
                 >

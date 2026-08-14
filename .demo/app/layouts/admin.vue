@@ -74,7 +74,7 @@ const avatarSrc = computed(() => user.value?.avatar || '/img/avatars/10.svg')
           <span class="rounded-full bg-primary-500/15 px-2 py-0.5 text-[10px] font-extrabold tracking-[0.08em] text-primary-400">ADMIN</span>
         </NuxtLink>
       </TairoSidenavSidebarHeader>
-      <TairoSidenavSidebarLinks class="p-4 grow">
+      <TairoSidenavSidebarLinks class="p-4 grow apex-nav">
         <TairoSidenavSidebarLink
           v-for="item in menu"
           :key="item.label"
@@ -84,7 +84,7 @@ const avatarSrc = computed(() => user.value?.avatar || '/img/avatars/10.svg')
         />
       </TairoSidenavSidebarLinks>
 
-      <TairoSidenavSidebarLinks class="p-4 shrink-0">
+      <TairoSidenavSidebarLinks class="p-4 shrink-0 apex-nav">
         <TairoSidenavSidebarDivider />
         <TairoSidenavSidebarLink
           icon="solar:round-arrow-left-linear"
@@ -111,3 +111,14 @@ const avatarSrc = computed(() => user.value?.avatar || '/img/avatars/10.svg')
     </TairoSidenavContent>
   </TairoSidenavLayout>
 </template>
+
+<style scoped>
+/* Same touch sizing for the admin drawer — see sidenav.vue for the rationale. */
+@media (max-width: 1279px) {
+  .apex-nav :deep(a),
+  .apex-nav :deep(button) {
+    padding-top: 0.6rem;
+    padding-bottom: 0.6rem;
+  }
+}
+</style>

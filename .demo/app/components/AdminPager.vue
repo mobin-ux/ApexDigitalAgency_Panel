@@ -32,7 +32,7 @@ function go(page: number) {
         type="button"
         aria-label="Previous page"
         :disabled="page <= 1"
-        class="flex size-8 items-center justify-center rounded-full border border-white/10 bg-muted-800 text-muted-400 transition enabled:hover:border-white/20 enabled:hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+        class="flex size-11 items-center justify-center rounded-full border border-white/10 bg-muted-800 text-muted-400 transition enabled:hover:border-white/20 enabled:hover:text-white disabled:cursor-not-allowed disabled:opacity-40 sm:size-8"
         @click="go(page - 1)"
       >
         <Icon name="lucide:chevron-left" class="size-4" />
@@ -41,7 +41,7 @@ function go(page: number) {
         type="button"
         aria-label="Next page"
         :disabled="page >= pageCount"
-        class="flex size-8 items-center justify-center rounded-full border border-white/10 bg-muted-800 text-muted-400 transition enabled:hover:border-white/20 enabled:hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+        class="flex size-11 items-center justify-center rounded-full border border-white/10 bg-muted-800 text-muted-400 transition enabled:hover:border-white/20 enabled:hover:text-white disabled:cursor-not-allowed disabled:opacity-40 sm:size-8"
         @click="go(page + 1)"
       >
         <Icon name="lucide:chevron-right" class="size-4" />

@@ -164,3 +164,25 @@
     --color-muted-500: #89959e;
   }
 }
+
+/*
+ * Touch-target helper.
+ *
+ * Some controls are deliberately small — a 25px switch track, a 20px icon —
+ * because that is the drawn design. Growing the element to 44px would move
+ * everything around it; growing only the *hit box* does not. This paints an
+ * invisible, centred 44x44 area over the control, which is what a finger
+ * actually needs (WCAG 2.5.5 / Apple HIG 44pt / Material 48dp).
+ *
+ * Apply to any `position: relative` control that is smaller than 44px and
+ * cannot simply be padded. Pointer devices are unaffected.
+ */
+.apex-tap::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: max(100%, 44px);
+  height: max(100%, 44px);
+  transform: translate(-50%, -50%);
+}

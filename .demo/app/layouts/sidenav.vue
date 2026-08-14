@@ -66,7 +66,7 @@ const maintenanceMode = computed(() => (appConfig.value as any)?.maintenanceMode
           <TairoLogoText class="text-primary-500 h-6 w-auto" />
         </NuxtLink>
       </TairoSidenavSidebarHeader>
-      <TairoSidenavSidebarLinks class="p-4 grow">
+      <TairoSidenavSidebarLinks class="p-4 grow apex-nav">
         <template v-for="item in menu" :key="item.label">
           <TairoSidenavSidebarLink
             v-if="!item.children"
@@ -91,7 +91,7 @@ const maintenanceMode = computed(() => (appConfig.value as any)?.maintenanceMode
         </template>
       </TairoSidenavSidebarLinks>
 
-      <TairoSidenavSidebarLinks class="p-4 shrink-0">
+      <TairoSidenavSidebarLinks class="p-4 shrink-0 apex-nav">
         <TairoSidenavSidebarDivider />
         <!-- Admin accounts get a shortcut into the management panel. -->
         <TairoSidenavSidebarLink
@@ -131,3 +131,25 @@ const maintenanceMode = computed(() => (appConfig.value as any)?.maintenanceMode
     </TairoSidenavContent>
   </TairoSidenavLayout>
 </template>
+
+<style scoped>
+/*
+ * Touch sizing for the mobile drawer.
+ *
+ * The Tairo layer styles every nav row as `px-2.5 py-1.5` — 32px tall. That is
+ * fine for the permanent rail at xl+, which is only ever driven by a pointer,
+ * but below xl the same markup is the full-screen drawer and every row is a
+ * finger target. 32px is under both the Apple (44pt) and Material (48dp)
+ * minimums, and these are the app's primary navigation.
+ *
+ * Overridden here rather than in the layer so the shared template stays
+ * untouched, and scoped to the drawer breakpoint so desktop density is kept.
+ */
+@media (max-width: 1279px) {
+  .apex-nav :deep(a),
+  .apex-nav :deep(button) {
+    padding-top: 0.6rem;
+    padding-bottom: 0.6rem;
+  }
+}
+</style>

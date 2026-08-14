@@ -486,7 +486,7 @@ function comingSoon(feature: string) {
     <!-- ============ TITLE ============ -->
     <div class="mb-[22px] flex flex-wrap items-end justify-between gap-5">
       <div>
-        <h1 class="font-heading text-[34px] font-extrabold leading-[1.05] tracking-[-0.02em] text-white">
+        <h1 class="font-heading text-[28px] font-extrabold leading-[1.05] tracking-[-0.02em] text-white sm:text-[34px]">
           Wallet &amp; <span class="text-primary-400">credit</span>
         </h1>
         <p class="mt-2 text-[15px] text-muted-400">
@@ -504,7 +504,7 @@ function comingSoon(feature: string) {
       <button
         v-for="[key, label] in TAB_DEFS" :key="key"
         role="tab" :aria-selected="tab === key"
-        class="shrink-0 rounded-full px-[18px] py-[9px] text-[13.5px] transition-all"
+        class="shrink-0 rounded-full px-[18px] py-[11px] text-[13.5px] transition-all sm:py-[9px]"
         :class="tab === key ? 'bg-primary-500 font-bold text-white' : 'font-semibold text-muted-400 hover:text-white'"
         @click="goTab(key)"
       >
@@ -517,7 +517,7 @@ function comingSoon(feature: string) {
       <div class="grid grid-cols-1 gap-[18px] lg:grid-cols-2">
         <!-- CASH WALLET -->
         <section
-          class="relative flex flex-col overflow-hidden rounded-[28px] border border-white/8 p-[26px]"
+          class="relative flex flex-col overflow-hidden rounded-[28px] border border-white/8 p-5 sm:p-[26px]"
           style="background: linear-gradient(160deg, #16252A, #0F1D21);"
         >
           <div class="pointer-events-none absolute -right-16 -top-24 size-[230px] rounded-full" style="background: radial-gradient(circle, rgba(34,176,125,.16), transparent 70%);" />
@@ -534,7 +534,7 @@ function comingSoon(feature: string) {
             <div class="text-[12.5px] text-muted-500">
               Available balance
             </div>
-            <div class="mt-1.5 font-heading text-[42px] font-extrabold leading-[1.05] tracking-[-0.02em] tabular-nums text-white">
+            <div class="mt-1.5 font-heading text-[32px] font-extrabold leading-[1.05] tracking-[-0.02em] tabular-nums text-white sm:text-[42px]">
               {{ formatCurrency(balance) }}
             </div>
           </div>
@@ -558,7 +558,7 @@ function comingSoon(feature: string) {
             </div>
             <button
               role="switch" :aria-checked="autoPay" aria-label="Toggle auto-pay installments"
-              class="relative h-[25px] w-11 shrink-0 rounded-full transition-colors"
+              class="apex-tap relative h-[25px] w-11 shrink-0 rounded-full transition-colors"
               :class="autoPay ? 'bg-primary-500' : 'bg-white/12'"
               @click="toggleAutoPay"
             >
@@ -569,7 +569,7 @@ function comingSoon(feature: string) {
 
         <!-- APEX CREDIT -->
         <section
-          class="relative flex flex-col overflow-hidden rounded-[28px] border border-primary-500/26 p-[26px]"
+          class="relative flex flex-col overflow-hidden rounded-[28px] border border-primary-500/26 p-5 sm:p-[26px]"
           style="background: linear-gradient(160deg, #1B2231, #141A26);"
         >
           <div class="pointer-events-none absolute -right-16 -top-24 size-[260px] rounded-full" style="background: radial-gradient(circle, rgba(125,83,242,.24), transparent 70%);" />
@@ -592,7 +592,7 @@ function comingSoon(feature: string) {
             <div class="text-[12.5px] text-muted-500">
               Available to spend
             </div>
-            <div class="mt-1.5 font-heading text-[42px] font-extrabold leading-[1.05] tracking-[-0.02em] tabular-nums text-white">
+            <div class="mt-1.5 font-heading text-[32px] font-extrabold leading-[1.05] tracking-[-0.02em] tabular-nums text-white sm:text-[42px]">
               {{ formatCurrency(credit.available) }}
             </div>
             <div class="mt-4">
@@ -1074,7 +1074,7 @@ function comingSoon(feature: string) {
     <div v-if="removeTarget" class="apex-fade fixed inset-0 z-[60] flex items-center justify-center bg-[rgba(5,10,12,0.66)] p-6 backdrop-blur-[4px]" @click="removeTarget = null">
       <div
         role="dialog" aria-label="Remove payment method"
-        class="apex-pop w-[420px] max-w-full rounded-[28px] border border-white/15 p-7 shadow-[0_30px_80px_rgba(0,0,0,0.5)]"
+        class="apex-pop w-[420px] max-w-full rounded-[28px] border border-white/15 p-5 shadow-[0_30px_80px_rgba(0,0,0,0.5)] sm:p-7"
         style="background: #132125;"
         @click.stop
       >

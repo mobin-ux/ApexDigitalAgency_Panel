@@ -150,7 +150,7 @@ function senderLabel(m: { isAdmin: boolean, isInternal: boolean, senderId?: stri
       subtitle="Triage, assign and answer every customer request. Internal notes never reach the customer."
     />
 
-    <div class="grid items-start gap-5 xl:grid-cols-[0.9fr_1.35fr]">
+    <div class="grid grid-cols-1 items-start gap-5 xl:grid-cols-[0.9fr_1.35fr]">
       <!-- ========== LEFT: INBOX ========== -->
       <section class="flex flex-col gap-3 rounded-[20px] border border-white/10 bg-muted-800 p-4" aria-label="Ticket inbox">
         <label class="flex items-center gap-2.5 rounded-[11px] border border-white/8 bg-muted-700 px-3.5 py-2.5 focus-within:border-primary-400">
@@ -164,7 +164,7 @@ function senderLabel(m: { isAdmin: boolean, isInternal: boolean, senderId?: stri
             type="button"
             role="radio"
             :aria-checked="statusFilter === key"
-            class="shrink-0 rounded-full px-3.5 py-1.5 text-[12.5px] font-bold transition"
+            class="shrink-0 rounded-full px-3.5 py-2.5 text-[12.5px] font-bold transition sm:py-1.5"
             :class="statusFilter === key ? 'bg-white/10 text-white' : 'text-muted-400 hover:text-white'"
             @click="statusFilter = key"
           >
@@ -172,7 +172,7 @@ function senderLabel(m: { isAdmin: boolean, isInternal: boolean, senderId?: stri
           </button>
         </div>
 
-        <select v-model="assigneeFilter" aria-label="Filter by assignee" class="w-full cursor-pointer rounded-[11px] border border-white/8 bg-muted-700 px-3.5 py-2.5 text-[13px] text-white outline-none focus:border-primary-400">
+        <select v-model="assigneeFilter" aria-label="Filter by assignee" class="w-full cursor-pointer rounded-[11px] border border-white/8 bg-muted-700 px-3.5 py-3 sm:py-2.5 text-[13px] text-white outline-none focus:border-primary-400">
           <option value="">
             Any assignee
           </option>

@@ -111,7 +111,7 @@ async function runSeed(path: string) {
   }
 }
 
-const inputClass = 'w-full rounded-[11px] border border-white/8 bg-muted-700 px-3.5 py-2.5 text-sm text-white outline-none placeholder:text-muted-500 focus:border-primary-400'
+const inputClass = 'w-full rounded-[11px] border border-white/8 bg-muted-700 px-3.5 py-3 sm:py-2.5 text-sm text-white outline-none placeholder:text-muted-500 focus:border-primary-400'
 const labelClass = 'mb-2 block text-[12.5px] font-semibold text-white'
 </script>
 
@@ -123,19 +123,19 @@ const labelClass = 'mb-2 block text-[12.5px] font-semibold text-white'
       subtitle="The audit trail, customer announcements and platform utilities."
     />
 
-    <div class="grid items-start gap-6 xl:grid-cols-[1.45fr_1fr]">
+    <div class="grid grid-cols-1 items-start gap-6 xl:grid-cols-[1.45fr_1fr]">
       <!-- ========== AUDIT TRAIL ========== -->
       <section class="flex flex-col gap-4" aria-label="Audit trail">
         <h2 class="flex items-center gap-2.5 font-heading text-[15px] font-bold uppercase tracking-[0.04em] text-muted-500">
           <span class="h-[18px] w-1.5 rounded-full bg-primary-500" />Audit trail
         </h2>
 
-        <div class="grid gap-3 rounded-[20px] border border-white/10 bg-muted-800 p-4 sm:grid-cols-[1.6fr_1fr]">
+        <div class="grid grid-cols-1 gap-3 rounded-[20px] border border-white/10 bg-muted-800 p-4 sm:grid-cols-[1.6fr_1fr]">
           <label class="flex items-center gap-2.5 rounded-[11px] border border-white/8 bg-muted-700 px-3.5 py-2.5 focus-within:border-primary-400">
             <Icon name="lucide:search" class="size-4 shrink-0 text-muted-500" />
             <input v-model="search" placeholder="Search actor, action or target id…" class="min-w-0 flex-1 border-none bg-transparent text-[13.5px] text-white outline-none placeholder:text-muted-500">
           </label>
-          <select v-model="targetType" aria-label="Filter by record type" class="w-full cursor-pointer rounded-[11px] border border-white/8 bg-muted-700 px-3.5 py-2.5 text-[13px] text-white outline-none focus:border-primary-400">
+          <select v-model="targetType" aria-label="Filter by record type" class="w-full cursor-pointer rounded-[11px] border border-white/8 bg-muted-700 px-3.5 py-3 sm:py-2.5 text-[13px] text-white outline-none focus:border-primary-400">
             <option value="">
               All record types
             </option>
@@ -211,7 +211,7 @@ const labelClass = 'mb-2 block text-[12.5px] font-semibold text-white'
             <div class="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
               <div>
                 <label for="bc-type" :class="labelClass">Type</label>
-                <select id="bc-type" v-model="broadcast.type" class="w-full cursor-pointer rounded-[11px] border border-white/8 bg-muted-700 px-3.5 py-2.5 text-sm text-white outline-none focus:border-primary-400">
+                <select id="bc-type" v-model="broadcast.type" class="w-full cursor-pointer rounded-[11px] border border-white/8 bg-muted-700 px-3.5 py-3 sm:py-2.5 text-sm text-white outline-none focus:border-primary-400">
                   <option value="INFO">
                     Info
                   </option>
