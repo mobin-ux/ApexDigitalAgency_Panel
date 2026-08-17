@@ -68,6 +68,46 @@ native `alert()`, USD). When refactoring a page, bring it in line:
 | 6 | Settings | ☐ |
 | 7 | Auth flow (login / signup / recover) | ☐ |
 
+### V2 redesign (Claude Design, page-by-page)
+
+The client is sending a second-generation design as numbered phases. Each phase
+ships as a `.dc.html` mockup plus a `PHASE-N-*.md` implementation spec.
+
+| Phase | Area | Status |
+|---|---|---|
+| 1 | **Shared shell** — sidebar, top bar, page-header pattern, radius/spacing scale | ✅ Done |
+| 2 | Dashboard | ☐ |
+| 3 | New Order | ☐ |
+| 4 | My Orders | ☐ |
+| 5 | Wallet & Credit | ☐ |
+| 6 | Support | ☐ |
+| 7 | Settings | ☐ |
+| 8 | Auth flow | ☐ |
+| 9 | Mobile & light theme | ☐ |
+
+#### Phase 1 — the shell standard (applies to every page from here on)
+
+- **Brand:** Apex icon + live "Apex" wordmark in a 76px sidebar band. `TairoLogoText`
+  is gone; the title template and favicon are Apex.
+- **Nav rows:** 44px at every breakpoint, `rounded-xl`, 20px icon, 14.5px/500 label.
+  Active row = `.apex-nav-active` (violet `color-mix` gradient) + 600 weight, no
+  marker. Sub-nav hangs off a hairline `border-s`, 40px rows, no bullet dots.
+  Exactly one row is active: longest-prefix match, so detail routes stay lit.
+- **Account:** one row → one `BaseDropdown` (settings · language · panel switch ·
+  sign out). Avatar falls back to initials, never a broken `?`.
+- **Top bar:** 76px band, search (250×40, `rounded-xl`, platform-aware ⌘K/Ctrl K)
+  and notifications only. No flag, no activity panel, no demo account dropdown.
+- **Breadcrumb:** the toolbar owns location. Pages must not print their own.
+- **Page header:** `<ApexPageHeader>` — 30px/800 Yellix two-tone H1, 15px muted
+  sub-line, max one primary action at 44px pill. No eyebrow labels.
+- **Section labels:** `<ApexSectionLabel>` — 3px violet bar + 12px/700 uppercase.
+- **Radius scale:** surfaces `rounded-2xl` (16px), inner rows/inputs/icon buttons
+  `rounded-xl` (12px), pills `rounded-full`. Tokens `--radius-surface` /
+  `--radius-control` in `main.css`.
+- **Spacing:** 32px between sections, 20px between cards, 24px card padding,
+  page content `max-w-[1180px]`.
+- **Focus:** `.apex-focus` on every shell control.
+
 ## 5. Known issues
 
 Fixed:
@@ -105,11 +145,19 @@ Fixed:
       Verified at 1440px + 393px, no horizontal overflow, restructured layouts revert to
       single-line/multi-column at ≥sm.
 
+- [x] **Hydration mismatch warnings** — fixed in V2 Phase 1. Both offenders were
+      client-only values rendered during SSR in `DemoToolbar`: the locale flag image
+      (deleted; language moved into the account menu) and the `Ctrl`/`⌘` hint, which
+      used the layer's `useIsMacLike()` — that resolves in `onBeforeMount`, i.e.
+      *before* the hydration render, so server and client disagreed on the very first
+      paint. The hint now resolves in `onMounted`. Console is clean on the dashboard.
+- [x] **`.demo/app/public/` was never served.** Nuxt 4's public dir is `<rootDir>/public`
+      (`.demo/public`), so `/brand/apex-icon.svg` and every `/fonts/yellix/*.woff`
+      404'd — in dev *and* in the production bundle. Yellix had been silently falling
+      back to Inter in production, and the brand assets were unreachable, which is why
+      the sidebar still shipped Tairo's wordmark. Assets moved to `.demo/public/`.
+
 To address:
-- [ ] **Hydration mismatch warnings** ("Hydration completed but contains mismatches") on
-      every dashboard page — pre-existing and global (also on the shipped Balance page), so
-      it lives in the shared chrome (toolbar / color-mode / i18n), not a single page. Run
-      down the SSR-vs-client diff in the `sidenav` layout + `DemoToolbar` and fix.
 - [ ] Stale seed scripts reference fields not in the schema: `server/api/seed-rich.get.ts`,
       `seed-wallet.get.ts`, and `prisma/seed.js` (uses `name`/`status`/`USER`). Dev-only.
 - [ ] Pages still hardcode dark hex + USD + native `alert()`/`confirm()` until refactored

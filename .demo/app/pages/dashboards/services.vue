@@ -328,24 +328,18 @@ const radioBase = 'flex size-[22px] shrink-0 items-center justify-center rounded
 </script>
 
 <template>
-  <div class="mx-auto flex max-w-[1180px] flex-col gap-6 pb-12 font-sans text-muted-400">
-    <!-- secured-checkout strip -->
-    <div class="flex items-center justify-between gap-4">
-      <div class="flex items-center gap-2 text-[13.5px] text-muted-500">
-        <span>Services</span><span class="opacity-50">/</span><span class="font-semibold text-white">New order</span>
-      </div>
-      <span class="inline-flex items-center gap-1.5 rounded-full bg-[#22B07D]/12 px-3 py-1.5 text-[12.5px] font-semibold text-[#22B07D]"><Icon name="lucide:shield-check" class="size-3.5" />Secured checkout</span>
-    </div>
-
+  <!-- Location lives in the toolbar breadcrumb; this page no longer prints its own. -->
+  <div class="mx-auto flex max-w-[1180px] flex-col gap-8 pb-12 font-sans text-muted-400">
     <!-- title -->
-    <div>
-      <div class="mb-1.5 text-xs font-bold tracking-[0.06em] text-primary-400">
-        NEW ORDER
-      </div>
-      <h1 class="font-heading text-[28px] font-extrabold leading-[1.05] tracking-[-0.02em] text-white sm:text-[34px]">
-        Start your <span class="text-primary-400">project</span>
-      </h1>
-    </div>
+    <ApexPageHeader
+      title="Start your"
+      accent="project"
+      subtitle="Pick a service, choose how you pay, and sign — your project starts the moment you do."
+    >
+      <template #actions>
+        <span class="inline-flex h-11 items-center gap-1.5 rounded-full bg-[#22B07D]/12 px-4 text-[12.5px] font-semibold text-[#22B07D]"><Icon name="lucide:shield-check" class="size-3.5" />Secured checkout</span>
+      </template>
+    </ApexPageHeader>
 
     <!-- stepper -->
     <div role="list" aria-label="Progress" class="flex flex-nowrap items-center gap-1 overflow-x-auto py-1.5">
@@ -353,7 +347,7 @@ const radioBase = 'flex size-[22px] shrink-0 items-center justify-center rounded
         <div v-if="i > 0" class="h-0.5 w-[30px] shrink-0 rounded" :class="(i + 1) <= step ? 'bg-primary-500' : 'bg-white/10'" />
         <button
           type="button" role="listitem" :disabled="(i + 1) > maxStep"
-          class="inline-flex shrink-0 items-center gap-2.5 rounded-[10px] px-1.5 py-2.5 enabled:cursor-pointer sm:py-1"
+          class="inline-flex shrink-0 items-center gap-2.5 rounded-xl px-1.5 py-2.5 enabled:cursor-pointer sm:py-1"
           @click="goStep(i + 1)"
         >
           <span
@@ -376,7 +370,7 @@ const radioBase = 'flex size-[22px] shrink-0 items-center justify-center rounded
       <!-- ===================== LEFT: STEP CONTENT ===================== -->
       <div>
         <!-- STEP 1 — SERVICE -->
-        <section v-if="step === 1" class="rounded-[28px] border border-white/10 bg-muted-800 p-7">
+        <section v-if="step === 1" class="rounded-2xl border border-white/10 bg-muted-800 p-7">
           <h2 class="font-heading text-[22px] font-bold tracking-[-0.01em] text-white">
             What can we build for you?
           </h2>
@@ -387,12 +381,12 @@ const radioBase = 'flex size-[22px] shrink-0 items-center justify-center rounded
             <button
               v-for="svc in services" :key="svc.id"
               type="button" :aria-pressed="serviceId === svc.id"
-              class="relative flex min-h-[158px] flex-col rounded-[20px] border bg-white/[0.02] p-[22px] text-left transition"
+              class="relative flex min-h-[158px] flex-col rounded-2xl border bg-white/[0.02] p-[22px] text-left transition"
               :class="serviceId === svc.id ? 'border-primary-500 ring-4 ring-primary-500/15' : 'border-white/10 hover:border-white/15'"
               @click="selectService(svc.id)"
             >
               <div class="mb-auto flex items-center justify-between">
-                <span class="flex size-12 items-center justify-center rounded-[13px]" :class="svc.tone"><Icon :name="svc.icon" class="size-[23px]" /></span>
+                <span class="flex size-12 items-center justify-center rounded-xl" :class="svc.tone"><Icon :name="svc.icon" class="size-[23px]" /></span>
                 <span v-if="serviceId === svc.id" class="flex size-[26px] items-center justify-center rounded-full bg-primary-500 text-white"><Icon name="lucide:check" class="size-[15px]" /></span>
               </div>
               <div class="mt-[18px] font-heading text-[19px] font-bold text-white">
@@ -406,7 +400,7 @@ const radioBase = 'flex size-[22px] shrink-0 items-center justify-center rounded
         </section>
 
         <!-- STEP 2 — PLAN -->
-        <section v-else-if="step === 2" class="rounded-[28px] border border-white/10 bg-muted-800 p-7">
+        <section v-else-if="step === 2" class="rounded-2xl border border-white/10 bg-muted-800 p-7">
           <div class="mb-1.5 flex flex-wrap items-start justify-between gap-4">
             <div>
               <h2 class="font-heading text-[22px] font-bold tracking-[-0.01em] text-white">
@@ -424,13 +418,13 @@ const radioBase = 'flex size-[22px] shrink-0 items-center justify-center rounded
             <button
               v-for="p in plans" :key="p.id"
               type="button" :aria-pressed="planId === p.id"
-              class="relative flex flex-col rounded-[20px] border p-5 text-left transition"
+              class="relative flex flex-col rounded-2xl border p-5 text-left transition"
               :class="planId === p.id ? 'border-primary-500 bg-primary-500/[0.06] ring-4 ring-primary-500/15' : p.popular ? 'border-primary-500/30 bg-white/[0.02]' : 'border-white/10 bg-white/[0.02] hover:border-white/15'"
               @click="planId = p.id"
             >
               <span v-if="p.popular" class="absolute -top-[11px] left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-gradient-to-r from-primary-400 to-primary-600 px-3 py-[5px] text-[10.5px] font-extrabold tracking-[0.05em] text-white shadow-[0_6px_16px_rgba(125,83,242,.4)]">MOST POPULAR</span>
               <div class="flex items-center justify-between">
-                <span class="flex size-[42px] items-center justify-center rounded-[11px] bg-primary-500/14 text-primary-400"><Icon :name="tierIcon[p.tier]" class="size-[21px]" /></span>
+                <span class="flex size-[42px] items-center justify-center rounded-xl bg-primary-500/14 text-primary-400"><Icon :name="tierIcon[p.tier]" class="size-[21px]" /></span>
                 <span :class="[radioBase, planId === p.id ? 'bg-primary-500' : 'border-2 border-white/15']"><span v-if="planId === p.id" class="size-2.5 rounded-full bg-white" /></span>
               </div>
               <div class="mt-4 font-heading text-[20px] font-bold tracking-[-0.01em] text-white">
@@ -458,7 +452,7 @@ const radioBase = 'flex size-[22px] shrink-0 items-center justify-center rounded
 
         <!-- STEP 3 — PAYMENT -->
         <section v-else-if="step === 3" class="flex flex-col gap-[18px]">
-          <div class="relative overflow-hidden rounded-[28px] border border-primary-500/30 p-6" style="background: linear-gradient(135deg, #241846, #16252A 75%);">
+          <div class="relative overflow-hidden rounded-2xl border border-primary-500/30 p-6" style="background: linear-gradient(135deg, #241846, #16252A 75%);">
             <div class="pointer-events-none absolute -top-12 right-10 size-52 rounded-full opacity-45 blur-[60px]" style="background: radial-gradient(circle at 50% 38%, #9b79f6 0%, #7d53f2 55%, #6c40e8 100%);" />
             <div class="relative flex flex-wrap items-center gap-6">
               <div class="min-w-[240px] flex-1">
@@ -478,7 +472,7 @@ const radioBase = 'flex size-[22px] shrink-0 items-center justify-center rounded
             </div>
           </div>
 
-          <div class="rounded-[28px] border border-white/10 bg-muted-800 p-7">
+          <div class="rounded-2xl border border-white/10 bg-muted-800 p-7">
             <h3 class="font-heading text-[20px] font-bold tracking-[-0.01em] text-white">
               Choose how you'd like to pay
             </h3>
@@ -487,7 +481,7 @@ const radioBase = 'flex size-[22px] shrink-0 items-center justify-center rounded
             </p>
             <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <!-- 12 months -->
-              <button type="button" :aria-pressed="term === '12'" class="relative flex flex-col rounded-[20px] border p-[22px] text-left transition" :class="term === '12' ? 'border-primary-500 bg-primary-500/[0.06] ring-4 ring-primary-500/15' : 'border-white/10 bg-white/[0.02] hover:border-white/15'" @click="term = '12'">
+              <button type="button" :aria-pressed="term === '12'" class="relative flex flex-col rounded-2xl border p-[22px] text-left transition" :class="term === '12' ? 'border-primary-500 bg-primary-500/[0.06] ring-4 ring-primary-500/15' : 'border-white/10 bg-white/[0.02] hover:border-white/15'" @click="term = '12'">
                 <div class="flex items-center justify-between">
                   <span class="rounded-full bg-[#22B07D]/16 px-2.5 py-[5px] text-[11px] font-extrabold tracking-[0.05em] text-[#22B07D]">0% INTEREST</span>
                   <span :class="[radioBase, term === '12' ? 'bg-primary-500' : 'border-2 border-white/15']"><span v-if="term === '12'" class="size-2.5 rounded-full bg-white" /></span>
@@ -506,12 +500,12 @@ const radioBase = 'flex size-[22px] shrink-0 items-center justify-center rounded
                     <span>Total to pay</span><span class="font-bold text-white">{{ money(base) }}</span>
                   </div>
                 </div>
-                <div class="mt-3.5 flex items-center gap-1.5 rounded-[10px] border border-primary-500/20 bg-primary-500/10 px-2.5 py-2 text-xs text-primary-200">
+                <div class="mt-3.5 flex items-center gap-1.5 rounded-xl border border-primary-500/20 bg-primary-500/10 px-2.5 py-2 text-xs text-primary-200">
                   <Icon name="lucide:info" class="size-3.5" />Pay the least overall
                 </div>
               </button>
               <!-- 24 months (hidden when the admin disables the plan) -->
-              <button v-if="enable24mo" type="button" :aria-pressed="term === '24'" class="relative flex flex-col rounded-[20px] border p-[22px] text-left transition" :class="term === '24' ? 'border-primary-500 bg-primary-500/[0.06] ring-4 ring-primary-500/15' : 'border-white/10 bg-white/[0.02] hover:border-white/15'" @click="term = '24'">
+              <button v-if="enable24mo" type="button" :aria-pressed="term === '24'" class="relative flex flex-col rounded-2xl border p-[22px] text-left transition" :class="term === '24' ? 'border-primary-500 bg-primary-500/[0.06] ring-4 ring-primary-500/15' : 'border-white/10 bg-white/[0.02] hover:border-white/15'" @click="term = '24'">
                 <div class="flex items-center justify-between">
                   <span class="rounded-full bg-primary-500/18 px-2.5 py-[5px] text-[11px] font-extrabold tracking-[0.05em] text-primary-200">LOWEST MONTHLY</span>
                   <span :class="[radioBase, term === '24' ? 'bg-primary-500' : 'border-2 border-white/15']"><span v-if="term === '24'" class="size-2.5 rounded-full bg-white" /></span>
@@ -530,7 +524,7 @@ const radioBase = 'flex size-[22px] shrink-0 items-center justify-center rounded
                     <span>Total to pay</span><span class="font-bold text-white">{{ money(total24) }}</span>
                   </div>
                 </div>
-                <div class="mt-3.5 flex items-center gap-1.5 rounded-[10px] border border-primary-500/20 bg-primary-500/10 px-2.5 py-2 text-xs text-primary-200">
+                <div class="mt-3.5 flex items-center gap-1.5 rounded-xl border border-primary-500/20 bg-primary-500/10 px-2.5 py-2 text-xs text-primary-200">
                   <Icon name="lucide:sprout" class="size-3.5" />Keep cash free to grow
                 </div>
               </button>
@@ -543,7 +537,7 @@ const radioBase = 'flex size-[22px] shrink-0 items-center justify-center rounded
 
         <!-- STEP 4 — DETAILS -->
         <section v-else-if="step === 4" class="flex flex-col gap-[18px]">
-          <div class="flex flex-wrap items-center gap-[18px] rounded-[20px] border border-white/10 px-6 py-5" style="background: linear-gradient(135deg, #1B2B31, #101D21);">
+          <div class="flex flex-wrap items-center gap-[18px] rounded-2xl border border-white/10 px-6 py-5" style="background: linear-gradient(135deg, #1B2B31, #101D21);">
             <span class="flex size-[46px] items-center justify-center rounded-xl bg-primary-500/16 text-primary-400"><Icon :name="tierIcon[plan?.tier ?? 0]" class="size-[23px]" /></span>
             <div class="min-w-[180px] flex-1">
               <div class="text-xs font-bold tracking-[0.05em] text-primary-200">
@@ -563,7 +557,7 @@ const radioBase = 'flex size-[22px] shrink-0 items-center justify-center rounded
             </div>
           </div>
 
-          <div class="rounded-[28px] border border-white/10 bg-muted-800 p-7">
+          <div class="rounded-2xl border border-white/10 bg-muted-800 p-7">
             <h3 class="font-heading text-[20px] font-bold tracking-[-0.01em] text-white">
               Tell us about your project
             </h3>
@@ -591,20 +585,20 @@ const radioBase = 'flex size-[22px] shrink-0 items-center justify-center rounded
                   class="w-full resize-y rounded-xl border border-white/10 bg-white/5 px-3.5 py-3 text-sm text-white outline-none transition focus:border-primary-400"
                 />
                 <div v-else-if="field.type === 'checkboxes'" class="flex flex-wrap gap-2.5">
-                  <label v-for="box in field.boxes" :key="box.key" class="inline-flex cursor-pointer items-center gap-2.5 rounded-[10px] border border-white/10 bg-white/5 px-3.5 py-2.5 text-[13.5px] text-white">
+                  <label v-for="box in field.boxes" :key="box.key" class="inline-flex cursor-pointer items-center gap-2.5 rounded-xl border border-white/10 bg-white/5 px-3.5 py-2.5 text-[13.5px] text-white">
                     <input v-model="form[box.key]" type="checkbox" class="size-4 accent-primary-500">{{ box.label }}
                   </label>
                 </div>
               </div>
             </div>
-            <div v-if="showErr" class="mt-4 flex items-center gap-2 rounded-[10px] border border-[#EC6453]/30 bg-[#EC6453]/10 px-3.5 py-2.5 text-[13px] text-[#EC6453]">
+            <div v-if="showErr" class="mt-4 flex items-center gap-2 rounded-xl border border-[#EC6453]/30 bg-[#EC6453]/10 px-3.5 py-2.5 text-[13px] text-[#EC6453]">
               <Icon name="lucide:alert-circle" class="size-[15px]" />Please add a name so we can set up your project.
             </div>
           </div>
         </section>
 
         <!-- STEP 5 — CONTRACT -->
-        <section v-else-if="step === 5" class="rounded-[28px] border border-white/10 bg-muted-800 p-7">
+        <section v-else-if="step === 5" class="rounded-2xl border border-white/10 bg-muted-800 p-7">
           <h2 class="font-heading text-[22px] font-bold tracking-[-0.01em] text-white">
             Review &amp; sign
           </h2>
@@ -612,7 +606,7 @@ const radioBase = 'flex size-[22px] shrink-0 items-center justify-center rounded
             Your service agreement. Signing moves the project straight to <strong class="font-semibold text-[#22B07D]">Started</strong>.
           </p>
 
-          <div class="max-h-[264px] overflow-y-auto rounded-[14px] border border-white/10 bg-white/[0.02] px-6 py-[22px] text-[13.5px] leading-[1.65] text-muted-400">
+          <div class="max-h-[264px] overflow-y-auto rounded-xl border border-white/10 bg-white/[0.02] px-6 py-[22px] text-[13.5px] leading-[1.65] text-muted-400">
             <div class="mb-3 font-heading text-base font-bold text-white">
               Service agreement — Apex Digital Agency
             </div>
@@ -685,7 +679,7 @@ const radioBase = 'flex size-[22px] shrink-0 items-center justify-center rounded
           </div>
 
           <!-- Evidence notice — transparency about what is recorded as proof. -->
-          <p class="mt-4 flex items-start gap-2 rounded-[10px] border border-white/10 bg-white/[0.02] px-3.5 py-2.5 text-[12.5px] leading-[1.55] text-muted-500">
+          <p class="mt-4 flex items-start gap-2 rounded-xl border border-white/10 bg-white/[0.02] px-3.5 py-2.5 text-[12.5px] leading-[1.55] text-muted-500">
             <Icon name="lucide:shield-check" class="mt-0.5 size-4 shrink-0 text-[#22B07D]" />
             For your protection and ours, we record your name, the date and time, your IP address and device as tamper-evident proof that you signed this agreement.
           </p>
@@ -713,9 +707,9 @@ const radioBase = 'flex size-[22px] shrink-0 items-center justify-center rounded
       </div>
 
       <!-- ===================== RIGHT: ORDER SUMMARY RAIL ===================== -->
-      <aside aria-label="Order summary" class="overflow-hidden rounded-[28px] border border-white/10 lg:sticky lg:top-4" style="background: linear-gradient(160deg, #16252A, #101D21);">
+      <aside aria-label="Order summary" class="overflow-hidden rounded-2xl border border-white/10 lg:sticky lg:top-4" style="background: linear-gradient(160deg, #16252A, #101D21);">
         <div class="flex items-center gap-3 border-b border-white/10 px-[22px] py-5">
-          <span class="flex size-[34px] items-center justify-center rounded-[9px] bg-primary-500/16 text-primary-400"><Icon name="lucide:file-text" class="size-[17px]" /></span>
+          <span class="flex size-[34px] items-center justify-center rounded-xl bg-primary-500/16 text-primary-400"><Icon name="lucide:file-text" class="size-[17px]" /></span>
           <div class="flex-1">
             <div class="font-heading text-[15px] font-bold tracking-[0.02em] text-white">
               Order summary
@@ -753,7 +747,7 @@ const radioBase = 'flex size-[22px] shrink-0 items-center justify-center rounded
           </template>
         </div>
 
-        <div v-if="plan" class="mx-[22px] rounded-[14px] border border-primary-500/28 px-[18px] py-4" style="background: linear-gradient(135deg, rgba(125,83,242,.22), rgba(125,83,242,.06));">
+        <div v-if="plan" class="mx-[22px] rounded-xl border border-primary-500/28 px-[18px] py-4" style="background: linear-gradient(135deg, rgba(125,83,242,.22), rgba(125,83,242,.06));">
           <div class="flex items-end justify-between">
             <div>
               <div class="text-[11.5px] font-bold tracking-[0.05em] text-primary-200">
@@ -770,7 +764,7 @@ const radioBase = 'flex size-[22px] shrink-0 items-center justify-center rounded
         </div>
 
         <div class="flex flex-col gap-2.5 px-[22px] pb-[22px] pt-[18px]">
-          <div class="flex items-center justify-between rounded-[11px] border border-[#22B07D]/24 bg-[#22B07D]/10 px-3.5 py-3">
+          <div class="flex items-center justify-between rounded-xl border border-[#22B07D]/24 bg-[#22B07D]/10 px-3.5 py-3">
             <span class="text-[13px] font-semibold text-white">Due today</span>
             <span class="font-heading text-[18px] font-extrabold text-[#22B07D]">£0</span>
           </div>
@@ -785,7 +779,7 @@ const radioBase = 'flex size-[22px] shrink-0 items-center justify-center rounded
     <Teleport to="body">
       <Transition enter-active-class="transition-opacity duration-300" enter-from-class="opacity-0" leave-active-class="transition-opacity duration-200" leave-to-class="opacity-0">
         <div v-if="step === 6" class="fixed inset-0 z-50 flex items-center justify-center p-6" style="background: rgba(9,18,20,.82); backdrop-filter: blur(8px);">
-          <div class="apex-pop relative max-h-[calc(100dvh_-_3rem_-_env(safe-area-inset-top)_-_env(safe-area-inset-bottom))] w-full max-w-[520px] overflow-y-auto rounded-[28px] border border-primary-500/30 p-9 text-center" style="background: linear-gradient(160deg, #1B2B31, #101D21);">
+          <div class="apex-pop relative max-h-[calc(100dvh_-_3rem_-_env(safe-area-inset-top)_-_env(safe-area-inset-bottom))] w-full max-w-[520px] overflow-y-auto rounded-2xl border border-primary-500/30 p-9 text-center" style="background: linear-gradient(160deg, #1B2B31, #101D21);">
             <div class="pointer-events-none absolute -top-16 left-1/2 size-60 -translate-x-1/2 rounded-full opacity-40 blur-[70px]" style="background: radial-gradient(circle at 50% 38%, #9b79f6 0%, #7d53f2 55%, #6c40e8 100%);" />
             <div class="relative mx-auto flex size-[74px] items-center justify-center rounded-full shadow-[0_16px_40px_rgba(34,176,125,.45)]" style="background: linear-gradient(150deg, #22B07D, #0f6e4d);">
               <Icon name="lucide:check" class="size-9 text-white" />

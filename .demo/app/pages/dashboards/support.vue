@@ -357,33 +357,30 @@ const faqRows = computed(() => {
     the list is given the normal page flow instead and the whole page scrolls.
   -->
   <div
-    class="apex-support mx-auto flex max-w-[1240px] flex-col pb-[22px] pt-[26px] font-sans text-muted-400"
+    class="apex-support mx-auto flex max-w-[1180px] flex-col pb-[22px] font-sans text-muted-400"
     :class="{ 'apex-pane-h': tab === 'tickets' && mobileShowDetail }"
   >
     <!-- ============ TITLE ============ -->
-    <div class="mb-[18px] flex flex-shrink-0 flex-wrap items-end justify-between gap-4 sm:gap-5">
-      <div>
-        <h1 class="font-heading text-[28px] font-extrabold leading-[1.05] tracking-[-0.02em] text-white sm:text-[34px]">
-          Support <span class="text-primary-400">center</span>
-        </h1>
-        <p class="mt-2 text-[14px] text-muted-400 sm:text-[15px]">
-          Message our team, track requests and find quick answers — all in one place.
-        </p>
-      </div>
-      <div class="flex w-full items-center gap-3 sm:w-auto">
+    <ApexPageHeader
+      title="Support"
+      accent="center"
+      subtitle="Message our team, track requests and find quick answers — all in one place."
+      class="mb-8 flex-shrink-0"
+    >
+      <template #actions>
         <!-- The availability pill is reassurance, not a control; on a phone the
              vertical space it costs is better spent on the list itself. The same
              ETA is repeated inside every thread. -->
-        <div class="hidden items-center gap-2.5 rounded-full border border-[#22B07D]/24 bg-[#22B07D]/10 px-3.5 py-2 sm:flex">
+        <div class="hidden h-11 items-center gap-2.5 rounded-full border border-[#22B07D]/24 bg-[#22B07D]/10 px-4 sm:flex">
           <span class="size-2 rounded-full bg-[#22B07D] shadow-[0_0_0_3px_rgba(34,176,125,0.18)]" />
           <span class="text-[12.5px] font-semibold text-white">Team online · replies in {{ replyEta }}</span>
         </div>
-        <BaseButton rounded="full" size="lg" variant="primary" class="w-full shadow-[0_10px_24px_rgba(125,83,242,0.32)] sm:w-auto" @click="openNew">
+        <BaseButton rounded="full" variant="primary" class="h-11! w-full px-6 shadow-[0_10px_24px_rgba(125,83,242,0.32)] sm:w-auto" @click="openNew">
           <Icon name="lucide:plus" class="size-4" />
           <span>New request</span>
         </BaseButton>
-      </div>
-    </div>
+      </template>
+    </ApexPageHeader>
 
     <!-- ============ TABS ============ -->
     <div role="tablist" class="mb-[18px] inline-flex max-w-full flex-shrink-0 gap-1 self-start overflow-x-auto rounded-full border border-white/8 bg-muted-800 p-1">
@@ -403,9 +400,9 @@ const faqRows = computed(() => {
     <div v-if="tab === 'tickets'" class="apex-rise flex min-h-0 flex-1 flex-col">
       <div v-if="listRows.length || tickets.length" class="apex-inbox grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-[360px_1fr]">
         <!-- LIST PANE -->
-        <div class="flex min-h-0 flex-col overflow-hidden rounded-[28px] border border-white/8 bg-muted-800" :class="mobileShowDetail ? 'hidden lg:flex' : 'flex'">
+        <div class="flex min-h-0 flex-col overflow-hidden rounded-2xl border border-white/8 bg-muted-800" :class="mobileShowDetail ? 'hidden lg:flex' : 'flex'">
           <div class="flex-shrink-0 border-b border-white/8 p-3.5 pb-3">
-            <label class="flex items-center gap-2.5 rounded-[11px] border border-white/8 bg-muted-700 px-3 py-2.5 focus-within:border-primary-400">
+            <label class="flex items-center gap-2.5 rounded-xl border border-white/8 bg-muted-700 px-3 py-2.5 focus-within:border-primary-400">
               <Icon name="lucide:search" class="size-4 shrink-0 text-muted-500" />
               <input v-model="q" placeholder="Search requests…" class="min-w-0 flex-1 border-none bg-transparent text-[13.5px] text-white outline-none placeholder:text-muted-500">
             </label>
@@ -419,7 +416,7 @@ const faqRows = computed(() => {
                 {{ label }}
               </button>
             </div>
-            <select v-model="catFilter" class="mt-2.5 w-full cursor-pointer rounded-[10px] border border-white/8 bg-muted-700 px-3 py-3 sm:py-2.5 text-[13px] text-white outline-none">
+            <select v-model="catFilter" class="mt-2.5 w-full cursor-pointer rounded-xl border border-white/8 bg-muted-700 px-3 py-3 sm:py-2.5 text-[13px] text-white outline-none">
               <option value="all">
                 All categories
               </option>
@@ -432,7 +429,7 @@ const faqRows = computed(() => {
           <div class="min-h-0 flex-1 overflow-y-auto p-2">
             <button
               v-for="t in listRows" :key="t.id"
-              class="mb-1.5 block w-full rounded-[13px] border p-3.5 text-left transition-colors"
+              class="mb-1.5 block w-full rounded-xl border p-3.5 text-left transition-colors"
               :class="t.id === activeId ? 'border-primary-500/45 bg-primary-500/10 shadow-[inset_3px_0_0_var(--color-primary-500)]' : 'border-transparent hover:bg-muted-700'"
               @click="selectTicket(t.id)"
             >
@@ -462,7 +459,7 @@ const faqRows = computed(() => {
         </div>
 
         <!-- DETAIL PANE -->
-        <div v-if="activeTicket" class="flex min-h-0 flex-col overflow-hidden rounded-[28px] border border-white/8 bg-muted-800" :class="mobileShowDetail ? 'flex' : 'hidden lg:flex'">
+        <div v-if="activeTicket" class="flex min-h-0 flex-col overflow-hidden rounded-2xl border border-white/8 bg-muted-800" :class="mobileShowDetail ? 'flex' : 'hidden lg:flex'">
           <div class="flex-shrink-0 border-b border-white/8 p-[18px] pb-[18px]">
             <button class="mb-3 inline-flex items-center gap-1.5 text-xs font-semibold text-muted-400 hover:text-white lg:hidden" @click="backToList">
               <Icon name="lucide:chevron-left" class="size-3.5" /> Back to requests
@@ -525,7 +522,7 @@ const faqRows = computed(() => {
 
           <div class="flex-shrink-0 border-t border-white/8 p-[14px] pb-4 pt-[14px]">
             <div v-if="draftFiles.length" class="mb-2.5 flex flex-wrap gap-2">
-              <div v-for="(f, i) in draftFiles" :key="i" class="flex items-center gap-2 rounded-[9px] border border-white/8 bg-muted-700 py-1.5 pl-[11px] pr-1.5 text-xs text-white">
+              <div v-for="(f, i) in draftFiles" :key="i" class="flex items-center gap-2 rounded-xl border border-white/8 bg-muted-700 py-1.5 pl-[11px] pr-1.5 text-xs text-white">
                 <Icon name="lucide:file-text" class="size-[13px] text-primary-400" />
                 {{ f.name }}
                 <button aria-label="Remove file" class="inline-flex size-8 items-center justify-center rounded-md text-muted-500 hover:text-[#EC6453] sm:size-6" @click="removeDraftFile(i)">
@@ -533,17 +530,17 @@ const faqRows = computed(() => {
                 </button>
               </div>
             </div>
-            <div class="flex items-end gap-2.5 rounded-[14px] border border-white/8 bg-muted-700 py-2 pl-3.5 pr-2 focus-within:border-primary-400">
+            <div class="flex items-end gap-2.5 rounded-xl border border-white/8 bg-muted-700 py-2 pl-3.5 pr-2 focus-within:border-primary-400">
               <textarea
                 v-model="draft" rows="1" placeholder="Write a reply…  (Enter to send, Shift+Enter for a new line)"
                 class="max-h-[120px] min-w-0 flex-1 resize-none border-none bg-transparent py-1.5 text-sm leading-[1.5] text-white outline-none placeholder:text-muted-500"
                 @keydown="onDraftKey"
               />
               <input ref="fileRef" type="file" multiple class="hidden" @change="onPickFiles">
-              <button aria-label="Attach file" class="inline-flex size-11 shrink-0 items-center justify-center rounded-[10px] border border-white/8 text-muted-400 hover:border-white/15 hover:text-white sm:size-[38px]" @click="triggerAttach">
+              <button aria-label="Attach file" class="inline-flex size-11 shrink-0 items-center justify-center rounded-xl border border-white/8 text-muted-400 hover:border-white/15 hover:text-white sm:size-[38px]" @click="triggerAttach">
                 <Icon name="lucide:paperclip" class="size-[17px]" />
               </button>
-              <button aria-label="Send reply" class="inline-flex size-11 shrink-0 items-center justify-center rounded-[10px] bg-primary-500 text-white shadow-[0_6px_16px_rgba(125,83,242,0.32)] disabled:cursor-not-allowed disabled:opacity-50 sm:size-[38px]" :disabled="!draft.trim() || sending" @click="sendReply">
+              <button aria-label="Send reply" class="inline-flex size-11 shrink-0 items-center justify-center rounded-xl bg-primary-500 text-white shadow-[0_6px_16px_rgba(125,83,242,0.32)] disabled:cursor-not-allowed disabled:opacity-50 sm:size-[38px]" :disabled="!draft.trim() || sending" @click="sendReply">
                 <Icon name="lucide:send" class="size-[17px]" />
               </button>
             </div>
@@ -559,7 +556,7 @@ const faqRows = computed(() => {
 
       <!-- empty (no tickets yet) -->
       <div v-else class="flex min-h-0 flex-1 items-center justify-center">
-        <div class="max-w-[520px] rounded-[28px] border border-white/8 bg-muted-800 px-10 py-[52px] text-center">
+        <div class="max-w-[520px] rounded-2xl border border-white/8 bg-muted-800 px-10 py-[52px] text-center">
           <span class="mb-5 inline-flex size-[66px] items-center justify-center rounded-full bg-primary-500/14 text-primary-400">
             <Icon name="lucide:message-square" class="size-[30px]" />
           </span>
@@ -591,11 +588,11 @@ const faqRows = computed(() => {
         <div class="grid grid-cols-2 gap-3 sm:grid-cols-3">
           <button
             v-for="(c, key) in CATEGORIES" :key="key"
-            class="rounded-[14px] border p-[18px] text-center transition-all"
+            class="rounded-xl border p-[18px] text-center transition-all"
             :class="nCat === key ? 'border-primary-500 bg-primary-500/10' : 'border-white/8 bg-muted-800 hover:border-white/15'"
             @click="nCat = key"
           >
-            <span class="inline-flex size-10 items-center justify-center rounded-[11px]" :class="[c.bg, c.text]">
+            <span class="inline-flex size-10 items-center justify-center rounded-xl" :class="[c.bg, c.text]">
               <Icon :name="c.icon" class="size-5" />
             </span>
             <span class="mt-3 block text-sm font-semibold text-white">{{ c.label }}</span>
@@ -603,19 +600,19 @@ const faqRows = computed(() => {
           </button>
         </div>
 
-        <div class="mt-[18px] flex flex-col gap-[18px] rounded-[28px] border border-white/8 bg-muted-800 p-6">
+        <div class="mt-[18px] flex flex-col gap-[18px] rounded-2xl border border-white/8 bg-muted-800 p-6">
           <div>
             <label class="mb-2 block text-[12.5px] font-semibold text-white">Subject</label>
-            <input v-model="nSubject" placeholder="Briefly, what's this about?" class="w-full rounded-[11px] border border-white/8 bg-muted-700 px-3.5 py-3 text-sm text-white outline-none placeholder:text-muted-500 focus:border-primary-400">
+            <input v-model="nSubject" placeholder="Briefly, what's this about?" class="w-full rounded-xl border border-white/8 bg-muted-700 px-3.5 py-3 text-sm text-white outline-none placeholder:text-muted-500 focus:border-primary-400">
           </div>
 
           <div class="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
             <div>
               <label class="mb-2 block text-[12.5px] font-semibold text-white">Priority</label>
-              <div class="flex gap-1.5 rounded-[11px] border border-white/8 bg-muted-700 p-1">
+              <div class="flex gap-1.5 rounded-xl border border-white/8 bg-muted-700 p-1">
                 <button
                   v-for="(p, key) in PRIORITIES" :key="key"
-                  class="flex-1 rounded-[9px] px-1 py-2 text-[12.5px] transition-all"
+                  class="flex-1 rounded-xl px-1 py-2 text-[12.5px] transition-all"
                   :class="nPriority === key ? 'bg-primary-500 font-bold text-white' : 'font-semibold text-muted-400 hover:text-white'"
                   @click="nPriority = key"
                 >
@@ -625,7 +622,7 @@ const faqRows = computed(() => {
             </div>
             <div>
               <label class="mb-2 block text-[12.5px] font-semibold text-white">Related project <span class="font-normal text-muted-500">(optional)</span></label>
-              <select v-model="nProject" class="w-full cursor-pointer rounded-[11px] border border-white/8 bg-muted-700 px-3.5 py-3 text-sm text-white outline-none focus:border-primary-400">
+              <select v-model="nProject" class="w-full cursor-pointer rounded-xl border border-white/8 bg-muted-700 px-3.5 py-3 text-sm text-white outline-none focus:border-primary-400">
                 <option v-for="pj in projectOpts" :key="pj" :value="pj">
                   {{ pj }}
                 </option>
@@ -635,7 +632,7 @@ const faqRows = computed(() => {
 
           <div>
             <label class="mb-2 block text-[12.5px] font-semibold text-white">Message</label>
-            <textarea v-model="nMessage" rows="5" placeholder="Share as much detail as you can — links, error messages, what you expected to happen…" class="w-full resize-y rounded-[11px] border border-white/8 bg-muted-700 px-3.5 py-3 text-sm leading-[1.55] text-white outline-none placeholder:text-muted-500 focus:border-primary-400" />
+            <textarea v-model="nMessage" rows="5" placeholder="Share as much detail as you can — links, error messages, what you expected to happen…" class="w-full resize-y rounded-xl border border-white/8 bg-muted-700 px-3.5 py-3 text-sm leading-[1.55] text-white outline-none placeholder:text-muted-500 focus:border-primary-400" />
           </div>
 
           <div>
@@ -647,7 +644,7 @@ const faqRows = computed(() => {
             </button>
             <input ref="newFileRef" type="file" multiple class="hidden" @change="onNewFiles">
             <div v-if="nFiles.length" class="mt-2.5 flex flex-wrap gap-2">
-              <div v-for="(f, i) in nFiles" :key="i" class="flex items-center gap-2.5 rounded-[10px] border border-white/8 bg-muted-700 py-2 pl-3 pr-2">
+              <div v-for="(f, i) in nFiles" :key="i" class="flex items-center gap-2.5 rounded-xl border border-white/8 bg-muted-700 py-2 pl-3 pr-2">
                 <span class="inline-flex size-7 shrink-0 items-center justify-center rounded-[7px] bg-primary-500/14 text-primary-400">
                   <Icon name="lucide:file-text" class="size-3.5" />
                 </span>
@@ -679,7 +676,7 @@ const faqRows = computed(() => {
         </div>
       </div>
 
-      <div v-else class="apex-pop mx-auto mt-6 max-w-[560px] rounded-[28px] border border-white/8 bg-muted-800 px-10 py-12 text-center">
+      <div v-else class="apex-pop mx-auto mt-6 max-w-[560px] rounded-2xl border border-white/8 bg-muted-800 px-10 py-12 text-center">
         <span class="mb-5 inline-flex size-[66px] items-center justify-center rounded-full bg-[#22B07D]/16 text-[#22B07D]">
           <Icon name="lucide:check" class="size-8" />
         </span>
@@ -703,21 +700,21 @@ const faqRows = computed(() => {
     <!-- ============================================================ FAQ -->
     <div v-else class="apex-rise min-h-0 flex-1 overflow-y-auto">
       <div class="mx-auto max-w-[820px]">
-        <div class="relative mb-5 overflow-hidden rounded-[28px] border border-white/8 p-6 sm:p-[30px]" style="background: radial-gradient(120% 140% at 85% 15%, rgba(125,83,242,.28), transparent 50%), linear-gradient(150deg, #16252A, #101D21);">
+        <div class="relative mb-5 overflow-hidden rounded-2xl border border-white/8 p-6 sm:p-[30px]" style="background: radial-gradient(120% 140% at 85% 15%, rgba(125,83,242,.28), transparent 50%), linear-gradient(150deg, #16252A, #101D21);">
           <h3 class="font-heading text-2xl font-extrabold tracking-[-0.01em] text-white">
             Find an answer in seconds
           </h3>
           <p class="mb-[18px] mt-2 text-sm text-muted-400">
             Search our knowledge base, or browse the most common questions below.
           </p>
-          <label class="flex max-w-[520px] items-center gap-2.5 rounded-[13px] border border-white/15 bg-[rgba(11,21,23,0.6)] px-4 py-3.5 focus-within:border-primary-400">
+          <label class="flex max-w-[520px] items-center gap-2.5 rounded-xl border border-white/15 bg-[rgba(11,21,23,0.6)] px-4 py-3.5 focus-within:border-primary-400">
             <Icon name="lucide:search" class="size-[18px] shrink-0 text-muted-500" />
             <input v-model="faqQ" placeholder="Search help articles…" class="min-w-0 flex-1 border-none bg-transparent text-[14.5px] text-white outline-none placeholder:text-muted-500">
           </label>
         </div>
 
         <div v-if="faqRows.length" class="flex flex-col gap-2.5">
-          <div v-for="f in faqRows" :key="f.id" class="overflow-hidden rounded-[14px] border bg-muted-800" :class="faqOpen[f.id] ? 'border-primary-500/35' : 'border-white/8'">
+          <div v-for="f in faqRows" :key="f.id" class="overflow-hidden rounded-xl border bg-muted-800" :class="faqOpen[f.id] ? 'border-primary-500/35' : 'border-white/8'">
             <button class="flex w-full items-center gap-3.5 px-5 py-[17px] text-left hover:bg-muted-700" @click="toggleFaq(f.id)">
               <span class="inline-flex items-center rounded-full px-[9px] py-1 text-[10.5px] font-extrabold uppercase tracking-[0.04em]" :class="[CATEGORIES[f.cat].text, CATEGORIES[f.cat].bg]">{{ CATEGORIES[f.cat].label }}</span>
               <span class="flex-1 text-[14.5px] font-semibold text-white">{{ f.q }}</span>
@@ -728,11 +725,11 @@ const faqRows = computed(() => {
             </div>
           </div>
         </div>
-        <div v-else class="rounded-[28px] border border-white/8 bg-muted-800 px-[30px] py-10 text-center text-sm text-muted-400">
+        <div v-else class="rounded-2xl border border-white/8 bg-muted-800 px-[30px] py-10 text-center text-sm text-muted-400">
           No articles match "{{ faqQ }}".
         </div>
 
-        <div class="mt-5 flex flex-wrap items-center justify-between gap-4 rounded-[28px] border border-white/8 bg-muted-800 px-6 py-5">
+        <div class="mt-5 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-white/8 bg-muted-800 px-6 py-5">
           <div>
             <div class="font-heading text-base font-bold text-white">
               Still stuck?
@@ -757,14 +754,17 @@ const faqRows = computed(() => {
  * applied). Written as CSS rather than an arbitrary utility because it is
  * toggled per-state and per-breakpoint, and because `env()` inside a Tailwind
  * arbitrary value has bitten this project before.
+ *
+ * 109px is the shell above this page: the 76px top bar + its 32px margin +
+ * the 1px divider. Keep it in step with DemoToolbar if that band changes.
  */
 .apex-pane-h {
-  height: calc(100dvh - 101px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  height: calc(100dvh - 109px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
 }
 /* From lg up both panes are visible together, so the shell is always bounded. */
 @media (min-width: 1024px) {
   .apex-support {
-    height: calc(100dvh - 101px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+    height: calc(100dvh - 109px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
   }
 }
 .apex-rise {

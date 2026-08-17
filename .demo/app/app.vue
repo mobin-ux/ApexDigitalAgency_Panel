@@ -11,8 +11,8 @@ useHead({
   title: () => route?.meta?.title ?? '',
   titleTemplate: (titleChunk) => {
     return titleChunk
-      ? `${titleChunk} - Tairo`
-      : `Tairo`
+      ? `${titleChunk} — Apex Digi`
+      : `Apex Digi`
   },
   htmlAttrs: {
     lang: () => head.value.htmlAttrs!.lang,
@@ -22,8 +22,8 @@ useHead({
     ...(head.value.link || []),
     {
       rel: 'icon',
-      type: 'image/png',
-      href: '/img/favicon.png',
+      type: 'image/svg+xml',
+      href: '/brand/apex-icon.svg',
     },
   ],
   meta: () => [
@@ -32,7 +32,7 @@ useHead({
       name: 'description',
       content: () =>
         route?.meta?.description
-        ?? 'The most advanced Nuxt and Tailwind CSS dashboard template',
+        ?? 'Apex Digi customer dashboard — projects, wallet, credit and support in one place.',
     },
     {
       name: 'twitter:card',

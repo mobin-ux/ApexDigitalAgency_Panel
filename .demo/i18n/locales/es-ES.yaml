@@ -4,9 +4,3 @@ panels:
 components:
   toolbar:
     search: Buscar...
-    actions:
-      leads: Clientes potenciales
-      projects: Proyectos
-      team: Equipo
-      reports: Informes
-      settings: Configuración

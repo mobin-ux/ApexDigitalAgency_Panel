@@ -27,13 +27,20 @@ Tairo components and is extended by `.demo/nuxt.config.ts`.
   app/
     pages/dashboards/        customer pages (balance, orders, services, wallet, support, settings)
     pages/auth/              login-1 (active login), signup-1, recover — still template-era
-    layouts/sidenav.vue      customer shell: nav, real user chip, sign out
+    layouts/sidenav.vue      customer shell: brand band, ApexSidebarNav, ApexAccountMenu
+    layouts/admin.vue        admin shell — same components, ADMIN chip
+    components/Apex*.vue     shared shell vocabulary (V2 Phase 1):
+                             ApexSidebarNav, ApexAccountMenu, ApexNotificationsMenu,
+                             ApexPageHeader, ApexSectionLabel
     composables/             useUser.ts, useCurrency.ts, useNotifications.ts
     middleware/auth.ts       route guard (cookie → fetchUser → redirect to /auth/login-1)
     plugins/auth-load.ts     hydrates user state at boot (single plugin; duplicate removed)
     assets/main.css          @theme tokens + Yellix @font-face (SINGLE token source)
-    public/fonts/yellix/     Yellix .woff (400/500/600/700/800)
-    public/brand/            apex-icon.svg, apex-wordmark-dark.svg
+  public/fonts/yellix/       Yellix .woff (400/500/600/700/800)
+  public/brand/              apex-icon.svg, apex-wordmark-dark.svg
+                             NOTE: the public dir is `.demo/public`, NOT
+                             `.demo/app/public` — assets under the latter are
+                             never served (they 404'd silently until 2026-08-18)
   server/api/                Nitro endpoints (see §5)
   nuxt.config.ts             colorMode dark, routeRules, modules
 prisma/schema.prisma         data model (see §4)
@@ -211,9 +218,12 @@ Real money infrastructure, provider-agnostic by construction.
 
 ## 10. Known issues (technical detail)
 
-- **Hydration mismatches**: every dashboard page logs "Hydration completed but contains
-  mismatches" — pre-existing, in shared chrome (toolbar/color-mode), NOT page work.
-  Candidate root causes: color-mode class stamping, i18n locale detection.
+- ~~**Hydration mismatches**~~ fixed 2026-08-18 (V2 Phase 1). Both causes were in
+  `DemoToolbar`: the locale flag image and the `Ctrl`/`⌘` shortcut hint. The hint
+  used the layer's `useIsMacLike()`, which resolves in `onBeforeMount` — before
+  the hydration render — so the server said `ctrl` and the client's first render
+  said `⌘`. Anything derived from `navigator` must resolve in `onMounted` (or sit
+  inside `<ClientOnly>`), never earlier.
 - `auth_token` httpOnly:false — the client route middleware reads the cookie via
   `useCookie`; flipping httpOnly requires reworking `app/middleware/auth.ts` to
   rely on `fetchUser()` alone (tracked follow-up, ADR-013). sameSite/secure and

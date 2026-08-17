@@ -79,25 +79,19 @@ const VIOLET_BLOB = 'radial-gradient(circle at 50% 38%, #9b79f6 0%, #7d53f2 55%,
 </script>
 
 <template>
-  <div class="mx-auto flex max-w-[1240px] flex-col gap-7 pb-8 font-sans text-muted-400">
+  <div class="mx-auto flex max-w-[1180px] flex-col gap-8 pb-8 font-sans text-muted-400">
     <!-- ========== PAGE HEADER ========== -->
-    <div class="flex flex-wrap items-end justify-between gap-5">
-      <div>
-        <div class="mb-2 text-xs font-bold tracking-[0.04em] text-primary-400">
-          👋 WELCOME BACK
-        </div>
-        <h1 class="font-heading text-[34px] font-extrabold leading-[1.05] tracking-[-0.02em] text-white sm:text-[38px]">
-          Welcome back, <span class="text-primary-400">{{ firstName }}</span>
-        </h1>
-        <p class="mt-2 text-[15px] text-muted-400">
-          Manage your projects, wallet, and services — all in one place.
-        </p>
-      </div>
-      <BaseButton rounded="full" to="/dashboards/wallet" class="border border-white/10 bg-muted-800 !text-white hover:bg-muted-700">
-        <Icon name="lucide:history" class="size-4" />
-        <span>History</span>
-      </BaseButton>
-    </div>
+    <ApexPageHeader subtitle="Manage your projects, wallet, and services — all in one place.">
+      <template #title>
+        Welcome back, <span class="text-primary-400">{{ firstName }}</span>
+      </template>
+      <template #actions>
+        <BaseButton rounded="full" variant="muted" to="/dashboards/wallet" class="h-11! px-6">
+          <Icon name="lucide:history" class="size-4" />
+          <span>History</span>
+        </BaseButton>
+      </template>
+    </ApexPageHeader>
 
     <!-- ========== PROMO HERO ========== -->
     <Transition
@@ -107,7 +101,7 @@ const VIOLET_BLOB = 'radial-gradient(circle at 50% 38%, #9b79f6 0%, #7d53f2 55%,
       <section
         v-if="showPromo"
         aria-label="Promotion"
-        class="relative overflow-hidden rounded-[28px] border border-white/10 p-5 sm:p-7 lg:p-10"
+        class="relative overflow-hidden rounded-2xl border border-white/10 p-5 sm:p-7 lg:p-10"
         style="background: radial-gradient(120% 140% at 82% 18%, rgba(125,83,242,.32) 0%, rgba(125,83,242,0) 46%), linear-gradient(150deg, #16252A 0%, #101D21 60%, #0E181B 100%);"
       >
         <div class="pointer-events-none absolute -top-16 right-28 size-72 rounded-full opacity-45 blur-[70px]" :style="{ background: VIOLET_BLOB }" />
@@ -115,7 +109,7 @@ const VIOLET_BLOB = 'radial-gradient(circle at 50% 38%, #9b79f6 0%, #7d53f2 55%,
 
         <button
           type="button" aria-label="Dismiss promotion"
-          class="absolute right-3 top-3 z-10 flex size-11 items-center justify-center rounded-[9px] border border-white/10 bg-white/5 text-muted-400 transition hover:bg-white/10 hover:text-white sm:right-4 sm:top-4 sm:size-8"
+          class="absolute right-3 top-3 z-10 flex size-11 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-muted-400 transition hover:bg-white/10 hover:text-white sm:right-4 sm:top-4 sm:size-8"
           @click="showPromo = false"
         >
           <Icon name="lucide:x" class="size-4" />
@@ -154,7 +148,7 @@ const VIOLET_BLOB = 'radial-gradient(circle at 50% 38%, #9b79f6 0%, #7d53f2 55%,
           <!-- decorative revenue card -->
           <div class="hidden justify-center lg:flex">
             <div class="relative w-[300px]">
-              <div class="-rotate-[4deg] rounded-[20px] border border-white/15 p-6 shadow-[0_30px_60px_rgba(0,0,0,.4)] backdrop-blur" style="background: linear-gradient(160deg, rgba(30,47,53,.9), rgba(16,29,33,.9));">
+              <div class="-rotate-[4deg] rounded-2xl border border-white/15 p-6 shadow-[0_30px_60px_rgba(0,0,0,.4)] backdrop-blur" style="background: linear-gradient(160deg, rgba(30,47,53,.9), rgba(16,29,33,.9));">
                 <div class="mb-3.5 flex items-center justify-between">
                   <span class="text-[11px] font-bold tracking-[0.06em] text-muted-500">REVENUE GROWTH</span>
                   <span class="inline-flex size-[30px] items-center justify-center rounded-full bg-[#22B07D]/16 text-[#22B07D]"><Icon name="lucide:trending-up" class="size-[15px]" /></span>
@@ -181,16 +175,14 @@ const VIOLET_BLOB = 'radial-gradient(circle at 50% 38%, #9b79f6 0%, #7d53f2 55%,
 
     <!-- ========== FINANCIAL STATUS ========== -->
     <section class="flex flex-col gap-4">
-      <h2 class="flex items-center gap-2.5 font-heading text-[15px] font-bold uppercase tracking-[0.04em] text-muted-500">
-        <span class="h-[18px] w-1.5 rounded-full bg-primary-500" />Financial status
-      </h2>
+      <ApexSectionLabel label="Financial status" />
 
       <div class="grid grid-cols-1 items-stretch gap-[18px] lg:grid-cols-[1fr_1.32fr]">
         <!-- cash balance (emphasised) -->
-        <div class="relative flex flex-col overflow-hidden rounded-[20px] border border-primary-500/30 p-6" style="background: linear-gradient(150deg, #241846, #16252A 72%);">
+        <div class="relative flex flex-col overflow-hidden rounded-2xl border border-primary-500/30 p-6" style="background: linear-gradient(150deg, #241846, #16252A 72%);">
           <div class="pointer-events-none absolute -top-12 -right-6 size-40 rounded-full opacity-50 blur-[50px]" :style="{ background: VIOLET_BLOB }" />
           <div class="relative mb-5 flex items-center gap-3">
-            <span class="flex size-9 items-center justify-center rounded-[10px] bg-white/10 text-white"><Icon name="lucide:wallet" class="size-[18px]" /></span>
+            <span class="flex size-9 items-center justify-center rounded-xl bg-white/10 text-white"><Icon name="lucide:wallet" class="size-[18px]" /></span>
             <span class="text-[12.5px] font-bold tracking-[0.06em] text-primary-200">CASH BALANCE</span>
           </div>
           <div class="relative flex items-baseline gap-2">
@@ -210,10 +202,10 @@ const VIOLET_BLOB = 'radial-gradient(circle at 50% 38%, #9b79f6 0%, #7d53f2 55%,
         </div>
 
         <!-- credit line -->
-        <div class="flex flex-col rounded-[20px] border border-white/10 bg-muted-800 p-6 transition hover:border-white/15">
+        <div class="flex flex-col rounded-2xl border border-white/10 bg-muted-800 p-6 transition hover:border-white/15">
           <div class="mb-5 flex items-center justify-between">
             <span class="inline-flex items-center gap-3 text-[12.5px] font-bold tracking-[0.06em] text-muted-500">
-              <span class="flex size-9 items-center justify-center rounded-[10px] bg-[#22B07D]/14 text-[#22B07D]"><Icon name="lucide:credit-card" class="size-[18px]" /></span>CREDIT LINE
+              <span class="flex size-9 items-center justify-center rounded-xl bg-[#22B07D]/14 text-[#22B07D]"><Icon name="lucide:credit-card" class="size-[18px]" /></span>CREDIT LINE
             </span>
             <span class="inline-flex items-center gap-1.5 rounded-full bg-[#22B07D]/14 px-2.5 py-1 text-[11px] font-bold text-[#22B07D]"><Icon name="lucide:check" class="size-3" />Approved</span>
           </div>
@@ -240,9 +232,7 @@ const VIOLET_BLOB = 'radial-gradient(circle at 50% 38%, #9b79f6 0%, #7d53f2 55%,
     <section class="flex flex-col gap-4">
       <div class="flex flex-wrap items-center justify-between gap-4">
         <div class="flex flex-wrap items-center gap-3.5">
-          <h2 class="flex items-center gap-2.5 font-heading text-[15px] font-bold uppercase tracking-[0.04em] text-muted-500">
-            <span class="h-[18px] w-1.5 rounded-full bg-[#22B07D]" />Active work
-          </h2>
+          <ApexSectionLabel label="Active work" />
           <span class="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[13px] font-semibold text-white tabular-nums">{{ stats.activeProjects }} project{{ stats.activeProjects === 1 ? '' : 's' }} running</span>
         </div>
         <NuxtLink to="/dashboards/orders" class="inline-flex items-center gap-1.5 text-[13.5px] font-semibold text-primary-400 transition hover:text-white">
@@ -250,7 +240,7 @@ const VIOLET_BLOB = 'radial-gradient(circle at 50% 38%, #9b79f6 0%, #7d53f2 55%,
         </NuxtLink>
       </div>
 
-      <div v-if="projects.length" role="list" class="overflow-hidden rounded-[20px] border border-white/10 bg-white/[0.02]">
+      <div v-if="projects.length" role="list" class="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.02]">
         <template v-for="(project, idx) in projects" :key="project.id">
           <div v-if="idx > 0" class="h-px bg-white/10" />
           <NuxtLink
@@ -258,7 +248,7 @@ const VIOLET_BLOB = 'radial-gradient(circle at 50% 38%, #9b79f6 0%, #7d53f2 55%,
             class="flex items-center gap-4 border-l-[3px] px-[22px] py-[18px] transition hover:bg-white/[0.03]"
             :style="{ borderLeftColor: statusMeta(project.status).accent }"
           >
-            <span class="flex size-[42px] shrink-0 items-center justify-center rounded-[11px] border border-white/10 bg-white/5 text-muted-400"><Icon :name="project.icon" class="size-[19px]" /></span>
+            <span class="flex size-[42px] shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-muted-400"><Icon :name="project.icon" class="size-[19px]" /></span>
             <div class="min-w-0 flex-1">
               <div class="truncate text-[15.5px] font-semibold text-white">
                 {{ project.name }}
@@ -279,7 +269,7 @@ const VIOLET_BLOB = 'radial-gradient(circle at 50% 38%, #9b79f6 0%, #7d53f2 55%,
         </template>
       </div>
 
-      <div v-else class="flex flex-col items-center justify-center rounded-[20px] border border-dashed border-white/15 bg-white/[0.02] p-10 text-center">
+      <div v-else class="flex flex-col items-center justify-center rounded-2xl border border-dashed border-white/15 bg-white/[0.02] p-10 text-center">
         <span class="mb-4 flex size-14 items-center justify-center rounded-full bg-white/5 text-muted-500"><Icon name="lucide:folder-plus" class="size-7" /></span>
         <div class="text-base font-bold text-white">
           No active projects
@@ -297,9 +287,7 @@ const VIOLET_BLOB = 'radial-gradient(circle at 50% 38%, #9b79f6 0%, #7d53f2 55%,
     <section class="flex flex-col gap-4">
       <div class="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h2 class="mb-1.5 flex items-center gap-2.5 font-heading text-[15px] font-bold uppercase tracking-[0.04em] text-muted-500">
-            <span class="h-[18px] w-1.5 rounded-full bg-primary-400" />Order a service
-          </h2>
+          <ApexSectionLabel label="Order a service" class="mb-1.5" />
           <p class="text-sm text-muted-400">
             Pick a service to see pricing &amp; monthly installments, then start a new order.
           </p>
@@ -314,7 +302,7 @@ const VIOLET_BLOB = 'radial-gradient(circle at 50% 38%, #9b79f6 0%, #7d53f2 55%,
           v-for="svc in services" :key="svc.key"
           :to="`/dashboards/services?service=${svc.key}`"
           :aria-label="`Order ${svc.name} — from ${formatCurrency(svc.from)} per month`"
-          class="group flex flex-col rounded-[20px] border border-white/10 bg-muted-800 p-5 transition duration-150 hover:-translate-y-[3px] hover:border-primary-500/50"
+          class="group flex flex-col rounded-2xl border border-white/10 bg-muted-800 p-5 transition duration-150 hover:-translate-y-[3px] hover:border-primary-500/50"
         >
           <div class="mb-[18px] flex items-center justify-between">
             <span class="flex size-11 items-center justify-center rounded-xl bg-primary-500/14 text-primary-400"><Icon :name="svc.icon" class="size-[21px]" /></span>
@@ -336,10 +324,8 @@ const VIOLET_BLOB = 'radial-gradient(circle at 50% 38%, #9b79f6 0%, #7d53f2 55%,
 
     <!-- ========== EXPENSES ========== -->
     <section class="flex flex-col gap-4">
-      <h2 class="flex items-center gap-2.5 font-heading text-[15px] font-bold uppercase tracking-[0.04em] text-muted-500">
-        <span class="h-[18px] w-1.5 rounded-full bg-primary-200" />Expenses
-      </h2>
-      <div class="grid grid-cols-1 items-center gap-8 rounded-[20px] border border-white/10 bg-muted-800 p-6 md:grid-cols-[minmax(200px,260px)_1fr]">
+      <ApexSectionLabel label="Expenses" />
+      <div class="grid grid-cols-1 items-center gap-8 rounded-2xl border border-white/10 bg-muted-800 p-6 md:grid-cols-[minmax(200px,260px)_1fr]">
         <div>
           <div class="text-[13px] font-medium text-muted-500">
             Total spent this quarter

@@ -332,33 +332,28 @@ async function payNow() {
 </script>
 
 <template>
-  <div class="mx-auto flex max-w-[1220px] flex-col gap-6 pb-14 font-sans text-muted-400">
-    <!-- breadcrumb strip -->
-    <div class="flex items-center gap-2 text-[13.5px] text-muted-500">
-      <span>Services</span><span class="opacity-50">/</span><span class="font-semibold text-white">My orders</span>
-    </div>
-
+  <!-- Location lives in the toolbar breadcrumb; this page no longer prints its own. -->
+  <div class="mx-auto flex max-w-[1180px] flex-col gap-8 pb-14 font-sans text-muted-400">
     <!-- ============================ LIST VIEW ============================ -->
     <div v-if="view === 'list'">
       <!-- title + primary action -->
-      <div class="mb-6 flex flex-wrap items-end justify-between gap-5">
-        <div>
-          <h1 class="font-heading text-[28px] font-extrabold leading-[1.05] tracking-[-0.02em] text-white sm:text-[34px]">
-            My <span class="text-primary-400">orders</span>
-          </h1>
-          <p class="mt-2 text-[15px] text-muted-400">
-            Track active projects, milestones and installments — all in one place.
-          </p>
-        </div>
-        <BaseButton rounded="full" variant="primary" to="/dashboards/services" class="shadow-[0_10px_24px_rgba(125,83,242,.32)]">
-          <Icon name="lucide:plus" class="size-4" />New project
-        </BaseButton>
-      </div>
+      <ApexPageHeader
+        title="My"
+        accent="orders"
+        subtitle="Track active projects, milestones and installments — all in one place."
+        class="mb-8"
+      >
+        <template #actions>
+          <BaseButton rounded="full" variant="primary" to="/dashboards/services" class="h-11! px-6 shadow-[0_10px_24px_rgba(125,83,242,.32)]">
+            <Icon name="lucide:plus" class="size-4" />New project
+          </BaseButton>
+        </template>
+      </ApexPageHeader>
 
       <!-- stat strip -->
       <div class="mb-[22px] grid grid-cols-1 gap-3.5 sm:grid-cols-2 xl:grid-cols-4">
-        <div v-for="st in stats" :key="st.label" class="flex items-center gap-3 rounded-[20px] border border-white/10 bg-muted-800 px-[18px] py-4">
-          <span class="flex size-10 shrink-0 items-center justify-center rounded-[11px]" :class="st.tone"><Icon :name="st.icon" class="size-[19px]" /></span>
+        <div v-for="st in stats" :key="st.label" class="flex items-center gap-3 rounded-2xl border border-white/10 bg-muted-800 px-[18px] py-4">
+          <span class="flex size-10 shrink-0 items-center justify-center rounded-xl" :class="st.tone"><Icon :name="st.icon" class="size-[19px]" /></span>
           <div>
             <div class="font-heading text-[22px] font-extrabold leading-none tracking-[-0.01em] text-white tabular-nums">
               {{ st.value }}
@@ -387,14 +382,14 @@ async function payNow() {
         <div class="flex-1" />
         <!-- py-3 under sm keeps both controls at a 44px touch height; the design's
              tighter py-2 returns at sm where these are pointer targets. -->
-        <label class="flex w-full items-center gap-2 rounded-[11px] border border-white/10 bg-muted-800 px-3 py-3 transition focus-within:border-primary-400 sm:w-[230px] sm:py-2">
+        <label class="flex w-full items-center gap-2 rounded-xl border border-white/10 bg-muted-800 px-3 py-3 transition focus-within:border-primary-400 sm:w-[230px] sm:py-2">
           <Icon name="lucide:search" class="size-4 shrink-0 text-muted-500" />
           <input v-model="q" placeholder="Search name or ID" class="w-full min-w-0 border-none bg-transparent text-[13.5px] text-white outline-none placeholder:text-muted-500">
         </label>
         <!-- The padding lives on the <select>, not the <label>: it is the select
              that has to be 44px tall, since tapping the label's padding does not
              open a native dropdown on mobile Safari. -->
-        <label class="flex w-full items-center gap-2 rounded-[11px] border border-white/10 bg-muted-800 px-3 text-[13px] text-muted-500 sm:w-auto sm:py-2">
+        <label class="flex w-full items-center gap-2 rounded-xl border border-white/10 bg-muted-800 px-3 text-[13px] text-muted-500 sm:w-auto sm:py-2">
           <span class="whitespace-nowrap">Sort</span>
           <select v-model="sort" class="w-full min-w-0 cursor-pointer border-none bg-transparent py-3 text-[13.5px] font-semibold text-white outline-none [color-scheme:dark] sm:w-auto sm:py-0">
             <option value="recent">Recent activity</option>
@@ -407,8 +402,8 @@ async function payNow() {
 
       <!-- loading skeletons -->
       <div v-if="pending" class="grid grid-cols-1 gap-[18px] md:grid-cols-2 xl:grid-cols-3">
-        <div v-for="i in 3" :key="i" class="h-[290px] rounded-[28px] border border-white/10 bg-muted-800 p-[22px]">
-          <div class="apex-shimmer size-12 rounded-[13px]" />
+        <div v-for="i in 3" :key="i" class="h-[290px] rounded-2xl border border-white/10 bg-muted-800 p-[22px]">
+          <div class="apex-shimmer size-12 rounded-xl" />
           <div class="apex-shimmer mt-5 h-5 w-3/5 rounded-md" />
           <div class="apex-shimmer mt-3 h-3 w-2/5 rounded-md" />
           <div class="apex-shimmer mt-6 h-2 w-full rounded-md" />
@@ -421,11 +416,11 @@ async function payNow() {
         <button
           v-for="p in filtered" :key="p.id"
           type="button"
-          class="flex min-h-[280px] flex-col rounded-[28px] border border-white/10 bg-muted-800 p-[22px] text-left transition duration-200 hover:-translate-y-0.5 hover:border-white/15 hover:shadow-[0_18px_40px_rgba(0,0,0,.28)]"
+          class="flex min-h-[280px] flex-col rounded-2xl border border-white/10 bg-muted-800 p-[22px] text-left transition duration-200 hover:-translate-y-0.5 hover:border-white/15 hover:shadow-[0_18px_40px_rgba(0,0,0,.28)]"
           @click="openDetail(p.id)"
         >
           <div class="flex items-start justify-between gap-3">
-            <span class="flex size-12 shrink-0 items-center justify-center rounded-[13px]" :class="SVC_META[p.icon].tone"><Icon :name="SVC_META[p.icon].icon" class="size-[22px]" /></span>
+            <span class="flex size-12 shrink-0 items-center justify-center rounded-xl" :class="SVC_META[p.icon].tone"><Icon :name="SVC_META[p.icon].icon" class="size-[22px]" /></span>
             <span class="rounded-full px-2.5 py-[5px] text-[11px] font-extrabold uppercase tracking-[0.05em]" :class="statusMeta(p.status).chip">{{ statusMeta(p.status).label }}</span>
           </div>
           <div class="mt-4">
@@ -482,7 +477,7 @@ async function payNow() {
         </button>
 
         <!-- start new project tile -->
-        <NuxtLink to="/dashboards/services" class="flex min-h-[200px] flex-col items-center justify-center gap-3.5 rounded-[28px] border-[1.5px] border-dashed border-white/15 p-7 text-center transition hover:border-primary-400 hover:bg-primary-500/5">
+        <NuxtLink to="/dashboards/services" class="flex min-h-[200px] flex-col items-center justify-center gap-3.5 rounded-2xl border-[1.5px] border-dashed border-white/15 p-7 text-center transition hover:border-primary-400 hover:bg-primary-500/5">
           <span class="flex size-[52px] items-center justify-center rounded-full bg-primary-500/14 text-primary-400"><Icon name="lucide:plus" class="size-6" /></span>
           <div>
             <div class="font-heading text-[17px] font-bold text-white">
@@ -496,7 +491,7 @@ async function payNow() {
       </div>
 
       <!-- empty state -->
-      <div v-else class="rounded-[28px] border border-white/10 bg-muted-800 px-7 py-14 text-center">
+      <div v-else class="rounded-2xl border border-white/10 bg-muted-800 px-7 py-14 text-center">
         <span class="mb-4 inline-flex size-16 items-center justify-center rounded-full bg-white/5 text-muted-500"><Icon name="lucide:file-x" class="size-[30px]" /></span>
         <h3 class="font-heading text-[20px] font-bold text-white">
           No projects found
@@ -525,10 +520,10 @@ async function payNow() {
         <!-- LEFT column -->
         <div class="flex min-w-0 flex-col gap-[22px]">
           <!-- header + milestones -->
-          <section class="rounded-[28px] border border-white/10 bg-muted-800 p-7">
+          <section class="rounded-2xl border border-white/10 bg-muted-800 p-7">
             <div class="flex flex-wrap items-start justify-between gap-5">
               <div class="flex min-w-0 items-start gap-4">
-                <span class="flex size-[52px] shrink-0 items-center justify-center rounded-[14px]" :class="SVC_META[detail.icon].tone"><Icon :name="SVC_META[detail.icon].icon" class="size-[25px]" /></span>
+                <span class="flex size-[52px] shrink-0 items-center justify-center rounded-xl" :class="SVC_META[detail.icon].tone"><Icon :name="SVC_META[detail.icon].icon" class="size-[25px]" /></span>
                 <div class="min-w-0">
                   <div class="flex flex-wrap items-center gap-2.5">
                     <h2 class="font-heading text-[26px] font-extrabold leading-[1.1] tracking-[-0.02em] text-white">
@@ -590,7 +585,7 @@ async function payNow() {
           </section>
 
           <!-- files -->
-          <section class="rounded-[28px] border border-white/10 bg-muted-800 px-7 py-6">
+          <section class="rounded-2xl border border-white/10 bg-muted-800 px-7 py-6">
             <div class="mb-4 flex items-center gap-2.5">
               <Icon name="lucide:folder" class="size-[19px] text-primary-400" />
               <h3 class="font-heading text-[17px] font-bold text-white">
@@ -600,7 +595,7 @@ async function payNow() {
             </div>
             <div v-if="detail.files.length" class="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <a v-for="f in detail.files" :key="f.id" :href="f.url || '#'" class="flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 px-3.5 py-3 transition hover:border-white/15">
-                <span class="flex size-[38px] shrink-0 items-center justify-center rounded-[10px] bg-primary-500/14 text-primary-400"><Icon :name="f.type === 'zip' ? 'lucide:folder-archive' : 'lucide:file-text'" class="size-[18px]" /></span>
+                <span class="flex size-[38px] shrink-0 items-center justify-center rounded-xl bg-primary-500/14 text-primary-400"><Icon :name="f.type === 'zip' ? 'lucide:folder-archive' : 'lucide:file-text'" class="size-[18px]" /></span>
                 <div class="min-w-0 flex-1">
                   <div class="truncate text-[13.5px] font-semibold text-white">{{ f.name }}</div>
                   <div class="text-[11.5px] text-muted-500">{{ f.size }}</div>
@@ -617,7 +612,7 @@ async function payNow() {
         <!-- RIGHT rail -->
         <aside class="flex flex-col gap-[18px] lg:sticky lg:top-4">
           <!-- summary -->
-          <section class="overflow-hidden rounded-[28px] border border-white/10" style="background: linear-gradient(160deg, #16252A, #101D21);">
+          <section class="overflow-hidden rounded-2xl border border-white/10" style="background: linear-gradient(160deg, #16252A, #101D21);">
             <div class="border-b border-white/10 px-[22px] py-[18px] text-xs font-bold tracking-[0.06em] text-muted-500">
               PROJECT SUMMARY
             </div>
@@ -633,7 +628,7 @@ async function payNow() {
               </div>
             </div>
             <div class="px-[22px] pb-5">
-              <div class="flex items-center gap-3 rounded-[13px] border border-white/10 bg-muted-800 px-3.5 py-3">
+              <div class="flex items-center gap-3 rounded-xl border border-white/10 bg-muted-800 px-3.5 py-3">
                 <span class="flex size-[38px] shrink-0 items-center justify-center rounded-full text-[13px] font-bold" :class="detail.pmGrad.includes('F2C14E') ? 'text-[#3a2c00]' : 'text-white'" :style="{ background: detail.pmGrad }">{{ detail.pmInitials }}</span>
                 <div>
                   <div class="text-[11px] font-bold tracking-[0.05em] text-muted-500">
@@ -648,10 +643,10 @@ async function payNow() {
           </section>
 
           <!-- payment plan -->
-          <section v-if="detailPay" class="overflow-hidden rounded-[28px] border border-white/10 bg-muted-800">
+          <section v-if="detailPay" class="overflow-hidden rounded-2xl border border-white/10 bg-muted-800">
             <div class="flex items-center justify-between gap-3 px-[22px] pb-4 pt-[18px]">
               <div class="flex items-center gap-2.5">
-                <span class="flex size-8 items-center justify-center rounded-[9px] bg-primary-500/16 text-primary-400"><Icon name="lucide:credit-card" class="size-[17px]" /></span>
+                <span class="flex size-8 items-center justify-center rounded-xl bg-primary-500/16 text-primary-400"><Icon name="lucide:credit-card" class="size-[17px]" /></span>
                 <span class="font-heading text-[15px] font-bold text-white">Payment plan</span>
               </div>
               <span class="rounded-full px-2.5 py-[5px] text-[11px] font-extrabold uppercase tracking-[0.04em]" :class="detailPay.chip.cls">{{ detailPay.chip.label }}</span>
@@ -674,7 +669,7 @@ async function payNow() {
             </div>
 
             <!-- next payment -->
-            <div v-if="detailPay.showNext" class="mx-[22px] mt-4 rounded-[14px] border p-4" :class="detailPay.due ? 'border-[#D9A521]/24 bg-[#D9A521]/[0.08]' : 'border-primary-500/22 bg-primary-500/[0.08]'">
+            <div v-if="detailPay.showNext" class="mx-[22px] mt-4 rounded-xl border p-4" :class="detailPay.due ? 'border-[#D9A521]/24 bg-[#D9A521]/[0.08]' : 'border-primary-500/22 bg-primary-500/[0.08]'">
               <div class="flex items-center justify-between gap-3">
                 <div>
                   <div class="text-[11.5px] font-bold uppercase tracking-[0.04em]" :class="detailPay.due ? 'text-[#F2C14E]' : 'text-primary-200'">
@@ -690,7 +685,7 @@ async function payNow() {
               </div>
               <button
                 type="button"
-                class="mt-3.5 flex w-full items-center justify-center gap-2 rounded-[11px] border-none py-2.5 text-[13.5px] font-bold text-white transition"
+                class="mt-3.5 flex w-full items-center justify-center gap-2 rounded-xl border-none py-2.5 text-[13.5px] font-bold text-white transition"
                 :class="detailPay.due ? 'bg-gradient-to-r from-[#E0A93A] to-[#c98d1f] shadow-[0_8px_20px_rgba(217,165,33,.28)]' : 'bg-primary-500 shadow-[0_8px_20px_rgba(125,83,242,.30)] hover:bg-primary-600'"
                 @click="payNow"
               >
@@ -699,7 +694,7 @@ async function payNow() {
             </div>
 
             <!-- paid in full -->
-            <div v-if="detailPay.kind === 'paid'" class="mx-[22px] mt-4 flex items-center gap-3 rounded-[14px] border border-[#22B07D]/26 bg-[#22B07D]/10 p-4">
+            <div v-if="detailPay.kind === 'paid'" class="mx-[22px] mt-4 flex items-center gap-3 rounded-xl border border-[#22B07D]/26 bg-[#22B07D]/10 p-4">
               <span class="flex size-[34px] shrink-0 items-center justify-center rounded-full bg-[#22B07D]/18 text-[#22B07D]"><Icon name="lucide:check" class="size-[18px]" /></span>
               <div>
                 <div class="text-sm font-semibold text-white">
@@ -712,7 +707,7 @@ async function payNow() {
             </div>
 
             <!-- pending note -->
-            <div v-if="detailPay.kind === 'pending'" class="mx-[22px] mt-4 flex items-start gap-3 rounded-[14px] border border-[#D9A521]/22 bg-[#D9A521]/[0.08] p-4">
+            <div v-if="detailPay.kind === 'pending'" class="mx-[22px] mt-4 flex items-start gap-3 rounded-xl border border-[#D9A521]/22 bg-[#D9A521]/[0.08] p-4">
               <Icon name="lucide:clock" class="mt-px size-[17px] shrink-0 text-[#F2C14E]" />
               <div class="text-[12.5px] leading-[1.5] text-muted-400">
                 Your first installment of <strong class="font-semibold text-white">{{ detailPay.nextAmtFmt }}</strong> is scheduled after project kickoff. Nothing is due today.
@@ -725,8 +720,8 @@ async function payNow() {
           </section>
 
           <!-- support entry point -->
-          <NuxtLink to="/dashboards/support" class="flex items-center gap-3 rounded-[20px] border border-white/10 bg-muted-800 px-4 py-3.5 transition hover:border-white/15 hover:bg-muted-700">
-            <span class="flex size-10 shrink-0 items-center justify-center rounded-[11px] bg-primary-500/14 text-primary-400"><Icon name="lucide:message-circle" class="size-[19px]" /></span>
+          <NuxtLink to="/dashboards/support" class="flex items-center gap-3 rounded-2xl border border-white/10 bg-muted-800 px-4 py-3.5 transition hover:border-white/15 hover:bg-muted-700">
+            <span class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary-500/14 text-primary-400"><Icon name="lucide:message-circle" class="size-[19px]" /></span>
             <div class="flex-1">
               <div class="text-sm font-semibold text-white">
                 Message your team

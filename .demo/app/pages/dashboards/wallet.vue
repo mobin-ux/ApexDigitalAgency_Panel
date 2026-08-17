@@ -484,20 +484,19 @@ function comingSoon(feature: string) {
 <template>
   <div class="apex-wallet mx-auto flex max-w-[1160px] flex-col pb-14 font-sans text-muted-400">
     <!-- ============ TITLE ============ -->
-    <div class="mb-[22px] flex flex-wrap items-end justify-between gap-5">
-      <div>
-        <h1 class="font-heading text-[28px] font-extrabold leading-[1.05] tracking-[-0.02em] text-white sm:text-[34px]">
-          Wallet &amp; <span class="text-primary-400">credit</span>
-        </h1>
-        <p class="mt-2 text-[15px] text-muted-400">
-          Your balance, installments and payment details — all in one place.
-        </p>
-      </div>
-      <BaseButton rounded="full" size="lg" variant="primary" class="shadow-[0_10px_24px_rgba(125,83,242,0.32)]" @click="openTopup">
-        <Icon name="lucide:plus" class="size-4" />
-        <span>Top up wallet</span>
-      </BaseButton>
-    </div>
+    <ApexPageHeader
+      title="Wallet &amp;"
+      accent="credit"
+      subtitle="Your balance, installments and payment details — all in one place."
+      class="mb-8"
+    >
+      <template #actions>
+        <BaseButton rounded="full" variant="primary" class="h-11! px-6 shadow-[0_10px_24px_rgba(125,83,242,0.32)]" @click="openTopup">
+          <Icon name="lucide:plus" class="size-4" />
+          <span>Top up wallet</span>
+        </BaseButton>
+      </template>
+    </ApexPageHeader>
 
     <!-- ============ TABS ============ -->
     <div role="tablist" class="mb-[26px] inline-flex max-w-full gap-1 self-start overflow-x-auto rounded-full border border-white/8 bg-muted-800 p-1">
@@ -517,13 +516,13 @@ function comingSoon(feature: string) {
       <div class="grid grid-cols-1 gap-[18px] lg:grid-cols-2">
         <!-- CASH WALLET -->
         <section
-          class="relative flex flex-col overflow-hidden rounded-[28px] border border-white/8 p-5 sm:p-[26px]"
+          class="relative flex flex-col overflow-hidden rounded-2xl border border-white/8 p-5 sm:p-[26px]"
           style="background: linear-gradient(160deg, #16252A, #0F1D21);"
         >
           <div class="pointer-events-none absolute -right-16 -top-24 size-[230px] rounded-full" style="background: radial-gradient(circle, rgba(34,176,125,.16), transparent 70%);" />
           <div class="flex items-center justify-between gap-3">
             <div class="flex items-center gap-2.5">
-              <span class="inline-flex size-[34px] items-center justify-center rounded-[10px] bg-[#22B07D]/15 text-[#22B07D]">
+              <span class="inline-flex size-[34px] items-center justify-center rounded-xl bg-[#22B07D]/15 text-[#22B07D]">
                 <Icon name="lucide:wallet" class="size-[17px]" />
               </span>
               <span class="font-heading text-[15px] font-bold text-white">Cash wallet</span>
@@ -569,13 +568,13 @@ function comingSoon(feature: string) {
 
         <!-- APEX CREDIT -->
         <section
-          class="relative flex flex-col overflow-hidden rounded-[28px] border border-primary-500/26 p-5 sm:p-[26px]"
+          class="relative flex flex-col overflow-hidden rounded-2xl border border-primary-500/26 p-5 sm:p-[26px]"
           style="background: linear-gradient(160deg, #1B2231, #141A26);"
         >
           <div class="pointer-events-none absolute -right-16 -top-24 size-[260px] rounded-full" style="background: radial-gradient(circle, rgba(125,83,242,.24), transparent 70%);" />
           <div class="relative flex items-center justify-between gap-3">
             <div class="flex items-center gap-2.5">
-              <span class="inline-flex size-[34px] items-center justify-center rounded-[10px] bg-primary-500/18 text-primary-400">
+              <span class="inline-flex size-[34px] items-center justify-center rounded-xl bg-primary-500/18 text-primary-400">
                 <Icon name="lucide:zap" class="size-[17px]" />
               </span>
               <span class="font-heading text-[15px] font-bold text-white">Apex credit</span>
@@ -639,7 +638,7 @@ function comingSoon(feature: string) {
       <!-- second row -->
       <div class="grid grid-cols-1 gap-[18px] lg:grid-cols-2">
         <!-- upcoming payments -->
-        <section class="flex flex-col rounded-[28px] border border-white/8 bg-muted-800 px-6 py-[22px]">
+        <section class="flex flex-col rounded-2xl border border-white/8 bg-muted-800 px-6 py-[22px]">
           <div class="mb-4 flex items-center gap-2.5">
             <Icon name="lucide:calendar" class="size-[18px] text-primary-400" />
             <h3 class="font-heading text-base font-bold text-white">
@@ -652,7 +651,7 @@ function comingSoon(feature: string) {
               class="flex items-center gap-3 rounded-xl border bg-muted-700 px-3.5 py-3"
               :class="u.dueSoon ? 'border-[#D9A521]/28' : 'border-white/8'"
             >
-              <span class="inline-flex size-[38px] shrink-0 items-center justify-center rounded-[11px]" :class="[SVC_META[u.icon].bg, SVC_META[u.icon].text]">
+              <span class="inline-flex size-[38px] shrink-0 items-center justify-center rounded-xl" :class="[SVC_META[u.icon].bg, SVC_META[u.icon].text]">
                 <Icon :name="SVC_META[u.icon].icon" class="size-[17px]" />
               </span>
               <div class="min-w-0 flex-1">
@@ -677,7 +676,7 @@ function comingSoon(feature: string) {
             No payments scheduled — start a project to see installments here.
           </div>
           <button
-            class="mt-3.5 inline-flex items-center justify-center gap-1.5 rounded-[11px] border border-white/8 bg-transparent p-2.5 text-[13px] font-bold text-primary-400 transition-all hover:bg-muted-700"
+            class="mt-3.5 inline-flex items-center justify-center gap-1.5 rounded-xl border border-white/8 bg-transparent p-2.5 text-[13px] font-bold text-primary-400 transition-all hover:bg-muted-700"
             @click="goTab('installments')"
           >
             View all installments
@@ -686,7 +685,7 @@ function comingSoon(feature: string) {
         </section>
 
         <!-- recent activity -->
-        <section class="flex flex-col rounded-[28px] border border-white/8 bg-muted-800 px-6 py-[22px]">
+        <section class="flex flex-col rounded-2xl border border-white/8 bg-muted-800 px-6 py-[22px]">
           <div class="mb-4 flex items-center gap-2.5">
             <Icon name="lucide:activity" class="size-[18px] text-primary-400" />
             <h3 class="font-heading text-base font-bold text-white">
@@ -699,7 +698,7 @@ function comingSoon(feature: string) {
               class="flex items-center gap-3 py-2.5"
               :class="i < recentTx.length - 1 ? 'border-b border-white/8' : ''"
             >
-              <span class="inline-flex size-[38px] shrink-0 items-center justify-center rounded-[11px]" :class="[TX_META[t.kind].bg, TX_META[t.kind].text]">
+              <span class="inline-flex size-[38px] shrink-0 items-center justify-center rounded-xl" :class="[TX_META[t.kind].bg, TX_META[t.kind].text]">
                 <Icon :name="TX_META[t.kind].icon" class="size-4" />
               </span>
               <div class="min-w-0 flex-1">
@@ -719,7 +718,7 @@ function comingSoon(feature: string) {
             No activity yet — your top-ups and payments will appear here.
           </div>
           <button
-            class="mt-3.5 inline-flex items-center justify-center gap-1.5 rounded-[11px] border border-white/8 bg-transparent p-2.5 text-[13px] font-bold text-primary-400 transition-all hover:bg-muted-700"
+            class="mt-3.5 inline-flex items-center justify-center gap-1.5 rounded-xl border border-white/8 bg-transparent p-2.5 text-[13px] font-bold text-primary-400 transition-all hover:bg-muted-700"
             @click="goTab('transactions')"
           >
             View all transactions
@@ -743,19 +742,19 @@ function comingSoon(feature: string) {
           </button>
         </div>
         <div class="flex-1" />
-        <label class="flex w-full items-center gap-2.5 rounded-[11px] border border-white/8 bg-muted-800 px-3.5 py-2.5 focus-within:border-primary-400 sm:w-[250px]">
+        <label class="flex w-full items-center gap-2.5 rounded-xl border border-white/8 bg-muted-800 px-3.5 py-2.5 focus-within:border-primary-400 sm:w-[250px]">
           <Icon name="lucide:search" class="size-4 shrink-0 text-muted-500" />
           <input v-model="txQ" placeholder="Search transactions" class="min-w-0 flex-1 border-none bg-transparent text-[13.5px] text-white outline-none placeholder:text-muted-500">
         </label>
       </div>
 
-      <section v-if="txRows.length" class="rounded-[28px] border border-white/8 bg-muted-800 px-6 py-2">
+      <section v-if="txRows.length" class="rounded-2xl border border-white/8 bg-muted-800 px-6 py-2">
         <div
           v-for="(t, i) in txRows" :key="t.id"
           class="flex items-center gap-4 py-[15px]"
           :class="i < txRows.length - 1 ? 'border-b border-white/5' : ''"
         >
-          <span class="inline-flex size-[38px] shrink-0 items-center justify-center rounded-[11px]" :class="[TX_META[t.kind].bg, TX_META[t.kind].text]">
+          <span class="inline-flex size-[38px] shrink-0 items-center justify-center rounded-xl" :class="[TX_META[t.kind].bg, TX_META[t.kind].text]">
             <Icon :name="TX_META[t.kind].icon" class="size-4" />
           </span>
           <div class="min-w-0 flex-1">
@@ -776,7 +775,7 @@ function comingSoon(feature: string) {
           </div>
         </div>
       </section>
-      <div v-else class="rounded-[28px] border border-white/8 bg-muted-800 px-[30px] py-14 text-center">
+      <div v-else class="rounded-2xl border border-white/8 bg-muted-800 px-[30px] py-14 text-center">
         <span class="mb-4 inline-flex size-[60px] items-center justify-center rounded-full bg-muted-700 text-muted-500">
           <Icon name="lucide:activity" class="size-[26px]" />
         </span>
@@ -792,7 +791,7 @@ function comingSoon(feature: string) {
     <!-- ============================================================ INSTALLMENTS -->
     <div v-else-if="tab === 'installments'" class="apex-rise">
       <div v-if="plans.length" class="flex flex-col gap-3.5">
-        <section v-for="pl in plans" :key="pl.id" class="overflow-hidden rounded-[28px] border border-white/8 bg-muted-800">
+        <section v-for="pl in plans" :key="pl.id" class="overflow-hidden rounded-2xl border border-white/8 bg-muted-800">
           <div
             role="button" tabindex="0" class="flex cursor-pointer items-center gap-4 px-6 py-[19px] transition-colors hover:bg-muted-700"
             @click="togglePlan(pl.id)"
@@ -867,7 +866,7 @@ function comingSoon(feature: string) {
           </div>
         </section>
       </div>
-      <div v-else class="rounded-[28px] border border-white/8 bg-muted-800 px-[30px] py-14 text-center">
+      <div v-else class="rounded-2xl border border-white/8 bg-muted-800 px-[30px] py-14 text-center">
         <span class="mb-4 inline-flex size-[60px] items-center justify-center rounded-full bg-muted-700 text-muted-500">
           <Icon name="lucide:calendar" class="size-[26px]" />
         </span>
@@ -887,7 +886,7 @@ function comingSoon(feature: string) {
     <div v-else-if="tab === 'banking'" class="apex-rise grid grid-cols-1 items-start gap-[18px] lg:grid-cols-[minmax(0,1fr)_380px]">
       <!-- left: methods + invoices -->
       <div class="flex min-w-0 flex-col gap-[18px]">
-        <section class="rounded-[28px] border border-white/8 bg-muted-800 px-6 py-[22px]">
+        <section class="rounded-2xl border border-white/8 bg-muted-800 px-6 py-[22px]">
           <div class="mb-4 flex items-center gap-2.5">
             <Icon name="lucide:credit-card" class="size-[18px] text-primary-400" />
             <h3 class="font-heading text-base font-bold text-white">
@@ -898,7 +897,7 @@ function comingSoon(feature: string) {
             <div
               v-for="m in methods" :key="m.id"
               role="listitem"
-              class="flex items-center gap-3.5 rounded-[13px] border bg-muted-700 px-4 py-3.5"
+              class="flex items-center gap-3.5 rounded-xl border bg-muted-700 px-4 py-3.5"
               :class="m.isDefault ? 'border-primary-500/26' : 'border-white/8'"
             >
               <span class="inline-flex h-8 w-[46px] shrink-0 items-center justify-center rounded-[7px] border border-white/15 text-[9px] font-extrabold tracking-[0.04em] text-white" style="background: linear-gradient(140deg, #1B2B31, #0D181C);">
@@ -934,7 +933,7 @@ function comingSoon(feature: string) {
               <button
                 :aria-label="`Remove ${m.label}`"
                 :disabled="methodBusyId === m.id"
-                class="inline-flex size-8 items-center justify-center rounded-[9px] border border-white/8 text-muted-500 transition-colors hover:border-[#EC6453]/40 hover:text-[#EC6453] disabled:opacity-50"
+                class="inline-flex size-8 items-center justify-center rounded-xl border border-white/8 text-muted-500 transition-colors hover:border-[#EC6453]/40 hover:text-[#EC6453] disabled:opacity-50"
                 @click="removeTarget = m"
               >
                 <Icon name="lucide:trash-2" class="size-[15px]" />
@@ -953,7 +952,7 @@ function comingSoon(feature: string) {
           </button>
         </section>
 
-        <section class="rounded-[28px] border border-white/8 bg-muted-800 px-6 py-[22px]">
+        <section class="rounded-2xl border border-white/8 bg-muted-800 px-6 py-[22px]">
           <div class="mb-3.5 flex items-center gap-2.5">
             <Icon name="lucide:file-text" class="size-[18px] text-primary-400" />
             <h3 class="font-heading text-base font-bold text-white">
@@ -978,7 +977,7 @@ function comingSoon(feature: string) {
               <span class="inline-flex items-center rounded-full bg-[#22B07D]/14 px-2.5 py-1 text-[10.5px] font-extrabold uppercase tracking-[0.05em] text-[#22B07D]">Paid</span>
               <button
                 aria-label="Download invoice"
-                class="inline-flex size-8 items-center justify-center rounded-[9px] border border-white/8 bg-muted-700 text-muted-400 transition-colors hover:border-white/15 hover:text-white"
+                class="inline-flex size-8 items-center justify-center rounded-xl border border-white/8 bg-muted-700 text-muted-400 transition-colors hover:border-white/15 hover:text-white"
                 @click="comingSoon('Download invoice')"
               >
                 <Icon name="lucide:download" class="size-[15px]" />
@@ -993,7 +992,7 @@ function comingSoon(feature: string) {
 
       <!-- right: bank transfer + billing -->
       <div class="flex flex-col gap-[18px]">
-        <section class="rounded-[28px] border border-white/8 px-6 py-[22px]" style="background: linear-gradient(160deg, #16252A, #101D21);">
+        <section class="rounded-2xl border border-white/8 px-6 py-[22px]" style="background: linear-gradient(160deg, #16252A, #101D21);">
           <div class="mb-1.5 flex items-center gap-2.5">
             <Icon name="lucide:landmark" class="size-[18px] text-primary-400" />
             <h3 class="font-heading text-base font-bold text-white">
@@ -1025,7 +1024,7 @@ function comingSoon(feature: string) {
           </div>
         </section>
 
-        <section class="rounded-[28px] border border-white/8 bg-muted-800 px-6 py-[22px]">
+        <section class="rounded-2xl border border-white/8 bg-muted-800 px-6 py-[22px]">
           <div class="mb-3.5 flex items-center justify-between gap-2.5">
             <div class="flex items-center gap-2.5">
               <Icon name="lucide:user" class="size-[18px] text-primary-400" />
@@ -1074,7 +1073,7 @@ function comingSoon(feature: string) {
     <div v-if="removeTarget" class="apex-fade fixed inset-0 z-[60] flex items-center justify-center bg-[rgba(5,10,12,0.66)] p-6 backdrop-blur-[4px]" @click="removeTarget = null">
       <div
         role="dialog" aria-label="Remove payment method"
-        class="apex-pop w-[420px] max-w-full rounded-[28px] border border-white/15 p-5 shadow-[0_30px_80px_rgba(0,0,0,0.5)] sm:p-7"
+        class="apex-pop w-[420px] max-w-full rounded-2xl border border-white/15 p-5 shadow-[0_30px_80px_rgba(0,0,0,0.5)] sm:p-7"
         style="background: #132125;"
         @click.stop
       >

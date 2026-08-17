@@ -1,151 +1,99 @@
 <script setup lang="ts">
-import { DemoPanelActivity, DemoPanelLanguage } from '#components'
-
 const emits = defineEmits<{
   toggleMobileNav: []
 }>()
 
 const route = useRoute()
 const isSearchOpen = useSearchOpen()
-const { open } = usePanels()
+const { t } = useI18n()
 
-const { t, locale } = useI18n()
+/**
+ * Platform-aware shortcut hint, resolved after mount.
+ *
+ * The server has no idea what the visitor is typing on, so anything derived
+ * from `navigator` is a guaranteed hydration mismatch if it is rendered during
+ * SSR — which is exactly what the layer's `useIsMacLike()` did (it resolves in
+ * `onBeforeMount`, i.e. before the hydration render). Both renders agree on
+ * "Ctrl" here, and the swap happens after hydration has finished.
+ */
+const isMac = ref(false)
+onMounted(() => {
+  isMac.value = /Mac|iP(?:hone|ad|od)/.test(navigator.platform || navigator.userAgent)
+})
 </script>
 
 <template>
-  <div class="relative z-10 mb-6">
-    <div class="w-full flex items-center gap-4 min-h-14">
-      <div class="flex min-w-0 items-center gap-x-5">
-        <!--
-          Primary mobile navigation control. The bars are decorative (20x10px of
-          ink); the tap area is the button, so it carries the size explicitly —
-          `-ms-2.5` pulls the extra width back so the icon stays optically flush
-          with the breadcrumb below it rather than indenting the whole header.
-        -->
+  <!--
+    76px band: the sidebar's brand block is the same height, so the divider
+    below runs straight into the sidebar's own edge and the two read as one.
+  -->
+  <div class="relative z-10 mb-8">
+    <div class="flex h-[76px] w-full items-center gap-4">
+      <!--
+        Primary mobile navigation control. The bars are decorative (20x10px of
+        ink); the tap area is the button, so it carries the size explicitly —
+        `-ms-2.5` pulls the extra width back so the icon stays optically flush
+        with the breadcrumb below it rather than indenting the whole header.
+      -->
+      <button
+        type="button"
+        aria-label="Open navigation menu"
+        class="apex-focus hover:bg-muted-100 dark:hover:bg-muted-800 -ms-2.5 flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-xl transition-colors xl:hidden"
+        @click="emits('toggleMobileNav')"
+      >
+        <span class="flex flex-col gap-1.5">
+          <span class="bg-muted-500 block h-0.5 w-4" />
+          <span class="bg-muted-500 block h-0.5 w-5" />
+        </span>
+      </button>
+
+      <!--
+        The only breadcrumb in the app. Pages used to print a second one inside
+        the body that sometimes disagreed with this one; location lives here.
+      -->
+      <nav aria-label="Breadcrumb" class="min-w-0">
+        <ol class="flex min-w-0 items-center gap-2 text-[13.5px]">
+          <!-- Hide the parent crumb on the narrowest phones so the current page never gets squeezed by the toolbar's icon cluster. -->
+          <li class="text-muted-500 hidden min-[400px]:block">
+            {{ route.path.startsWith('/admin') ? 'Admin' : 'Account' }}
+          </li>
+          <li aria-hidden="true" class="text-muted-400 dark:text-muted-600 hidden min-[400px]:block">
+            /
+          </li>
+          <li aria-current="page" class="text-muted-900 truncate font-semibold dark:text-white">
+            {{ route.meta.title }}
+          </li>
+        </ol>
+      </nav>
+
+      <span class="grow" />
+
+      <div class="flex shrink-0 items-center gap-3">
+        <!-- Search: icon-only where there is no room for the full field. -->
         <button
           type="button"
-          aria-label="Open navigation menu"
-          class="-ms-2.5 flex size-11 shrink-0 items-center justify-center rounded-lg xl:hidden hover:bg-muted-100 dark:hover:bg-muted-800 transition-colors"
-          @click="emits('toggleMobileNav')"
-        >
-          <span class="flex flex-col gap-1.5">
-            <span class="block w-4 h-0.5 bg-muted-500" />
-            <span class="block w-5 h-0.5 bg-muted-500" />
-          </span>
-        </button>
-        <nav aria-label="Breadcrumb" class="min-w-0">
-          <ol class="flex min-w-0 items-center gap-1.5 text-sm">
-            <!-- Hide the parent crumb on the narrowest phones so the current page never gets squeezed by the toolbar's icon cluster. -->
-            <li class="hidden text-muted-400 dark:text-muted-500 min-[400px]:block">
-              {{ route.path.startsWith('/admin') ? 'Admin' : 'Account' }}
-            </li>
-            <li aria-hidden="true" class="hidden text-muted-300 dark:text-muted-600 min-[400px]:block">
-              /
-            </li>
-            <li aria-current="page" class="truncate font-medium text-muted-900 dark:text-white">
-              {{ route.meta.title }}
-            </li>
-          </ol>
-        </nav>
-      </div>
-      <span aria-hidden="true" class="hidden md:block w-px self-stretch shrink-0 bg-muted-200 dark:bg-muted-800" />
-      <div class="flex items-center justify-end gap-x-3 ms-auto">
-        <button
-          type="button"
-          class="border-muted-200 hover:ring-muted-200 dark:hover:ring-muted-700 dark:border-muted-700 dark:bg-muted-950 dark:ring-offset-muted-900 flex md:hidden size-10 items-center justify-center rounded-full border bg-white ring-1 ring-transparent transition-all duration-300 hover:ring-offset-4"
+          class="apex-focus border-muted-200 dark:border-muted-700 dark:bg-muted-950 text-muted-500 hover:border-muted-300 hover:text-muted-900 dark:hover:border-muted-600 flex size-10 cursor-pointer items-center justify-center rounded-xl border bg-white transition-colors md:hidden dark:hover:text-white"
           aria-label="Search"
           @click="isSearchOpen = true"
         >
-          <Icon name="lucide:search" class="text-muted-400 size-4" />
+          <Icon name="lucide:search" class="size-[18px]" />
         </button>
         <button
           type="button"
-          class="border-muted-200 hover:ring-muted-200 dark:hover:ring-muted-700 dark:border-muted-700 dark:bg-muted-800 dark:ring-offset-muted-900 flex size-10 md:size-8 items-center justify-center rounded-full border bg-white ring-1 ring-transparent transition-all duration-300 hover:ring-offset-4"
-          aria-label="Change language"
-          @click="open(DemoPanelLanguage)"
-        >
-          <img
-            class="size-6 rounded-full"
-            :src="getLocaleFlag(locale)"
-            alt="flag icon"
-          >
-        </button>
-        <button
-          type="button"
-          class="border-muted-200 hover:ring-muted-200 dark:hover:ring-muted-700 dark:border-muted-700 dark:bg-muted-950 dark:ring-offset-muted-900 flex size-10 md:size-8 items-center justify-center rounded-full border bg-white ring-1 ring-transparent transition-all duration-300 hover:ring-offset-4"
-          aria-label="Open activity panel"
-          @click="open(DemoPanelActivity)"
-        >
-          <Icon name="solar:widget-2-outline" class="text-muted-400 size-4" />
-        </button>
-        <div
-          role="button"
-          class="cursor-pointer h-8 min-w-36 hidden md:flex items-center justify-between bg-white dark:bg-muted-950 text-muted-400 hover:text-muted-600 dark:hover:text-muted-200 hover:ring-muted-300 dark:hover:ring-muted-700 gap-2 ps-3 pe-1 py-1 rounded-md ring-1 ring-muted-200 dark:ring-muted-800 transition-colors duration-300"
+          class="apex-focus border-muted-200 dark:border-muted-700 dark:bg-muted-950 text-muted-500 hover:border-muted-300 hover:text-muted-900 dark:hover:border-muted-600 hidden h-10 w-[250px] cursor-pointer items-center gap-2.5 rounded-xl border bg-white px-3 text-start text-[13.5px] transition-colors md:flex dark:hover:text-white"
+          aria-label="Search"
           @click="isSearchOpen = true"
         >
-          <div class="pointer-events-none">
-            <span class="font-sans text-sm">
-              {{ t('components.toolbar.search') }}
-            </span>
-          </div>
-          <div class="flex gap-1">
-            <BaseKbd
-              size="sm"
-              variant="default"
-              class="!font-semibold h-6!"
-            >
-              Ctrl
-            </BaseKbd>
-            <BaseKbd
-              size="sm"
-              variant="default"
-              class="!px-2 !font-semibold h-6!"
-            >
-              K
-            </BaseKbd>
-          </div>
-        </div>
-        <BaseDropdown
-          variant="default"
-          :bindings="{
-            content: {
-              align: 'end',
-              sideOffset: 10,
-            },
-          }"
-        >
-          <template #button>
-            <button
-              type="button"
-              aria-label="Open account menu"
-              class="flex size-10 md:size-8 items-center justify-center rounded-full"
-            >
-              <BaseChip size="sm" color="custom" :offset="3" class="text-success-500">
-                <img
-                  src="/img/avatars/10.svg"
-                  class="size-8 rounded-full object-cover"
-                >
-              </BaseChip>
-            </button>
-          </template>
-          <BaseDropdownItem>{{ t('components.toolbar.actions.leads') }}</BaseDropdownItem>
-          <BaseDropdownItem>{{ t('components.toolbar.actions.projects') }}</BaseDropdownItem>
-          <BaseDropdownItem>{{ t('components.toolbar.actions.team') }}</BaseDropdownItem>
-          <BaseDropdownItem>{{ t('components.toolbar.actions.reports') }}</BaseDropdownItem>
-          <BaseDropdownItem>
-            {{ t('components.toolbar.actions.settings') }}
-            <template #end>
-              <BaseKbd size="sm">
-                <span class="text-xs font-mono">⌘</span>
-              </BaseKbd>
-              <BaseKbd size="sm">
-                <span class="text-xs font-mono px-0.5">P</span>
-              </BaseKbd>
-            </template>
-          </BaseDropdownItem>
-        </BaseDropdown>
+          <Icon name="lucide:search" class="size-[17px] shrink-0" />
+          <span class="grow truncate">{{ t('components.toolbar.search') }}</span>
+          <BaseKbd size="sm" variant="default" class="!font-semibold shrink-0">
+            {{ isMac ? '⌘K' : 'Ctrl K' }}
+          </BaseKbd>
+        </button>
+
+        <ApexNotificationsMenu />
       </div>
     </div>
-    <div class="mt-5 border-b border-muted-200 dark:border-muted-800" />
+    <div class="border-muted-200 dark:border-muted-800 border-b" />
   </div>
 </template>

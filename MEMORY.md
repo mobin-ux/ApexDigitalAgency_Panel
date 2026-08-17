@@ -2,7 +2,7 @@
 
 > Handoff doc for continuing work in fresh sessions. Update the relevant section
 > whenever a page ships, a decision lands, or a blocker appears.
-> Last updated: **2026-07-16** (admin panel UI complete — all 7 modules).
+> Last updated: **2026-08-18** (V2 redesign Phase 1 — shared shell).
 
 ## Where things stand
 
@@ -42,17 +42,50 @@ leaving an invisible full-screen overlay that swallowed all clicks (close handle
 "did nothing"). Fix: drop `<Transition>`, use plain `v-if` + the `.apex-fade`/`.apex-pop`
 classes. If a future modal "won't close," suspect a stuck Transition-leave first.
 
-## Remaining queue (user sends a Claude Design zip per page)  ⬅ Settings is NEXT
+## V2 redesign — in progress  ⬅ CURRENT WORKSTREAM
 
-1. Settings (`settings.vue`)
-2. Auth pages (login-1 = active login, signup-1, recover)
-3. Not yet designed at all: service *compare* view, invoices
+The client is shipping a second-generation design from a Claude Design project
+(`19ec9d54-4e35-471d-a590-b6280be241d3`), one phase at a time, each as a
+`.dc.html` mockup **plus** a `PHASE-N-*.md` implementation spec. Read the spec
+first — it is far more precise than the mockup and states the constraints.
+Read it with the `DesignSync` tool (`method: get_file`).
+
+| Phase | Area | Status |
+|---|---|---|
+| 1 | Shared shell | ✅ Done (this session) |
+| 2 | Dashboard | ⬅ next |
+| 3–9 | New Order · My Orders · Wallet · Support · Settings · Auth · Mobile/Light | ☐ |
+
+**Phase 1 shipped:** Apex brand mark (+ favicon/title), 44px nav rows with a
+violet `color-mix` active tint, hairline sub-nav, one account dropdown with
+initials avatar, top bar cut to search + notifications on a 76px band,
+in-page breadcrumbs deleted, `ApexPageHeader`/`ApexSectionLabel` adopted on the
+five redesigned customer pages, and 110 arbitrary radii normalised to the
+16/12/full scale. Applied to **both** shells (customer + admin). Details and the
+standing shell rules: DESIGN_SYSTEM.md §4.
+
+Two long-standing bugs fell out of it — see "Known issues" below.
+
+## Remaining queue (older, pre-V2)
+
+1. Not yet designed at all: service *compare* view, invoices
    (admin panel — backend **and** UI — is done; see the Done table)
+
+## Fixed in V2 Phase 1 (were long-standing)
+
+- ~~**Hydration mismatch warnings** on every dashboard page~~ — the two offenders
+  were both in `DemoToolbar`: the locale flag image and the `Ctrl`/`⌘` hint from
+  the layer's `useIsMacLike()`, which resolves in `onBeforeMount` — *before* the
+  hydration render — so SSR and the first client render disagreed. The flag is
+  gone (language moved into the account menu) and the hint resolves in
+  `onMounted`. Verified: clean console on `/dashboards/*`.
+- ~~**Brand assets and Yellix 404'd**~~ — `.demo/app/public/` is not Nuxt 4's
+  public dir (`<rootDir>/public` = `.demo/public` is), so nothing under it ever
+  shipped. Yellix had been falling back to Inter *in production*. Moved to
+  `.demo/public/`. **If you add a static asset, put it in `.demo/public/`.**
 
 ## Known issues (open, non-blocking)
 
-- **Hydration mismatch warnings** on every dashboard page — pre-existing, shared
-  chrome (suspect color-mode/i18n), NOT page regressions. Fix once, globally.
 - Preview **screenshots time out** on this machine — verify via `preview_eval` DOM
   checks + computed styles; curl + cookie jar for SSR auth paths.
 - **`claude-in-chrome` `resize_window` doesn't actually resize the viewport here** —

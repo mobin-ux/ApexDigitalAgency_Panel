@@ -96,6 +96,28 @@
   --color-muted-950: #0b1517;
 }
 
+/*
+ * Radius scale (V2 shared shell).
+ * ------------------------------
+ * Radii had drifted between 14, 16, 20 and 24px across cards on the same page.
+ * These two tokens document the agreed scale; the third step (pills, tags,
+ * avatars) is `rounded-full` and needs no token.
+ *
+ *   surface -> cards, panels, modals            (`rounded-2xl` / `rounded-surface`)
+ *   control -> inner rows, inputs, icon buttons (`rounded-xl`  / `rounded-control`)
+ *
+ * Additive only: no existing utility changes value.
+ *
+ * `static` matters. Tailwind v4 tree-shakes theme variables that no utility
+ * references, and `theme(static)` on the import above only protects the
+ * default theme — a plain `@theme` block here compiles to nothing until
+ * something happens to use it, which is the opposite of documenting a scale.
+ */
+@theme static {
+  --radius-surface: 1rem;
+  --radius-control: 0.75rem;
+}
+
 @layer base {
   [lang^='ar'] {
     --font-sans: 'Noto Naskh Arabic', sans-serif;
@@ -185,4 +207,41 @@
   width: max(100%, 44px);
   height: max(100%, 44px);
   transform: translate(-50%, -50%);
+}
+
+/*
+ * Shell focus ring.
+ *
+ * The Tairo layer only rings nav links (`focus-visible:before:ring-2`), so the
+ * top-bar and account controls had no visible keyboard focus at all. This is
+ * the one ring every shell control uses, expressed once rather than as eight
+ * repeated utility chains. Offset colours track the surface the control sits
+ * on so the ring reads in both themes.
+ */
+.apex-focus:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 2px var(--color-white),
+    0 0 0 4px var(--color-primary-500);
+}
+.dark .apex-focus:focus-visible {
+  box-shadow:
+    0 0 0 2px var(--color-muted-950),
+    0 0 0 4px var(--color-primary-400);
+}
+
+/*
+ * Active navigation row.
+ *
+ * The active item is the most-read piece of state in the shell, and the
+ * layer's flat gray tint does not carry it. A brand-tinted gradient does,
+ * without a left marker or border to align. `color-mix` keeps it tied to the
+ * primary ramp, so re-theming the brand re-themes the nav for free.
+ */
+.apex-nav-active {
+  background-image: linear-gradient(
+    120deg,
+    color-mix(in oklab, var(--color-primary-500) 20%, transparent),
+    color-mix(in oklab, var(--color-primary-500) 7%, transparent)
+  );
 }

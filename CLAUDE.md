@@ -38,9 +38,19 @@ Detail lives in the docs — read on demand, don't guess:
 ## Conventions
 
 - Page skeleton: `definePageMeta({ title, layout: 'sidenav', middleware: 'auth' })`;
-  wrapper `mx-auto max-w-[1180–1240px] flex flex-col gap-6`. Horizontal gutter comes
+  wrapper `mx-auto max-w-[1180px] flex flex-col gap-8`. Horizontal gutter comes
   from `sidenav.vue`'s shared `px-4 md:px-6 xl:px-8` wrapper (applied to toolbar +
   `<slot />` together) — don't add page-level `px-*`, it would double up.
+- **Shell vocabulary (V2 Phase 1) — use these, don't re-roll them:**
+  `<ApexPageHeader>` (30px two-tone H1 + sub-line + one 44px pill action; no eyebrow
+  labels), `<ApexSectionLabel>` (3px violet bar + 12px uppercase), `<ApexSidebarNav>`,
+  `<ApexAccountMenu>`, `<ApexNotificationsMenu>`. Location lives **only** in the
+  toolbar breadcrumb — never print a second one in a page.
+- Radius scale: surfaces `rounded-2xl`, inner rows/inputs/icon buttons `rounded-xl`,
+  pills `rounded-full`. No new arbitrary `rounded-[Npx]` for either.
+- Static assets go in **`.demo/public/`**. `.demo/app/public/` is not served.
+- Anything derived from `navigator`/`window` must resolve in `onMounted` (or
+  `<ClientOnly>`) — earlier hooks run before the hydration render and mismatch.
 - Components: `<BaseButton variant="primary|muted|ghost" rounded="full|lg" size="lg">`,
   `<BaseCard rounded="lg">`; icons `<Icon name="lucide:...">`.
 - Headings/big numbers: `font-heading` (Yellix) + `font-extrabold` + `tracking-[-0.02em]`;

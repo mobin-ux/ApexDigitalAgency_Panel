@@ -1,12 +1,12 @@
 <script setup lang="ts">
-const { user, logout } = useUser()
+import type { ApexNavItem } from '~/components/ApexSidebarNav.vue'
 
 /**
  * Admin panel navigation. Same shell as the customer `sidenav` layout
  * (one product, one design language) with the management modules and a
  * violet ADMIN marker so it's always obvious which side you're on.
  */
-const menu = [
+const menu: ApexNavItem[] = [
   {
     label: 'Overview',
     icon: 'solar:widget-2-linear',
@@ -53,54 +53,28 @@ const menu = [
     to: '/admin/settings',
   },
 ]
-
-const displayName = computed(() => {
-  const u = user.value
-  if (!u)
-    return 'Administrator'
-  const full = [u.firstName, u.lastName].filter(Boolean).join(' ').trim()
-  return full || u.email || 'Administrator'
-})
-
-const avatarSrc = computed(() => user.value?.avatar || '/img/avatars/10.svg')
 </script>
 
 <template>
   <TairoSidenavLayout v-slot="{ toggleMobileNav }">
     <TairoSidenavSidebar>
-      <TairoSidenavSidebarHeader>
-        <NuxtLink to="/admin" class="flex items-center gap-2.5">
-          <TairoLogoText class="text-primary-500 h-6 w-auto" />
-          <span class="rounded-full bg-primary-500/15 px-2 py-0.5 text-[10px] font-extrabold tracking-[0.08em] text-primary-400">ADMIN</span>
+      <!-- Same 76px brand band as the customer shell — see sidenav.vue. -->
+      <div class="flex h-[76px] shrink-0 items-center px-5">
+        <NuxtLink to="/admin" class="apex-focus flex items-center gap-[11px] rounded-lg">
+          <img src="/brand/apex-icon.svg" alt="" class="size-[26px] shrink-0">
+          <span class="font-heading text-muted-900 text-[22px] font-extrabold tracking-[-0.02em] dark:text-white">Apex</span>
+          <span class="bg-primary-500/15 text-primary-600 dark:text-primary-400 rounded-full px-2 py-0.5 text-[10px] font-extrabold tracking-[0.08em]">ADMIN</span>
         </NuxtLink>
-      </TairoSidenavSidebarHeader>
-      <TairoSidenavSidebarLinks class="p-4 grow apex-nav">
-        <TairoSidenavSidebarLink
-          v-for="item in menu"
-          :key="item.label"
-          :to="item.to"
-          :icon="item.icon"
-          :label="item.label"
-        />
-      </TairoSidenavSidebarLinks>
+      </div>
 
-      <TairoSidenavSidebarLinks class="p-4 shrink-0 apex-nav">
-        <TairoSidenavSidebarDivider />
-        <TairoSidenavSidebarLink
-          icon="solar:round-arrow-left-linear"
-          label="Customer dashboard"
-          to="/dashboards/balance"
-        />
-        <TairoSidenavSidebarLink to="/admin">
-          <BaseAvatar size="xxs" :src="avatarSrc" />
-          <span class="relative truncate">{{ displayName }}</span>
-        </TairoSidenavSidebarLink>
-        <TairoSidenavSidebarLink
-          icon="solar:logout-2-linear"
-          label="Sign out"
-          @click="logout"
-        />
-      </TairoSidenavSidebarLinks>
+      <div class="nui-slimscroll grow overflow-y-auto px-3 pb-5">
+        <ApexSidebarNav :items="menu" />
+      </div>
+
+      <!-- One account row, one menu — see ApexAccountMenu. -->
+      <div class="border-muted-200 dark:border-muted-800 shrink-0 border-t p-3">
+        <ApexAccountMenu panel="admin" />
+      </div>
     </TairoSidenavSidebar>
     <TairoSidenavContent class="min-h-screen">
       <!-- Same shared gutter + safe-area handling as the customer shell (see sidenav.vue). -->
@@ -111,14 +85,3 @@ const avatarSrc = computed(() => user.value?.avatar || '/img/avatars/10.svg')
     </TairoSidenavContent>
   </TairoSidenavLayout>
 </template>
-
-<style scoped>
-/* Same touch sizing for the admin drawer — see sidenav.vue for the rationale. */
-@media (max-width: 1279px) {
-  .apex-nav :deep(a),
-  .apex-nav :deep(button) {
-    padding-top: 0.6rem;
-    padding-bottom: 0.6rem;
-  }
-}
-</style>
