@@ -77,7 +77,7 @@ ships as a `.dc.html` mockup plus a `PHASE-N-*.md` implementation spec.
 |---|---|---|
 | 1 | **Shared shell** — sidebar, top bar, page-header pattern, radius/spacing scale | ✅ Done |
 | 2 | **Dashboard** — honest figures, one promo chip, real credit line, reconciled expenses | ✅ Done |
-| 3 | New Order | ☐ |
+| 3 | **New Order** — one price per plan, themed selects, real validation, honest kickoff copy | ✅ Done |
 | 4 | My Orders | ☐ |
 | 5 | Wallet & Credit | ☐ |
 | 6 | Support | ☐ |
@@ -133,6 +133,31 @@ below apply to every page from here on:
   `comingSoon()` is only acceptable for a genuine request-a-callback.
 - No emoji in product UI (marketing eyebrows only), and no gradient-clipped
   text — accent words are solid `text-primary-400`.
+
+#### Phase 3 — New Order (form and pricing standards)
+
+- **One price per plan, in every configuration.** Plan cards lead with total
+  project value — the one figure no payment term can change — and quote the
+  monthly as "from {cheapest term available}". The rail reads `FROM` with the
+  same number until a term is chosen on step 3, then `YOUR MONTHLY`. Card,
+  rail and contract must never disagree, in either 12- or 24-month setup.
+- **No native `<select>` on a dark surface.** Its popup is an OS menu — white
+  on black text — and CSS cannot reach it. Use `BaseSelect`/`BaseSelectItem`,
+  whose portal is `bg-portal-*` (dark in dark mode).
+- **A control must not answer for the customer.** A `<select>` with no empty
+  option displays `options[0]` from the start; never treat that as an answer.
+  Give every select a placeholder and omit unanswered fields from submitted
+  data.
+- **Dates are dd/mm/yyyy.** `<input type="date">` renders in the *browser's*
+  locale (mm/dd/yyyy on a US machine) and no attribute overrides it. Use a
+  text input with a `dd / mm / yyyy` placeholder and validate the format.
+- **Required is red.** `required: true` on the field schema drives both the
+  red `*` and validation; never bake an asterisk into the label string.
+- **Validate on blur, clear on fix**, and block the step on submit.
+- **One signature method at a time** (Draw / Type toggle), with a signing rule
+  captioned "Sign above this line".
+- **No inert controls**: don't render a primary button on a step where its
+  handler is a no-op.
 
 ## 5. Known issues
 

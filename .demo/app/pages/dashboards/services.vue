@@ -29,10 +29,13 @@ const firstDueDays = computed(() => (appConfig.value as any)?.finance?.firstInst
 const tierIcon = ['lucide:zap', 'lucide:trending-up', 'lucide:award']
 
 // Service-specific detail forms (data-driven so it stays DRY + reusable).
-interface Field { key: string, label: string, type: 'text' | 'url' | 'date' | 'select' | 'textarea' | 'checkboxes', placeholder?: string, options?: string[], boxes?: { key: string, label: string }[], full?: boolean }
+// `required` drives both the red marker and validation. The asterisk used to be
+// baked into the label string, so it rendered in the same muted grey as the
+// label and read as decoration rather than a requirement.
+interface Field { key: string, label: string, type: 'text' | 'url' | 'date' | 'select' | 'textarea' | 'checkboxes', placeholder?: string, options?: string[], boxes?: { key: string, label: string }[], full?: boolean, required?: boolean }
 const formSchemas: Record<string, Field[]> = {
   web: [
-    { key: 'title', label: 'Project name *', type: 'text', placeholder: 'e.g. Gold Store storefront', full: true },
+    { key: 'title', label: 'Project name', type: 'text', placeholder: 'e.g. Gold Store storefront', full: true, required: true },
     { key: 'url', label: 'Current website', type: 'url', placeholder: 'https:// (optional)' },
     { key: 'pages', label: 'Pages needed', type: 'select', options: ['1–3 pages', '4–8 pages', '9+ pages'] },
     { key: 'tech', label: 'Tech preference', type: 'select', options: ['No preference', 'WordPress', 'React / Next.js'] },
@@ -40,7 +43,7 @@ const formSchemas: Record<string, Field[]> = {
     { key: 'notes', label: 'Anything else we should know?', type: 'textarea', placeholder: 'Goals, references, must-have features…', full: true },
   ],
   mkt: [
-    { key: 'title', label: 'Business name *', type: 'text', placeholder: 'e.g. Nitro LLC' },
+    { key: 'title', label: 'Business name', type: 'text', placeholder: 'e.g. Nitro LLC', required: true },
     { key: 'url', label: 'Landing / site URL', type: 'url', placeholder: 'https://' },
     { key: 'budget', label: 'Monthly ad budget', type: 'select', options: ['Under £1,000', '£1,000 – £5,000', '£5,000+'] },
     { key: 'channel', label: 'Primary channel', type: 'select', options: ['Google Ads', 'Meta (FB/IG)', 'TikTok', 'LinkedIn'] },
@@ -48,7 +51,7 @@ const formSchemas: Record<string, Field[]> = {
     { key: 'audience', label: 'Target audience', type: 'text', placeholder: 'Who are we reaching?' },
   ],
   uiux: [
-    { key: 'title', label: 'Product name *', type: 'text', placeholder: 'e.g. Apex Vision app' },
+    { key: 'title', label: 'Product name', type: 'text', placeholder: 'e.g. Apex Vision app', required: true },
     { key: 'platform', label: 'Platform', type: 'select', options: ['Web app', 'iOS', 'Android', 'Web + mobile'] },
     { key: 'screens', label: 'Approx. screens', type: 'select', options: ['Up to 6', '7–20', '20+'] },
     { key: 'files', label: 'Existing design files?', type: 'select', options: ['No, starting fresh', 'Yes, in Figma', 'Yes, other format'] },
@@ -56,7 +59,7 @@ const formSchemas: Record<string, Field[]> = {
     { key: 'url', label: 'Reference / inspo link', type: 'url', placeholder: 'https:// (optional)' },
   ],
   brand: [
-    { key: 'title', label: 'Company name *', type: 'text', placeholder: 'e.g. Okano' },
+    { key: 'title', label: 'Company name', type: 'text', placeholder: 'e.g. Okano', required: true },
     { key: 'industry', label: 'Industry', type: 'text', placeholder: 'e.g. Fintech, retail…' },
     { key: 'logo', label: 'Have a logo already?', type: 'select', options: ['No, starting fresh', 'Yes, needs a refresh'] },
     { key: 'adjectives', label: 'Brand in 3 words', type: 'text', placeholder: 'e.g. bold, warm, premium' },
@@ -87,7 +90,10 @@ const signName = ref('')
 // even when the customer draws their signature.
 const legalName = ref('')
 const hasDrawn = ref(false)
-const showErr = ref(false)
+// Draw and type used to be live at the same time, so it was unclear which one
+// would be submitted. One method is active at a time, and it is the one signed.
+const sigMode = ref<'draw' | 'type'>('draw')
+const touched = reactive<Record<string, boolean>>({})
 const placing = ref(false)
 const orderId = ref('')
 const statusStarted = ref(false)
@@ -128,7 +134,76 @@ const termLabel = computed(() => (term.value === '12' ? '12 months · 0%' : '24 
 const monthsText = computed(() => (term.value === '12' ? '12 monthly payments' : '24 monthly payments'))
 const money = (n: number) => formatCurrency(n)
 
+/**
+ * "From" pricing — the lowest monthly the customer can actually be offered.
+ *
+ * The plan cards used to price every plan with `amort(base)`, the 24-month
+ * monthly, regardless of configuration. With `finance.enable-24mo-plans` off,
+ * `term` is forced to 12, so the Launch card advertised £113/mo while the rail
+ * beside it and the contract two steps later both said £200/mo — two prices for
+ * the same plan, on screen at once, before anything had been chosen.
+ *
+ * Cards now lead with total project value (which no term can change) and quote
+ * the monthly as a floor derived from the cheapest term on offer, so the card
+ * and the rail agree in either configuration.
+ */
+const cheapestTerm = computed(() => (enable24mo.value ? 24 : 12))
+function fromMonthly(b: number) {
+  return cheapestTerm.value === 24 ? amort(b) : b / 12
+}
+
+// Until a term is chosen (step 3) the rail quotes the same floor as the cards.
+const termChosen = computed(() => step.value >= 3)
+const railLabel = computed(() => (termChosen.value ? 'Your monthly' : 'From'))
+const railAmount = computed(() => (termChosen.value ? monthly.value : fromMonthly(base.value)))
+
 const fields = computed(() => formSchemas[serviceId.value ?? ''] ?? [])
+
+// ---- details validation -------------------------------------------------
+/**
+ * `next()` used to validate only `form.title`, only on the way out of step 4.
+ * Everything else — including fields typed as `url` — went through unchecked.
+ *
+ * Errors are computed per field and surfaced once the field has been blurred
+ * (or once Continue has been pressed), and they clear the moment the value
+ * becomes valid.
+ */
+const submitted = ref(false)
+
+const UK_DATE_RE = /^(\d{2})\s*\/\s*(\d{2})\s*\/\s*(\d{4})$/
+function isValidUkDate(value: string) {
+  const match = UK_DATE_RE.exec(value)
+  if (!match)
+    return false
+  const [, dd, mm, yyyy] = match
+  const day = Number(dd)
+  const month = Number(mm)
+  const year = Number(yyyy)
+  if (month < 1 || month > 12 || day < 1 || year < 2000 || year > 2100)
+    return false
+  // Rejects 31/02 and friends by round-tripping through Date.
+  const probe = new Date(year, month - 1, day)
+  return probe.getMonth() === month - 1 && probe.getDate() === day
+}
+
+function fieldError(field: Field): string | null {
+  const value = String(form[field.key] ?? '').trim()
+  if (field.required && !value)
+    return `${field.label} is required.`
+  if (!value)
+    return null
+  if (field.type === 'url' && !/^https?:\/\/\S+\.\S+/i.test(value))
+    return 'Enter a full address, starting with http:// or https://'
+  if (field.type === 'date' && !isValidUkDate(value))
+    return 'Use the format dd/mm/yyyy.'
+  return null
+}
+
+function visibleError(field: Field) {
+  return (touched[field.key] || submitted.value) ? fieldError(field) : null
+}
+
+const detailErrors = computed(() => fields.value.map(fieldError).filter(Boolean) as string[])
 
 // ---- step flow ----------------------------------------------------------
 const canContinue = computed(() => {
@@ -154,11 +229,11 @@ function next() {
     return
   if (step.value === 2 && !planId.value)
     return
-  if (step.value === 4 && !String(form.title || '').trim()) {
-    showErr.value = true
+  if (step.value === 4 && detailErrors.value.length) {
+    submitted.value = true
     return
   }
-  showErr.value = false
+  submitted.value = false
   step.value = Math.min(step.value + 1, 5)
   maxStep.value = Math.max(maxStep.value, step.value)
 }
@@ -249,18 +324,20 @@ function buildBrief(): { label: string, value: string }[] {
   for (const f of fields.value) {
     if (f.key === 'title')
       continue
-    const label = f.label.replace(/\s*\*$/, '')
     if (f.type === 'checkboxes') {
       const picked = (f.boxes ?? []).filter(b => form[b.key]).map(b => b.label)
       if (picked.length)
-        out.push({ label, value: picked.join(', ') })
+        out.push({ label: f.label, value: picked.join(', ') })
       continue
     }
-    // A select shows its first option by default even before interaction.
-    const raw = f.type === 'select' ? (form[f.key] ?? f.options?.[0]) : form[f.key]
+    // No `?? options[0]` fallback: a native <select> showed its first option
+    // from the start and that default was written into the brief, so a customer
+    // who never touched "Pages needed" still had "1–3 pages" sent to the team.
+    // Unanswered fields are simply omitted.
+    const raw = form[f.key]
     const value = raw == null ? '' : String(raw).trim()
     if (value)
-      out.push({ label, value })
+      out.push({ label: f.label, value })
   }
   return out
 }
@@ -269,15 +346,16 @@ const canSign = computed(() =>
   agreed.value
   && esignConsent.value
   && legalName.value.trim().length > 1
-  && (hasDrawn.value || signName.value.trim().length > 1))
+  && (sigMode.value === 'draw' ? hasDrawn.value : signName.value.trim().length > 1))
 
 async function placeOrder() {
   if (!canSign.value || placing.value)
     return
   placing.value = true
   try {
-    // Signature: the drawn canvas flattened to a PNG data-URL, else the typed name.
-    const drawn = hasDrawn.value
+    // Signature: whichever method is active — the drawn canvas flattened to a
+    // PNG data-URL, or the typed name.
+    const drawn = sigMode.value === 'draw'
     const signature = drawn
       ? exportSignature()
       : (signName.value.trim() || undefined)
@@ -318,10 +396,12 @@ function resetFlow() {
   esignConsent.value = false
   signName.value = ''
   hasDrawn.value = false
-  showErr.value = false
+  sigMode.value = 'draw'
+  submitted.value = false
   orderId.value = ''
   statusStarted.value = false
   Object.keys(form).forEach(k => delete form[k])
+  Object.keys(touched).forEach(k => delete touched[k])
 }
 
 const radioBase = 'flex size-[22px] shrink-0 items-center justify-center rounded-full transition'
@@ -334,7 +414,7 @@ const radioBase = 'flex size-[22px] shrink-0 items-center justify-center rounded
     <ApexPageHeader
       title="Start your"
       accent="project"
-      subtitle="Pick a service, choose how you pay, and sign — your project starts the moment you do."
+      subtitle="Pick a service and plan, choose how to pay, then sign. Nothing is charged today."
     >
       <template #actions>
         <span class="inline-flex h-11 items-center gap-1.5 rounded-full bg-[#22B07D]/12 px-4 text-[12.5px] font-semibold text-[#22B07D]"><Icon name="lucide:shield-check" class="size-3.5" />Secured checkout</span>
@@ -407,7 +487,7 @@ const radioBase = 'flex size-[22px] shrink-0 items-center justify-center rounded
                 Choose your plan
               </h2>
               <p class="mt-1.5 text-[14.5px] text-muted-400">
-                For <strong class="font-semibold text-primary-400">{{ serviceName }}</strong> · prices shown as the lowest monthly over 24 months.
+                For <strong class="font-semibold text-primary-400">{{ serviceName }}</strong> · you'll choose how to spread the cost next.
               </p>
             </div>
             <button type="button" class="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3.5 py-2 text-[13px] font-semibold text-white transition hover:border-white/15" @click="goStep(1)">
@@ -433,12 +513,15 @@ const radioBase = 'flex size-[22px] shrink-0 items-center justify-center rounded
               <div class="mt-1.5 min-h-[54px] text-[13px] leading-[1.5] text-muted-400">
                 {{ p.desc }}
               </div>
-              <div class="mt-1.5 flex items-baseline gap-1.5">
-                <span class="font-heading text-[30px] font-extrabold tracking-[-0.02em] text-white tabular-nums">{{ money(amort(p.base)) }}</span>
-                <span class="text-[13px] text-muted-500">/mo</span>
+              <!--
+                Total project value leads: it is the one figure no payment term
+                can change, so it cannot contradict the rail or the contract.
+              -->
+              <div class="mt-1.5 font-heading text-[28px] font-extrabold tracking-[-0.02em] text-white tabular-nums">
+                {{ money(p.base) }}
               </div>
-              <div class="mt-0.5 text-xs text-muted-500">
-                24 monthly payments · {{ money(p.base) }} total project
+              <div class="mt-1 text-xs text-muted-500">
+                total project · from {{ money(fromMonthly(p.base)) }}/mo
               </div>
               <div class="my-4 h-px bg-white/10" />
               <div class="flex flex-col gap-2.5">
@@ -459,12 +542,17 @@ const radioBase = 'flex size-[22px] shrink-0 items-center justify-center rounded
                 <div class="mb-2 text-xs font-bold tracking-[0.05em] text-primary-200">
                   PAY FROM PROFITS
                 </div>
+                <!--
+                  Copy matches reality: placeOrder() creates the project as
+                  PENDING and My Orders shows "Awaiting kickoff", so promising a
+                  same-day start contradicted the very next screen.
+                -->
                 <h2 class="font-heading text-[26px] font-extrabold leading-[1.12] tracking-[-0.02em] text-white">
-                  £0 today. Your project starts immediately.
+                  £0 today. Your project is scheduled the moment you sign.
                 </h2>
               </div>
               <div class="flex flex-wrap gap-6">
-                <div v-for="b in [{ t: 'No deposit', s: '£0 down payment' }, { t: 'Start now', s: 'Work begins today' }, { t: 'Cancel anytime', s: 'Before work starts' }]" :key="b.t" class="flex items-center gap-2.5">
+                <div v-for="b in [{ t: 'No deposit', s: '£0 down payment' }, { t: 'Fast kickoff', s: 'Scheduled on signature' }, { t: 'Cancel anytime', s: 'Before work starts' }]" :key="b.t" class="flex items-center gap-2.5">
                   <span class="flex size-[34px] items-center justify-center rounded-full bg-[#22B07D]/18 text-[#22B07D]"><Icon name="lucide:check" class="size-[17px]" /></span>
                   <span class="text-[13.5px] font-medium text-white">{{ b.t }}<br><span class="text-xs text-primary-200">{{ b.s }}</span></span>
                 </div>
@@ -536,27 +624,12 @@ const radioBase = 'flex size-[22px] shrink-0 items-center justify-center rounded
         </section>
 
         <!-- STEP 4 — DETAILS -->
+        <!--
+          No plan-recap banner: service, plan, monthly and total are all in the
+          sticky rail immediately to the right and have not changed since step 3,
+          so the fold showed a restatement instead of the fields.
+        -->
         <section v-else-if="step === 4" class="flex flex-col gap-[18px]">
-          <div class="flex flex-wrap items-center gap-[18px] rounded-2xl border border-white/10 px-6 py-5" style="background: linear-gradient(135deg, #1B2B31, #101D21);">
-            <span class="flex size-[46px] items-center justify-center rounded-xl bg-primary-500/16 text-primary-400"><Icon :name="tierIcon[plan?.tier ?? 0]" class="size-[23px]" /></span>
-            <div class="min-w-[180px] flex-1">
-              <div class="text-xs font-bold tracking-[0.05em] text-primary-200">
-                {{ serviceName }}
-              </div>
-              <div class="mt-0.5 font-heading text-[19px] font-bold text-white">
-                {{ plan?.name }} plan
-              </div>
-            </div>
-            <div class="text-right">
-              <div class="font-heading text-[24px] font-extrabold tracking-[-0.02em] text-white tabular-nums">
-                {{ money(monthly) }}<span class="text-[13px] font-medium text-muted-500">/mo</span>
-              </div>
-              <div class="text-[12.5px] text-muted-500">
-                {{ termLabel }} · {{ money(total) }} total
-              </div>
-            </div>
-          </div>
-
           <div class="rounded-2xl border border-white/10 bg-muted-800 p-7">
             <h3 class="font-heading text-[20px] font-bold tracking-[-0.01em] text-white">
               Tell us about your project
@@ -566,22 +639,55 @@ const radioBase = 'flex size-[22px] shrink-0 items-center justify-center rounded
             </p>
             <div class="grid grid-cols-1 gap-[18px] sm:grid-cols-2">
               <div v-for="field in fields" :key="field.key" :class="field.full ? 'sm:col-span-2' : ''">
-                <label class="mb-2 block text-xs font-semibold uppercase tracking-[0.04em] text-muted-500">{{ field.label }}</label>
+                <label :for="`f-${field.key}`" class="mb-2 block text-xs font-semibold uppercase tracking-[0.04em] text-muted-500">
+                  {{ field.label }}<span v-if="field.required" class="ms-0.5 text-[#EC6453]" aria-hidden="true">*</span>
+                  <span v-if="field.type === 'date'" class="ms-1 font-normal normal-case tracking-normal text-muted-600">(optional)</span>
+                </label>
+
+                <!--
+                  The date field is a plain text input, not `type="date"`: the
+                  native control renders in the *browser's* locale, which showed
+                  mm/dd/yyyy for a UK product invoicing in GBP, and no attribute
+                  can override that. The value is validated as dd/mm/yyyy.
+                -->
                 <input
                   v-if="['text', 'url', 'date'].includes(field.type)"
-                  v-model="form[field.key]" :type="field.type === 'url' ? 'url' : field.type" :placeholder="field.placeholder"
-                  class="w-full rounded-xl border border-white/10 bg-white/5 px-3.5 py-3 text-sm text-white outline-none transition [color-scheme:dark] focus:border-primary-400"
+                  :id="`f-${field.key}`"
+                  v-model="form[field.key]"
+                  :type="field.type === 'url' ? 'url' : 'text'"
+                  :inputmode="field.type === 'date' ? 'numeric' : undefined"
+                  :placeholder="field.type === 'date' ? 'dd / mm / yyyy' : field.placeholder"
+                  :aria-invalid="visibleError(field) ? 'true' : undefined"
+                  :aria-describedby="visibleError(field) ? `e-${field.key}` : undefined"
+                  class="w-full rounded-xl border bg-white/5 px-3.5 py-3 text-sm text-white outline-none transition focus:border-primary-400"
+                  :class="visibleError(field) ? 'border-[#EC6453]/60' : 'border-white/10'"
+                  @blur="touched[field.key] = true"
                 >
-                <select
-                  v-else-if="field.type === 'select'" v-model="form[field.key]"
-                  class="w-full rounded-xl border border-white/10 bg-white/5 px-3.5 py-3 text-sm text-white outline-none transition [color-scheme:dark] focus:border-primary-400"
+
+                <!--
+                  Themed listbox instead of a native <select>, whose popup is an
+                  OS menu — white with black text on this dark form, and
+                  unstyleable from CSS.
+                -->
+                <BaseSelect
+                  v-else-if="field.type === 'select'"
+                  :id="`f-${field.key}`"
+                  v-model="form[field.key]"
+                  placeholder="Select an option"
+                  rounded="lg"
+                  size="lg"
+                  :aria-invalid="visibleError(field) ? 'true' : undefined"
+                  class="bg-white/5! text-white! py-3! h-auto! rounded-xl! border-white/10!"
+                  :classes="{ text: 'text-sm', content: 'z-[60]' }"
+                  @update:model-value="touched[field.key] = true"
                 >
-                  <option v-for="o in field.options" :key="o">
+                  <BaseSelectItem v-for="o in field.options" :key="o" :value="o">
                     {{ o }}
-                  </option>
-                </select>
+                  </BaseSelectItem>
+                </BaseSelect>
+
                 <textarea
-                  v-else-if="field.type === 'textarea'" v-model="form[field.key]" rows="3" :placeholder="field.placeholder"
+                  v-else-if="field.type === 'textarea'" :id="`f-${field.key}`" v-model="form[field.key]" rows="3" :placeholder="field.placeholder"
                   class="w-full resize-y rounded-xl border border-white/10 bg-white/5 px-3.5 py-3 text-sm text-white outline-none transition focus:border-primary-400"
                 />
                 <div v-else-if="field.type === 'checkboxes'" class="flex flex-wrap gap-2.5">
@@ -589,10 +695,14 @@ const radioBase = 'flex size-[22px] shrink-0 items-center justify-center rounded
                     <input v-model="form[box.key]" type="checkbox" class="size-4 accent-primary-500">{{ box.label }}
                   </label>
                 </div>
+
+                <p v-if="visibleError(field)" :id="`e-${field.key}`" class="mt-1.5 flex items-center gap-1.5 text-[12.5px] text-[#EC6453]">
+                  <Icon name="lucide:alert-circle" class="size-3.5 shrink-0" />{{ visibleError(field) }}
+                </p>
               </div>
             </div>
-            <div v-if="showErr" class="mt-4 flex items-center gap-2 rounded-xl border border-[#EC6453]/30 bg-[#EC6453]/10 px-3.5 py-2.5 text-[13px] text-[#EC6453]">
-              <Icon name="lucide:alert-circle" class="size-[15px]" />Please add a name so we can set up your project.
+            <div v-if="submitted && detailErrors.length" class="mt-4 flex items-center gap-2 rounded-xl border border-[#EC6453]/30 bg-[#EC6453]/10 px-3.5 py-2.5 text-[13px] text-[#EC6453]">
+              <Icon name="lucide:alert-circle" class="size-[15px] shrink-0" />Please fix the highlighted {{ detailErrors.length === 1 ? 'field' : 'fields' }} to continue.
             </div>
           </div>
         </section>
@@ -603,7 +713,7 @@ const radioBase = 'flex size-[22px] shrink-0 items-center justify-center rounded
             Review &amp; sign
           </h2>
           <p class="mb-5 mt-1.5 text-[14.5px] text-muted-400">
-            Your service agreement. Signing moves the project straight to <strong class="font-semibold text-[#22B07D]">Started</strong>.
+            Your service agreement. Signing confirms the order and schedules your <strong class="font-semibold text-[#22B07D]">kickoff</strong>.
           </p>
 
           <div class="max-h-[264px] overflow-y-auto rounded-xl border border-white/10 bg-white/[0.02] px-6 py-[22px] text-[13.5px] leading-[1.65] text-muted-400">
@@ -617,7 +727,7 @@ const radioBase = 'flex size-[22px] shrink-0 items-center justify-center rounded
               1. Scope &amp; deliverables
             </p>
             <p class="mb-3.5">
-              Apex will deliver the features listed in the selected plan. Work begins immediately upon signature, with no down payment required.
+              Apex will deliver the features listed in the selected plan. Work is scheduled on signature and begins at kickoff, with no down payment required.
             </p>
             <p class="mb-2 font-semibold text-white">
               2. Fees &amp; payment schedule
@@ -655,23 +765,40 @@ const radioBase = 'flex size-[22px] shrink-0 items-center justify-center rounded
             <span class="text-sm leading-[1.5] text-muted-400">I consent to signing this agreement electronically and agree that my electronic signature is legally binding and has the same effect as a handwritten signature (Electronic Communications Act 2000).</span>
           </label>
 
-          <div class="mt-5 grid grid-cols-1 items-end gap-5 sm:grid-cols-[1.3fr_1fr]">
-            <div>
-              <div class="mb-2 flex items-center justify-between">
-                <label class="text-xs font-semibold uppercase tracking-[0.04em] text-muted-500">Draw your signature</label>
-                <button type="button" class="cursor-pointer border-none bg-transparent text-xs font-semibold text-primary-400 transition hover:text-white" @click="clearSig">
-                  Clear
+          <!--
+            One method at a time. Draw and type used to be live simultaneously
+            and `canSign` accepted either, so which one would be submitted as
+            the signature was ambiguous to the person signing.
+          -->
+          <div class="mt-5">
+            <div class="mb-2.5 flex flex-wrap items-center gap-3">
+              <span class="text-xs font-semibold uppercase tracking-[0.04em] text-muted-500">Signature</span>
+              <div role="radiogroup" aria-label="Signature method" class="inline-flex gap-[3px] rounded-full border border-white/10 bg-white/5 p-[3px]">
+                <button
+                  v-for="mode in ([{ key: 'draw', label: 'Draw' }, { key: 'type', label: 'Type' }] as const)" :key="mode.key"
+                  type="button" role="radio" :aria-checked="sigMode === mode.key"
+                  class="apex-focus cursor-pointer rounded-full px-3.5 py-1.5 text-[12.5px] transition"
+                  :class="sigMode === mode.key ? 'bg-primary-500 font-bold text-white' : 'font-semibold text-muted-400 hover:text-white'"
+                  @click="sigMode = mode.key"
+                >
+                  {{ mode.label }}
                 </button>
               </div>
-              <div class="relative h-[130px] overflow-hidden rounded-xl border border-dashed border-white/15 bg-white/[0.02]">
-                <canvas ref="sigCanvas" width="640" height="130" class="absolute inset-0 size-full cursor-crosshair touch-none" @pointerdown="sigDown" @pointermove="sigMove" @pointerup="sigUp" @pointerleave="sigUp" />
-                <div class="pointer-events-none absolute inset-x-[18px] bottom-4 border-t border-white/10" />
-                <span class="pointer-events-none absolute bottom-5 left-[18px] text-[11px] text-muted-500">✕</span>
-              </div>
+              <div class="flex-1" />
+              <button v-if="sigMode === 'draw'" type="button" class="apex-focus cursor-pointer rounded-md border-none bg-transparent text-xs font-semibold text-primary-400 transition hover:text-white" @click="clearSig">
+                Clear
+              </button>
             </div>
-            <div>
-              <label class="mb-2 block text-xs font-semibold uppercase tracking-[0.04em] text-muted-500">Or type your full name</label>
-              <input v-model="signName" placeholder="Your full name" class="w-full rounded-xl border border-white/10 bg-white/5 px-3.5 py-3 font-heading text-[15px] font-semibold text-white outline-none transition focus:border-primary-400">
+
+            <div v-show="sigMode === 'draw'" class="relative h-[130px] overflow-hidden rounded-xl border border-dashed border-white/15 bg-white/[0.02]">
+              <canvas ref="sigCanvas" width="640" height="130" class="absolute inset-0 size-full cursor-crosshair touch-none" @pointerdown="sigDown" @pointermove="sigMove" @pointerup="sigUp" @pointerleave="sigUp" />
+              <!-- A signing rule and its caption, in place of the stray ✕ glyph that read as a broken character. -->
+              <div class="pointer-events-none absolute inset-x-5 bottom-[26px] border-t border-white/10" />
+              <span class="pointer-events-none absolute bottom-2 left-5 text-[11.5px] text-muted-500">Sign above this line</span>
+            </div>
+
+            <div v-show="sigMode === 'type'">
+              <input v-model="signName" placeholder="Type your full name" class="w-full rounded-xl border border-white/10 bg-white/5 px-3.5 py-3 font-heading text-base font-semibold text-white outline-none transition focus:border-primary-400">
               <div class="mt-2.5 flex items-center gap-1.5 text-xs text-muted-500">
                 <Icon name="lucide:lock" class="size-3.5" />Legally binding e-signature
               </div>
@@ -695,12 +822,17 @@ const radioBase = 'flex size-[22px] shrink-0 items-center justify-center rounded
         </section>
 
         <!-- FOOTER NAV -->
-        <div v-if="step >= 1 && step <= 5" class="mt-[22px] flex items-center justify-between gap-3.5">
+        <div v-if="step <= 5" class="mt-[22px] flex items-center justify-between gap-3.5">
           <BaseButton v-if="step > 1" rounded="full" class="border border-white/10 bg-muted-800 !text-white hover:bg-muted-700" @click="back">
             <Icon name="lucide:arrow-left" class="size-4" />Back
           </BaseButton>
           <div class="flex-1" />
-          <BaseButton rounded="full" variant="primary" size="lg" :disabled="!canContinue" @click="next">
+          <!--
+            Continue is hidden on step 5. It used to render there beside
+            "Sign & start project" as a primary-styled button, but next() caps
+            at 5 so pressing it did nothing at all.
+          -->
+          <BaseButton v-if="step <= 4" rounded="full" variant="primary" size="lg" :disabled="!canContinue" @click="next">
             {{ continueLabel }}<Icon name="lucide:arrow-right" class="size-4" />
           </BaseButton>
         </div>
@@ -747,18 +879,27 @@ const radioBase = 'flex size-[22px] shrink-0 items-center justify-center rounded
           </template>
         </div>
 
+        <!--
+          Before a term is chosen this reads FROM and quotes exactly the same
+          floor as the plan cards. It used to say YOUR MONTHLY from step 1 while
+          quoting a term-specific figure off the default `term`, so the rail and
+          the card could show two different monthlies for the same plan.
+        -->
         <div v-if="plan" class="mx-[22px] rounded-xl border border-primary-500/28 px-[18px] py-4" style="background: linear-gradient(135deg, rgba(125,83,242,.22), rgba(125,83,242,.06));">
-          <div class="flex items-end justify-between">
+          <div class="flex items-end justify-between gap-3">
             <div>
-              <div class="text-[11.5px] font-bold tracking-[0.05em] text-primary-200">
-                YOUR MONTHLY
+              <div class="text-[11.5px] font-bold uppercase tracking-[0.05em] text-primary-200">
+                {{ railLabel }}
               </div>
               <div class="mt-0.5 font-heading text-[30px] font-extrabold leading-[1.1] tracking-[-0.02em] text-white tabular-nums">
-                {{ money(monthly) }}<span class="text-[13px] font-medium text-primary-200">/mo</span>
+                {{ money(railAmount) }}<span class="text-[13px] font-medium text-primary-200">/mo</span>
               </div>
             </div>
-            <div class="text-right text-[11.5px] text-primary-200">
+            <div v-if="termChosen" class="text-right text-[11.5px] leading-[1.5] text-primary-200">
               {{ monthsText }}<br>total {{ money(total) }}
+            </div>
+            <div v-else class="max-w-[130px] text-right text-[11.5px] leading-[1.5] text-primary-200">
+              Choose a payment plan in step 3
             </div>
           </div>
         </div>
@@ -769,7 +910,7 @@ const radioBase = 'flex size-[22px] shrink-0 items-center justify-center rounded
             <span class="font-heading text-[18px] font-extrabold text-[#22B07D]">£0</span>
           </div>
           <div class="flex items-center gap-2 text-xs text-muted-500">
-            <Icon name="lucide:zap" class="size-3.5 text-[#22B07D]" />Project starts the moment you sign — no deposit.
+            <Icon name="lucide:zap" class="size-3.5 shrink-0 text-[#22B07D]" />No deposit — first payment {{ firstDueDays }} days after kickoff.
           </div>
         </div>
       </aside>
@@ -788,14 +929,15 @@ const radioBase = 'flex size-[22px] shrink-0 items-center justify-center rounded
               You're all set!
             </h2>
             <p class="relative mt-2.5 text-[15px] leading-[1.55] text-muted-400">
-              Your <strong class="font-semibold text-white">{{ plan?.name }}</strong> order is confirmed and signed. The team has been notified and work begins today.
+              Your <strong class="font-semibold text-white">{{ plan?.name }}</strong> order is confirmed and signed. The team has been notified and will schedule your kickoff.
             </p>
 
             <div class="relative my-6 flex items-center justify-center gap-3">
               <span class="inline-flex items-center gap-2 rounded-full bg-[#22B07D]/14 px-3.5 py-2 text-[13px] font-bold text-[#22B07D]"><Icon name="lucide:check" class="size-3.5" />Order placed</span>
               <Icon name="lucide:arrow-right" class="size-[22px] text-muted-500" />
               <span class="inline-flex items-center gap-2 rounded-full px-3.5 py-2 text-[13px] font-bold transition" :class="statusStarted ? 'bg-gradient-to-r from-primary-400 to-primary-600 text-white shadow-[0_8px_20px_rgba(125,83,242,.4)]' : 'border border-white/10 bg-white/5 text-muted-500'">
-                <Icon v-if="statusStarted" name="lucide:zap" class="size-3.5" />{{ statusStarted ? 'Started' : 'Starting…' }}
+                <!-- "Awaiting kickoff" is the state My Orders will show; the order is created PENDING. -->
+                <Icon v-if="statusStarted" name="lucide:calendar-clock" class="size-3.5" />{{ statusStarted ? 'Awaiting kickoff' : 'Confirming…' }}
               </span>
             </div>
 

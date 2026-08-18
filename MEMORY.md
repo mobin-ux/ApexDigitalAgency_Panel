@@ -54,8 +54,9 @@ Read it with the `DesignSync` tool (`method: get_file`).
 |---|---|---|
 | 1 | Shared shell | ✅ Done |
 | 2 | Dashboard (`balance.vue`) | ✅ Done |
-| 3 | New Order | ⬅ next |
-| 4–9 | My Orders · Wallet · Support · Settings · Auth · Mobile/Light | ☐ |
+| 3 | New Order (`services.vue`) | ✅ Done |
+| 4 | My Orders | ⬅ next |
+| 5–9 | Wallet · Support · Settings · Auth · Mobile/Light | ☐ |
 
 **Phase 1 shipped:** Apex brand mark (+ favicon/title), 44px nav rows with a
 violet `color-mix` active tint, hairline sub-nav, one account dropdown with
@@ -90,6 +91,34 @@ machine and that is correct**. To make it render unconditionally, add a
 ledger-derived per-project figure to `/api/dashboard/stats` (sum `Transaction`
 rows grouped by owning project) and drop the guard; there is a `TODO(api)` on
 the computed.
+
+**Phase 3 shipped (New Order wizard):** two correctness bugs plus polish, all
+in `services.vue`, no API change.
+
+- **Plan prices contradicted the rail.** Cards priced every plan with
+  `amort(base)` (the 24-month monthly) while the rail and contract used the
+  chosen `term`. With `finance.enable-24mo-plans` **off**, `term` is forced to
+  12, so Launch showed £113/mo on the card and £200/mo in the rail at the same
+  time. Cards now lead with total project value and quote `from
+  fromMonthly(base)`, derived from `cheapestTerm`; the rail says `FROM` with the
+  same number until step 3, then `YOUR MONTHLY`. **Verified in both
+  configurations** by flipping the admin setting: 24-on → card £113 = rail £113;
+  24-off → card £200 = rail £200.
+- **Native `<select>` submitted answers nobody gave.** `buildBrief()` had
+  `?? f.options?.[0]`, so an untouched "Pages needed" was written into the brief
+  as "1–3 pages". Now `BaseSelect` with a "Select an option" placeholder, no
+  fallback, and unanswered fields omitted. Verified by intercepting the POST
+  body: only the field actually filled in appears in `brief`.
+- Also: header sub-line, step-4 recap banner deleted, dd/mm/yyyy text date
+  (not `type="date"` — that renders in the *browser's* locale), per-field
+  validation on blur, Draw/Type signature toggle, stray `✕` replaced with a
+  signing rule, dead Continue button removed from step 5, and "work begins
+  today" copy replaced everywhere with kickoff-on-signature (orders are created
+  PENDING).
+
+**Note:** `BaseSelect`'s trigger needs `bg-white/5! rounded-xl! border-white/10!`
+to match the wizard's other inputs — Shuriken's `rounded` scale has no 12px step
+and its input tokens are a different surface.
 
 ## Remaining queue (older, pre-V2)
 
