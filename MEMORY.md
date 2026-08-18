@@ -52,9 +52,10 @@ Read it with the `DesignSync` tool (`method: get_file`).
 
 | Phase | Area | Status |
 |---|---|---|
-| 1 | Shared shell | ✅ Done (this session) |
-| 2 | Dashboard | ⬅ next |
-| 3–9 | New Order · My Orders · Wallet · Support · Settings · Auth · Mobile/Light | ☐ |
+| 1 | Shared shell | ✅ Done |
+| 2 | Dashboard (`balance.vue`) | ✅ Done |
+| 3 | New Order | ⬅ next |
+| 4–9 | My Orders · Wallet · Support · Settings · Auth · Mobile/Light | ☐ |
 
 **Phase 1 shipped:** Apex brand mark (+ favicon/title), 44px nav rows with a
 violet `color-mix` active tint, hairline sub-nav, one account dropdown with
@@ -65,6 +66,30 @@ five redesigned customer pages, and 110 arbitrary radii normalised to the
 standing shell rules: DESIGN_SYSTEM.md §4.
 
 Two long-standing bugs fell out of it — see "Known issues" below.
+
+**Phase 2 shipped (dashboard):** every figure on `balance.vue` is now real.
+The credit-line card renders the actual `CreditLine` record from
+`/api/dashboard/stats` in four states instead of a hardcoded £12,500 limit
+under an "Approved" chip. Expenses no longer contradict themselves: the
+headline is the ledger total and the per-project breakdown renders **only when
+the installment plans provably sum to it** (see the gotcha below). "How it
+works" expands three real steps instead of firing a "your account manager has
+been notified" toast. Promo cut to one chip, 16px radius, solid violet accent,
+no dot-grid overlay, `+145%` labelled "Example result". One service badge, no
+coloured left border on project rows, `+12% vs last quarter` deleted.
+
+### Phase 2 gotcha — `installmentPlan.paid` is not ledger-backed
+
+`Transaction` is the money-truth; `Installment.paid` is a counter that seeds
+and admin adjustments can set directly. On the current dev DB they disagree
+badly: plans sum to **£3,988** while `stats.totalSpent` (sum of negative
+transactions) is **£1,730**. So the expense breakdown is gated on
+`Math.abs(planTotal - ledgerTotal) < 0.01` and simply does not render when they
+diverge — which is the case locally, so **the breakdown is invisible on this
+machine and that is correct**. To make it render unconditionally, add a
+ledger-derived per-project figure to `/api/dashboard/stats` (sum `Transaction`
+rows grouped by owning project) and drop the guard; there is a `TODO(api)` on
+the computed.
 
 ## Remaining queue (older, pre-V2)
 
