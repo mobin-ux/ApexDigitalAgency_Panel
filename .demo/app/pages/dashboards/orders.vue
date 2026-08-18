@@ -6,9 +6,13 @@
  * with segmented installment tracking.
  *
  * Data comes from /api/orders (projects + milestones + files + manager).
- * The per-project installment plan is DERIVED for presentation (12-month plan,
- * amount/12, paid inferred from status/progress) — TODO(api): replace with real
- * Installment records once the API links them to projects.
+ * Projects created by the New Order wizard carry a real `installmentPlan` row
+ * and use it directly (see realInst).
+ *
+ * TODO(api): `deriveInst()` is the fallback for legacy projects with no plan
+ * row, and it hardcodes a 12-month term. Real plans can be 24 months, so the
+ * same account can show "x/12" on a legacy project and "x/24" on a new one.
+ * Backfill plans for pre-migration projects and this fallback can go.
  */
 definePageMeta({
   title: 'My Orders',
@@ -99,9 +103,20 @@ function realInst(plan: any): Inst {
     total: plan.monthsTotal,
     paid: plan.monthsPaid,
     amount: Math.round(plan.monthlyAmount || plan.amountDue || 0),
-    nextDate: settled ? null : dueInDays != null && dueInDays <= 7 ? `in ${dueInDays} day${dueInDays === 1 ? '' : 's'}` : fmtDate(plan.nextDue, 'Next cycle'),
+    nextDate: settled ? null : relativeDue(dueInDays) ?? fmtDate(plan.nextDue, 'Next cycle'),
     dueInDays,
   }
+}
+
+/** "today" / "tomorrow" / "in N days" for the next week; null beyond that. */
+function relativeDue(days: number | null): string | null {
+  if (days == null || days > 7)
+    return null
+  if (days <= 0)
+    return 'today'
+  if (days === 1)
+    return 'tomorrow'
+  return `in ${days} days`
 }
 
 // Legacy fallback for projects without a plan row (pre-migration data).
@@ -114,7 +129,7 @@ function deriveInst(status: UiStatus, amount: number, progress: number, deadline
     return { total, paid: 0, amount: per, nextDate: 'On kickoff', dueInDays: null }
   const paid = Math.min(total - 1, Math.max(0, Math.floor((progress / 100) * total)))
   const dueInDays = deadline ? Math.max(0, Math.ceil((new Date(deadline).getTime() - Date.now()) / 86_400_000)) : null
-  const nextDate = dueInDays != null && dueInDays <= 7 ? `in ${dueInDays} day${dueInDays === 1 ? '' : 's'}` : fmtDate(deadline, 'Next cycle')
+  const nextDate = relativeDue(dueInDays) ?? fmtDate(deadline, 'Next cycle')
   return { total, paid, amount: per, nextDate, dueInDays }
 }
 
@@ -150,7 +165,9 @@ const projects = computed<UiProject[]>(() => {
       progress: o.progress ?? 0,
       stage: status === 'completed' ? 'Delivered' : status === 'pending' ? 'Awaiting kickoff' : (activeStage?.name || 'In progress'),
       budget: o.amount ?? 0,
-      start: status === 'pending' ? 'Not started' : fmtDate(o.startDate),
+      // "Awaiting kickoff" is the one term used for the not-yet-started state,
+      // here, on the card's stage line and on the dashboard.
+      start: status === 'pending' ? 'Awaiting kickoff' : fmtDate(o.startDate),
       due: fmtDate(o.deadline),
       pmName,
       pmInitials,
@@ -220,14 +237,47 @@ const filtered = computed(() => {
   return list
 })
 
+/**
+ * Three tiles that always carry a real number.
+ *
+ * The previous four measured the wrong things: "Active projects" and
+ * "Completed" both read 0 on an account whose projects are all PENDING, and
+ * "Payments due soon" filtered on `status === 'active'`, so it could never fire
+ * for a pending project however imminent its first installment. A strip of
+ * zeros sitting above three visible projects reads as a broken page.
+ *
+ * Per-status counts still exist — on the filter tabs below, which is the one
+ * place a zero is informative rather than dead.
+ */
 const stats = computed(() => {
-  const dueSoon = projects.value.filter(p => p.status === 'active' && p.inst.dueInDays != null && p.inst.dueInDays <= 5).length
-  const outstanding = projects.value.reduce((a, p) => a + (p.status === 'completed' ? 0 : (p.inst.total - p.inst.paid) * p.inst.amount), 0)
+  const open = projects.value.filter(p => p.status !== 'completed')
+  const outstanding = open.reduce((sum, p) => sum + (p.inst.total - p.inst.paid) * p.inst.amount, 0)
+  const active = counts.value.active ?? 0
+  const pending = counts.value.pending ?? 0
+
+  // Soonest scheduled payment across everything still running. `dueInDays` is
+  // null for plans with no date yet, so those sort last rather than first.
+  const next = [...open].sort((a, b) => (a.inst.dueInDays ?? 9999) - (b.inst.dueInDays ?? 9999))[0]
+
   return [
-    { icon: 'lucide:box', tone: 'bg-primary-500/14 text-primary-400', value: String(counts.value.active ?? 0), label: 'Active projects' },
-    { icon: 'lucide:check', tone: 'bg-[#22B07D]/14 text-[#22B07D]', value: String(counts.value.completed ?? 0), label: 'Completed' },
-    { icon: 'lucide:banknote', tone: 'bg-[#D9A521]/14 text-[#F2C14E]', value: formatCurrency(outstanding), label: 'Outstanding balance' },
-    { icon: 'lucide:clock', tone: 'bg-[#EC6453]/14 text-[#EC6453]', value: String(dueSoon), label: 'Payments due soon' },
+    {
+      icon: 'lucide:box',
+      tone: 'bg-primary-500/14 text-primary-400',
+      value: String(projects.value.length),
+      label: active ? `Projects · ${active} in progress` : `Projects · ${pending} awaiting kickoff`,
+    },
+    {
+      icon: 'lucide:banknote',
+      tone: 'bg-[#D9A521]/14 text-[#F2C14E]',
+      value: formatCurrency(outstanding),
+      label: `Outstanding across ${open.length} plan${open.length === 1 ? '' : 's'}`,
+    },
+    {
+      icon: 'lucide:clock',
+      tone: 'bg-primary-500/14 text-primary-200',
+      value: next ? formatCurrency(next.inst.amount) : '—',
+      label: next ? `Next payment · ${next.inst.nextDate ?? 'after kickoff'}` : 'No payments scheduled',
+    },
   ]
 })
 
@@ -248,15 +298,39 @@ function statusMeta(status: UiStatus) {
   }
 }
 
-interface CardPay { label: string, accent: string, value: string, date: string, inst: string, tone: 'paid' | 'pending' | 'due' | 'ontrack' }
+/**
+ * Payment state, derived from the plan — not from the project's status.
+ *
+ * Both this and the detail rail used to branch on `p.status`, so a PENDING
+ * project with two installments already paid rendered "First payment · 0/24"
+ * on the card and a "Not started" chip beside "£226 of £2,712" in the rail.
+ * Project status and payment progress are different facts: a project can be
+ * awaiting kickoff while its plan is already part-paid.
+ *
+ * `payState()` answers one question — how far through the plan are we — and
+ * everything else follows from it.
+ */
+type PayKind = 'paid' | 'pending' | 'due' | 'ontrack'
+function payState(p: UiProject): { kind: PayKind, due: boolean } {
+  const { total, paid, dueInDays } = p.inst
+  const due = dueInDays != null && dueInDays <= 5
+  if (paid >= total)
+    return { kind: 'paid', due: false }
+  if (paid === 0)
+    return { kind: 'pending', due }
+  return { kind: due ? 'due' : 'ontrack', due }
+}
+
+interface CardPay { label: string, accent: string, value: string, date: string, inst: string, tone: PayKind }
 function cardPay(p: UiProject): CardPay {
   const m = formatCurrency(p.inst.amount)
-  if (p.status === 'completed')
-    return { label: 'Payment', accent: 'text-[#22B07D]', value: 'Paid in full', date: '', inst: `${p.inst.total}/${p.inst.total}`, tone: 'paid' }
-  if (p.status !== 'active')
-    return { label: 'First payment', accent: 'text-muted-500', value: m, date: 'On kickoff', inst: `0/${p.inst.total}`, tone: 'pending' }
-  const due = p.inst.dueInDays != null && p.inst.dueInDays <= 5
-  return { label: due ? 'Payment due' : 'Next payment', accent: due ? 'text-[#F2C14E]' : 'text-primary-200', value: m, date: p.inst.nextDate || '', inst: `${p.inst.paid}/${p.inst.total}`, tone: due ? 'due' : 'ontrack' }
+  const insts = `${p.inst.paid}/${p.inst.total}`
+  const { kind, due } = payState(p)
+  if (kind === 'paid')
+    return { label: 'Payment', accent: 'text-[#22B07D]', value: 'Paid in full', date: '', inst: insts, tone: 'paid' }
+  if (kind === 'pending')
+    return { label: 'First payment', accent: 'text-muted-500', value: m, date: p.inst.nextDate || 'On kickoff', inst: insts, tone: 'pending' }
+  return { label: due ? 'Payment due' : 'Next payment', accent: due ? 'text-[#F2C14E]' : 'text-primary-200', value: m, date: p.inst.nextDate || '', inst: insts, tone: kind }
 }
 const PAY_TONES: Record<CardPay['tone'], string> = {
   due: 'bg-[#D9A521]/[0.07] border-[#D9A521]/22',
@@ -271,8 +345,8 @@ const detailPay = computed(() => {
   if (!p)
     return null
   const { total, paid, amount } = p.inst
-  const due = p.status === 'active' && p.inst.dueInDays != null && p.inst.dueInDays <= 5
-  const kind = p.status === 'completed' ? 'paid' : p.status !== 'active' ? 'pending' : due ? 'due' : 'ontrack'
+  // Same source as the card, so the two can never disagree — see payState().
+  const { kind, due } = payState(p)
   return {
     kind,
     chip: kind === 'paid'
@@ -292,6 +366,13 @@ const detailPay = computed(() => {
     due,
     nextLabel: due ? 'Payment due' : 'Next payment',
     nextAmtFmt: formatCurrency(amount),
+    // Nothing paid yet: say *when* it is due rather than always claiming
+    // kickoff, which would be wrong for a project that has already started.
+    pendingWhen: p.status === 'pending'
+      ? 'is scheduled after project kickoff'
+      : p.inst.nextDate
+        ? `is scheduled for ${p.inst.nextDate}`
+        : 'is not scheduled yet',
     scheduleLabel: kind === 'paid' ? 'View payment history' : 'View full schedule',
   }
 })
@@ -351,7 +432,7 @@ async function payNow() {
       </ApexPageHeader>
 
       <!-- stat strip -->
-      <div class="mb-[22px] grid grid-cols-1 gap-3.5 sm:grid-cols-2 xl:grid-cols-4">
+      <div class="mb-[22px] grid grid-cols-1 gap-3.5 sm:grid-cols-3">
         <div v-for="st in stats" :key="st.label" class="flex items-center gap-3 rounded-2xl border border-white/10 bg-muted-800 px-[18px] py-4">
           <span class="flex size-10 shrink-0 items-center justify-center rounded-xl" :class="st.tone"><Icon :name="st.icon" class="size-[19px]" /></span>
           <div>
@@ -367,11 +448,16 @@ async function payNow() {
 
       <!-- controls -->
       <div class="mb-[22px] flex flex-wrap items-center gap-3.5">
-        <div role="tablist" class="flex min-w-0 flex-nowrap gap-1 overflow-x-auto rounded-full border border-white/10 bg-muted-800 p-1">
+        <!--
+          `aria-pressed` buttons, not a tablist: these filter one grid in place
+          and there is no tabpanel to point at, so tab semantics would promise
+          a structure that does not exist.
+        -->
+        <div role="group" aria-label="Filter projects by status" class="flex min-w-0 flex-nowrap gap-1 overflow-x-auto rounded-full border border-white/10 bg-muted-800 p-1">
           <button
             v-for="[key, label] in TABS" :key="key"
-            type="button" role="tab" :aria-selected="filter === key"
-            class="inline-flex shrink-0 items-center gap-2 rounded-full px-3.5 py-2.5 text-[13px] transition sm:py-2"
+            type="button" :aria-pressed="filter === key"
+            class="apex-focus inline-flex shrink-0 items-center gap-2 rounded-full px-3.5 py-3 text-[13px] transition sm:py-2"
             :class="filter === key ? 'bg-primary-500 font-bold text-white' : 'font-semibold text-muted-400 hover:text-white'"
             @click="filter = key"
           >
@@ -386,22 +472,36 @@ async function payNow() {
           <Icon name="lucide:search" class="size-4 shrink-0 text-muted-500" />
           <input v-model="q" placeholder="Search name or ID" class="w-full min-w-0 border-none bg-transparent text-[13.5px] text-white outline-none placeholder:text-muted-500">
         </label>
-        <!-- The padding lives on the <select>, not the <label>: it is the select
-             that has to be 44px tall, since tapping the label's padding does not
-             open a native dropdown on mobile Safari. -->
-        <label class="flex w-full items-center gap-2 rounded-xl border border-white/10 bg-muted-800 px-3 text-[13px] text-muted-500 sm:w-auto sm:py-2">
-          <span class="whitespace-nowrap">Sort</span>
-          <select v-model="sort" class="w-full min-w-0 cursor-pointer border-none bg-transparent py-3 text-[13.5px] font-semibold text-white outline-none [color-scheme:dark] sm:w-auto sm:py-0">
-            <option value="recent">Recent activity</option>
-            <option value="progress">Progress</option>
-            <option value="due">Next payment</option>
-            <option value="name">Name</option>
-          </select>
-        </label>
+        <!--
+          Themed listbox rather than a native <select>, whose popup is an OS
+          menu — white on black text over this dark surface, and unreachable
+          from CSS. Same treatment as the New Order form (Phase 3).
+        -->
+        <BaseSelect
+          v-model="sort"
+          aria-label="Sort projects"
+          rounded="lg"
+          size="lg"
+          class="bg-muted-800! h-11! w-full! rounded-xl! border-white/10! text-white! sm:w-[200px]!"
+          :classes="{ text: 'text-[13.5px] font-semibold' }"
+        >
+          <BaseSelectItem value="recent">
+            Recent activity
+          </BaseSelectItem>
+          <BaseSelectItem value="progress">
+            Progress
+          </BaseSelectItem>
+          <BaseSelectItem value="due">
+            Next payment
+          </BaseSelectItem>
+          <BaseSelectItem value="name">
+            Name
+          </BaseSelectItem>
+        </BaseSelect>
       </div>
 
       <!-- loading skeletons -->
-      <div v-if="pending" class="grid grid-cols-1 gap-[18px] md:grid-cols-2 xl:grid-cols-3">
+      <div v-if="pending" class="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
         <div v-for="i in 3" :key="i" class="h-[290px] rounded-2xl border border-white/10 bg-muted-800 p-[22px]">
           <div class="apex-shimmer size-12 rounded-xl" />
           <div class="apex-shimmer mt-5 h-5 w-3/5 rounded-md" />
@@ -412,11 +512,18 @@ async function payNow() {
       </div>
 
       <!-- card grid -->
-      <div v-else-if="filtered.length" class="grid grid-cols-1 gap-[18px] md:grid-cols-2 xl:grid-cols-3">
+      <div v-else-if="filtered.length" class="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
+        <!--
+          The whole card is the control, so it needs a concise accessible name:
+          without one a screen reader announces the entire card body — icon,
+          status, name, service, stage, percentage, payment box and PM — as the
+          button's label.
+        -->
         <button
           v-for="p in filtered" :key="p.id"
           type="button"
-          class="flex min-h-[280px] flex-col rounded-2xl border border-white/10 bg-muted-800 p-[22px] text-left transition duration-200 hover:-translate-y-0.5 hover:border-white/15 hover:shadow-[0_18px_40px_rgba(0,0,0,.28)]"
+          :aria-label="`${p.name}, ${statusMeta(p.status).label}, ${p.progress}% complete`"
+          class="apex-focus flex min-h-[280px] flex-col rounded-2xl border border-white/10 bg-muted-800 p-[22px] text-left transition duration-200 hover:-translate-y-0.5 hover:border-white/15 hover:shadow-[0_18px_40px_rgba(0,0,0,.28)]"
           @click="openDetail(p.id)"
         >
           <div class="flex items-start justify-between gap-3">
@@ -472,7 +579,9 @@ async function payNow() {
                 </div>
               </div>
             </div>
-            <span class="inline-flex items-center gap-1 whitespace-nowrap text-[13px] font-bold text-primary-400">Details<Icon name="lucide:chevron-right" class="size-[15px]" /></span>
+            <!-- Chevron only: "Details" was a link that is not a link, inviting a
+                 click the card already owns, and it read out as part of the label. -->
+            <Icon name="lucide:chevron-right" aria-hidden="true" class="size-[18px] shrink-0 text-primary-400" />
           </div>
         </button>
 
@@ -538,7 +647,8 @@ async function payNow() {
               </div>
               <div class="flex items-center gap-3.5">
                 <div class="relative size-[82px] shrink-0">
-                  <svg width="82" height="82" viewBox="0 0 82 82">
+                  <!-- Decorative: the percentage is written out beside it. -->
+                  <svg width="82" height="82" viewBox="0 0 82 82" aria-hidden="true">
                     <circle cx="41" cy="41" r="36" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="7" />
                     <circle cx="41" cy="41" r="36" fill="none" :stroke="detail.status === 'completed' ? '#22B07D' : '#7D53F2'" stroke-width="7" stroke-linecap="round" :stroke-dasharray="RING_C" :stroke-dashoffset="ringOffset" transform="rotate(-90 41 41)" />
                   </svg>
@@ -554,9 +664,7 @@ async function payNow() {
 
             <div class="my-6 h-px bg-white/10" />
 
-            <div class="mb-5 text-xs font-bold tracking-[0.06em] text-muted-500">
-              MILESTONES
-            </div>
+            <ApexSectionLabel as="h3" label="Milestones" class="mb-5" />
             <div>
               <div v-for="(st, i) in detail.stages" :key="st.n" class="flex gap-4" :class="i === detail.stages.length - 1 ? '' : 'pb-1'">
                 <div class="flex w-[30px] shrink-0 flex-col items-center">
@@ -573,7 +681,8 @@ async function payNow() {
                     <span class="font-heading text-[15px]" :class="st.state === 'active' ? 'font-bold text-white' : st.state === 'done' ? 'font-semibold text-white' : 'font-medium text-muted-500'">{{ st.name }}</span>
                     <span class="whitespace-nowrap rounded-[7px] bg-white/5 px-2 py-[3px] text-[11.5px] text-muted-500">{{ st.date }}</span>
                   </div>
-                  <div v-if="st.state === 'active'" class="mt-1 text-[12.5px] text-muted-500">
+                  <!-- Only claim work is underway when the project itself is active. -->
+                  <div v-if="st.state === 'active' && detail.status === 'active'" class="mt-1 text-[12.5px] text-muted-500">
                     Team is currently working on this stage.
                   </div>
                 </div>
@@ -613,8 +722,8 @@ async function payNow() {
         <aside class="flex flex-col gap-[18px] lg:sticky lg:top-4">
           <!-- summary -->
           <section class="overflow-hidden rounded-2xl border border-white/10" style="background: linear-gradient(160deg, #16252A, #101D21);">
-            <div class="border-b border-white/10 px-[22px] py-[18px] text-xs font-bold tracking-[0.06em] text-muted-500">
-              PROJECT SUMMARY
+            <div class="border-b border-white/10 px-[22px] py-[18px]">
+              <ApexSectionLabel as="h3" label="Project summary" />
             </div>
             <div class="px-[22px] pb-3.5 pt-2">
               <div class="flex items-center justify-between border-b border-white/10 py-3">
@@ -710,7 +819,7 @@ async function payNow() {
             <div v-if="detailPay.kind === 'pending'" class="mx-[22px] mt-4 flex items-start gap-3 rounded-xl border border-[#D9A521]/22 bg-[#D9A521]/[0.08] p-4">
               <Icon name="lucide:clock" class="mt-px size-[17px] shrink-0 text-[#F2C14E]" />
               <div class="text-[12.5px] leading-[1.5] text-muted-400">
-                Your first installment of <strong class="font-semibold text-white">{{ detailPay.nextAmtFmt }}</strong> is scheduled after project kickoff. Nothing is due today.
+                Your first installment of <strong class="font-semibold text-white">{{ detailPay.nextAmtFmt }}</strong> {{ detailPay.pendingWhen }}. Nothing is due today.
               </div>
             </div>
 

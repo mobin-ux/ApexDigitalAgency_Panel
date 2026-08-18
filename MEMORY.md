@@ -55,8 +55,9 @@ Read it with the `DesignSync` tool (`method: get_file`).
 | 1 | Shared shell | ✅ Done |
 | 2 | Dashboard (`balance.vue`) | ✅ Done |
 | 3 | New Order (`services.vue`) | ✅ Done |
-| 4 | My Orders | ⬅ next |
-| 5–9 | Wallet · Support · Settings · Auth · Mobile/Light | ☐ |
+| 4 | My Orders (`orders.vue`) | ✅ Done |
+| 5 | Wallet & Credit | ⬅ next |
+| 6–9 | Support · Settings · Auth · Mobile/Light | ☐ |
 
 **Phase 1 shipped:** Apex brand mark (+ favicon/title), 44px nav rows with a
 violet `color-mix` active tint, hairline sub-nav, one account dropdown with
@@ -119,6 +120,32 @@ in `services.vue`, no API change.
 **Note:** `BaseSelect`'s trigger needs `bg-white/5! rounded-xl! border-white/10!`
 to match the wizard's other inputs — Shuriken's `rounded` scale has no 12px step
 and its input tokens are a different surface.
+
+**Phase 4 shipped (My Orders):** two data-truth fixes plus chrome.
+
+- **Stat strip read 0 · 0 · £x · 0** on an account with nine projects: two
+  tiles counted statuses nobody had yet, and "Payments due soon" filtered on
+  `status === 'active'` so it could never fire for a pending project. Now three
+  tiles that always carry a number — total projects, outstanding across open
+  plans, soonest payment (£600 · today on this data).
+- **Payment state was derived from project status.** A PENDING project with
+  five paid installments showed "First payment · 0/24" on the card and a
+  "Not started" chip beside "£1,130 of £5,424" in the rail. New `payState()`
+  derives from `paid`/`total`, and card + chip + pending note all read from it.
+  Verified on `P1 Verify Order`: chip now "Up to date", card "Next payment ·
+  5/24", pending note correctly absent.
+- Also: native sort `<select>` → `BaseSelect` (44×200, dark popup); "Details ›"
+  text removed from the card button; card `aria-label`; `role="tab"` → aria-pressed
+  buttons (there was no tabpanel); ring `aria-hidden`; MILESTONES / PROJECT
+  SUMMARY use `ApexSectionLabel`; "Not started" → "Awaiting kickoff"; the active
+  milestone sub-line only shows when the project itself is active; relative due
+  dates say "today"/"tomorrow" instead of "in 0 days".
+
+**Phase 4 gotcha — legacy 12-month fallback.** `deriveInst()` hardcodes a
+12-month term for projects with no `installmentPlan` row, while real plans can
+be 24. The same account therefore shows `x/12` on legacy projects and `x/24` on
+new ones. Backfill plans for pre-migration projects to retire the fallback;
+there is a `TODO(api)` at the top of `orders.vue`.
 
 ## Remaining queue (older, pre-V2)
 

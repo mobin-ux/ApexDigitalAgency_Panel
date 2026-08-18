@@ -78,7 +78,7 @@ ships as a `.dc.html` mockup plus a `PHASE-N-*.md` implementation spec.
 | 1 | **Shared shell** — sidebar, top bar, page-header pattern, radius/spacing scale | ✅ Done |
 | 2 | **Dashboard** — honest figures, one promo chip, real credit line, reconciled expenses | ✅ Done |
 | 3 | **New Order** — one price per plan, themed selects, real validation, honest kickoff copy | ✅ Done |
-| 4 | My Orders | ☐ |
+| 4 | **My Orders** — tiles that always carry a number, plan-derived payment state | ✅ Done |
 | 5 | Wallet & Credit | ☐ |
 | 6 | Support | ☐ |
 | 7 | Settings | ☐ |
@@ -158,6 +158,27 @@ below apply to every page from here on:
   captioned "Sign above this line".
 - **No inert controls**: don't render a primary button on a step where its
   handler is a no-op.
+
+#### Phase 4 — My Orders (measure the right thing)
+
+- **A summary tile must carry a number in every account state.** Four tiles
+  that read 0 · 0 · £10,622 · 0 above three visible projects look broken. Count
+  what exists (total projects, outstanding across open plans, soonest payment),
+  and leave per-status counts to the filter tabs, where a zero is informative.
+- **Project status and payment progress are different facts.** Deriving the
+  payment chip from `project.status` made a PENDING project with two paid
+  installments read "Not started" beside "£226 of £2,712". One helper
+  (`payState`) answers "how far through the plan are we", and the card, the
+  chip and the note all follow from it.
+- **One term per state, everywhere.** The not-yet-started state is "Awaiting
+  kickoff" on the card, the detail summary and the dashboard — never also
+  "Not started".
+- **A whole-card button needs its own `aria-label`.** Otherwise the accessible
+  name is the entire card body.
+- **Don't use tab roles without tabpanels.** Filters that swap rows in one grid
+  are `aria-pressed` buttons.
+- Decorative SVG beside a text value (progress rings) gets `aria-hidden`.
+- No text link inside a control that already owns the click ("Details ›").
 
 ## 5. Known issues
 
