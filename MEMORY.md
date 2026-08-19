@@ -349,6 +349,45 @@ fresh tab, all six customer routes SSR 200.
 reserves the empty string for "no selection". Use the `placeholder` prop
 instead (New Order does the same).
 
+## Production deploy — 2026-08-19 (Phases 1–7 live)
+
+Phases 1–7 are deployed to the VPS and serving at
+https://146-19-130-11.sslip.io (also panel.apexdigi.co.uk). Deploy is now
+**SSH-key only** — `~/.ssh/apex_deploy` is authorised on the box, so
+`bash scripts/ship-bundle.sh` needs no password. See [[deployment-vps]].
+
+**Two Windows-build gotchas cost the first attempt** (it 500'd and the script
+auto-rolled-back; production never served it):
+
+1. **Nitro's absolute symlinks.** Traced server deps are deduplicated into
+   `server/node_modules/.nitro/<pkg>@<ver>/` with the real package names
+   symlinked at them using **absolute** paths from the build machine. `tar`
+   stored the links, they dangled on Linux, and the first render died with
+   `ERR_MODULE_NOT_FOUND: Cannot find package 'hookable'`. Fixed with `tar -h`
+   (`c7e2605`). 23 packages were affected.
+2. **`better_sqlite3.node` ships as a Windows DLL** → `invalid ELF header` in
+   the journal. It belongs to `@nuxt/content` (the Tairo docs), whose routes
+   are **404 in production**, so it is inert noise — not a regression, and the
+   content module was already failing on the previous build for a different
+   reason. `ship-bundle.sh` now lists non-ELF `.node` addons after a
+   successful deploy. The Prisma engine remains a hard gate.
+
+**Verified live after deploy:** `/auth/login-1` and `/auth/signup-1` 200;
+`/` 307; `/dashboards/**` and `/admin` 302 to login when anonymous; a
+bad-credential POST to `/api/auth/login` returns 401, which proves Prisma is
+running real queries against the production DB with the Linux engine. Phase 6
+and Phase 7 chunks confirmed present in the live `.output`. Stripe keys in
+`.env.production` survived untouched (live keys, verified by type+length only).
+
+**Production DB is real** — 5 users, and `Company.address` (which Phase 7 now
+writes) exists in the live schema; checked before deploying. Dev seed logins
+(`user@apex.com`) do **not** exist there, so authed pages cannot be smoke-tested
+from here without real credentials.
+
+**Still outstanding:** the VPS's `.demo/nuxt.config.ts` build fixes are on the
+box but not in the repo, and the root password (pasted in chat long ago) should
+be rotated now that key auth works.
+
 ## Remaining queue (older, pre-V2)
 
 1. Not yet designed at all: service *compare* view, invoices
