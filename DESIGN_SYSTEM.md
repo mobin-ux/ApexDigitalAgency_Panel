@@ -80,8 +80,8 @@ ships as a `.dc.html` mockup plus a `PHASE-N-*.md` implementation spec.
 | 3 | **New Order** — one price per plan, themed selects, real validation, honest kickoff copy | ✅ Done |
 | 4 | **My Orders** — tiles that always carry a number, plan-derived payment state | ✅ Done |
 | 5 | **Wallet & Credit** — real credit states, receipts not invoice numbers, honest labels | ✅ Done |
-| 6 | Support | ⬅ next |
-| 7 | Settings | ☐ |
+| 6 | **Support** — no discarded files, an unread dot that means something, tokenised shell offset | ✅ Done |
+| 7 | Settings | ⬅ next |
 | 8 | Auth flow | ☐ |
 | 9 | Mobile & light theme | ☐ |
 
@@ -221,6 +221,52 @@ Setting `credit.max-limit` (default £20,000) whenever the dashboard loads, and
 derives `used` from outstanding principal. An admin "adjust limit to 0" will
 therefore not stick. To test the no-credit state, set `credit.max-limit` to 0,
 verify, then restore it.
+
+#### Phase 6 — Support (don't accept what you can't deliver)
+
+- **Never accept input you are going to discard.** The composer had a working
+  file picker: files were chosen, rendered as chips, and then `sendReply()`
+  posted `{ content }` and cleared the chips. Nothing uploaded, nothing warned,
+  and the interaction was indistinguishable from success — a customer who
+  attached the screenshot we asked for believed we had it, and neither side
+  knew otherwise. `TicketMessage` has no attachment relation and there is no
+  upload endpoint, so both composers now say how to send a file instead of
+  pretending to take one. A disabled paperclip was not an option either; that
+  is the dead end Phase 5 removed from the credit card.
+- **Product copy is part of the product.** The FAQ answered "How do I share
+  files?" with "Attach files directly to any support conversation" —
+  describing the very capability that does not exist. Copy that documents a
+  feature has to be changed in the same commit that changes the feature; the
+  answer now points at the route that really works.
+- **An indicator that is always on is not an indicator.** "Unread" was
+  `messages[0].isAdmin === true` — "the newest message is from staff", which
+  stays true forever once they answer. Every answered ticket was permanently
+  dotted, which teaches customers to ignore the dot. It is now a real
+  comparison against a per-ticket last-read timestamp, and it re-lights when a
+  genuinely newer staff message arrives.
+- **Mark things read when they are on screen, not when they are selected.**
+  Below `lg` the detail pane is hidden until a row is tapped, so the
+  auto-selected first ticket must not count as read there; from `lg` up both
+  panes are visible and it does. Same rule, two layouts.
+- **A skeleton beats a wrong value.** `firstReplyLabel()` reads the lazily
+  fetched thread, so the header rendered "First reply —" and then corrected
+  itself a beat later. It shows a skeleton while the thread loads, then the
+  value — and "—" now only ever means "no reply yet".
+- **One commitment, one source.** The header pill read `replyEta` from
+  `/api/config` while the empty state hardcoded "within 15 minutes". Changing
+  the setting made the empty state quietly false. Both read the config now.
+- **A number that describes the shell belongs to the shell.** The Support
+  inbox subtracts the top bar's height from `100dvh`. That figure lived in the
+  page, so when Phase 1 took the bar from 56px to 76px the page kept
+  subtracting the old one. It is now `--apex-shell-offset` in `main.css`
+  (109px = 76px band + 32px margin + 1px divider) and the page never names it.
+- Native `<select>` count in the five V2-rebuilt customer pages: zero. The
+  category filter and the related-project picker were the last two.
+- Tab strip matches Phases 4–5 (`aria-pressed`, not `role="tab"` without a
+  tabpanel); FAQ accordions expose `aria-expanded`; the unread dot has an
+  accessible name; the reply textarea has a label; Subject and Message got
+  real `<label for>`, while the priority buttons — a group, not an input — got
+  `role="group" aria-label="Priority"` instead of a label pointing nowhere.
 ## 5. Known issues
 
 Fixed:
@@ -285,5 +331,17 @@ To address:
       commit) and deliberately left alone — the light treatment for this page is
       V2 Phase 9's scope, and improvising one would violate "the design export is
       the spec". The V2-rebuilt pages (balance/orders/services) are already clean.
+- [ ] Native `<select>` still in `settings.vue` (10 — Phase 7) and the admin
+      panel + AgencyCalculator (26). The five V2-rebuilt customer pages are clean;
+      the rest get the `BaseSelect` treatment as their phase lands.
+- [ ] `/api/seed-support` (and the other dev seeds) verify the JWT with
+      `process.env.JWT_SECRET || 'secret'` while `/api/auth/login` signs with
+      `runtimeConfig.jwtSecret`, so a valid session gets "invalid signature" and
+      a raw 500. Dev-only, pre-existing, and untouched by Phase 6 — but it means
+      `seed-support` cannot be used to make test data.
+- [ ] File attachments on support tickets: no `TicketMessage` attachment
+      relation and no upload endpoint, so the UI offers no picker at all
+      (Phase 6). Shipping `POST /api/support/:id/attachments` is what unblocks
+      restoring it — see the plan file's uploads phase.
 - [ ] Local dev uses an Iran mirror in `.npmrc` that 403s intermittently; `registry.npmmirror.com`
       worked (`pnpm install --registry=https://registry.npmmirror.com/`).

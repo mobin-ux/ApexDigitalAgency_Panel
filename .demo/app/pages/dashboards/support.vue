@@ -10,21 +10,26 @@
  * "Related project" options come from /api/orders.
  *
  * Placeholders (TODO(api) — no backing model/endpoint yet):
- *  - File attachments (TicketMessage has no attachment field/storage) — the
- *    picker is functional for UX parity but files are not uploaded or sent.
+ *  - File attachments. `TicketMessage` has no attachment relation and there is
+ *    no upload endpoint, so the page does not offer a file picker at all. It
+ *    used to: files were accepted, shown as chips, then dropped on send — an
+ *    interaction indistinguishable from success, so a customer who attached
+ *    the screenshot we asked for believed we had it. Both composers now say
+ *    how to send a file instead. Restore the picker in the same pass that
+ *    adds `POST /api/support/:id/attachments`, never before.
  *  - Assigned agent identity (no assignee field on Ticket) — replies from
  *    staff render under a single "Apex Support" persona.
  *  - "Related project" is not a Ticket field — folded into the message text
  *    instead of being silently dropped.
- *  - FAQ content is static editorial copy, same as the Services catalogue.
+ *  - Read state. `Ticket` has no `readAt`, so "unread" is tracked per browser
+ *    in localStorage (see `lastRead`). Swap the store for the server value if
+ *    the field lands; the computed does not change.
  */
 definePageMeta({
   title: 'Support',
   layout: 'sidenav',
   middleware: 'auth',
 })
-
-const toaster = useNuiToasts()
 
 // ---- fetch -----------------------------------------------------------------
 const { data: apiResponse, refresh: refreshTickets } = await useFetch('/api/support/tickets', { lazy: true })
@@ -63,6 +68,12 @@ const ETA: Record<PriKey, { label: string, color: string }> = {
   low: { label: 'within a few hours', color: 'var(--color-muted-400)' },
 }
 
+/**
+ * Category / priority / status arrive as free text (the schema does not
+ * constrain them), so these three resolve by substring. Precedence is
+ * deliberate and matters: "Billing enquiry — pre-sales" resolves to billing
+ * because `bill` is tested first. Reorder only with that in mind.
+ */
 function catKey(raw: string): CatKey {
   const c = (raw || '').toLowerCase()
   if (c.includes('bill'))
@@ -116,6 +127,10 @@ function relTime(v: string | Date) {
 function clock(v: string | Date) {
   return new Date(v).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
 }
+/** The customer-facing ticket reference. Defined once — it appears in four places. */
+function ticketRef(id: string) {
+  return `#${id.slice(0, 8).toUpperCase()}`
+}
 function firstReplyLabel(created: string | Date, msgs: { isAdmin: boolean, createdAt: string }[]) {
   const firstAdmin = msgs.find(m => m.isAdmin)
   if (!firstAdmin)
@@ -142,6 +157,17 @@ const TAB_DEFS = [
   ['faq', 'Help & FAQ'],
 ] as const
 
+/**
+ * Last-read timestamp per ticket.
+ *
+ * "Unread" used to mean "the newest message is from staff", which is true
+ * forever once they answer — the dot lit on every answered ticket and never
+ * went out, so it carried no information. There is no read state on the
+ * model, so it is kept per browser here. Persisting it beats session state:
+ * a dot that returns on every reload is the same permanently-on dot.
+ */
+const lastRead = useLocalStorage<Record<string, number>>('apex:support:lastRead', {})
+
 const listRows = computed(() => {
   const needle = q.value.trim().toLowerCase()
   return tickets.value
@@ -156,7 +182,8 @@ const listRows = computed(() => {
     })
     .map(t => ({
       ...t,
-      unread: t.messages[0]?.isAdmin === true,
+      unread: t.messages[0]?.isAdmin === true
+        && new Date(t.messages[0]!.createdAt).getTime() > (lastRead.value[t.id] ?? 0),
       preview: t.messages[0] ? (t.messages[0].isAdmin ? 'Apex Support: ' : 'You: ') + t.messages[0].content : 'No messages yet',
     }))
 })
@@ -167,9 +194,32 @@ watchEffect(() => {
 })
 const activeTicket = computed(() => tickets.value.find(t => t.id === activeId.value) ?? null)
 
+/**
+ * Marking read follows what is actually on screen, not what is selected.
+ * Below `lg` the detail pane is hidden until the customer taps a row, so the
+ * auto-selected first ticket must not be marked read there — it would clear a
+ * dot for a reply nobody has seen. From `lg` up both panes are visible at once
+ * and the active thread is genuinely being read.
+ *
+ * `useMediaQuery` is false during SSR and resolves on the client; it only ever
+ * drives this side effect, never markup, so it cannot cause a hydration
+ * mismatch.
+ */
+const isSplitPane = useMediaQuery('(min-width: 1024px)')
+
+function markRead(id: string) {
+  lastRead.value = { ...lastRead.value, [id]: Date.now() }
+}
+
+watchEffect(() => {
+  if (activeId.value && (isSplitPane.value || mobileShowDetail.value))
+    markRead(activeId.value)
+})
+
 function selectTicket(id: string) {
   activeId.value = id
   mobileShowDetail.value = true
+  markRead(id)
   loadThread(id)
 }
 function backToList() {
@@ -209,28 +259,8 @@ const thread = computed(() => (activeId.value && threadCache.value[activeId.valu
 
 // ---- composer ----------------------------------------------------------------
 const draft = ref('')
-const draftFiles = ref<{ name: string, size: string }[]>([])
 const sending = ref(false)
-const fileRef = ref<HTMLInputElement | null>(null)
 
-function formatSize(bytes: number) {
-  if (bytes < 1024)
-    return `${bytes} B`
-  if (bytes < 1_048_576)
-    return `${Math.round(bytes / 1024)} KB`
-  return `${(bytes / 1_048_576).toFixed(1)} MB`
-}
-function triggerAttach() {
-  fileRef.value?.click()
-}
-function onPickFiles(e: Event) {
-  const files = Array.from((e.target as HTMLInputElement).files ?? []).map(f => ({ name: f.name, size: formatSize(f.size) }))
-  draftFiles.value = [...draftFiles.value, ...files]
-  ;(e.target as HTMLInputElement).value = ''
-}
-function removeDraftFile(idx: number) {
-  draftFiles.value = draftFiles.value.filter((_, i) => i !== idx)
-}
 const QUICK_REPLIES = ['Yes, please go ahead', 'Can you share a preview?', 'Thanks!']
 function useQuick(text: string) {
   draft.value = draft.value ? `${draft.value} ${text}` : text
@@ -244,7 +274,6 @@ async function sendReply() {
     const { message } = await $fetch<any>(`/api/support/${activeId.value}/reply`, { method: 'POST', body: { content: text } })
     threadCache.value = { ...threadCache.value, [activeId.value]: [...thread.value, message] }
     draft.value = ''
-    draftFiles.value = []
     scrollThread()
     await refreshTickets()
   }
@@ -265,22 +294,9 @@ const nPriority = ref<PriKey>('normal')
 const nProject = ref('None')
 const nSubject = ref('')
 const nMessage = ref('')
-const nFiles = ref<{ name: string, size: string }[]>([])
-const newFileRef = ref<HTMLInputElement | null>(null)
 const submitting = ref(false)
 const submittedId = ref<string | null>(null)
 
-function triggerNewAttach() {
-  newFileRef.value?.click()
-}
-function onNewFiles(e: Event) {
-  const files = Array.from((e.target as HTMLInputElement).files ?? []).map(f => ({ name: f.name, size: formatSize(f.size) }))
-  nFiles.value = [...nFiles.value, ...files]
-  ;(e.target as HTMLInputElement).value = ''
-}
-function removeNewFile(idx: number) {
-  nFiles.value = nFiles.value.filter((_, i) => i !== idx)
-}
 const canSubmit = computed(() => nSubject.value.trim() && nMessage.value.trim())
 
 async function submitNew() {
@@ -314,7 +330,6 @@ function resetNew() {
   nProject.value = 'None'
   nSubject.value = ''
   nMessage.value = ''
-  nFiles.value = []
 }
 function openNew() {
   tab.value = 'new'
@@ -383,11 +398,14 @@ const faqRows = computed(() => {
     </ApexPageHeader>
 
     <!-- ============ TABS ============ -->
-    <div role="tablist" class="mb-[18px] inline-flex max-w-full flex-shrink-0 gap-1 self-start overflow-x-auto rounded-full border border-white/8 bg-muted-800 p-1">
+    <!-- `aria-pressed` buttons rather than tabs: there is no `tabpanel` here
+         either, and this matches the choice made on My Orders (Phase 4) and
+         Wallet (Phase 5), so all three pages describe themselves the same way. -->
+    <div role="group" aria-label="Support sections" class="mb-[18px] inline-flex max-w-full flex-shrink-0 gap-1 self-start overflow-x-auto rounded-full border border-white/8 bg-muted-800 p-1">
       <button
         v-for="[key, label] in TAB_DEFS" :key="key"
-        role="tab" :aria-selected="tab === key"
-        class="inline-flex shrink-0 items-center rounded-full px-[18px] py-[11px] text-[13.5px] transition-all sm:py-[9px]"
+        type="button" :aria-pressed="tab === key"
+        class="apex-focus inline-flex shrink-0 items-center rounded-full px-[18px] py-[11px] text-[13.5px] transition-all sm:py-[9px]"
         :class="tab === key ? 'bg-primary-500 font-bold text-white' : 'font-semibold text-muted-400 hover:text-white'"
         @click="tab = key"
       >
@@ -416,14 +434,26 @@ const faqRows = computed(() => {
                 {{ label }}
               </button>
             </div>
-            <select v-model="catFilter" class="mt-2.5 w-full cursor-pointer rounded-xl border border-white/8 bg-muted-700 px-3 py-3 sm:py-2.5 text-[13px] text-white outline-none">
-              <option value="all">
+            <!--
+              Themed listbox rather than a native <select>, whose popup is an
+              OS menu — white on a dark page, and unreachable from CSS. Same
+              treatment as New Order (Phase 3) and My Orders (Phase 4).
+            -->
+            <BaseSelect
+              v-model="catFilter"
+              aria-label="Filter by category"
+              rounded="lg"
+              size="lg"
+              class="bg-muted-700! mt-2.5 h-11! w-full! rounded-xl! border-white/8! text-white!"
+              :classes="{ text: 'text-[13px]' }"
+            >
+              <BaseSelectItem value="all">
                 All categories
-              </option>
-              <option v-for="(c, key) in CATEGORIES" :key="key" :value="key">
+              </BaseSelectItem>
+              <BaseSelectItem v-for="(c, key) in CATEGORIES" :key="key" :value="key">
                 {{ c.label }}
-              </option>
-            </select>
+              </BaseSelectItem>
+            </BaseSelect>
           </div>
 
           <div class="min-h-0 flex-1 overflow-y-auto p-2">
@@ -437,7 +467,7 @@ const faqRows = computed(() => {
                 <span class="inline-flex items-center rounded-full px-[9px] py-1 text-[10.5px] font-extrabold uppercase tracking-[0.04em]" :class="[CATEGORIES[catKey(t.category)].text, CATEGORIES[catKey(t.category)].bg]">{{ CATEGORIES[catKey(t.category)].label }}</span>
                 <span class="text-[11px] font-semibold" :class="PRIORITIES[priKey(t.priority)].text">{{ PRIORITIES[priKey(t.priority)].label }}</span>
                 <span class="flex-1" />
-                <span v-if="t.unread" class="size-2 shrink-0 rounded-full bg-primary-400" />
+                <span v-if="t.unread" role="img" aria-label="Unread reply" class="size-2 shrink-0 rounded-full bg-primary-400" />
               </div>
               <div class="mt-2.5 truncate text-sm font-semibold" :class="t.id === activeId || t.unread ? 'text-white' : 'text-[#E4E9EB]'">
                 {{ t.subject }}
@@ -447,7 +477,7 @@ const faqRows = computed(() => {
               </div>
               <div class="mt-2.5 flex items-center gap-2">
                 <span class="inline-flex items-center rounded-full px-[9px] py-1 text-[10.5px] font-extrabold uppercase tracking-[0.04em]" :class="[STATUSES[statusKey(t.status)].text, STATUSES[statusKey(t.status)].bg]">{{ STATUSES[statusKey(t.status)].label }}</span>
-                <span class="text-[11.5px] text-muted-500">#{{ t.id.slice(0, 8).toUpperCase() }}</span>
+                <span class="text-[11.5px] text-muted-500">{{ ticketRef(t.id) }}</span>
                 <span class="flex-1" />
                 <span class="text-[11.5px] text-muted-500">{{ relTime(t.updatedAt) }}</span>
               </div>
@@ -470,7 +500,7 @@ const faqRows = computed(() => {
                   <span class="inline-flex items-center rounded-full px-[9px] py-1 text-[10.5px] font-extrabold uppercase tracking-[0.04em]" :class="[CATEGORIES[catKey(activeTicket.category)].text, CATEGORIES[catKey(activeTicket.category)].bg]">{{ CATEGORIES[catKey(activeTicket.category)].label }}</span>
                   <span class="inline-flex items-center rounded-full px-[9px] py-1 text-[10.5px] font-extrabold uppercase tracking-[0.04em]" :class="[PRIORITIES[priKey(activeTicket.priority)].text, PRIORITIES[priKey(activeTicket.priority)].bg]">{{ PRIORITIES[priKey(activeTicket.priority)].label }} priority</span>
                   <span class="inline-flex items-center rounded-full px-[9px] py-1 text-[10.5px] font-extrabold uppercase tracking-[0.04em]" :class="[STATUSES[statusKey(activeTicket.status)].text, STATUSES[statusKey(activeTicket.status)].bg]">{{ STATUSES[statusKey(activeTicket.status)].label }}</span>
-                  <span class="text-xs text-muted-500">#{{ activeTicket.id.slice(0, 8).toUpperCase() }}</span>
+                  <span class="text-xs text-muted-500">{{ ticketRef(activeTicket.id) }}</span>
                 </div>
                 <h2 class="font-heading text-xl font-bold leading-[1.25] tracking-[-0.01em] text-white">
                   {{ activeTicket.subject }}
@@ -492,7 +522,12 @@ const faqRows = computed(() => {
               <span class="h-[26px] w-px bg-white/8" />
               <div class="flex items-center gap-2 text-[12.5px] text-muted-400">
                 <Icon name="lucide:clock" class="size-[15px] text-[#22B07D]" />
-                First reply <strong class="font-semibold text-white">{{ firstReplyLabel(activeTicket.createdAt, thread) }}</strong>
+                <!-- `thread` is fetched lazily per ticket, so this rendered
+                     "First reply —" for a beat and then corrected itself. A
+                     skeleton says "loading" instead of stating a wrong value. -->
+                First reply
+                <span v-if="threadLoading" class="inline-block h-3 w-10 animate-pulse rounded bg-muted-700" aria-label="Loading first reply time" />
+                <strong v-else class="font-semibold text-white">{{ firstReplyLabel(activeTicket.createdAt, thread) }}</strong>
               </div>
             </div>
           </div>
@@ -521,28 +556,28 @@ const faqRows = computed(() => {
           </div>
 
           <div class="flex-shrink-0 border-t border-white/8 p-[14px] pb-4 pt-[14px]">
-            <div v-if="draftFiles.length" class="mb-2.5 flex flex-wrap gap-2">
-              <div v-for="(f, i) in draftFiles" :key="i" class="flex items-center gap-2 rounded-xl border border-white/8 bg-muted-700 py-1.5 pl-[11px] pr-1.5 text-xs text-white">
-                <Icon name="lucide:file-text" class="size-[13px] text-primary-400" />
-                {{ f.name }}
-                <button aria-label="Remove file" class="inline-flex size-8 items-center justify-center rounded-md text-muted-500 hover:text-[#EC6453] sm:size-6" @click="removeDraftFile(i)">
-                  <Icon name="lucide:x" class="size-3" />
-                </button>
-              </div>
-            </div>
             <div class="flex items-end gap-2.5 rounded-xl border border-white/8 bg-muted-700 py-2 pl-3.5 pr-2 focus-within:border-primary-400">
               <textarea
-                v-model="draft" rows="1" placeholder="Write a reply…  (Enter to send, Shift+Enter for a new line)"
+                v-model="draft" rows="1" aria-label="Reply to this request"
+                placeholder="Write a reply…  (Enter to send, Shift+Enter for a new line)"
                 class="max-h-[120px] min-w-0 flex-1 resize-none border-none bg-transparent py-1.5 text-sm leading-[1.5] text-white outline-none placeholder:text-muted-500"
                 @keydown="onDraftKey"
               />
-              <input ref="fileRef" type="file" multiple class="hidden" @change="onPickFiles">
-              <button aria-label="Attach file" class="inline-flex size-11 shrink-0 items-center justify-center rounded-xl border border-white/8 text-muted-400 hover:border-white/15 hover:text-white sm:size-[38px]" @click="triggerAttach">
-                <Icon name="lucide:paperclip" class="size-[17px]" />
-              </button>
-              <button aria-label="Send reply" class="inline-flex size-11 shrink-0 items-center justify-center rounded-xl bg-primary-500 text-white shadow-[0_6px_16px_rgba(125,83,242,0.32)] disabled:cursor-not-allowed disabled:opacity-50 sm:size-[38px]" :disabled="!draft.trim() || sending" @click="sendReply">
+              <button aria-label="Send reply" class="apex-focus inline-flex size-11 shrink-0 items-center justify-center rounded-xl bg-primary-500 text-white shadow-[0_6px_16px_rgba(125,83,242,0.32)] disabled:cursor-not-allowed disabled:opacity-50 sm:size-[38px]" :disabled="!draft.trim() || sending" @click="sendReply">
                 <Icon name="lucide:send" class="size-[17px]" />
               </button>
+            </div>
+            <!--
+              There is no upload endpoint, so there is no paperclip. A disabled
+              one would be the dead end Phase 5 removed from the credit card;
+              a working-looking one that discards the file is worse than both.
+              This says what to do instead.
+            -->
+            <div class="mt-2.5 flex items-start gap-2.5 rounded-xl border border-white/8 bg-muted-700 px-3.5 py-3">
+              <Icon name="lucide:paperclip" class="mt-px size-[17px] shrink-0 text-primary-400" />
+              <span class="text-[12.5px] leading-relaxed text-muted-400">
+                Need to send a file? Ask us here and we'll reply with a secure upload link — screenshots, briefs and PDFs all welcome.
+              </span>
             </div>
             <div class="mt-2.5 flex flex-wrap items-center gap-2">
               <span class="mr-0.5 text-[11.5px] text-muted-500">Quick:</span>
@@ -564,7 +599,10 @@ const faqRows = computed(() => {
             How can we help?
           </h3>
           <p class="mb-6 mt-2.5 text-[14.5px] leading-[1.6] text-muted-400">
-            You don't have any requests yet. Start a conversation with our team — billing, technical, pre-sales or anything about your projects. We usually reply within 15 minutes.
+            <!-- Same commitment as the header pill, from the same config value.
+                 Hardcoding "15 minutes" here meant changing the setting made
+                 this sentence quietly false. -->
+            You don't have any requests yet. Start a conversation with our team — billing, technical, pre-sales or anything about your projects. We usually reply in {{ replyEta }}.
           </p>
           <div class="flex flex-wrap items-center justify-center gap-3">
             <BaseButton rounded="full" variant="primary" class="shadow-[0_10px_24px_rgba(125,83,242,0.3)]" @click="openNew">
@@ -602,17 +640,20 @@ const faqRows = computed(() => {
 
         <div class="mt-[18px] flex flex-col gap-[18px] rounded-2xl border border-white/8 bg-muted-800 p-6">
           <div>
-            <label class="mb-2 block text-[12.5px] font-semibold text-white">Subject</label>
-            <input v-model="nSubject" placeholder="Briefly, what's this about?" class="w-full rounded-xl border border-white/8 bg-muted-700 px-3.5 py-3 text-sm text-white outline-none placeholder:text-muted-500 focus:border-primary-400">
+            <label for="support-subject" class="mb-2 block text-[12.5px] font-semibold text-white">Subject</label>
+            <input id="support-subject" v-model="nSubject" placeholder="Briefly, what's this about?" class="w-full rounded-xl border border-white/8 bg-muted-700 px-3.5 py-3 text-sm text-white outline-none placeholder:text-muted-500 focus:border-primary-400">
           </div>
 
           <div class="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
             <div>
-              <label class="mb-2 block text-[12.5px] font-semibold text-white">Priority</label>
-              <div class="flex gap-1.5 rounded-xl border border-white/8 bg-muted-700 p-1">
+              <!-- A button group is not an input, so this heading is a span and
+                   the group carries the accessible name instead of a `for=`. -->
+              <span class="mb-2 block text-[12.5px] font-semibold text-white">Priority</span>
+              <div role="group" aria-label="Priority" class="flex gap-1.5 rounded-xl border border-white/8 bg-muted-700 p-1">
                 <button
                   v-for="(p, key) in PRIORITIES" :key="key"
-                  class="flex-1 rounded-xl px-1 py-2 text-[12.5px] transition-all"
+                  type="button" :aria-pressed="nPriority === key"
+                  class="apex-focus flex-1 rounded-xl px-1 py-2 text-[12.5px] transition-all"
                   :class="nPriority === key ? 'bg-primary-500 font-bold text-white' : 'font-semibold text-muted-400 hover:text-white'"
                   @click="nPriority = key"
                 >
@@ -621,41 +662,38 @@ const faqRows = computed(() => {
               </div>
             </div>
             <div>
-              <label class="mb-2 block text-[12.5px] font-semibold text-white">Related project <span class="font-normal text-muted-500">(optional)</span></label>
-              <select v-model="nProject" class="w-full cursor-pointer rounded-xl border border-white/8 bg-muted-700 px-3.5 py-3 text-sm text-white outline-none focus:border-primary-400">
-                <option v-for="pj in projectOpts" :key="pj" :value="pj">
+              <!-- Labels a listbox trigger, not an input, so this is a plain
+                   heading and the control carries its own `aria-label`. -->
+              <span class="mb-2 block text-[12.5px] font-semibold text-white">Related project <span class="font-normal text-muted-500">(optional)</span></span>
+              <BaseSelect
+                v-model="nProject"
+                aria-label="Related project"
+                rounded="lg"
+                size="lg"
+                class="bg-muted-700! h-11! w-full! rounded-xl! border-white/8! text-white!"
+                :classes="{ text: 'text-sm' }"
+              >
+                <BaseSelectItem v-for="pj in projectOpts" :key="pj" :value="pj">
                   {{ pj }}
-                </option>
-              </select>
+                </BaseSelectItem>
+              </BaseSelect>
             </div>
           </div>
 
           <div>
-            <label class="mb-2 block text-[12.5px] font-semibold text-white">Message</label>
-            <textarea v-model="nMessage" rows="5" placeholder="Share as much detail as you can — links, error messages, what you expected to happen…" class="w-full resize-y rounded-xl border border-white/8 bg-muted-700 px-3.5 py-3 text-sm leading-[1.55] text-white outline-none placeholder:text-muted-500 focus:border-primary-400" />
+            <label for="support-message" class="mb-2 block text-[12.5px] font-semibold text-white">Message</label>
+            <textarea id="support-message" v-model="nMessage" rows="5" placeholder="Share as much detail as you can — links, error messages, what you expected to happen…" class="w-full resize-y rounded-xl border border-white/8 bg-muted-700 px-3.5 py-3 text-sm leading-[1.55] text-white outline-none placeholder:text-muted-500 focus:border-primary-400" />
           </div>
 
+          <!-- Same reasoning as the reply composer: no upload endpoint, so no
+               drop zone. The ETA comes from config, like every other one. -->
           <div>
-            <label class="mb-2 block text-[12.5px] font-semibold text-white">Attachments <span class="font-normal text-muted-500">(optional)</span></label>
-            <button class="flex w-full flex-col items-center gap-1.5 rounded-xl border-[1.5px] border-dashed border-white/15 bg-muted-700 p-[22px] text-muted-400 hover:border-primary-400 hover:bg-primary-500/5 hover:text-white" @click="triggerNewAttach">
-              <Icon name="lucide:upload" class="size-[22px]" />
-              <span class="text-[13px]">Drop files here or <span class="font-semibold text-primary-400">browse</span></span>
-              <span class="text-[11.5px] text-muted-500">Screenshots, PDFs, briefs — up to 20 MB each</span>
-            </button>
-            <input ref="newFileRef" type="file" multiple class="hidden" @change="onNewFiles">
-            <div v-if="nFiles.length" class="mt-2.5 flex flex-wrap gap-2">
-              <div v-for="(f, i) in nFiles" :key="i" class="flex items-center gap-2.5 rounded-xl border border-white/8 bg-muted-700 py-2 pl-3 pr-2">
-                <span class="inline-flex size-7 shrink-0 items-center justify-center rounded-[7px] bg-primary-500/14 text-primary-400">
-                  <Icon name="lucide:file-text" class="size-3.5" />
-                </span>
-                <span class="min-w-0">
-                  <span class="block max-w-[160px] truncate text-[12.5px] font-semibold text-white">{{ f.name }}</span>
-                  <span class="block text-[11px] text-muted-500">{{ f.size }}</span>
-                </span>
-                <button aria-label="Remove" class="inline-flex size-9 items-center justify-center rounded-md text-muted-500 hover:text-[#EC6453] sm:size-7" @click="removeNewFile(i)">
-                  <Icon name="lucide:x" class="size-3" />
-                </button>
-              </div>
+            <span class="mb-2 block text-[12.5px] font-semibold text-white">Attachments <span class="font-normal text-muted-500">(optional)</span></span>
+            <div class="flex items-start gap-2.5 rounded-xl border border-white/8 bg-muted-700 px-3.5 py-3">
+              <Icon name="lucide:paperclip" class="mt-px size-[17px] shrink-0 text-primary-400" />
+              <span class="text-[12.5px] leading-relaxed text-muted-400">
+                Mention any files in your message and we'll reply with a secure upload link — usually within {{ replyEta }}.
+              </span>
             </div>
           </div>
 
@@ -684,7 +722,7 @@ const faqRows = computed(() => {
           Request sent
         </h3>
         <p class="mb-6 mt-2.5 text-[14.5px] leading-[1.6] text-muted-400">
-          Your ticket <strong class="text-white">#{{ submittedId.slice(0, 8).toUpperCase() }}</strong> is with our team. We'll reply within <strong class="text-white">{{ ETA[nPriority].label }}</strong> — you'll get a notification here and by email.
+          Your ticket <strong class="text-white">{{ ticketRef(submittedId) }}</strong> is with our team. We'll reply within <strong class="text-white">{{ ETA[nPriority].label }}</strong> — you'll get a notification here and by email.
         </p>
         <div class="flex flex-wrap items-center justify-center gap-3">
           <BaseButton rounded="full" variant="primary" class="shadow-[0_10px_24px_rgba(125,83,242,0.3)]" @click="viewNewTicket">
@@ -715,7 +753,7 @@ const faqRows = computed(() => {
 
         <div v-if="faqRows.length" class="flex flex-col gap-2.5">
           <div v-for="f in faqRows" :key="f.id" class="overflow-hidden rounded-xl border bg-muted-800" :class="faqOpen[f.id] ? 'border-primary-500/35' : 'border-white/8'">
-            <button class="flex w-full items-center gap-3.5 px-5 py-[17px] text-left hover:bg-muted-700" @click="toggleFaq(f.id)">
+            <button type="button" :aria-expanded="!!faqOpen[f.id]" class="apex-focus flex w-full items-center gap-3.5 px-5 py-[17px] text-left hover:bg-muted-700" @click="toggleFaq(f.id)">
               <span class="inline-flex items-center rounded-full px-[9px] py-1 text-[10.5px] font-extrabold uppercase tracking-[0.04em]" :class="[CATEGORIES[f.cat].text, CATEGORIES[f.cat].bg]">{{ CATEGORIES[f.cat].label }}</span>
               <span class="flex-1 text-[14.5px] font-semibold text-white">{{ f.q }}</span>
               <Icon name="lucide:chevron-down" class="size-[18px] shrink-0 text-muted-500 transition-transform" :class="faqOpen[f.id] ? 'rotate-180' : ''" />
@@ -755,16 +793,18 @@ const faqRows = computed(() => {
  * toggled per-state and per-breakpoint, and because `env()` inside a Tailwind
  * arbitrary value has bitten this project before.
  *
- * 109px is the shell above this page: the 76px top bar + its 32px margin +
- * the 1px divider. Keep it in step with DemoToolbar if that band changes.
+ * The height of the shell above this page comes from `--apex-shell-offset`
+ * (main.css), so the page cannot fall out of step with the top bar again — it
+ * did once already, when Phase 1 took that band from 56px to 76px and this
+ * file kept subtracting the old figure.
  */
 .apex-pane-h {
-  height: calc(100dvh - 109px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  height: calc(100dvh - var(--apex-shell-offset) - env(safe-area-inset-top) - env(safe-area-inset-bottom));
 }
 /* From lg up both panes are visible together, so the shell is always bounded. */
 @media (min-width: 1024px) {
   .apex-support {
-    height: calc(100dvh - 109px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+    height: calc(100dvh - var(--apex-shell-offset) - env(safe-area-inset-top) - env(safe-area-inset-bottom));
   }
 }
 .apex-rise {

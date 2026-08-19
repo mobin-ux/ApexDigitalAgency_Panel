@@ -118,6 +118,23 @@
   --radius-control: 0.75rem;
 }
 
+/*
+ * Height of the shell above a page's content: the 76px DemoToolbar band plus
+ * its 32px bottom margin plus the 1px divider.
+ *
+ * Pages that need a bounded, internally-scrolling height (the Support inbox)
+ * subtract this from `100dvh`. It lives here rather than in each page because
+ * the number belongs to the shell: Phase 1 changed the bar from 56px to 76px
+ * and every page-local copy of the old figure silently became wrong. Anything
+ * that changes the band's height changes this line, and nothing else.
+ *
+ * Plain `:root`, not `@theme` — this is consumed by `calc()` in a page's
+ * scoped CSS, not by a Tailwind utility.
+ */
+:root {
+  --apex-shell-offset: 109px;
+}
+
 @layer base {
   [lang^='ar'] {
     --font-sans: 'Noto Naskh Arabic', sans-serif;

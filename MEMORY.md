@@ -2,7 +2,7 @@
 
 > Handoff doc for continuing work in fresh sessions. Update the relevant section
 > whenever a page ships, a decision lands, or a blocker appears.
-> Last updated: **2026-08-19** (V2 redesign Phase 5 — Wallet & Credit).
+> Last updated: **2026-08-19** (V2 redesign Phase 6 — Support).
 
 ## Where things stand
 
@@ -57,8 +57,9 @@ Read it with the `DesignSync` tool (`method: get_file`).
 | 3 | New Order (`services.vue`) | ✅ Done |
 | 4 | My Orders (`orders.vue`) | ✅ Done |
 | 5 | Wallet & Credit (`wallet.vue`) | ✅ Done |
-| 6 | Support (`support.vue`) | ⬅ next |
-| 7–9 | Settings · Auth · Mobile/Light | ☐ |
+| 6 | Support (`support.vue`) | ✅ Done |
+| 7 | Settings (`settings.vue`) | ⬅ next |
+| 8–9 | Auth · Mobile/Light | ☐ |
 
 **Phase 1 shipped:** Apex brand mark (+ favicon/title), 44px nav rows with a
 violet `color-mix` active tint, hairline sub-nav, one account dropdown with
@@ -201,6 +202,69 @@ prefers light. Measured identical at the pre-Phase-5 commit, so Phase 5 left it
 exactly as found; the V2-rebuilt pages (balance/orders/services) are already
 clean. Fixing it means inventing a light palette for a page whose light
 treatment has never been designed — that is Phase 9.
+
+**Phase 6 shipped (Support):** `support.vue`, plus one editorial string in
+`server/utils/catalog.ts` and one new custom property in `main.css`. No API
+change — the reply body is still `{ content }`.
+
+- **The composer accepted files and threw them away.** A working picker showed
+  chips, then `sendReply()` posted `{ content: text }` and cleared them: an
+  interaction indistinguishable from success. Same on the New Request drop
+  zone. `TicketMessage` has no attachment relation and there is no upload
+  endpoint, so the spec offered two honest resolutions and the mockup's own
+  default (`attMode: "interim"`) picks the frontend one. Both composers now
+  carry a note saying we'll reply with a secure upload link; `draftFiles`,
+  `nFiles`, both `<input type=file>`, `formatSize` and the six handlers are
+  gone. **Option A (ship `POST /api/support/:id/attachments` + an attachment
+  relation) is still the better end state** — it is the uploads phase of the
+  plan file — but it is a schema migration, and this phase was scoped to keep
+  the backend intact.
+- **The FAQ described the feature that doesn't exist** ("Attach files directly
+  to any support conversation"). Rewritten in `DEFAULT_FAQ`. Note it is a
+  Setting-backed default, so an environment with a `support.faq` row already
+  written keeps its own copy.
+- **The unread dot never went out.** `unread` was `messages[0]?.isAdmin` —
+  "staff spoke last", true forever. Now compared against a per-ticket last-read
+  timestamp in `useLocalStorage('apex:support:lastRead')`, with an
+  `aria-label`. Marking read follows visibility, not selection: below `lg` the
+  detail pane is hidden until a row is tapped, so the auto-selected ticket is
+  not marked read there.
+- **"First reply —" flickered** before the lazily fetched thread landed; a
+  skeleton renders while `threadLoading`, so "—" now only means "no reply yet".
+- **The empty state hardcoded "within 15 minutes"** beside a header pill
+  reading `replyEta` from config. Both read config now.
+- **The shell offset was a magic number in the page.** `.apex-pane-h`
+  subtracted a literal `109px`; Phase 1 changing the bar from 56px to 76px is
+  exactly how that kind of number goes stale. Now `--apex-shell-offset` in
+  `main.css`, consumed by the page's `calc()`.
+- Also: the last two native `<select>` in the V2 customer pages became
+  `BaseSelect` (dark portal, 44px triggers); tab strip → `aria-pressed`
+  (matching Phases 4–5); FAQ accordions → `aria-expanded`; reply textarea
+  labelled; Subject/Message got `<label for>` and the priority buttons got
+  `role="group" aria-label="Priority"`; `ticketRef()` defines the `#XXXXXXXX`
+  format once; a comment records that `catKey()`'s substring precedence is
+  deliberate; the dead `const toaster` (unused since before this phase) removed.
+
+Verified: unread dot appears on a staff-replied ticket, clears on open, stays
+cleared across reload, and re-lights after a *new* staff reply (exercised with
+the real admin reply endpoint). Thread-fetch delayed to catch the skeleton →
+skeleton then value, never a bare "—" mid-load. Category popup renders
+`rgb(11,21,23)` with light options, not an OS menu. Reply still posts
+`{"content":"…"}` and appends a bubble. Zero horizontal overflow at a true
+375px on all three tabs with the composer above the fold; `.apex-support` top
+measured 109px and 109 + pane height = viewport exactly. Light theme measured
+identical to HEAD (1 / 2 / 2 low-contrast elements, same ones — pre-existing,
+Phase 9). ESLint clean, console clean on a fresh tab, all six customer routes
+SSR 200.
+
+### Phase 6 gotcha — dev seeds can't authenticate
+
+`/api/seed-support` verifies with `process.env.JWT_SECRET || 'secret'` while
+login signs with `runtimeConfig.jwtSecret`, so a perfectly valid session gets
+`invalid signature` and a raw 500. Pre-existing and dev-only; left alone
+because this phase was not to touch server auth. To make support test data,
+use the real endpoints: `POST /api/support/create` as the customer and
+`POST /api/admin/tickets/:id/reply` as the admin.
 
 ## Remaining queue (older, pre-V2)
 
