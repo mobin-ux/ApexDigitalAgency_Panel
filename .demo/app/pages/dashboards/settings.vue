@@ -1,834 +1,807 @@
 <script setup lang="ts">
 /**
- * Profile Settings - Backend Integrated
- * -------------------------------------
- * Connected to Prisma Database via API.
- * Handles Profile, Company, and Security updates.
+ * Settings — Apex Design V2, Phase 7.
+ *
+ * Four sections down a vertical sub-nav: Profile (the person), Company (the
+ * business), Security (credentials), Billing (what goes on a receipt).
+ *
+ * The rule this page is built on: **only render a field the API round-trips.**
+ * The previous version collected a preferred name, family status, birthday,
+ * gender, a legal address, socials and a bio, but `onMounted` read back only
+ * `city` and `country` — so those fields came back blank on reload and the
+ * next save overwrote whatever had been stored. Everything rendered here is
+ * returned by GET /api/settings/get-all and persisted by PUT
+ * /api/settings/update-all; anything else is deliberately absent.
+ *
+ * Omitting a field is safe, not destructive: `update-all` writes each column
+ * with `?? undefined`, which Prisma skips, so the values this page no longer
+ * shows (bio, gender, coverImage, city, country, and the CRM fields below)
+ * keep whatever they already hold.
+ *
+ * Not offered here, because the backing data does not exist (TODO(api)):
+ *  - Company number, trading name and a structured UK address (line 1/2, town,
+ *    county, postcode). `Company` has one free-text `address` column, so the
+ *    registered office is one field. Rendering separate boxes for numbers we
+ *    cannot store would recreate the exact write-then-lose bug above.
+ *  - Avatar and company-logo upload. There is no upload endpoint, and the old
+ *    base64 path did not merely bloat the request — `avatar` is capped at 500
+ *    characters by the endpoint's schema, so any real photo made the *entire*
+ *    settings save fail with a 400. Initials are used until
+ *    `POST /api/settings/avatar` exists.
+ *  - A device/session list and two-factor auth. Both are stated as pending
+ *    rather than mocked; the previous page invented a MacBook in New York and
+ *    wired its revoke button to an empty function.
+ *
+ * Income, employee count, account manager and company status were removed from
+ * customer control — they are internal CRM fields, and a customer could set
+ * their own account to Inactive or pick who managed them. They belong to the
+ * admin customer view.
  */
-
-import { onMounted, reactive, ref } from 'vue'
-
-// --- 1. CONFIG ---
 definePageMeta({
-  title: 'Profile Settings',
+  title: 'Settings',
   layout: 'sidenav',
-  middleware: 'auth', // محافظت از صفحه
+  middleware: 'auth',
 })
 
 const toaster = useNuiToasts()
 
-const activeTab = ref<'general' | 'company' | 'security' | 'billing'>('company')
-const isLoading = ref(false)
-const isUploading = ref(false)
+// ---- data -------------------------------------------------------------------
+// `useFetch`, like every other page: SSR'd, with a `pending` flag to render a
+// skeleton from. The old page used `onMounted` + `$fetch`, which guaranteed a
+// flash of empty inputs on every visit.
+const { data: settings, pending, refresh } = await useFetch<any>('/api/settings/get-all', { lazy: true })
 
-// --- 2. DATA MODELS (Reactive) ---
-const userForm = reactive({
-  avatar: '',
-  coverImage: '',
+const account = computed(() => (settings.value as any)?.user ?? null)
+
+// ---- sections ---------------------------------------------------------------
+type SectionKey = 'profile' | 'company' | 'security' | 'billing'
+
+const SECTIONS: { key: SectionKey, label: string, icon: string }[] = [
+  { key: 'profile', label: 'Profile', icon: 'lucide:user' },
+  { key: 'company', label: 'Company', icon: 'lucide:building-2' },
+  { key: 'security', label: 'Security', icon: 'lucide:shield' },
+  { key: 'billing', label: 'Billing', icon: 'lucide:receipt' },
+]
+
+// Profile, not Company: someone opening Settings is looking for their own
+// details first. The labels are explicit rather than `capitalize`d off the
+// keys, which used to render the first tab as "general".
+const section = ref<SectionKey>('profile')
+
+// ---- business types ---------------------------------------------------------
+/**
+ * UK legal forms. The previous list — Solo / Small Company (LLC) / Medium
+ * Company (Corp) / Bigger Company — was US-flavoured size bands, and "LLC" is
+ * not a thing in UK law. Stored in the existing free-text `Company.type`
+ * column, so this needs no migration.
+ */
+const BUSINESS_TYPES = [
+  { key: 'ltd', label: 'Private limited company (Ltd)' },
+  { key: 'plc', label: 'Public limited company (PLC)' },
+  { key: 'llp', label: 'Limited liability partnership (LLP)' },
+  { key: 'cic', label: 'Community interest company (CIC)' },
+  { key: 'charity', label: 'Charity' },
+  { key: 'sole', label: 'Sole trader' },
+  { key: 'partnership', label: 'Partnership' },
+] as const
+
+/** Types registered at Companies House — they have a registered office. */
+const INCORPORATED = new Set(['ltd', 'plc', 'llp', 'cic', 'charity'])
+
+// ---- form -------------------------------------------------------------------
+// One object for everything PUT /api/settings/update-all accepts, so dirty
+// tracking is a single comparison. Email is not here: the endpoint documents
+// that changing the login identity needs verification, so it is shown
+// read-only rather than offered as an input that silently does nothing.
+const form = reactive({
   firstName: '',
   lastName: '',
-  preferredName: '',
-  email: '',
   phone: '',
-  role: 'Customer', // Read-only mostly
-  bio: '',
-  familyStatus: 'Single',
-  birthDay: '',
-  birthMonth: '',
-  birthYear: '',
-  gender: 'Other',
-  mailingAddress: { street: '', city: '', state: '', zip: '', country: '' },
-  legalAddress: { street: '', city: '', state: '', zip: '', country: '' },
-  socials: { twitter: '', linkedin: '' },
+  companyName: '',
+  companyType: '',
+  companyWebsite: '',
+  companyEmail: '',
+  companyPhone: '',
+  companyAddress: '',
+  companyNotes: '',
+  vatNumber: '',
 })
 
-const companyForm = reactive({
-  logo: '',
-  name: '',
-  email: '',
-  website: '',
-  phone: '',
-  taxId: '',
-  address: '',
-  type: '',
-  income: '',
-  employees: '',
-  manager: '',
-  status: 'Active',
-  notes: '',
-})
+/** Serialised copy of the last loaded values — the baseline for dirty/discard. */
+const baseline = ref('')
 
-const securityForm = reactive({
-  currentPassword: '',
-  newPassword: '',
-  confirmPassword: '',
-  twoFactor: false,
-})
+function hydrate() {
+  const u = account.value
+  if (!u)
+    return
+  form.firstName = u.firstName || ''
+  form.lastName = u.lastName || ''
+  form.phone = u.phone || ''
 
-// --- 3. FETCH DATA ON LOAD ---
-onMounted(async () => {
-  try {
-    const { user } = await $fetch<any>('/api/settings/get-all')
+  const c = u.company
+  form.companyName = c?.name || ''
+  // Legacy rows hold the old size bands; an unrecognised value becomes empty
+  // so the control shows its placeholder instead of answering for the customer.
+  form.companyType = BUSINESS_TYPES.some(t => t.key === c?.type) ? c!.type : ''
+  form.companyWebsite = c?.website || ''
+  form.companyEmail = c?.email || ''
+  form.companyPhone = c?.phone || ''
+  form.companyAddress = c?.address || ''
+  form.companyNotes = c?.notes || ''
+  form.vatNumber = c?.taxId || ''
 
-    // Fill User Data
-    userForm.firstName = user.firstName || ''
-    userForm.lastName = user.lastName || ''
-    userForm.email = user.email || ''
-    userForm.phone = user.phone || ''
-    userForm.role = user.role || 'Customer'
-    userForm.bio = user.bio || ''
-    userForm.avatar = user.avatar || 'https://i.pravatar.cc/150?u=101'
-    userForm.coverImage = user.coverImage || 'https://images.unsplash.com/photo-1614850523459-c2f4c699c52e?auto=format&fit=crop&w=1400&q=80'
-    userForm.gender = user.gender || 'Other'
-    userForm.mailingAddress.city = user.city || ''
-    userForm.mailingAddress.country = user.country || ''
-
-    // Fill Company Data (if exists)
-    if (user.company) {
-      companyForm.name = user.company.name
-      companyForm.email = user.company.email || ''
-      companyForm.website = user.company.website || ''
-      companyForm.phone = user.company.phone || ''
-      companyForm.taxId = user.company.taxId || ''
-      companyForm.type = user.company.type || ''
-      companyForm.income = user.company.income || ''
-      companyForm.employees = user.company.employees || ''
-      companyForm.manager = user.company.manager || ''
-      companyForm.status = user.company.status || 'Active'
-      companyForm.notes = user.company.notes || ''
-      companyForm.logo = user.company.logo || 'https://img.logoipsum.com/296.svg'
-    }
-  }
-  catch (e) {
-    console.error('Failed to load profile', e)
-  }
-})
-
-// --- 4. ACTIONS ---
-
-// Handle Image Upload (Convert to Base64 for simplicity in this demo)
-function handleImageUpload(event: Event, type: 'avatar' | 'cover') {
-  const input = event.target as HTMLInputElement
-  if (input.files && input.files[0]) {
-    isUploading.value = true
-    const reader = new FileReader()
-    reader.onload = (e) => {
-      if (e.target?.result) {
-        if (type === 'avatar')
-          userForm.avatar = e.target.result as string
-        if (type === 'cover')
-          userForm.coverImage = e.target.result as string
-      }
-      isUploading.value = false
-    }
-    reader.readAsDataURL(input.files[0])
-  }
+  baseline.value = JSON.stringify(form)
 }
 
-// Save All Data
+watch(account, hydrate, { immediate: true })
+
+const isDirty = computed(() => baseline.value !== '' && JSON.stringify(form) !== baseline.value)
+
+function discard() {
+  hydrate()
+  toaster.add({ title: 'Changes discarded', description: 'The form is back to your saved details.', icon: 'lucide:undo-2', progress: true })
+}
+
+const isIncorporated = computed(() => INCORPORATED.has(form.companyType))
+
+/**
+ * The address heading follows the legal form: a sole trader has no registered
+ * office, so asking for one asks for something that cannot exist. Same field
+ * either way — only the label and hint change.
+ */
+const addressLabel = computed(() => (isIncorporated.value ? 'Registered office address' : 'Business address'))
+const addressHint = computed(() =>
+  isIncorporated.value
+    ? 'The address on your Companies House record. It is often your accountant\'s, and may differ from where you work.'
+    : 'Where your business operates. Used on contracts and receipts.',
+)
+
+// ---- VAT number -------------------------------------------------------------
+/** GB VAT: 9 digits, 12 for a branch, or GD/HA + 3 for government and health bodies. */
+const VAT_RE = /^GB(?:\d{9}|\d{12}|GD\d{3}|HA\d{3})$/
+
+const vatNormalised = computed(() => form.vatNumber.replace(/\s+/g, '').toUpperCase())
+
+/**
+ * Format check only — this says the number is *shaped* like a GB VAT number,
+ * never that it is registered. Claiming the latter would need HMRC's API.
+ */
+const vatState = computed<'empty' | 'valid' | 'invalid'>(() => {
+  if (!form.vatNumber.trim())
+    return 'empty'
+  return VAT_RE.test(vatNormalised.value) ? 'valid' : 'invalid'
+})
+
+const vatMessage = computed(() => {
+  if (vatState.value === 'empty')
+    return 'Leave blank if you\'re not VAT registered.'
+  if (vatState.value === 'valid')
+    return 'Valid format.'
+  if (!vatNormalised.value.startsWith('GB'))
+    return 'A GB VAT number starts with GB — for example GB123456789.'
+  return 'Expected GB followed by 9 digits (12 for a branch).'
+})
+
+function onVatInput() {
+  form.vatNumber = form.vatNumber.toUpperCase()
+}
+
+// ---- save -------------------------------------------------------------------
+const saving = ref(false)
+
 async function saveAll() {
-  isLoading.value = true
+  if (!isDirty.value || saving.value)
+    return
+  saving.value = true
   try {
-    // 1. Save Profile & Company
     await $fetch('/api/settings/update-all', {
       method: 'PUT',
       body: {
-        user: userForm,
-        company: companyForm,
+        // `role` is deliberately not sent. A client must never be able to
+        // submit its own role, and the endpoint would ignore it anyway.
+        user: {
+          firstName: form.firstName.trim(),
+          lastName: form.lastName.trim(),
+          phone: form.phone.trim(),
+        },
+        company: {
+          name: form.companyName.trim(),
+          type: form.companyType,
+          website: form.companyWebsite.trim(),
+          email: form.companyEmail.trim(),
+          phone: form.companyPhone.trim(),
+          address: form.companyAddress.trim(),
+          notes: form.companyNotes.trim(),
+          taxId: vatNormalised.value,
+        },
       },
     })
-
-    // 2. Save Password (if filled)
-    if (securityForm.newPassword) {
-      if (securityForm.newPassword !== securityForm.confirmPassword) {
-        toaster.add({ title: 'Passwords do not match', description: 'Re-enter the new password and confirm it.', icon: 'lucide:alert-triangle', progress: true })
-        isLoading.value = false
-        return
-      }
-      await $fetch('/api/settings/password', {
-        method: 'POST',
-        body: {
-          currentPassword: securityForm.currentPassword,
-          newPassword: securityForm.newPassword,
-        },
-      })
-      // Clear password fields on success
-      securityForm.currentPassword = ''
-      securityForm.newPassword = ''
-      securityForm.confirmPassword = ''
-    }
-
-    toaster.add({ title: 'Settings saved', description: 'Your profile and company details are up to date.', icon: 'lucide:check', progress: true })
+    await refresh()
+    toaster.add({ title: 'Settings saved', description: 'Your details are up to date.', icon: 'lucide:check', progress: true })
   }
   catch (error: any) {
-    toaster.add({ title: 'Could not save settings', description: error?.statusMessage || error?.data?.message || 'Please try again.', icon: 'lucide:alert-triangle', progress: true })
+    toaster.add({
+      title: 'Could not save settings',
+      description: error?.data?.message || error?.statusMessage || 'Please try again.',
+      icon: 'lucide:alert-triangle',
+      progress: true,
+    })
   }
   finally {
-    isLoading.value = false
+    saving.value = false
   }
 }
 
-// Mock Session/Invoice Data (Keep static for UI demo)
-const activeSessions = ref([
-  { id: 1, device: 'MacBook Pro 16"', os: 'macOS Sonoma', location: 'New York, USA', ip: '192.168.1.1', status: 'Active', lastActive: 'Now', icon: 'lucide:laptop' },
-])
-const invoices = ref([
-  { id: 'INV-001', date: 'Oct 01, 2025', amount: '$29.00', status: 'Paid' },
-])
-function revokeSession(id: number) {} // Placeholder
+// ---- password ---------------------------------------------------------------
+/**
+ * Its own form and its own button. The old page posted the profile first and
+ * only then compared the two password fields, so a typo in "confirm" produced
+ * an error toast on a save that had already partly succeeded. Everything here
+ * validates before any request is made.
+ */
+const pwForm = reactive({ current: '', next: '', confirm: '' })
+const pwError = ref('')
+const pwSaving = ref(false)
 
-// --- 5. OPTIONS (Static) ---
-const companyTypes = ['Solo', 'Small Company (LLC)', 'Medium Company (Corp)', 'Bigger Company']
-const incomeRanges = ['0 - 250K', '250K - 500K', '500K - 1M', '1M - 5M', '10M+']
-const employeeRanges = ['1-10 employees', '10-50 employees', '50-100 employees', '100+ employees']
-const managers = ['Sales Manager', 'Project Manager', 'UI/UX Designer', 'Mobile Developer', 'Product Manager']
-const familyStatusOptions = ['Single', 'Married', 'Divorced', 'Widow/Widower']
-const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
-const days = Array.from({ length: 31 }, (_, i) => (i + 1).toString())
-const years = Array.from({ length: 80 }, (_, i) => (2024 - i).toString())
-const countries = ['United States', 'Canada', 'France', 'Germany', 'Spain', 'China', 'Japan']
+/** Matches signup's minimum, which the password endpoint's own comment asks for. */
+const PW_MIN = 8
+
+const pwScore = computed(() => {
+  const v = pwForm.next
+  if (!v)
+    return 0
+  let score = 0
+  if (v.length >= PW_MIN)
+    score++
+  if (v.length >= 12)
+    score++
+  if (/[a-z]/.test(v) && /[A-Z]/.test(v))
+    score++
+  if (/\d/.test(v) && /[^\w\s]/.test(v))
+    score++
+  return score
+})
+
+const PW_LABELS = ['', 'Weak', 'Fair', 'Good', 'Strong'] as const
+const pwLabel = computed(() => PW_LABELS[pwScore.value] ?? '')
+const pwTone = computed(() => {
+  if (pwScore.value <= 1)
+    return { bar: 'bg-[#EC6453]', text: 'text-[#EC6453]' }
+  if (pwScore.value === 2)
+    return { bar: 'bg-[#F2C14E]', text: 'text-[#F2C14E]' }
+  if (pwScore.value === 3)
+    return { bar: 'bg-primary-400', text: 'text-primary-400' }
+  return { bar: 'bg-[#22B07D]', text: 'text-[#22B07D]' }
+})
+
+async function updatePassword() {
+  pwError.value = ''
+  if (!pwForm.current) {
+    pwError.value = 'Enter your current password.'
+    return
+  }
+  if (pwForm.next.length < PW_MIN) {
+    pwError.value = `Your new password needs at least ${PW_MIN} characters.`
+    return
+  }
+  if (pwForm.next === pwForm.current) {
+    pwError.value = 'The new password must be different from your current one.'
+    return
+  }
+  if (pwForm.next !== pwForm.confirm) {
+    pwError.value = 'The two new password fields don\'t match.'
+    return
+  }
+
+  pwSaving.value = true
+  try {
+    await $fetch('/api/settings/password', {
+      method: 'POST',
+      body: { currentPassword: pwForm.current, newPassword: pwForm.next },
+    })
+    pwForm.current = ''
+    pwForm.next = ''
+    pwForm.confirm = ''
+    toaster.add({ title: 'Password updated', description: 'Use your new password next time you sign in.', icon: 'lucide:check', progress: true })
+  }
+  catch (error: any) {
+    pwError.value = error?.data?.message || error?.statusMessage || 'Could not update your password. Please try again.'
+  }
+  finally {
+    pwSaving.value = false
+  }
+}
+
+// ---- this device ------------------------------------------------------------
+/**
+ * There is no session store, so this describes the browser you are using right
+ * now and nothing else. It resolves in `onMounted` because it reads
+ * `navigator`: anything derived from the browser during SSR mismatches on
+ * hydration (the shell's ⌘/Ctrl hint learned that the hard way).
+ */
+const thisDevice = ref('This browser')
+
+onMounted(() => {
+  const ua = navigator.userAgent
+  const browser = /Edg\//.test(ua)
+    ? 'Edge'
+    : /Chrome\//.test(ua)
+      ? 'Chrome'
+      : /Safari\//.test(ua)
+        ? 'Safari'
+        : /Firefox\//.test(ua) ? 'Firefox' : 'Your browser'
+  const os = /Windows/.test(ua)
+    ? 'Windows'
+    : /Mac OS X/.test(ua)
+      ? 'macOS'
+      : /Android/.test(ua)
+        ? 'Android'
+        : /iPhone|iPad/.test(ua) ? 'iOS' : 'this device'
+  thisDevice.value = `${browser} on ${os}`
+})
+
+// ---- display ----------------------------------------------------------------
+const fullName = computed(() => {
+  const name = `${form.firstName} ${form.lastName}`.trim()
+  return name || account.value?.email || 'Your account'
+})
+
+/**
+ * Initials, never a stock photograph. The old fallback was
+ * `https://i.pravatar.cc/150?u=101` — a real, random person's face presented
+ * as the customer's own account, fetched from a third party on every load.
+ */
+const initials = computed(() => {
+  const a = (form.firstName || '').trim()[0] || ''
+  const b = (form.lastName || '').trim()[0] || ''
+  const pair = `${a}${b}`.toUpperCase()
+  return pair || (account.value?.email || '?').slice(0, 2).toUpperCase()
+})
+
+const companyInitials = computed(() => {
+  const words = form.companyName.trim().split(/\s+/).filter(Boolean)
+  if (!words.length)
+    return '—'
+  return words.slice(0, 2).map(w => w[0]!.toUpperCase()).join('')
+})
+
+const accountType = computed(() => (account.value?.role === 'ADMIN' ? 'Admin account' : 'Client account'))
+
+/** Where receipts are sent — derived, never a second stored copy. */
+const receiptEmail = computed(() => form.companyEmail.trim() || account.value?.email || '')
+
+const INPUT_CLASS
+  = 'apex-focus w-full rounded-xl border border-white/8 bg-muted-700 px-3.5 py-3 text-sm text-white outline-none placeholder:text-muted-500 focus:border-primary-400'
+const LABEL_CLASS = 'mb-2 block text-[12.5px] font-semibold text-white'
 </script>
 
 <template>
-  <div class="w-full min-h-screen bg-[#0f111a] font-sans text-muted-100 p-4 md:p-6 lg:p-8 flex flex-col overflow-x-hidden relative">
-    <input ref="avatarInput" type="file" class="hidden" accept="image/*" @change="(e) => handleImageUpload(e, 'avatar')">
-    <input ref="coverInput" type="file" class="hidden" accept="image/*" @change="(e) => handleImageUpload(e, 'cover')">
+  <div class="mx-auto flex max-w-[1180px] flex-col gap-8">
+    <ApexPageHeader
+      title="Account"
+      accent="settings"
+      subtitle="Your details, your company record and how you sign in."
+    >
+      <template #actions>
+        <!--
+          A light/dark token pair, not a forced `text-white!`: BaseButton's own
+          background is white in light mode, so white text on it disappears
+          entirely. The rest of this page sits on `muted-800`, which is dark in
+          both themes, but a control with its own surface needs both halves.
+        -->
+        <BaseButton
+          rounded="full"
+          class="apex-focus h-11! border-muted-300! dark:border-white/8! bg-muted-100! dark:bg-muted-800! text-muted-700! dark:text-white! border px-5"
+          :disabled="!isDirty || saving"
+          @click="discard"
+        >
+          Discard
+        </BaseButton>
+        <!--
+          Disabled until something actually changed. The old button was always
+          live, so "Save Changes" on an untouched form fired a PUT and a success
+          toast for nothing.
+        -->
+        <BaseButton
+          rounded="full"
+          variant="primary"
+          class="h-11! px-6 shadow-[0_10px_24px_rgba(125,83,242,0.32)]"
+          :disabled="!isDirty || saving"
+          @click="saveAll"
+        >
+          <Icon v-if="saving" name="lucide:loader-2" class="size-4 animate-spin" />
+          <Icon v-else name="lucide:check" class="size-4" />
+          <span>{{ saving ? 'Saving…' : 'Save changes' }}</span>
+        </BaseButton>
+      </template>
+    </ApexPageHeader>
 
-    <div class="fixed inset-0 pointer-events-none -z-10 overflow-hidden">
-      <div class="absolute top-[-10%] right-[-5%] w-[600px] h-[600px] bg-primary-500/5 rounded-full blur-[120px] mix-blend-screen" />
-      <div class="absolute bottom-[-10%] left-[-5%] w-[700px] h-[700px] bg-indigo-600/5 rounded-full blur-[120px] mix-blend-screen" />
-      <div class="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-[0.03] brightness-100 contrast-150" />
-    </div>
-
-    <div class="max-w-[1400px] mx-auto w-full relative z-10 mb-8">
-      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 class="text-3xl font-light text-white tracking-tight">
-            Account <span class="font-bold text-[#6366f1]">Settings</span>
-          </h1>
-          <p class="text-xs text-muted-500 mt-1.5 font-medium">
-            Manage your personal data, company info, and preferences.
-          </p>
-        </div>
-
-        <div class="flex items-center gap-3">
-          <button class="flex-1 md:flex-none px-5 py-3.5 md:py-2.5 rounded-xl border border-white/5 hover:bg-white/5 text-muted-400 hover:text-white text-xs font-bold uppercase tracking-wider transition-all duration-300">
-            Discard
-          </button>
-          <button
-            :disabled="isLoading"
-            class="relative overflow-hidden flex flex-1 md:flex-none items-center justify-center gap-2 px-8 py-3.5 md:py-2.5 rounded-xl bg-[#6366f1] hover:bg-indigo-500 text-white text-xs font-bold uppercase tracking-wider transition-all shadow-[0_0_20px_rgba(99,102,241,0.3)] disabled:opacity-60 disabled:cursor-not-allowed group"
-            @click="saveAll"
-          >
-            <span v-if="!isLoading" class="relative z-10 flex items-center gap-2">
-              Save Changes <Icon name="lucide:check" class="w-3.5 h-3.5 group-hover:scale-125 transition-transform" />
-            </span>
-            <span v-else class="relative z-10 flex items-center gap-2">
-              Processing <Icon name="lucide:loader-2" class="w-3.5 h-3.5 animate-spin" />
-            </span>
-            <div class="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out" />
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <div class="max-w-[1400px] mx-auto w-full grid grid-cols-1 lg:grid-cols-12 gap-8 items-start relative z-10">
-      <div class="lg:col-span-12 relative mb-12 animate-fade-in" style="animation-delay: 0.1s;">
-        <div class="relative w-full h-52 md:h-72 rounded-[2.5rem] overflow-hidden border border-white/5 shadow-2xl group select-none">
-          <div v-if="isUploading" class="absolute inset-0 z-20 bg-black/60 backdrop-blur-sm flex items-center justify-center">
-            <Icon name="lucide:loader-2" class="w-8 h-8 text-white animate-spin" />
-          </div>
-          <img :src="userForm.coverImage || ''" class="w-full h-full object-cover opacity-90 group-hover:scale-105 transition-transform duration-1000 ease-out">
-          <div class="absolute inset-0 bg-gradient-to-t from-[#0f111a] via-[#0f111a]/40 to-transparent" />
-          <button class="apex-reveal absolute top-4 right-4 md:top-6 md:right-6 px-4 py-3 md:py-2 rounded-2xl bg-black/40 hover:bg-black/60 backdrop-blur-md border border-white/10 text-[11px] font-bold uppercase tracking-wider text-white transition-all flex items-center gap-2 group/btn translate-y-[-10px] opacity-0 group-hover:translate-y-0 group-hover:opacity-100" @click="$refs.coverInput.click()">
-            <Icon name="lucide:image-plus" class="w-4 h-4 text-[#6366f1]" /> <span>Edit Cover</span>
-          </button>
-        </div>
-
-        <div class="absolute -bottom-10 left-6 md:left-12 flex items-end gap-6 z-20">
-          <div class="relative group/avatar">
-            <div class="w-28 h-28 md:w-36 md:h-36 rounded-[2rem] p-1.5 bg-[#0f111a] shadow-2xl relative overflow-hidden">
-              <img :src="userForm.avatar || ''" class="w-full h-full rounded-[1.6rem] object-cover bg-[#1c1c1c]">
-              <div class="apex-reveal absolute inset-0 bg-black/60 backdrop-blur-[2px] flex flex-col items-center justify-center opacity-0 group-hover/avatar:opacity-100 transition-all duration-300 cursor-pointer rounded-[2rem]" @click="$refs.avatarInput.click()">
-                <Icon name="lucide:camera" class="w-6 h-6 text-white mb-1" />
-                <span class="text-[11px] font-bold text-white uppercase tracking-wider">Change</span>
-              </div>
-            </div>
-            <div class="absolute bottom-2 right-[-4px] w-6 h-6 bg-[#0f111a] rounded-full flex items-center justify-center z-30">
-              <div class="w-3.5 h-3.5 bg-emerald-500 rounded-full border-[3px] border-[#0f111a] shadow-[0_0_10px_#10b981]" />
-            </div>
-          </div>
-          <div class="mb-2 hidden md:block pb-1">
-            <h2 class="text-3xl font-bold text-white flex items-center gap-3">
-              {{ userForm.firstName }} {{ userForm.lastName }}
-              <div class="w-5 h-5 rounded-full bg-[#6366f1]/20 flex items-center justify-center border border-[#6366f1]/30">
-                <Icon name="lucide:check" class="w-3 h-3 text-[#6366f1]" />
-              </div>
-            </h2>
-            <p class="text-sm text-muted-400 font-medium mt-1 flex items-center gap-2">
-              <span class="text-[#6366f1]">{{ userForm.role }}</span>
-              <span class="w-1 h-1 rounded-full bg-muted-600" />
-              <span>{{ companyForm.name }}</span>
-            </p>
-          </div>
-        </div>
-      </div>
-
-      <div class="lg:col-span-12 md:hidden mb-6 mt-10 px-2 animate-fade-in">
-        <h2 class="text-2xl font-bold text-white">
-          {{ userForm.firstName }} {{ userForm.lastName }}
-        </h2>
-        <p class="text-sm text-muted-500">
-          {{ userForm.role }}
-        </p>
-      </div>
-
-      <div class="lg:col-span-3 flex flex-col gap-6 lg:sticky lg:top-6 animate-fade-in" style="animation-delay: 0.2s;">
-        <div class="bg-[#161925] border border-white/5 rounded-[2rem] p-3 shadow-xl overflow-hidden">
-          <nav class="flex flex-col gap-1">
+    <div class="grid grid-cols-1 gap-5 lg:grid-cols-[220px_1fr]">
+      <!-- ============================================================ SUB-NAV -->
+      <nav aria-label="Settings sections" class="lg:sticky lg:top-6 lg:self-start">
+        <ul class="flex gap-1 overflow-x-auto rounded-2xl border border-white/8 bg-muted-800 p-2 lg:flex-col lg:overflow-visible">
+          <li v-for="s in SECTIONS" :key="s.key" class="shrink-0 lg:w-full">
             <button
-              v-for="tab in ['general', 'company', 'security', 'billing']" :key="tab" class="group flex items-center gap-3 px-4 py-4 rounded-2xl text-left transition-all duration-300 relative overflow-hidden capitalize"
-              :class="activeTab === tab ? 'bg-white/5 text-white shadow-inner border border-white/5' : 'text-muted-400 hover:bg-white/[0.02] hover:text-white border border-transparent'"
-              @click="activeTab = tab"
+              type="button"
+              :aria-current="section === s.key ? 'page' : undefined"
+              class="apex-focus flex min-h-11 w-full items-center gap-3 whitespace-nowrap rounded-xl px-3.5 text-[14.5px] transition-colors"
+              :class="section === s.key
+                ? 'apex-nav-active font-semibold text-white'
+                : 'font-medium text-muted-400 hover:bg-muted-700/60 hover:text-white'"
+              @click="section = s.key"
             >
-              <div v-if="activeTab === tab" class="absolute left-0 top-1/2 -translate-y-1/2 h-8 w-1 bg-[#6366f1] rounded-r-full shadow-[0_0_10px_#6366f1]" />
-              <Icon :name="tab === 'general' ? 'lucide:user-circle' : tab === 'company' ? 'lucide:building-2' : tab === 'security' ? 'lucide:shield-check' : 'lucide:wallet'" class="w-5 h-5 shrink-0 transition-colors" :class="activeTab === tab ? 'text-[#6366f1]' : 'text-muted-500 group-hover:text-white'" />
-              <span class="text-sm font-bold tracking-wide">{{ tab }}</span>
+              <Icon :name="s.icon" class="size-[18px] shrink-0" :class="section === s.key ? 'text-white' : 'text-muted-500'" />
+              <span>{{ s.label }}</span>
             </button>
-          </nav>
-        </div>
-      </div>
+          </li>
+        </ul>
+      </nav>
 
-      <div class="lg:col-span-9 animate-fade-in" style="animation-delay: 0.3s;">
-        <div v-if="activeTab === 'general'" class="bg-[#161925] border border-white/5 rounded-[2.5rem] p-6 md:p-10 relative overflow-hidden">
-          <div class="absolute top-0 right-0 p-6 opacity-5 pointer-events-none">
-            <Icon name="lucide:user" class="w-64 h-64 text-white" />
-          </div>
-
-          <h3 class="text-xl font-bold text-white mb-8 relative z-10 flex items-center gap-2">
-            Personal Info <span class="text-xs font-normal text-muted-500 bg-white/5 px-2 py-1 rounded-lg">Basic info about you</span>
-          </h3>
-
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-6 relative z-10">
-            <div class="group">
-              <label class="block text-[11px] font-bold text-muted-400 uppercase tracking-widest mb-2 ml-1">First Name</label>
-              <input v-model="userForm.firstName" type="text" class="w-full bg-[#0f111a] border border-white/10 rounded-xl px-4 py-4 text-sm text-white focus:border-[#6366f1] focus:outline-none transition-all shadow-inner">
-            </div>
-            <div class="group">
-              <label class="block text-[11px] font-bold text-muted-400 uppercase tracking-widest mb-2 ml-1">Last Name</label>
-              <input v-model="userForm.lastName" type="text" class="w-full bg-[#0f111a] border border-white/10 rounded-xl px-4 py-4 text-sm text-white focus:border-[#6366f1] focus:outline-none transition-all shadow-inner">
-            </div>
-            <div class="group">
-              <label class="block text-[11px] font-bold text-muted-400 uppercase tracking-widest mb-2 ml-1">Preferred Name</label>
-              <input v-model="userForm.preferredName" type="text" class="w-full bg-[#0f111a] border border-white/10 rounded-xl px-4 py-4 text-sm text-white focus:border-[#6366f1] focus:outline-none transition-all shadow-inner">
-            </div>
-
-            <div class="group">
-              <label class="block text-[11px] font-bold text-muted-400 uppercase tracking-widest mb-2 ml-1">Email Address</label>
-              <input v-model="userForm.email" type="email" class="w-full bg-[#0f111a] border border-white/10 rounded-xl px-4 py-4 text-sm text-white focus:border-[#6366f1] focus:outline-none transition-all shadow-inner">
-            </div>
-            <div class="group">
-              <label class="block text-[11px] font-bold text-muted-400 uppercase tracking-widest mb-2 ml-1">Phone Number</label>
-              <input v-model="userForm.phone" type="tel" class="w-full bg-[#0f111a] border border-white/10 rounded-xl px-4 py-4 text-sm text-white focus:border-[#6366f1] focus:outline-none transition-all shadow-inner">
-            </div>
-
-            <div class="group relative">
-              <label class="block text-[11px] font-bold text-muted-400 uppercase tracking-widest mb-2 ml-1">Family Status</label>
-              <div class="relative">
-                <select v-model="userForm.familyStatus" class="w-full bg-[#0f111a] border border-white/10 rounded-xl pl-4 pr-10 py-4 text-sm text-white focus:border-[#6366f1] focus:outline-none appearance-none cursor-pointer">
-                  <option v-for="status in familyStatusOptions" :key="status" :value="status">
-                    {{ status }}
-                  </option>
-                </select>
-                <Icon name="lucide:chevron-down" class="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-500 pointer-events-none" />
-              </div>
-            </div>
-
-            <div class="md:col-span-2">
-              <label class="block text-[11px] font-bold text-muted-400 uppercase tracking-widest mb-2 ml-1">Birthday</label>
-              <!-- Three selects in one row is tight on a phone: drop the gap and the
-           chevron gutter so each field keeps a usable text area. -->
-              <div class="grid grid-cols-3 gap-2 sm:gap-4">
-                <div class="relative">
-                  <select v-model="userForm.birthDay" class="w-full min-w-0 bg-[#0f111a] border border-white/10 rounded-xl pl-3 pr-7 sm:pl-4 sm:pr-8 py-4 text-sm text-white focus:border-[#6366f1] focus:outline-none appearance-none cursor-pointer">
-                    <option value="" disabled>
-                      Day
-                    </option>
-                    <option v-for="day in days" :key="day" :value="day">
-                      {{ day }}
-                    </option>
-                  </select>
-                  <Icon name="lucide:chevron-down" class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-500 pointer-events-none" />
-                </div>
-                <div class="relative">
-                  <select v-model="userForm.birthMonth" class="w-full min-w-0 bg-[#0f111a] border border-white/10 rounded-xl pl-3 pr-7 sm:pl-4 sm:pr-8 py-4 text-sm text-white focus:border-[#6366f1] focus:outline-none appearance-none cursor-pointer">
-                    <option value="" disabled>
-                      Month
-                    </option>
-                    <option v-for="month in months" :key="month" :value="month">
-                      {{ month }}
-                    </option>
-                  </select>
-                  <Icon name="lucide:chevron-down" class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-500 pointer-events-none" />
-                </div>
-                <div class="relative">
-                  <select v-model="userForm.birthYear" class="w-full min-w-0 bg-[#0f111a] border border-white/10 rounded-xl pl-3 pr-7 sm:pl-4 sm:pr-8 py-4 text-sm text-white focus:border-[#6366f1] focus:outline-none appearance-none cursor-pointer">
-                    <option value="" disabled>
-                      Year
-                    </option>
-                    <option v-for="year in years" :key="year" :value="year">
-                      {{ year }}
-                    </option>
-                  </select>
-                  <Icon name="lucide:chevron-down" class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-500 pointer-events-none" />
-                </div>
-              </div>
-            </div>
-
-            <div class="md:col-span-2">
-              <label class="block text-[11px] font-bold text-muted-400 uppercase tracking-widest mb-2 ml-1">Gender</label>
-              <div class="flex gap-4">
-                <button
-                  v-for="g in ['Male', 'Female', 'Other']" :key="g"
-                  class="flex-1 py-3 rounded-xl border transition-all flex items-center justify-center gap-2 text-sm font-medium"
-                  :class="userForm.gender === g ? 'bg-[#6366f1]/10 border-[#6366f1] text-[#6366f1]' : 'bg-[#0f111a] border-white/10 text-muted-400 hover:border-white/20 hover:text-white'"
-                  @click="userForm.gender = g"
-                >
-                  <Icon :name="g === 'Male' ? 'lucide:move-right' : g === 'Female' ? 'lucide:move-up-right' : 'lucide:circle'" class="w-4 h-4" />
-                  {{ g }}
-                </button>
-              </div>
-            </div>
-
-            <div class="md:col-span-2 h-px bg-white/5 my-4" />
-
-            <div class="md:col-span-2">
-              <h4 class="text-sm font-bold text-white mb-4 flex items-center gap-2">
-                <div class="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400">
-                  <Icon name="lucide:mail" class="w-4 h-4" />
-                </div>
-                Mailing Address
-              </h4>
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div class="md:col-span-2 group">
-                  <label class="block text-[11px] font-bold text-muted-400 uppercase tracking-widest mb-2 ml-1">Address (Street / Suite)</label>
-                  <input v-model="userForm.mailingAddress.street" type="text" class="w-full bg-[#0f111a] border border-white/10 rounded-xl px-4 py-4 text-sm text-white focus:border-[#6366f1] focus:outline-none transition-all">
-                </div>
-                <div class="group">
-                  <label class="block text-[11px] font-bold text-muted-400 uppercase tracking-widest mb-2 ml-1">City</label>
-                  <input v-model="userForm.mailingAddress.city" type="text" class="w-full bg-[#0f111a] border border-white/10 rounded-xl px-4 py-4 text-sm text-white focus:border-[#6366f1] focus:outline-none transition-all">
-                </div>
-                <div class="group">
-                  <label class="block text-[11px] font-bold text-muted-400 uppercase tracking-widest mb-2 ml-1">State / Province</label>
-                  <input v-model="userForm.mailingAddress.state" type="text" class="w-full bg-[#0f111a] border border-white/10 rounded-xl px-4 py-4 text-sm text-white focus:border-[#6366f1] focus:outline-none transition-all">
-                </div>
-                <div class="group">
-                  <label class="block text-[11px] font-bold text-muted-400 uppercase tracking-widest mb-2 ml-1">Zip Code</label>
-                  <input v-model="userForm.mailingAddress.zip" type="text" class="w-full bg-[#0f111a] border border-white/10 rounded-xl px-4 py-4 text-sm text-white font-mono focus:border-[#6366f1] focus:outline-none transition-all">
-                </div>
-                <div class="group relative">
-                  <label class="block text-[11px] font-bold text-muted-400 uppercase tracking-widest mb-2 ml-1">Country</label>
-                  <div class="relative">
-                    <select v-model="userForm.mailingAddress.country" class="w-full bg-[#0f111a] border border-white/10 rounded-xl pl-4 pr-10 py-4 text-sm text-white focus:border-[#6366f1] focus:outline-none appearance-none cursor-pointer">
-                      <option v-for="c in countries" :key="c" :value="c">
-                        {{ c }}
-                      </option>
-                    </select>
-                    <Icon name="lucide:chevron-down" class="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-500 pointer-events-none" />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div class="md:col-span-2 h-px bg-white/5 my-4" />
-
-            <div class="md:col-span-2">
-              <h4 class="text-sm font-bold text-white mb-4 flex items-center gap-2">
-                <div class="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-400">
-                  <Icon name="lucide:scale" class="w-4 h-4" />
-                </div>
-                Legal Address
-              </h4>
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div class="md:col-span-2 group">
-                  <label class="block text-[11px] font-bold text-muted-400 uppercase tracking-widest mb-2 ml-1">Address (Street / Suite)</label>
-                  <input v-model="userForm.legalAddress.street" type="text" class="w-full bg-[#0f111a] border border-white/10 rounded-xl px-4 py-4 text-sm text-white focus:border-[#6366f1] focus:outline-none transition-all">
-                </div>
-                <div class="group">
-                  <label class="block text-[11px] font-bold text-muted-400 uppercase tracking-widest mb-2 ml-1">City</label>
-                  <input v-model="userForm.legalAddress.city" type="text" class="w-full bg-[#0f111a] border border-white/10 rounded-xl px-4 py-4 text-sm text-white focus:border-[#6366f1] focus:outline-none transition-all">
-                </div>
-                <div class="group">
-                  <label class="block text-[11px] font-bold text-muted-400 uppercase tracking-widest mb-2 ml-1">State / Province</label>
-                  <input v-model="userForm.legalAddress.state" type="text" class="w-full bg-[#0f111a] border border-white/10 rounded-xl px-4 py-4 text-sm text-white focus:border-[#6366f1] focus:outline-none transition-all">
-                </div>
-                <div class="group">
-                  <label class="block text-[11px] font-bold text-muted-400 uppercase tracking-widest mb-2 ml-1">Zip Code</label>
-                  <input v-model="userForm.legalAddress.zip" type="text" class="w-full bg-[#0f111a] border border-white/10 rounded-xl px-4 py-4 text-sm text-white font-mono focus:border-[#6366f1] focus:outline-none transition-all">
-                </div>
-                <div class="group relative">
-                  <label class="block text-[11px] font-bold text-muted-400 uppercase tracking-widest mb-2 ml-1">Country</label>
-                  <div class="relative">
-                    <select v-model="userForm.legalAddress.country" class="w-full bg-[#0f111a] border border-white/10 rounded-xl pl-4 pr-10 py-4 text-sm text-white focus:border-[#6366f1] focus:outline-none appearance-none cursor-pointer">
-                      <option v-for="c in countries" :key="c" :value="c">
-                        {{ c }}
-                      </option>
-                    </select>
-                    <Icon name="lucide:chevron-down" class="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-500 pointer-events-none" />
-                  </div>
-                </div>
-              </div>
+      <!-- ============================================================ PANELS -->
+      <div class="min-w-0 flex flex-col gap-5">
+        <!-- loading skeleton — the old page rendered empty inputs first -->
+        <div v-if="pending && !account" class="flex flex-col gap-5">
+          <div v-for="n in 2" :key="n" class="rounded-2xl border border-white/8 bg-muted-800 p-6">
+            <div class="h-4 w-32 animate-pulse rounded bg-muted-700" />
+            <div class="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div v-for="i in 4" :key="i" class="h-[70px] animate-pulse rounded-xl bg-muted-700" />
             </div>
           </div>
         </div>
 
-        <div v-if="activeTab === 'company'" class="bg-[#161925] border border-white/5 rounded-[2.5rem] p-6 md:p-10 animate-fade-in relative overflow-hidden">
-          <div class="flex flex-col md:flex-row md:items-center gap-6 mb-10 pb-8 border-b border-white/5">
-            <div class="w-24 h-24 rounded-[1.5rem] bg-white p-5 flex items-center justify-center shadow-xl">
-              <img :src="companyForm.logo" class="w-full h-full object-contain">
-            </div>
-            <div>
-              <h3 class="text-2xl font-bold text-white">
-                {{ companyForm.name }}
-              </h3>
-              <p class="text-sm text-muted-500 mb-3">
-                Fill in business information about the company.
-              </p>
-              <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-bold uppercase tracking-wider">
-                <Icon name="lucide:shield-check" class="w-3 h-3" /> Verified Business
+        <!-- ======================================================== PROFILE -->
+        <template v-else-if="section === 'profile'">
+          <section class="apex-rise rounded-2xl border border-white/8 bg-muted-800 p-6">
+            <ApexSectionLabel label="Your profile" />
+            <!--
+              One identity row, not a social-network header. The page used to
+              open with a 288px cover photo and a 144px avatar carrying a
+              verified tick and a pulsing status dot — none of it editable, and
+              none of it any help to someone updating a phone number.
+            -->
+            <div class="mt-5 flex flex-wrap items-center gap-4">
+              <span class="inline-flex size-[72px] shrink-0 items-center justify-center rounded-full text-lg font-extrabold text-white" style="background: linear-gradient(135deg, #9B79F6, #6C40E8);">
+                {{ initials }}
               </span>
-            </div>
-          </div>
-
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div class="group">
-              <label class="text-[11px] font-bold text-muted-400 uppercase tracking-widest mb-2 block ml-1">Company Name</label>
-              <input v-model="companyForm.name" class="w-full bg-[#0f111a] border border-white/10 rounded-xl px-4 py-4 text-sm text-white focus:border-[#6366f1] focus:outline-none transition-all">
-            </div>
-            <div class="group">
-              <label class="text-[11px] font-bold text-muted-400 uppercase tracking-widest mb-2 block ml-1">Company Email</label>
-              <input v-model="companyForm.email" class="w-full bg-[#0f111a] border border-white/10 rounded-xl px-4 py-4 text-sm text-white focus:border-[#6366f1] focus:outline-none transition-all">
-            </div>
-            <div class="group">
-              <label class="text-[11px] font-bold text-muted-400 uppercase tracking-widest mb-2 block ml-1">Company Website</label>
-              <input v-model="companyForm.website" class="w-full bg-[#0f111a] border border-white/10 rounded-xl px-4 py-4 text-sm text-white focus:border-[#6366f1] focus:outline-none transition-all">
-            </div>
-            <div class="group">
-              <label class="text-[11px] font-bold text-muted-400 uppercase tracking-widest mb-2 block ml-1">Company Phone</label>
-              <input v-model="companyForm.phone" class="w-full bg-[#0f111a] border border-white/10 rounded-xl px-4 py-4 text-sm text-white focus:border-[#6366f1] focus:outline-none transition-all">
-            </div>
-
-            <div class="md:col-span-2 pt-4 border-t border-white/5">
-              <h4 class="text-sm font-bold text-white mb-6 flex items-center gap-2">
-                <Icon name="lucide:briefcase" class="w-4 h-4 text-[#6366f1]" /> Business Info
-              </h4>
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div class="group relative">
-                  <label class="text-[11px] font-bold text-muted-400 uppercase tracking-widest mb-2 block ml-1">Company Type</label>
-                  <div class="relative">
-                    <select v-model="companyForm.type" class="w-full bg-[#0f111a] border border-white/10 rounded-xl pl-4 pr-10 py-4 text-sm text-white focus:border-[#6366f1] focus:outline-none appearance-none cursor-pointer">
-                      <option v-for="type in companyTypes" :key="type" :value="type">
-                        {{ type }}
-                      </option>
-                    </select>
-                    <Icon name="lucide:chevron-down" class="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-500 pointer-events-none" />
-                  </div>
+              <div class="min-w-0">
+                <div class="font-heading truncate text-lg font-bold text-white">
+                  {{ fullName }}
                 </div>
-                <div class="group relative">
-                  <label class="text-[11px] font-bold text-muted-400 uppercase tracking-widest mb-2 block ml-1">Income</label>
-                  <div class="relative">
-                    <select v-model="companyForm.income" class="w-full bg-[#0f111a] border border-white/10 rounded-xl pl-4 pr-10 py-4 text-sm text-white focus:border-[#6366f1] focus:outline-none appearance-none cursor-pointer">
-                      <option v-for="inc in incomeRanges" :key="inc" :value="inc">
-                        {{ inc }}
-                      </option>
-                    </select>
-                    <Icon name="lucide:chevron-down" class="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-500 pointer-events-none" />
-                  </div>
-                </div>
-                <div class="group relative">
-                  <label class="text-[11px] font-bold text-muted-400 uppercase tracking-widest mb-2 block ml-1">Employees</label>
-                  <div class="relative">
-                    <select v-model="companyForm.employees" class="w-full bg-[#0f111a] border border-white/10 rounded-xl pl-4 pr-10 py-4 text-sm text-white focus:border-[#6366f1] focus:outline-none appearance-none cursor-pointer">
-                      <option v-for="emp in employeeRanges" :key="emp" :value="emp">
-                        {{ emp }}
-                      </option>
-                    </select>
-                    <Icon name="lucide:chevron-down" class="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-500 pointer-events-none" />
-                  </div>
-                </div>
-                <div class="group relative">
-                  <label class="text-[11px] font-bold text-muted-400 uppercase tracking-widest mb-2 block ml-1">Manager</label>
-                  <div class="relative">
-                    <select v-model="companyForm.manager" class="w-full bg-[#0f111a] border border-white/10 rounded-xl pl-4 pr-10 py-4 text-sm text-white focus:border-[#6366f1] focus:outline-none appearance-none cursor-pointer">
-                      <option v-for="man in managers" :key="man" :value="man">
-                        {{ man }}
-                      </option>
-                    </select>
-                    <Icon name="lucide:chevron-down" class="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-500 pointer-events-none" />
-                  </div>
+                <div class="mt-0.5 text-[13px] text-muted-500">
+                  {{ accountType }}
                 </div>
               </div>
             </div>
+            <!--
+              No upload control: there is no avatar endpoint, and the old base64
+              path exceeded the field's 500-character cap, which failed the
+              whole save. A disabled button would be the dead end Phase 5
+              removed from the credit card, so this states the position instead.
+            -->
+            <p class="mt-4 rounded-xl border border-white/8 bg-muted-700 px-3.5 py-3 text-[12.5px] leading-relaxed text-muted-400">
+              Your initials stand in for a photo. Profile photo uploads arrive alongside file attachments in support.
+            </p>
 
-            <div class="md:col-span-2 pt-4 border-t border-white/5 space-y-6">
+            <div class="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
-                <label class="text-[11px] font-bold text-muted-400 uppercase tracking-widest mb-4 block ml-1">Status</label>
-                <div class="flex gap-4">
-                  <button class="flex-1 py-3 rounded-xl border transition-all flex items-center justify-center gap-2" :class="companyForm.status === 'Active' ? 'bg-emerald-500/10 border-emerald-500 text-emerald-400' : 'bg-[#0f111a] border-white/10 text-muted-500 hover:border-white/20'" @click="companyForm.status = 'Active'">
-                    <div v-if="companyForm.status === 'Active'" class="w-2 h-2 rounded-full bg-emerald-500" /> Active
-                  </button>
-                  <button class="flex-1 py-3 rounded-xl border transition-all flex items-center justify-center gap-2" :class="companyForm.status === 'Inactive' ? 'bg-rose-500/10 border-rose-500 text-rose-400' : 'bg-[#0f111a] border-white/10 text-muted-500 hover:border-white/20'" @click="companyForm.status = 'Inactive'">
-                    <div v-if="companyForm.status === 'Inactive'" class="w-2 h-2 rounded-full bg-rose-500" /> Inactive
-                  </button>
-                </div>
-              </div>
-
-              <div class="group">
-                <label class="text-[11px] font-bold text-muted-400 uppercase tracking-widest mb-2 block ml-1">Company Notes</label>
-                <textarea v-model="companyForm.notes" rows="3" class="w-full bg-[#0f111a] border border-white/10 rounded-xl p-4 text-sm text-white focus:border-[#6366f1] focus:outline-none transition-all resize-none" />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div v-if="activeTab === 'security'" class="bg-[#161925] border border-white/5 rounded-[2.5rem] p-6 md:p-10 animate-fade-in space-y-10">
-          <div class="space-y-6">
-            <div class="flex items-center gap-3 mb-2">
-              <div class="p-2.5 rounded-xl bg-[#6366f1]/10 text-[#6366f1] border border-[#6366f1]/20">
-                <Icon name="lucide:key-round" class="w-5 h-5" />
+                <label for="set-first" :class="LABEL_CLASS">First name</label>
+                <input id="set-first" v-model="form.firstName" :class="INPUT_CLASS" placeholder="Jane" autocomplete="given-name">
               </div>
               <div>
-                <h3 class="text-lg font-bold text-white">
-                  Password
-                </h3><p class="text-xs text-muted-500">
-                  Update your password securely.
+                <label for="set-last" :class="LABEL_CLASS">Last name</label>
+                <input id="set-last" v-model="form.lastName" :class="INPUT_CLASS" placeholder="Okafor" autocomplete="family-name">
+              </div>
+              <div>
+                <label for="set-phone" :class="LABEL_CLASS">Phone</label>
+                <input id="set-phone" v-model="form.phone" :class="INPUT_CLASS" placeholder="07700 900123" autocomplete="tel" inputmode="tel">
+              </div>
+              <div>
+                <label for="set-email" :class="LABEL_CLASS">Email</label>
+                <!--
+                  Read-only on purpose: `update-all` documents that changing the
+                  login identity needs verification, so an editable box here
+                  would accept a change it never applies.
+                -->
+                <input id="set-email" :value="account?.email || ''" readonly class="cursor-not-allowed text-muted-400" :class="[INPUT_CLASS]">
+                <span class="mt-1.5 block text-[11.5px] text-muted-500">Your sign-in address. <NuxtLink to="/dashboards/support" class="font-semibold text-primary-400 hover:text-primary-300">Ask support</NuxtLink> to change it — we verify the new address first.</span>
+              </div>
+            </div>
+          </section>
+        </template>
+
+        <!-- ======================================================== COMPANY -->
+        <template v-else-if="section === 'company'">
+          <section class="apex-rise rounded-2xl border border-white/8 bg-muted-800 p-6">
+            <ApexSectionLabel label="Company identity" />
+            <div class="mt-5 flex flex-wrap items-center gap-4">
+              <span class="inline-flex size-[52px] shrink-0 items-center justify-center rounded-xl border border-white/8 bg-muted-700 text-sm font-extrabold text-primary-400">
+                {{ companyInitials }}
+              </span>
+              <p class="min-w-0 flex-1 text-[12.5px] leading-relaxed text-muted-400">
+                Used on your contracts and receipts. Enter the name exactly as it is registered, including <span class="text-white">Ltd</span> or <span class="text-white">Limited</span>.
+              </p>
+            </div>
+
+            <div class="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div class="sm:col-span-2">
+                <label for="set-cname" :class="LABEL_CLASS">Registered company name</label>
+                <input id="set-cname" v-model="form.companyName" :class="INPUT_CLASS" placeholder="Riverside Studios Ltd" autocomplete="organization">
+              </div>
+              <div>
+                <!-- Labels a listbox trigger, not an input, so the control owns
+                     its accessible name. -->
+                <span :class="LABEL_CLASS">Business type</span>
+                <!--
+                  `placeholder`, not a `value=""` item: the underlying listbox
+                  reserves the empty string for "no selection", so an empty
+                  option renders as a blank trigger. Same reason New Order
+                  (Phase 3) uses the prop — and, as there, an untouched control
+                  must not answer for the customer.
+                -->
+                <BaseSelect
+                  v-model="form.companyType"
+                  aria-label="Business type"
+                  placeholder="Select a type"
+                  rounded="lg"
+                  size="lg"
+                  class="bg-muted-700! h-11! w-full! rounded-xl! border-white/8! text-white!"
+                  :classes="{ text: 'text-sm' }"
+                >
+                  <BaseSelectItem v-for="t in BUSINESS_TYPES" :key="t.key" :value="t.key">
+                    {{ t.label }}
+                  </BaseSelectItem>
+                </BaseSelect>
+              </div>
+              <div>
+                <label for="set-cweb" :class="LABEL_CLASS">Website <span class="font-normal text-muted-500">(optional)</span></label>
+                <input id="set-cweb" v-model="form.companyWebsite" :class="INPUT_CLASS" placeholder="riversidestudios.co.uk" inputmode="url">
+              </div>
+            </div>
+          </section>
+
+          <section class="apex-rise rounded-2xl border border-white/8 bg-muted-800 p-6">
+            <ApexSectionLabel :label="addressLabel" />
+            <p class="mt-3 text-[12.5px] leading-relaxed text-muted-400">
+              {{ addressHint }}
+            </p>
+            <label for="set-caddr" class="sr-only">{{ addressLabel }}</label>
+            <!--
+              One field, because `Company` has one free-text `address` column.
+              Separate line 1 / line 2 / town / county / postcode boxes would
+              look right and store nothing — see the TODO(api) at the top.
+            -->
+            <textarea
+              id="set-caddr" v-model="form.companyAddress" rows="3"
+              class="mt-4 resize-y leading-[1.55]" :class="[INPUT_CLASS]"
+              placeholder="Unit 7, Riverside Park&#10;Maidstone&#10;ME15 6RS"
+            />
+          </section>
+
+          <section class="apex-rise rounded-2xl border border-white/8 bg-muted-800 p-6">
+            <ApexSectionLabel label="Business contact" />
+            <div class="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <label for="set-cemail" :class="LABEL_CLASS">Company email</label>
+                <input id="set-cemail" v-model="form.companyEmail" :class="INPUT_CLASS" placeholder="hello@riversidestudios.co.uk" inputmode="email">
+              </div>
+              <div>
+                <label for="set-cphone" :class="LABEL_CLASS">Company phone</label>
+                <input id="set-cphone" v-model="form.companyPhone" :class="INPUT_CLASS" placeholder="020 7946 0100" inputmode="tel">
+              </div>
+              <div class="sm:col-span-2">
+                <label for="set-cnotes" :class="LABEL_CLASS">Notes for your project team <span class="font-normal text-muted-500">(optional)</span></label>
+                <textarea id="set-cnotes" v-model="form.companyNotes" rows="3" class="resize-y leading-[1.55]" :class="[INPUT_CLASS]" placeholder="Anything the team should know — brand guidelines, preferred contact hours, access details." />
+              </div>
+            </div>
+          </section>
+        </template>
+
+        <!-- ======================================================= SECURITY -->
+        <template v-else-if="section === 'security'">
+          <section class="apex-rise rounded-2xl border border-white/8 bg-muted-800 p-6">
+            <ApexSectionLabel label="Password" />
+            <p class="mt-3 text-[12.5px] leading-relaxed text-muted-400">
+              Choose something at least {{ PW_MIN }} characters long that you don't use anywhere else.
+            </p>
+
+            <div class="mt-5 flex max-w-[420px] flex-col gap-4">
+              <div>
+                <label for="pw-current" :class="LABEL_CLASS">Current password</label>
+                <input id="pw-current" v-model="pwForm.current" type="password" autocomplete="current-password" :class="INPUT_CLASS" placeholder="••••••••">
+              </div>
+              <div>
+                <label for="pw-new" :class="LABEL_CLASS">New password</label>
+                <input id="pw-new" v-model="pwForm.next" type="password" autocomplete="new-password" :class="INPUT_CLASS" :placeholder="`At least ${PW_MIN} characters`">
+                <div v-if="pwForm.next" class="mt-2 flex items-center gap-2.5">
+                  <span class="h-1 flex-1 overflow-hidden rounded-full bg-muted-700">
+                    <span class="block h-full rounded-full transition-all" :class="pwTone.bar" :style="{ width: `${(pwScore / 4) * 100}%` }" />
+                  </span>
+                  <span class="text-[11.5px] font-semibold" :class="pwTone.text">{{ pwLabel }}</span>
+                </div>
+              </div>
+              <div>
+                <label for="pw-confirm" :class="LABEL_CLASS">Confirm new password</label>
+                <input id="pw-confirm" v-model="pwForm.confirm" type="password" autocomplete="new-password" :class="INPUT_CLASS" placeholder="Re-enter it">
+              </div>
+
+              <p v-if="pwError" role="alert" class="flex items-start gap-2 rounded-xl border border-[#EC6453]/30 bg-[#EC6453]/10 px-3.5 py-2.5 text-[12.5px] leading-relaxed text-[#EC6453]">
+                <Icon name="lucide:alert-triangle" class="mt-px size-4 shrink-0" />
+                <span>{{ pwError }}</span>
+              </p>
+
+              <div>
+                <BaseButton
+                  rounded="full"
+                  variant="primary"
+                  class="h-11! px-6"
+                  :disabled="pwSaving"
+                  @click="updatePassword"
+                >
+                  <Icon v-if="pwSaving" name="lucide:loader-2" class="size-4 animate-spin" />
+                  <span>{{ pwSaving ? 'Updating…' : 'Update password' }}</span>
+                </BaseButton>
+              </div>
+            </div>
+          </section>
+
+          <section class="apex-rise rounded-2xl border border-white/8 bg-muted-800 p-6">
+            <div class="flex flex-wrap items-start justify-between gap-4">
+              <div class="min-w-0 max-w-[560px]">
+                <div class="font-heading text-base font-bold text-white">
+                  Two-factor authentication
+                </div>
+                <p class="mt-1.5 text-[12.5px] leading-relaxed text-muted-400">
+                  A one-time code from your authenticator app when you sign in. Strongly recommended once you have a payment method on file.
                 </p>
               </div>
+              <!--
+                A statement, not a switch. `securityForm.twoFactor` used to be
+                posted on every save and read by nothing.
+              -->
+              <span class="inline-flex items-center rounded-full bg-muted-700 px-3 py-1.5 text-[10.5px] font-extrabold uppercase tracking-[0.05em] text-muted-400">
+                Coming soon
+              </span>
             </div>
-            <div class="bg-[#0f111a] border border-white/5 rounded-2xl p-6 space-y-5">
-              <div class="group">
-                <label class="text-[11px] font-bold text-muted-400 uppercase tracking-widest mb-2 block">Current Password</label>
-                <input v-model="securityForm.currentPassword" type="password" class="w-full bg-[#161925] border border-white/10 rounded-xl px-4 py-3.5 text-sm text-white focus:border-[#6366f1] focus:outline-none transition-all">
-              </div>
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
-                <div class="group">
-                  <label class="text-[11px] font-bold text-muted-400 uppercase tracking-widest mb-2 block">New Password</label>
-                  <input v-model="securityForm.newPassword" type="password" class="w-full bg-[#161925] border border-white/10 rounded-xl px-4 py-3.5 text-sm text-white focus:border-[#6366f1] focus:outline-none transition-all">
-                </div>
-                <div class="group">
-                  <label class="text-[11px] font-bold text-muted-400 uppercase tracking-widest mb-2 block">Confirm Password</label>
-                  <input v-model="securityForm.confirmPassword" type="password" class="w-full bg-[#161925] border border-white/10 rounded-xl px-4 py-3.5 text-sm text-white focus:border-[#6366f1] focus:outline-none transition-all">
-                </div>
-              </div>
+          </section>
+
+          <section class="apex-rise rounded-2xl border border-white/8 bg-muted-800 p-6">
+            <ApexSectionLabel label="Where you're signed in" />
+            <!--
+              The current browser and nothing else. This list used to be one
+              hardcoded MacBook in New York on a private-range IP, with a revoke
+              button wired to an empty function — fabricated security data is
+              worse than none.
+            -->
+            <div class="mt-5 flex flex-wrap items-center gap-3 rounded-xl border border-white/8 bg-muted-700 px-4 py-3.5">
+              <Icon name="lucide:monitor" class="size-[18px] shrink-0 text-primary-400" />
+              <span class="min-w-0 flex-1">
+                <span class="block text-[13.5px] font-semibold text-white">This device</span>
+                <span class="block text-[11.5px] text-muted-500">{{ thisDevice }} · signed in now</span>
+              </span>
+              <span class="inline-flex items-center rounded-full bg-[#22B07D]/14 px-2.5 py-1 text-[10.5px] font-extrabold uppercase tracking-[0.04em] text-[#22B07D]">Current</span>
             </div>
-          </div>
+            <p class="mt-3.5 text-[12.5px] leading-relaxed text-muted-400">
+              We don't keep a device history yet, so we can't list your other sessions or sign them out from here. If you think someone else has your password, change it above and tell us in a support request.
+            </p>
+          </section>
+        </template>
 
-          <div class="w-full h-px bg-white/5" />
-
-          <div>
-            <h3 class="text-lg font-bold text-white mb-5 flex items-center gap-2">
-              <Icon name="lucide:laptop-2" class="w-5 h-5 text-muted-400" /> Active Sessions
-            </h3>
-            <div class="space-y-3">
-              <div v-for="session in activeSessions" :key="session.id" class="flex items-center justify-between p-4 rounded-2xl bg-[#0f111a] border border-white/5 hover:border-white/10 transition-colors group cursor-pointer">
-                <div class="flex items-center gap-4">
-                  <div class="w-12 h-12 rounded-xl bg-white/5 flex items-center justify-center text-muted-400 group-hover:text-white group-hover:bg-[#6366f1]/10 transition-colors border border-white/5">
-                    <Icon :name="session.icon" class="w-6 h-6" />
-                  </div>
-                  <div>
-                    <h4 class="text-sm font-bold text-white flex items-center gap-2">
-                      {{ session.device }} <span v-if="session.status === 'Active'" class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                    </h4>
-                    <p class="text-[10px] text-muted-500 font-mono mt-0.5">
-                      {{ session.location }} • {{ session.ip }}
-                    </p>
-                  </div>
-                </div>
-                <div class="flex items-center gap-4">
-                  <span class="text-[10px] font-bold uppercase hidden sm:block tracking-wider" :class="session.status === 'Active' ? 'text-emerald-400' : 'text-muted-600'">{{ session.status }}</span>
-                  <button class="w-8 h-8 rounded-lg hover:bg-rose-500/10 hover:text-rose-500 text-muted-500 flex items-center justify-center transition-colors" @click="revokeSession(session.id)">
-                    <Icon name="lucide:x" class="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
+        <!-- ======================================================== BILLING -->
+        <template v-else>
+          <section class="apex-rise rounded-2xl border border-white/8 bg-muted-800 p-6">
+            <ApexSectionLabel label="Tax details" />
+            <div class="mt-5 max-w-[420px]">
+              <label for="set-vat" :class="LABEL_CLASS">VAT number <span class="font-normal text-muted-500">(optional)</span></label>
+              <input
+                id="set-vat"
+                v-model="form.vatNumber"
+                :class="[
+                  INPUT_CLASS,
+                  vatState === 'valid' ? 'border-[#22B07D]/50!' : '',
+                  vatState === 'invalid' ? 'border-[#EC6453]/50!' : '',
+                ]"
+                placeholder="GB123456789"
+                :aria-invalid="vatState === 'invalid'"
+                aria-describedby="set-vat-hint"
+                @input="onVatInput"
+              >
+              <span
+                id="set-vat-hint"
+                class="mt-1.5 block text-[11.5px]"
+                :class="vatState === 'valid' ? 'text-[#22B07D]' : vatState === 'invalid' ? 'text-[#EC6453]' : 'text-muted-500'"
+              >{{ vatMessage }}</span>
             </div>
-          </div>
-        </div>
+          </section>
 
-        <div v-if="activeTab === 'billing'" class="bg-[#161925] border border-white/5 rounded-[2.5rem] p-6 md:p-10 animate-fade-in">
-          <div class="flex items-center justify-between mb-8">
-            <h3 class="text-xl font-bold text-white">
-              Billing History
-            </h3>
-            <button class="text-xs font-bold text-[#6366f1] hover:text-white transition-colors flex items-center gap-2 bg-[#6366f1]/10 px-4 py-2 rounded-lg border border-[#6366f1]/20 hover:bg-[#6366f1] hover:border-[#6366f1]">
-              <Icon name="lucide:download" class="w-3.5 h-3.5" /> Download All
-            </button>
-          </div>
-          <!-- The table keeps its own horizontal scroll so a long invoice row
-                scrolls inside the card instead of widening the whole page. -->
-          <div class="overflow-x-auto rounded-2xl border border-white/5 bg-[#0f111a]">
-            <table class="w-full min-w-[420px] text-left border-collapse">
-              <thead>
-                <tr class="bg-white/[0.02] border-b border-white/5">
-                  <th class="p-4 sm:p-5 text-[11px] font-bold text-muted-400 uppercase tracking-widest">
-                    Date
-                  </th>
-                  <th class="p-4 sm:p-5 text-[11px] font-bold text-muted-400 uppercase tracking-widest">
-                    Amount
-                  </th>
-                  <th class="p-4 sm:p-5 text-[11px] font-bold text-muted-400 uppercase tracking-widest">
-                    Status
-                  </th>
-                </tr>
-              </thead>
-              <tbody class="divide-y divide-white/5">
-                <tr v-for="inv in invoices" :key="inv.id" class="group hover:bg-white/[0.02] transition-colors">
-                  <td class="p-4 sm:p-5 text-xs text-muted-400 whitespace-nowrap">
-                    {{ inv.date }}
-                  </td>
-                  <td class="p-4 sm:p-5 text-sm font-bold text-white whitespace-nowrap">
-                    {{ inv.amount }}
-                  </td>
-                  <td class="p-4 sm:p-5">
-                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-bold uppercase bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"><div class="w-1.5 h-1.5 rounded-full bg-emerald-500" /> {{ inv.status }}</span>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
+          <section class="apex-rise rounded-2xl border border-white/8 bg-muted-800 p-6">
+            <ApexSectionLabel label="What goes on your receipts" />
+            <!--
+              Both facts are derived from the Company tab rather than stored
+              again here. A second copy is how a total and its parts end up
+              disagreeing — the problem Phases 2 and 5 were mostly about.
+            -->
+            <dl class="mt-5 flex flex-col gap-4">
+              <div>
+                <dt class="text-[12.5px] font-semibold text-white">
+                  Receipts are sent to
+                </dt>
+                <dd v-if="receiptEmail" class="mt-1 text-sm text-muted-400">
+                  {{ receiptEmail }}
+                </dd>
+                <dd v-else class="mt-1 text-sm text-muted-400">
+                  Your sign-in address.
+                </dd>
+              </div>
+              <div>
+                <dt class="text-[12.5px] font-semibold text-white">
+                  Billing address
+                </dt>
+                <dd v-if="form.companyAddress.trim()" class="mt-1 whitespace-pre-line text-sm leading-[1.55] text-muted-400">
+                  {{ form.companyAddress }}
+                </dd>
+                <dd v-else class="mt-1 text-sm text-muted-400">
+                  Nothing on file yet.
+                </dd>
+              </div>
+            </dl>
+            <p class="mt-4 rounded-xl border border-white/8 bg-muted-700 px-3.5 py-3 text-[12.5px] leading-relaxed text-muted-400">
+              Both come from your company record.
+              <button type="button" class="apex-focus rounded font-semibold text-primary-400 hover:text-primary-300" @click="section = 'company'">
+                Edit them under Company
+              </button>.
+            </p>
+          </section>
+
+          <section class="apex-rise flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-white/8 bg-muted-800 p-6">
+            <div>
+              <div class="font-heading text-base font-bold text-white">
+                Payments, methods and receipts
+              </div>
+              <p class="mt-1 text-[13px] text-muted-400">
+                Your balance, installment plans and every receipt live in one place.
+              </p>
+            </div>
+            <!--
+              One source of financial truth. This tab used to carry a single
+              hardcoded `INV-001 · $29.00` row — dollars on a GBP product —
+              duplicating the receipts list Phase 5 corrected on Wallet.
+            -->
+            <BaseButton to="/dashboards/wallet" rounded="full" variant="primary" class="h-11! px-6">
+              <Icon name="lucide:wallet" class="size-4" />
+              <span>Open Wallet &amp; credit</span>
+            </BaseButton>
+          </section>
+        </template>
       </div>
     </div>
   </div>
 </template>
 
 <style scoped>
-* {
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-/* SCROLLBARS */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.08);
-  border-radius: 99px;
-  border: 1px solid transparent;
-  background-clip: content-box;
-  transition: background-color 0.2s ease;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.2);
-}
-* {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.08) transparent;
-}
-
-/* ANIMATIONS */
-@keyframes content-enter {
-  0% {
-    opacity: 0;
-    transform: translateY(12px) scale(0.98);
-    filter: blur(4px);
-  }
-  100% {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-    filter: blur(0);
-  }
-}
-.animate-fade-in {
-  animation: content-enter 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-  will-change: transform, opacity, filter;
-  backface-visibility: hidden;
-}
-
-/* FORM ELEMENTS */
-input,
-textarea,
-button,
-select {
-  appearance: none;
-  -webkit-appearance: none;
-  outline: none;
-}
-input:focus,
-textarea:focus,
-select:focus {
-  box-shadow:
-    inset 0 1px 2px rgba(0, 0, 0, 0.2),
-    0 0 0 1px #6366f1,
-    0 0 12px rgba(99, 102, 241, 0.15);
-  border-color: #6366f1;
-}
-textarea {
-  resize: none;
-  field-sizing: content;
-  min-height: 100px;
-}
-::placeholder {
-  color: rgba(148, 163, 184, 0.5);
-  font-size: 0.875rem;
-}
-
-/* TABLES */
-table {
-  border-collapse: separate;
-  border-spacing: 0 4px;
-  width: 100%;
-}
-tbody tr td:first-child {
-  border-top-left-radius: 0.75rem;
-  border-bottom-left-radius: 0.75rem;
-}
-tbody tr td:last-child {
-  border-top-right-radius: 0.75rem;
-  border-bottom-right-radius: 0.75rem;
-}
-tbody tr {
-  transition: all 0.2s ease;
-}
-
-/* UTILS */
-.hidden {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
-}
-@supports (height: 100dvh) {
-  .min-h-screen {
-    min-height: 100dvh;
-  }
-}
-button,
-.group\/avatar {
-  user-select: none;
-  -webkit-user-select: none;
-}
-
 /*
- * Hover-revealed controls are unreachable on a touch screen — there is no hover
- * state to enter, so "Edit cover" and the avatar "Change" overlay simply never
- * appeared on a phone and the feature was unusable there. Where the primary
- * pointer cannot hover, show them permanently instead.
+ * The previous version redefined Tailwind's `.hidden` utility here as a
+ * visually-hidden clip, which broke every `hidden md:block` on the page — the
+ * elements stayed in the layout as 1px boxes. It also duplicated main.css's
+ * scrollbar rules and set its own indigo focus shadow. All of that is gone;
+ * `sr-only` covers the one visually-hidden label, and focus comes from the
+ * shell's `.apex-focus`.
  */
-@media (hover: none) {
-  .apex-reveal {
+.apex-rise {
+  animation: apexRise 0.3s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+@keyframes apexRise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
     opacity: 1;
-    transform: none;
+    transform: translateY(0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .apex-rise {
+    animation: none;
   }
 }
 </style>

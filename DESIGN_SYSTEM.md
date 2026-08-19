@@ -81,8 +81,8 @@ ships as a `.dc.html` mockup plus a `PHASE-N-*.md` implementation spec.
 | 4 | **My Orders** — tiles that always carry a number, plan-derived payment state | ✅ Done |
 | 5 | **Wallet & Credit** — real credit states, receipts not invoice numbers, honest labels | ✅ Done |
 | 6 | **Support** — no discarded files, an unread dot that means something, tokenised shell offset | ✅ Done |
-| 7 | Settings | ⬅ next |
-| 8 | Auth flow | ☐ |
+| 7 | **Settings** — the outlier brought onto the system, and fields that no longer vanish | ✅ Done |
+| 8 | Auth flow | ⬅ next |
 | 9 | Mobile & light theme | ☐ |
 
 #### Phase 1 — the shell standard (applies to every page from here on)
@@ -267,6 +267,85 @@ verify, then restore it.
   accessible name; the reply textarea has a label; Subject and Message got
   real `<label for>`, while the priority buttons — a group, not an input — got
   `role="group" aria-label="Priority"` instead of a label pointing nowhere.
+
+#### Phase 7 — Settings (only render a field the API round-trips)
+
+This page never went through the first redesign: it carried Tailwind indigo
+`#6366f1` as its accent, its own surfaces (`#0f111a`, `#161925`), 32–40px
+radii, `font-light` headings and four third-party image services. Opened next
+to Wallet it read as a different product. It is now on the same system as the
+other six, and three of its defects were losing customer data.
+
+- **A form must not collect what it cannot store.** `userForm` declared a
+  preferred name, family status, birthday, gender, a legal address, socials
+  and a bio, but the load path read back only `city` and `country`. Fill in
+  your birthday, save, reload — blank; and the next save posted `birthDay: ''`
+  over whatever was stored. Every field on the page is now round-tripped by
+  `/api/settings/get-all` and persisted by `/api/settings/update-all`.
+  Anything else is absent, including things the design asked for: a company
+  number, a trading name and a structured UK address have no columns, and
+  rendering boxes for them would recreate the same bug.
+- **Removing a field must not delete its data.** `update-all` writes every
+  column with `?? undefined`, which Prisma skips, so the values this page no
+  longer shows keep whatever they hold. Verified before relying on it.
+- **A first save must keep as much as the second.** The company `upsert`'s
+  `create` branch accepted only name/email/website/phone/type, so a customer
+  with no company row yet lost their VAT number, address and notes on their
+  very first save and had to enter them twice. The branch now mirrors `update`.
+- **Placeholder services are not placeholders in production.** The avatar fell
+  back to `i.pravatar.cc` — a photograph of a real, random person shown as the
+  customer's own account — the logo to `img.logoipsum.com`, the cover to an
+  Unsplash hotlink and the page texture to a Vercel demo SVG. All four leaked
+  the customer's IP to a third party on every view. Initials now, for both the
+  person and the company.
+- **A control that always fails is worse than no control.** The avatar picker
+  read files into a base64 data URL and PUT it inside the settings JSON — and
+  `avatar` is capped at 500 characters by the endpoint's own schema, so
+  choosing any real photo 400'd the *entire* save. Removed, with a line saying
+  when uploads arrive, rather than a disabled button.
+- **Security data must never be invented.** The sessions list was one
+  hardcoded MacBook in New York on `192.168.1.1`, identical for every
+  customer, with `revokeSession(id) {}` — an empty function — behind the X. A
+  customer checking for unauthorised access was told about a device that does
+  not exist and given a control that silently did nothing. Now: this browser,
+  and a plain statement that there is no device history yet.
+- **Say what the system actually does.** The mockup's "changing your password
+  signs you out of other devices" is not true here — sessions are stateless
+  JWTs with a 7-day life, and changing the hash does not invalidate them. The
+  copy says what happens instead of what would be reassuring.
+- **A credential change is not a preference.** One "Save Changes" button
+  posted profile, company and password together, and compared the two password
+  fields *after* the profile PUT had already succeeded. Password now has its
+  own form, its own button and validation that runs before any request.
+- **A field with no feature is a lie in the payload.** `securityForm.twoFactor`
+  was never rendered and posted on every save. It is a "Coming soon" statement
+  now, not a switch that stores a boolean nothing reads.
+- **Don't localise a UK product with US options.** Business type offered Solo /
+  Small Company (LLC) / Medium Company (Corp) / Bigger Company — size bands,
+  and "LLC" does not exist in UK law. It now lists UK legal forms, and the
+  address heading follows the type: "Registered office address" for
+  incorporated companies, "Business address" for sole traders and partnerships.
+- **Income, employees, account manager and company status left the page.**
+  They are internal CRM fields; a customer could set their own account to
+  Inactive and choose who managed them.
+- **One financial source.** The Billing tab's hardcoded `INV-001 · $29.00` —
+  dollars on a GBP product, duplicating Wallet's receipts — is gone. The tab
+  holds the VAT number, shows the receipt email and billing address *derived
+  from the company record*, and links to Wallet & credit.
+- **Never redefine a framework utility.** The page's scoped CSS redefined
+  Tailwind's `.hidden` as a visually-hidden clip, so every `hidden md:block` on
+  the page stopped hiding anything and became a 1px box still in the layout.
+  Deleted, along with a duplicate scrollbar block and an indigo focus shadow
+  that fought the shell's ring.
+- VAT validates format live (`GB` + 9 digits, 12 for a branch, GD/HA + 3),
+  uppercasing as you type and stripping spaces to test but not to display —
+  and says "Valid format", never that the number is registered.
+- Save is disabled until something is dirty; Discard resets to the last loaded
+  values instead of being a button with no handler. `role` is no longer posted.
+- Loading moved from `onMounted` + `$fetch` to `useFetch`, so the page SSRs
+  with a skeleton instead of flashing empty inputs.
+- Native `<select>` count in the customer panel: **zero**. These were the last
+  ten.
 ## 5. Known issues
 
 Fixed:
@@ -319,11 +398,17 @@ Fixed:
 To address:
 - [ ] Stale seed scripts reference fields not in the schema: `server/api/seed-rich.get.ts`,
       `seed-wallet.get.ts`, and `prisma/seed.js` (uses `name`/`status`/`USER`). Dev-only.
-- [ ] Pages still hardcode dark hex + USD + native `alert()`/`confirm()` until refactored
-      (settings).
+- [ ] Auth pages (login / signup / recover) still hardcode dark hex and predate the
+      Apex system — V2 Phase 8. `settings.vue` was the last dashboard page in that
+      state and was rebuilt in Phase 7.
 - [ ] Credit-line, expense-split (balance) and the service "from" prices / order plan
       catalogue (new order) are front-end placeholders — back them with real API/data models.
 - [ ] `orders.vue` formats prices in USD and has a hardcoded "Sarah Connor" project manager.
+- [ ] Settings cannot capture a company number, a trading name or a structured UK
+      address (line 1/2, town, county, postcode) — `Company` has one free-text
+      `address` column and no CRN field, so Phase 7 rendered one address box rather
+      than inputs that could not be stored. Same for avatar / company-logo upload
+      (no endpoint). Both need a migration; see the plan file's uploads phase.
 - [ ] Mixed English / Persian inline comments across pages (cosmetic; standardise to English).
 - [ ] `wallet.vue` is dark-only: ~46 literal `text-white` classes with no light
       pair, so 12 elements on the Overview and Banking tabs render white-on-white
@@ -331,9 +416,8 @@ To address:
       commit) and deliberately left alone — the light treatment for this page is
       V2 Phase 9's scope, and improvising one would violate "the design export is
       the spec". The V2-rebuilt pages (balance/orders/services) are already clean.
-- [ ] Native `<select>` still in `settings.vue` (10 — Phase 7) and the admin
-      panel + AgencyCalculator (26). The five V2-rebuilt customer pages are clean;
-      the rest get the `BaseSelect` treatment as their phase lands.
+- [ ] Native `<select>` remains only in the admin panel + AgencyCalculator (26).
+      The whole customer panel is clean as of Phase 7.
 - [ ] `/api/seed-support` (and the other dev seeds) verify the JWT with
       `process.env.JWT_SECRET || 'secret'` while `/api/auth/login` signs with
       `runtimeConfig.jwtSecret`, so a valid session gets "invalid signature" and

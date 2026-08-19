@@ -37,6 +37,12 @@ const bodySchema = z.object({
       website: optionalTrimmed(300),
       phone: optionalTrimmed(30),
       taxId: optionalTrimmed(100),
+      // `Company.address` has existed in the schema since the beginning but was
+      // never written here, so the Settings page had nowhere to put a business
+      // address — which is why Wallet's "add your billing address in Settings"
+      // pointed at a field that did not exist. Purely additive: no migration,
+      // no change to any field already handled.
+      address: optionalTrimmed(300),
       type: optionalTrimmed(100),
       income: optionalTrimmed(100),
       employees: optionalTrimmed(100),
@@ -75,6 +81,7 @@ export default defineEventHandler(async (event) => {
       website: company.website ?? undefined,
       phone: company.phone ?? undefined,
       taxId: company.taxId ?? undefined,
+      address: company.address ?? undefined,
       type: company.type ?? undefined,
       income: company.income ?? undefined,
       employees: company.employees ?? undefined,
@@ -83,13 +90,28 @@ export default defineEventHandler(async (event) => {
       notes: company.notes ?? undefined,
       logo: company.logo ?? undefined,
     },
+    /*
+     * The create branch has to accept everything the update branch does.
+     * It used to take only name/email/website/phone/type, so a customer with
+     * no company row yet silently lost their VAT number, address and notes on
+     * their very first save — and got them to stick only on the second. The
+     * fields are validated identically either way; only `status` is forced,
+     * because a new record starts Active and customers do not set it.
+     */
     create: {
       userId: session.id,
       name: company.name || 'My Company',
       email: company.email ?? undefined,
       website: company.website ?? undefined,
       phone: company.phone ?? undefined,
+      taxId: company.taxId ?? undefined,
+      address: company.address ?? undefined,
       type: company.type ?? undefined,
+      income: company.income ?? undefined,
+      employees: company.employees ?? undefined,
+      manager: company.manager ?? undefined,
+      notes: company.notes ?? undefined,
+      logo: company.logo ?? undefined,
       status: 'Active',
     },
   })

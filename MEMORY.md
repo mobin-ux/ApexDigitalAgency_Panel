@@ -2,7 +2,7 @@
 
 > Handoff doc for continuing work in fresh sessions. Update the relevant section
 > whenever a page ships, a decision lands, or a blocker appears.
-> Last updated: **2026-08-19** (V2 redesign Phase 6 — Support).
+> Last updated: **2026-08-20** (V2 redesign Phase 7 — Settings).
 
 ## Where things stand
 
@@ -58,8 +58,9 @@ Read it with the `DesignSync` tool (`method: get_file`).
 | 4 | My Orders (`orders.vue`) | ✅ Done |
 | 5 | Wallet & Credit (`wallet.vue`) | ✅ Done |
 | 6 | Support (`support.vue`) | ✅ Done |
-| 7 | Settings (`settings.vue`) | ⬅ next |
-| 8–9 | Auth · Mobile/Light | ☐ |
+| 7 | Settings (`settings.vue`) | ✅ Done |
+| 8 | Auth flow | ⬅ next |
+| 9 | Mobile & light theme | ☐ |
 
 **Phase 1 shipped:** Apex brand mark (+ favicon/title), 44px nav rows with a
 violet `color-mix` active tint, hairline sub-nav, one account dropdown with
@@ -265,6 +266,88 @@ login signs with `runtimeConfig.jwtSecret`, so a perfectly valid session gets
 because this phase was not to touch server auth. To make support test data,
 use the real endpoints: `POST /api/support/create` as the customer and
 `POST /api/admin/tickets/:id/reply` as the admin.
+
+**Phase 7 shipped (Settings):** `settings.vue` rewritten (834 → ~800 lines),
+plus two additive fixes in `server/api/settings/update-all.put.ts`. This page
+had never been refactored onto the Apex system — indigo `#6366f1` about forty
+times, its own surfaces, 32–40px radii, `font-light` headings — and three of
+its problems were losing customer data.
+
+- **Fields were collected and thrown away.** Preferred name, family status,
+  birthday, gender, legal address, socials and bio were all rendered, but the
+  load path read back only `city` and `country`: fill them in, save, reload,
+  gone — and the next save wrote empty strings over whatever was stored. The
+  page now renders **only** what `get-all` returns and `update-all` persists.
+  Removing the rest is non-destructive because `update-all` writes each column
+  with `?? undefined`, which Prisma skips (checked before relying on it).
+- **The company `create` branch dropped half its input.** `upsert`'s create
+  took only name/email/website/phone/type, so a customer with no company row
+  lost VAT number, address and notes on their *first* save and had to type
+  them again. Found while testing, fixed to mirror `update`, verified on a
+  brand-new account.
+- **`Company.address` was never written.** The column has always existed;
+  `update-all` simply omitted it, which is why Wallet's "add your billing
+  address in Settings" pointed at a field that did not exist. Two additive
+  lines (zod + upsert), no migration.
+- **Four third-party image services shipped to customers.** `i.pravatar.cc`
+  served a photo of a real, random person as the customer's own avatar;
+  `img.logoipsum.com` as their company logo; an Unsplash hotlink as the cover;
+  a Vercel demo SVG as page noise. All leaked IP + user-agent on every view.
+  Initials for both marks now, no cover, no texture.
+- **Avatar upload was broken, not just wasteful.** It read the file into a
+  base64 data URL and PUT it inside the settings JSON — and `avatar` is capped
+  at 500 characters by the endpoint's schema, so *any* real photo 400'd the
+  whole save. Confirmed with curl. Removed rather than shipped disabled.
+- **Sessions were invented.** One hardcoded MacBook in New York on
+  `192.168.1.1`, identical for every customer, with `revokeSession(id) {}`
+  behind the X. Now this browser only (resolved in `onMounted` — it reads
+  `navigator`), plus a plain statement that there is no device history yet.
+- **Password is its own action.** The old flow PUT the profile, *then*
+  compared the confirm field, so a typo produced an error toast on a save that
+  had already partly succeeded. Separate form, own button, all validation
+  before any request (verified: zero requests fire on invalid input).
+  Minimum is 8, matching signup — note the server still allows 6, and the
+  seeded dev password `user123` is 7 characters, so it can no longer be *set*
+  through this UI.
+- **Copy corrected against reality.** The mockup says changing your password
+  signs you out of other devices. It does not: sessions are stateless 7-day
+  JWTs and rewriting the hash does not invalidate them. The page says what
+  actually happens.
+- Also: UK legal forms replace the US size bands (`LLC` isn't a UK thing), and
+  the address heading follows the type — "Registered office address" for
+  incorporated, "Business address" for sole traders; income / employees /
+  manager / status removed from customer control; `twoFactor` dropped for an
+  honest "Coming soon"; the Billing tab's hardcoded `INV-001 · $29.00` replaced
+  by VAT + values *derived* from the company record + a link to Wallet; the
+  scoped CSS that **redefined Tailwind's `.hidden`** (breaking every
+  `hidden md:block` on the page) deleted; Save disabled until dirty and Discard
+  actually wired; `role` no longer posted; `onMounted`+`$fetch` → `useFetch`.
+
+**Not built, because the columns don't exist:** company number (+ its CRN
+validator), trading name, structured UK address (line 1/2, town, county,
+postcode) and therefore live postcode validation, a separate billing address,
+avatar/logo upload, real sessions, 2FA. Rendering inputs for any of them would
+recreate the write-then-lose defect this phase removed. They need a migration.
+
+Verified: dirty-tracking on/off and Discard restore; a save posts only
+round-tripped keys with no `role` and re-disables the button; type `ltd`
+round-trips and flips the heading to "Registered office address" with the
+Companies House hint; VAT shows neutral/valid/specific-invalid states and
+accepts lowercase and spaced input; password blocks all three invalid cases
+with zero requests, then a real change + revert succeeded; no MacBook, no
+`192.168`, no toggles, "Coming soon" present; `.hidden` is `display:none`
+again; every input has a label; zero horizontal overflow at 375px in all four
+sections; zero native selects left anywhere in the customer panel. Light theme
+measures **better** than HEAD (0/1/0/0 vs 0/2/0/1) after fixing one regression
+this phase introduced — a `text-white!` Discard button that rendered white on
+BaseButton's white light-mode background. ESLint clean, console clean on a
+fresh tab, all six customer routes SSR 200.
+
+### Phase 7 gotcha — `BaseSelect` has no empty-value item
+
+`<BaseSelectItem value="">` renders a blank trigger: the underlying listbox
+reserves the empty string for "no selection". Use the `placeholder` prop
+instead (New Order does the same).
 
 ## Remaining queue (older, pre-V2)
 
