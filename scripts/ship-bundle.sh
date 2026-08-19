@@ -80,7 +80,17 @@ STAGE="$APP_DIR/.output.staging-$STAMP"
 # the archive and the rest of the script runs afterwards on the same session.
 # The build machine's own engine (Windows DLL / macOS dylib) is excluded — it
 # can never load on the server and is ~20MB of dead weight.
-tar -czf - -C "$LOCAL_OUT" \
+#
+# `-h` (dereference) is load-bearing, not tidiness. Nitro deduplicates the
+# traced server dependencies into `server/node_modules/.nitro/<pkg>@<version>/`
+# and links the real package names at it with ABSOLUTE symlinks — on this
+# machine, `/c/Users/mobin/.../.output/server/node_modules/.nitro/hookable@6.0.1/`.
+# Archived as links, those paths do not exist on the server, so the first
+# render died with `ERR_MODULE_NOT_FOUND: Cannot find package 'hookable'` and
+# every route 500'd. There are ~23 of them. `-h` stores the pointed-to
+# directories as real files, which is what a bundle shipped to another host
+# needs. Costs a few MB of duplication.
+tar -czhf - -C "$LOCAL_OUT" \
     --exclude='query_engine-windows.dll.node' \
     --exclude='libquery_engine-darwin*.dylib.node' \
     . \
@@ -138,6 +148,17 @@ fi
 echo
 echo '[server] --- post-deploy state ---'
 echo \"[server] service: \$(systemctl is-active apex)\"
+
+# Native addons built for the WRONG platform. The Prisma engine is hard-gated
+# above because the whole product needs it; everything else is reported here
+# instead of failing the deploy, because it may be a dependency nothing on the
+# critical path uses. Known and harmless today: better_sqlite3.node ships as a
+# Windows DLL and belongs to @nuxt/content, which serves the Tairo docs — those
+# routes are 404 in production, so it only writes noise to the journal.
+BAD=\$(find \"\$OUT\" -name '*.node' 2>/dev/null | while read -r f; do
+  file -b \"\$f\" 2>/dev/null | grep -q '^ELF' || basename \"\$f\"
+done | sort -u | tr '\n' ' ')
+[ -n \"\$BAD\" ] && echo \"[server] note: non-Linux native addons present (inert): \$BAD\"
 # Confirms the Stripe keys survived. Prints key TYPE and LENGTH only, never a value.
 [ -f \"\$APP_DIR/stripe-setup.sh\" ] && bash \"\$APP_DIR/stripe-setup.sh\" --check 2>/dev/null | sed 's/^/[server] /'
 echo \"[server] previous build kept at \$PREV\"
