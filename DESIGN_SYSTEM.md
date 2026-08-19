@@ -79,8 +79,8 @@ ships as a `.dc.html` mockup plus a `PHASE-N-*.md` implementation spec.
 | 2 | **Dashboard** — honest figures, one promo chip, real credit line, reconciled expenses | ✅ Done |
 | 3 | **New Order** — one price per plan, themed selects, real validation, honest kickoff copy | ✅ Done |
 | 4 | **My Orders** — tiles that always carry a number, plan-derived payment state | ✅ Done |
-| 5 | Wallet & Credit | ☐ |
-| 6 | Support | ☐ |
+| 5 | **Wallet & Credit** — real credit states, receipts not invoice numbers, honest labels | ✅ Done |
+| 6 | Support | ⬅ next |
 | 7 | Settings | ☐ |
 | 8 | Auth flow | ☐ |
 | 9 | Mobile & light theme | ☐ |
@@ -180,6 +180,47 @@ below apply to every page from here on:
 - Decorative SVG beside a text value (progress rings) gets `aria-hidden`.
 - No text link inside a control that already owns the click ("Details ›").
 
+
+#### Phase 5 — Wallet & Credit (name things by what they are)
+
+- **A document number is a promise.** The invoices card minted
+  `INV-2026-${14 - i}` from the row's array index: two customers saw the same
+  number, and the number changed when a new charge shifted the list. There is
+  no `Invoice` model, so the card is now **Receipts** — a plain view of the
+  ledger rows that already exist, with no number, no "Download" button and a
+  footnote saying VAT invoices arrive by email. Ship the receipt you have
+  rather than the invoice you don't.
+- **Don't derive a label from an enum's spelling.** `type.charAt(0) + rest
+  .toLowerCase()` turned `AD_CREDIT` into "Ad_credit" and `CREDIT_REPAY` into
+  "Credit_repay". A `TX_LABEL` map names all eight transaction types; an
+  unknown type falls back to the raw value, which is at least honest.
+- **Every state of a feature needs a screen, including "you don't have it".**
+  The credit section rendered its full active layout for accounts with no
+  credit line, so £0 available read as a depleted facility rather than an
+  absent one. It now branches on `hasCredit`, and the empty state explains what
+  Apex credit is and offers a route to ask for it.
+- **A disabled button must say why it is disabled.** At the limit, "Start a
+  project" was greyed out with no explanation — a dead end the customer cannot
+  diagnose. The button stays live and an amber note states the cause and the
+  remedy: paying an installment frees the credit up.
+- **A toast is not a feature.** `comingSoon()` is gone from this page: billing
+  "Edit" links to Settings, which really does edit those fields.
+- **Copy must point at something reachable.** The bank-transfer reference told
+  customers to quote a project ID it never showed them; it now says where to
+  find it.
+- Collapsible plan headers are `<button aria-expanded>`, not
+  `div[role=button]` with hand-rolled Enter/Space handlers.
+- Tab semantics match Phase 4: `aria-pressed` buttons in a `role="group"`,
+  because there is still no tabpanel to point at.
+- Installment segments render per-installment only up to 12; beyond that they
+  are visually indistinguishable and a single bar reads better.
+
+**Phase 5 gotcha — `ensureCredit()` normalises the line on every load.**
+`server/utils/credit.ts` recreates/normalises each customer's `CreditLine` from
+Setting `credit.max-limit` (default £20,000) whenever the dashboard loads, and
+derives `used` from outstanding principal. An admin "adjust limit to 0" will
+therefore not stick. To test the no-credit state, set `credit.max-limit` to 0,
+verify, then restore it.
 ## 5. Known issues
 
 Fixed:
@@ -238,5 +279,11 @@ To address:
       catalogue (new order) are front-end placeholders — back them with real API/data models.
 - [ ] `orders.vue` formats prices in USD and has a hardcoded "Sarah Connor" project manager.
 - [ ] Mixed English / Persian inline comments across pages (cosmetic; standardise to English).
+- [ ] `wallet.vue` is dark-only: ~46 literal `text-white` classes with no light
+      pair, so 12 elements on the Overview and Banking tabs render white-on-white
+      when the OS prefers light. Pre-existing (identical count at the pre-Phase-5
+      commit) and deliberately left alone — the light treatment for this page is
+      V2 Phase 9's scope, and improvising one would violate "the design export is
+      the spec". The V2-rebuilt pages (balance/orders/services) are already clean.
 - [ ] Local dev uses an Iran mirror in `.npmrc` that 403s intermittently; `registry.npmmirror.com`
       worked (`pnpm install --registry=https://registry.npmmirror.com/`).

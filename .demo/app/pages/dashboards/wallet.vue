@@ -5,18 +5,19 @@
  * modal and an Apply-for-credit modal, on the dark navy (.apex-dark) surface
  * with electric-violet accents and Yellix display headings.
  *
- * Real data:
- *  - Cash balance, cards, ad credits           → /api/finance/dashboard
- *  - Transaction feed (top-ups/payments/…)     → /api/finance/transactions
- *  - Installment plans + upcoming payments      → /api/orders (DERIVED the same
- *    way as My Orders — 12-month plan, amount/12, paid inferred; ADR-010)
- *  - Top up wallet                              → POST /api/finance/deposit (real
- *    deposit record; no real card charge is simulated — ADR-010 / rule #9)
+ * Real data throughout:
+ *  - Cash balance, cards, ad credits, credit line → /api/finance/dashboard
+ *  - Transaction feed (top-ups/payments/…)        → /api/finance/transactions
+ *  - Installment plans + upcoming payments        → /api/orders (real
+ *    `installmentPlan` rows; charged via /api/finance/installments/:id/pay)
+ *  - Saved payment instruments                    → /api/finance/payment-methods
+ *  - Top-ups and new instruments                  → <WalletTopUp> → hosted
+ *    provider flow (PCI SAQ-A, ADR-015)
+ *  - Bank details, VAT rate, finance terms        → /api/config
  *
- * Presentation placeholders (flagged TODO(api) until a model backs them):
- *  - Apex credit line figures (no credit model on User — REQUIREMENTS §6)
- *  - Auto-pay preference, invoice numbering, per-installment "Pay now",
- *    billing address / VAT, and the agency bank-transfer details.
+ * Remaining TODO(api): downloadable receipts (no endpoint yet — the button is
+ * absent rather than lying), VAT invoices (no Invoice model — see `receipts`),
+ * and the billing address / VAT number fields.
  */
 import { computed, ref } from 'vue'
 
@@ -123,13 +124,29 @@ function goTab(next: typeof tab.value) {
 // ---- transactions ---------------------------------------------------------
 interface UiTx { id: string, title: string, sub: string, date: string, amount: number, kind: TxKind }
 
+/**
+ * Human labels for the ledger's `type` enum. Lower-casing the raw value turned
+ * `AD_CREDIT` into "Ad_credit" on screen; anything unmapped falls back to a
+ * neutral word rather than leaking the enum.
+ */
+const TX_LABEL: Record<string, string> = {
+  DEPOSIT: 'Top-up',
+  PAYMENT: 'Payment',
+  INSTALLMENT: 'Installment',
+  REFUND: 'Refund',
+  WITHDRAWAL: 'Withdrawal',
+  AD_CREDIT: 'Ad credit',
+  CREDIT: 'Credit',
+  CREDIT_REPAY: 'Credit repayment',
+}
+
 const allTx = computed<UiTx[]>(() =>
   rawTx.value.map((t) => {
     const kind = txKind(t.type, t.amount)
     return {
       id: t.id,
       title: t.description || (t.amount > 0 ? 'Wallet top-up' : 'Payment'),
-      sub: t.type ? String(t.type).charAt(0) + String(t.type).slice(1).toLowerCase() : 'Transaction',
+      sub: TX_LABEL[String(t.type ?? '').toUpperCase()] ?? 'Transaction',
       date: fmtDate(t.date),
       amount: t.amount,
       kind,
@@ -262,6 +279,16 @@ const upcoming = computed(() =>
 
 // ---- credit line (real CreditLine record from /api/finance/dashboard) -----
 const creditLine = computed<any>(() => (finance.value as any)?.credit ?? null)
+/**
+ * Whether there is a facility to describe at all.
+ *
+ * Without this the card rendered a fully-formed credit product for accounts
+ * that have none: "£0 available to spend", a 0% bar, "spend up to £0 on any
+ * project", and a disabled "Start a project" button with nothing saying why.
+ * A disabled primary action with no reason is a dead end, and "£0" reads as a
+ * bug rather than a state.
+ */
+const hasCredit = computed(() => !!creditLine.value && (creditLine.value.limit ?? 0) > 0)
 const credit = computed(() => {
   const line = creditLine.value
   const limit = line?.limit ?? 0
@@ -279,23 +306,45 @@ const credit = computed(() => {
   }
 })
 
-// ---- banking: invoices (TODO(api): no invoice model — derived from payments) -
-const invoices = computed(() => {
-  const paid = allTx.value.filter(t => t.kind === 'installment' || (t.kind === 'out' && t.amount < 0))
-  return paid.slice(0, 5).map((t, i) => ({
-    id: t.id,
-    num: `INV-2026-${String(14 - i).padStart(3, '0')}`,
-    sub: `${t.title} · ${t.date}`,
-    amount: Math.abs(t.amount),
-    status: 'paid' as const,
-  }))
-})
+/**
+ * Payment receipts — the ledger rows themselves, not invented invoices.
+ *
+ * This list used to mint an invoice number from the row's position in a
+ * reverse-chronological array, counting down from a hardcoded 14. An invoice
+ * number has to be unique, sequential and permanent; that one shifted for every
+ * record as soon as another payment landed, repeated across customers, and ran
+ * into INV-2026-000 after fourteen payments. A customer quoting it to accounts
+ * would be quoting something that no longer existed.
+ *
+ * These records are payment receipts, so they are labelled and identified as
+ * such. TODO(api): when a real `Invoice` model issues server-side numbers,
+ * restore an Invoices section reading from it — never client-side numbering.
+ */
+const receipts = computed(() =>
+  allTx.value
+    .filter(t => t.kind === 'installment' || (t.kind === 'out' && t.amount < 0))
+    .slice(0, 5)
+    .map(t => ({
+      id: t.id,
+      title: t.title,
+      sub: t.date,
+      amount: Math.abs(t.amount),
+    })),
+)
 
 // ---- banking: bank transfer (agency receiving account from /api/config) ---
 const { data: appConfig } = await useFetch('/api/config', { lazy: true })
 const BANK_ROWS = computed<{ key: string, label: string, value: string }[]>(() =>
   (appConfig.value as any)?.bank ?? [],
 )
+
+/**
+ * The credit card describes the terms the checkout actually offers, read from
+ * the same admin Setting the New Order wizard gates on. Hardcoding "or spread
+ * it over 24 months" would promise a term the wizard withholds whenever
+ * `finance.enable-24mo-plans` is off — a pricing promise, not a copy nit.
+ */
+const enable24mo = computed(() => (appConfig.value as any)?.finance?.enable24moPlans !== false)
 const copied = ref<string | null>(null)
 let copyTimer: ReturnType<typeof setTimeout> | undefined
 function copyBank(key: string) {
@@ -475,14 +524,10 @@ async function payInstallment(plan: Plan) {
     payingPlan.value = null
   }
 }
-
-function comingSoon(feature: string) {
-  toaster.add({ title: feature, description: 'Your account manager has been notified and will be in touch shortly.', icon: 'lucide:check', progress: true })
-}
 </script>
 
 <template>
-  <div class="apex-wallet mx-auto flex max-w-[1160px] flex-col pb-14 font-sans text-muted-400">
+  <div class="apex-wallet mx-auto flex max-w-[1180px] flex-col pb-14 font-sans text-muted-400">
     <!-- ============ TITLE ============ -->
     <ApexPageHeader
       title="Wallet &amp;"
@@ -499,11 +544,13 @@ function comingSoon(feature: string) {
     </ApexPageHeader>
 
     <!-- ============ TABS ============ -->
-    <div role="tablist" class="mb-[26px] inline-flex max-w-full gap-1 self-start overflow-x-auto rounded-full border border-white/8 bg-muted-800 p-1">
+    <!-- `aria-pressed` buttons rather than tabs: there is no tabpanel to point
+         at, and this matches the choice made on My Orders (Phase 4). -->
+    <div role="group" aria-label="Wallet sections" class="mb-6 inline-flex max-w-full gap-1 self-start overflow-x-auto rounded-full border border-white/8 bg-muted-800 p-1">
       <button
         v-for="[key, label] in TAB_DEFS" :key="key"
-        role="tab" :aria-selected="tab === key"
-        class="shrink-0 rounded-full px-[18px] py-[11px] text-[13.5px] transition-all sm:py-[9px]"
+        type="button" :aria-pressed="tab === key"
+        class="apex-focus shrink-0 rounded-full px-[18px] py-[11px] text-[13.5px] transition-all sm:py-[9px]"
         :class="tab === key ? 'bg-primary-500 font-bold text-white' : 'font-semibold text-muted-400 hover:text-white'"
         @click="goTab(key)"
       >
@@ -512,8 +559,8 @@ function comingSoon(feature: string) {
     </div>
 
     <!-- ============================================================ OVERVIEW -->
-    <div v-if="tab === 'overview'" class="apex-rise flex flex-col gap-[18px]">
-      <div class="grid grid-cols-1 gap-[18px] lg:grid-cols-2">
+    <div v-if="tab === 'overview'" class="apex-rise flex flex-col gap-5">
+      <div class="grid grid-cols-1 gap-5 lg:grid-cols-2">
         <!-- CASH WALLET -->
         <section
           class="relative flex flex-col overflow-hidden rounded-2xl border border-white/8 p-5 sm:p-[26px]"
@@ -568,7 +615,8 @@ function comingSoon(feature: string) {
 
         <!-- APEX CREDIT -->
         <section
-          class="relative flex flex-col overflow-hidden rounded-2xl border border-primary-500/26 p-5 sm:p-[26px]"
+          v-if="hasCredit"
+          class="relative flex flex-col overflow-hidden rounded-2xl border border-primary-500/26 p-5 sm:p-6"
           style="background: linear-gradient(160deg, #1B2231, #141A26);"
         >
           <div class="pointer-events-none absolute -right-16 -top-24 size-[260px] rounded-full" style="background: radial-gradient(circle, rgba(125,83,242,.24), transparent 70%);" />
@@ -611,9 +659,11 @@ function comingSoon(feature: string) {
               No application needed
             </div>
             <div class="mt-[3px] text-[13px] text-muted-300">
-              Spend up to {{ formatCurrency(credit.limit) }} on any project. Pick
-              <strong class="font-semibold text-white">0% over 12 months</strong> or spread it over
-              <strong class="font-semibold text-white">24 months</strong> at checkout — a repayment plan is set up automatically.
+              Spend up to {{ formatCurrency(credit.limit) }} on any project. Choose
+              <strong class="font-semibold text-white">0% over 12 months</strong><template v-if="enable24mo">
+                or spread it over <strong class="font-semibold text-white">24 months</strong>
+              </template>
+              at checkout — a repayment plan is set up automatically.
             </div>
           </div>
 
@@ -621,6 +671,19 @@ function comingSoon(feature: string) {
             <Icon name="lucide:pause-circle" class="size-[17px] shrink-0 text-[#EC6453]" />
             <div class="text-[13px] text-muted-400">
               Your credit is on hold. Contact support to restore access.
+            </div>
+          </div>
+
+          <!--
+            Fully drawn down. "Start a project" is disabled below, and a disabled
+            primary button with no reason is a dead end — say why, and what
+            clears it.
+          -->
+          <div v-else-if="credit.available <= 0" class="relative mt-3.5 flex items-center gap-2.5 rounded-xl border border-[#D9A521]/24 bg-[#D9A521]/[0.08] px-[15px] py-[13px]">
+            <Icon name="lucide:info" class="size-[17px] shrink-0 text-[#F2C14E]" />
+            <div class="text-[13px] text-muted-400">
+              Your {{ formatCurrency(credit.limit) }} limit is fully committed. Paying an installment
+              frees up credit for a new project.
             </div>
           </div>
 
@@ -633,12 +696,46 @@ function comingSoon(feature: string) {
             </BaseButton>
           </div>
         </section>
+
+        <!--
+          No facility on the account: describe the product and offer the one
+          action that can change that, instead of a £0 card with a disabled
+          button and no explanation.
+        -->
+        <section v-else class="flex flex-col rounded-2xl border border-white/8 bg-muted-800 p-5 sm:p-6">
+          <div class="flex items-center justify-between gap-3">
+            <div class="flex items-center gap-2.5">
+              <span class="inline-flex size-[34px] items-center justify-center rounded-xl bg-white/5 text-muted-400">
+                <Icon name="lucide:zap" class="size-[17px]" />
+              </span>
+              <span class="font-heading text-[15px] font-bold text-white">Apex credit</span>
+            </div>
+            <span class="inline-flex items-center rounded-full bg-white/5 px-2.5 py-1 text-[10.5px] font-extrabold uppercase tracking-[0.05em] text-muted-500">
+              Not enabled
+            </span>
+          </div>
+
+          <div class="flex flex-1 flex-col justify-center py-[26px]">
+            <div class="font-heading text-[19px] font-bold tracking-[-0.01em] text-white">
+              Spread project costs over time
+            </div>
+            <p class="mt-2 max-w-[380px] text-[13.5px] leading-[1.55] text-muted-400">
+              Apex credit lets you start work now and repay monthly at 0%. It isn't set up on
+              your account yet — your account manager can enable it.
+            </p>
+          </div>
+
+          <BaseButton to="/dashboards/support" rounded="lg" class="border border-white/8 bg-muted-700 !text-white">
+            <Icon name="lucide:message-square" class="size-4" />
+            <span>Ask about Apex credit</span>
+          </BaseButton>
+        </section>
       </div>
 
       <!-- second row -->
-      <div class="grid grid-cols-1 gap-[18px] lg:grid-cols-2">
+      <div class="grid grid-cols-1 gap-5 lg:grid-cols-2">
         <!-- upcoming payments -->
-        <section class="flex flex-col rounded-2xl border border-white/8 bg-muted-800 px-6 py-[22px]">
+        <section class="flex flex-col rounded-2xl border border-white/8 bg-muted-800 p-6">
           <div class="mb-4 flex items-center gap-2.5">
             <Icon name="lucide:calendar" class="size-[18px] text-primary-400" />
             <h3 class="font-heading text-base font-bold text-white">
@@ -685,7 +782,7 @@ function comingSoon(feature: string) {
         </section>
 
         <!-- recent activity -->
-        <section class="flex flex-col rounded-2xl border border-white/8 bg-muted-800 px-6 py-[22px]">
+        <section class="flex flex-col rounded-2xl border border-white/8 bg-muted-800 p-6">
           <div class="mb-4 flex items-center gap-2.5">
             <Icon name="lucide:activity" class="size-[18px] text-primary-400" />
             <h3 class="font-heading text-base font-bold text-white">
@@ -792,11 +889,13 @@ function comingSoon(feature: string) {
     <div v-else-if="tab === 'installments'" class="apex-rise">
       <div v-if="plans.length" class="flex flex-col gap-3.5">
         <section v-for="pl in plans" :key="pl.id" class="overflow-hidden rounded-2xl border border-white/8 bg-muted-800">
-          <div
-            role="button" tabindex="0" class="flex cursor-pointer items-center gap-4 px-6 py-[19px] transition-colors hover:bg-muted-700"
+          <!-- A real <button> gets keyboard handling, focus and role for free,
+               and can announce its expanded state; the div needed three extra
+               handlers to fake half of that. -->
+          <button
+            type="button" :aria-expanded="!!expanded[pl.id]"
+            class="apex-focus flex w-full cursor-pointer items-center gap-4 px-6 py-[19px] text-left transition-colors hover:bg-muted-700"
             @click="togglePlan(pl.id)"
-            @keydown.enter="togglePlan(pl.id)"
-            @keydown.space.prevent="togglePlan(pl.id)"
           >
             <span class="inline-flex size-11 shrink-0 items-center justify-center rounded-xl" :class="[SVC_META[pl.icon].bg, SVC_META[pl.icon].text]">
               <Icon :name="SVC_META[pl.icon].icon" class="size-5" />
@@ -818,19 +917,32 @@ function comingSoon(feature: string) {
               </div>
             </div>
             <div class="hidden w-[200px] shrink-0 flex-col gap-[7px] sm:flex">
-              <div class="flex gap-[3px]">
+              <!--
+                Segments only while they stay readable. At 24 installments each
+                one is ~5px wide with a 3px gap inside a 200px column, which
+                reads as noise; a single bar carries the same fact, and the
+                count below states it exactly.
+              -->
+              <div v-if="pl.total <= 12" class="flex gap-[3px]">
                 <div
                   v-for="(r, i) in pl.rows" :key="i"
                   class="h-[7px] flex-1 rounded-[3px]"
                   :class="i < pl.paid ? (pl.status === 'completed' ? 'bg-[#22B07D]' : 'bg-primary-500') : 'bg-white/8'"
                 />
               </div>
+              <div v-else class="h-[7px] overflow-hidden rounded-full bg-white/8">
+                <div
+                  class="h-full rounded-full"
+                  :class="pl.status === 'completed' ? 'bg-[#22B07D]' : 'bg-primary-500'"
+                  :style="{ width: `${Math.round((pl.paid / pl.total) * 100)}%` }"
+                />
+              </div>
               <div class="text-right text-[11.5px] text-muted-500">
                 {{ pl.paid }} of {{ pl.total }} paid
               </div>
             </div>
-            <Icon name="lucide:chevron-down" class="size-[18px] shrink-0 text-muted-500 transition-transform" :class="expanded[pl.id] ? 'rotate-180' : ''" />
-          </div>
+            <Icon name="lucide:chevron-down" aria-hidden="true" class="size-[18px] shrink-0 text-muted-500 transition-transform" :class="expanded[pl.id] ? 'rotate-180' : ''" />
+          </button>
 
           <div v-if="expanded[pl.id]" class="apex-fade border-t border-white/8 px-6 pb-[18px] pt-2.5">
             <div
@@ -883,10 +995,10 @@ function comingSoon(feature: string) {
     </div>
 
     <!-- ============================================================ BANKING -->
-    <div v-else-if="tab === 'banking'" class="apex-rise grid grid-cols-1 items-start gap-[18px] lg:grid-cols-[minmax(0,1fr)_380px]">
+    <div v-else-if="tab === 'banking'" class="apex-rise grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,1fr)_380px]">
       <!-- left: methods + invoices -->
-      <div class="flex min-w-0 flex-col gap-[18px]">
-        <section class="rounded-2xl border border-white/8 bg-muted-800 px-6 py-[22px]">
+      <div class="flex min-w-0 flex-col gap-5">
+        <section class="rounded-2xl border border-white/8 bg-muted-800 p-6">
           <div class="mb-4 flex items-center gap-2.5">
             <Icon name="lucide:credit-card" class="size-[18px] text-primary-400" />
             <h3 class="font-heading text-base font-bold text-white">
@@ -900,7 +1012,7 @@ function comingSoon(feature: string) {
               class="flex items-center gap-3.5 rounded-xl border bg-muted-700 px-4 py-3.5"
               :class="m.isDefault ? 'border-primary-500/26' : 'border-white/8'"
             >
-              <span class="inline-flex h-8 w-[46px] shrink-0 items-center justify-center rounded-[7px] border border-white/15 text-[9px] font-extrabold tracking-[0.04em] text-white" style="background: linear-gradient(140deg, #1B2B31, #0D181C);">
+              <span class="inline-flex h-8 w-[46px] shrink-0 items-center justify-center rounded-lg border border-white/15 text-[9px] font-extrabold tracking-[0.04em] text-white" style="background: linear-gradient(140deg, #1B2B31, #0D181C);">
                 {{ brandBadge(m) }}
               </span>
               <div class="min-w-0 flex-1">
@@ -952,47 +1064,51 @@ function comingSoon(feature: string) {
           </button>
         </section>
 
-        <section class="rounded-2xl border border-white/8 bg-muted-800 px-6 py-[22px]">
+        <!--
+          Receipts, not invoices: these rows are the ledger's own payment
+          records. The download button is gone rather than firing a toast
+          claiming an account manager was notified — a missing control is
+          honest, one that lies is not. TODO(api): restore downloads when
+          GET /api/finance/receipts/:id exists, as a real <a download>.
+        -->
+        <section class="rounded-2xl border border-white/8 bg-muted-800 p-6">
           <div class="mb-3.5 flex items-center gap-2.5">
-            <Icon name="lucide:file-text" class="size-[18px] text-primary-400" />
+            <Icon name="lucide:receipt" class="size-[18px] text-primary-400" />
             <h3 class="font-heading text-base font-bold text-white">
-              Invoices
+              Receipts
             </h3>
-            <span class="rounded-full bg-muted-700 px-2.5 py-0.5 text-xs text-muted-500">{{ invoices.length }}</span>
+            <span class="rounded-full bg-muted-700 px-2.5 py-0.5 text-xs text-muted-500">{{ receipts.length }}</span>
           </div>
-          <div v-if="invoices.length">
+          <div v-if="receipts.length">
             <div
-              v-for="inv in invoices" :key="inv.id"
-              class="flex items-center gap-3.5 border-b border-white/[0.04] py-3"
+              v-for="receipt in receipts" :key="receipt.id"
+              class="flex items-center gap-3.5 border-b border-white/[0.04] py-3 last:border-b-0"
             >
               <div class="min-w-0 flex-1">
-                <div class="text-[13.5px] font-semibold text-white">
-                  {{ inv.num }}
+                <div class="truncate text-[13.5px] font-semibold text-white">
+                  {{ receipt.title }}
                 </div>
                 <div class="mt-0.5 truncate text-xs text-muted-500">
-                  {{ inv.sub }}
+                  {{ receipt.sub }}
                 </div>
               </div>
-              <span class="font-heading text-sm font-bold tabular-nums text-white">{{ formatCurrency(inv.amount) }}</span>
-              <span class="inline-flex items-center rounded-full bg-[#22B07D]/14 px-2.5 py-1 text-[10.5px] font-extrabold uppercase tracking-[0.05em] text-[#22B07D]">Paid</span>
-              <button
-                aria-label="Download invoice"
-                class="inline-flex size-8 items-center justify-center rounded-xl border border-white/8 bg-muted-700 text-muted-400 transition-colors hover:border-white/15 hover:text-white"
-                @click="comingSoon('Download invoice')"
-              >
-                <Icon name="lucide:download" class="size-[15px]" />
-              </button>
+              <span class="font-heading text-sm font-bold tabular-nums text-white">{{ formatCurrency(receipt.amount) }}</span>
+              <span class="inline-flex shrink-0 items-center rounded-full bg-[#22B07D]/14 px-2.5 py-1 text-[10.5px] font-extrabold uppercase tracking-[0.05em] text-[#22B07D]">Paid</span>
             </div>
+            <p class="mt-3.5 text-xs leading-[1.55] text-muted-500">
+              A payment receipt is issued for every installment. VAT invoices are sent by email
+              from our accounts team.
+            </p>
           </div>
           <div v-else class="rounded-xl border border-dashed border-white/8 p-[22px] text-center text-[13.5px] text-muted-500">
-            Invoices are issued with each installment payment.
+            A receipt appears here for every installment payment.
           </div>
         </section>
       </div>
 
       <!-- right: bank transfer + billing -->
-      <div class="flex flex-col gap-[18px]">
-        <section class="rounded-2xl border border-white/8 px-6 py-[22px]" style="background: linear-gradient(160deg, #16252A, #101D21);">
+      <div class="flex flex-col gap-5">
+        <section class="rounded-2xl border border-white/8 p-6" style="background: linear-gradient(160deg, #16252A, #101D21);">
           <div class="mb-1.5 flex items-center gap-2.5">
             <Icon name="lucide:landmark" class="size-[18px] text-primary-400" />
             <h3 class="font-heading text-base font-bold text-white">
@@ -1000,7 +1116,11 @@ function comingSoon(feature: string) {
             </h3>
           </div>
           <p class="mb-3.5 text-[12.5px] leading-[1.5] text-muted-500">
-            Pay any installment directly by transfer — use your project ID as the reference.
+            <!-- No project ID is shown on this tab, so say where to find one. -->
+            Pay any installment directly by transfer. Use your project ID as the reference — you'll
+            find it on the project page in <NuxtLink to="/dashboards/orders" class="font-semibold text-primary-400 hover:text-primary-200">
+              My orders
+            </NuxtLink>.
           </p>
           <div
             v-for="b in BANK_ROWS" :key="b.key"
@@ -1024,7 +1144,7 @@ function comingSoon(feature: string) {
           </div>
         </section>
 
-        <section class="rounded-2xl border border-white/8 bg-muted-800 px-6 py-[22px]">
+        <section class="rounded-2xl border border-white/8 bg-muted-800 p-6">
           <div class="mb-3.5 flex items-center justify-between gap-2.5">
             <div class="flex items-center gap-2.5">
               <Icon name="lucide:user" class="size-[18px] text-primary-400" />
@@ -1032,9 +1152,11 @@ function comingSoon(feature: string) {
                 Billing details
               </h3>
             </div>
-            <button class="text-[12.5px] font-bold text-primary-400 transition-colors hover:text-primary-200" @click="comingSoon('Edit billing details')">
+            <!-- Name and email come from the account record, so Edit goes where
+                 they are actually editable rather than firing a toast. -->
+            <NuxtLink to="/dashboards/settings" class="apex-focus rounded-md text-[12.5px] font-bold text-primary-400 transition-colors hover:text-primary-200">
               Edit
-            </button>
+            </NuxtLink>
           </div>
           <div class="flex flex-col gap-2.5 text-[13.5px] leading-[1.5] text-muted-400">
             <div>

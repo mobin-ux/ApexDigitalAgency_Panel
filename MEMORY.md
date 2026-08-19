@@ -2,7 +2,7 @@
 
 > Handoff doc for continuing work in fresh sessions. Update the relevant section
 > whenever a page ships, a decision lands, or a blocker appears.
-> Last updated: **2026-08-18** (V2 redesign Phase 1 — shared shell).
+> Last updated: **2026-08-19** (V2 redesign Phase 5 — Wallet & Credit).
 
 ## Where things stand
 
@@ -56,8 +56,9 @@ Read it with the `DesignSync` tool (`method: get_file`).
 | 2 | Dashboard (`balance.vue`) | ✅ Done |
 | 3 | New Order (`services.vue`) | ✅ Done |
 | 4 | My Orders (`orders.vue`) | ✅ Done |
-| 5 | Wallet & Credit | ⬅ next |
-| 6–9 | Support · Settings · Auth · Mobile/Light | ☐ |
+| 5 | Wallet & Credit (`wallet.vue`) | ✅ Done |
+| 6 | Support (`support.vue`) | ⬅ next |
+| 7–9 | Settings · Auth · Mobile/Light | ☐ |
 
 **Phase 1 shipped:** Apex brand mark (+ favicon/title), 44px nav rows with a
 violet `color-mix` active tint, hairline sub-nav, one account dropdown with
@@ -146,6 +147,60 @@ and its input tokens are a different surface.
 be 24. The same account therefore shows `x/12` on legacy projects and `x/24` on
 new ones. Backfill plans for pre-migration projects to retire the fallback;
 there is a `TODO(api)` at the top of `orders.vue`.
+
+**Phase 5 shipped (Wallet & Credit):** one file (`wallet.vue`), no API
+change. Three things on the page were saying more than the data supported.
+
+- **Invoice numbers were minted in the template.** The invoices card built
+  `INV-2026-${14 - i}` from the array index — the same number for every
+  customer, and a *different* number for the same charge once a newer one
+  arrived. There is no `Invoice` model. The card is now **Receipts**: the
+  ledger rows themselves, with no number, no non-functional "Download" button,
+  and a footnote that VAT invoices are emailed.
+- **The credit section only had an active state.** An account with no
+  `CreditLine` still got the full layout, so "£0 available" read as a spent
+  facility rather than an absent one. Now gated on `hasCredit` with a real
+  empty state. Going past the limit had its own dead end: "Start a project"
+  was disabled with no explanation — the button is live again and an amber
+  note says the limit is fully committed and that paying an installment frees
+  credit up.
+- **Transaction types were labelled by string surgery.** `AD_CREDIT` rendered
+  as "Ad_credit". A `TX_LABEL` map covers all eight types.
+
+Also: `comingSoon()` deleted from the page (billing "Edit" now links to
+Settings); plan headers are `<button aria-expanded>` instead of
+`div[role=button]` with hand-rolled key handlers; tabs match Phase 4's
+`aria-pressed` choice (`role="tab"` with no tabpanel is a promise of
+structure that isn't there); installment segments only render per-installment
+up to 12, a single bar beyond; bank-transfer copy points at My orders for the
+project ID; radius/spacing normalised to the Phase 1 scale (`rounded-[28px]`
+→ `rounded-2xl`, `gap-[18px]` → `gap-5`, `px-6 py-[22px]` → `p-6`),
+leaving one documented `rounded-[3px]` on a sub-8px progress bar; container
+`1160px` → `1180px`; 24-month copy behind `enable24mo`.
+
+Verified at 1280px and a true 375px: zero horizontal overflow on all four
+tabs, zero native selects, zero tab roles, four `aria-pressed` buttons,
+h1 30px, receipts show real ledger descriptions/dates/amounts with no
+`INV-` string anywhere, expand toggle flips `aria-expanded`, clean console
+on a fresh tab. ESLint clean; all six customer routes still SSR 200.
+
+### Phase 5 gotcha — `ensureCredit()` overwrites admin limit changes
+
+`server/utils/credit.ts` recreates/normalises every customer's `CreditLine`
+on each dashboard load from Setting `credit.max-limit` (default £20,000), and
+derives `used` from outstanding principal rather than maintaining it
+incrementally. An admin "adjust limit to 0" therefore does not stick. To
+exercise the no-credit UI, set `credit.max-limit` to 0, verify, then restore
+it — that is how the empty state was tested here.
+
+### Phase 5 note — wallet is dark-only, and that is Phase 9's problem
+
+`wallet.vue` carries ~46 literal `text-white` classes with no light pair, so
+12 elements across Overview and Banking render white-on-white when the OS
+prefers light. Measured identical at the pre-Phase-5 commit, so Phase 5 left it
+exactly as found; the V2-rebuilt pages (balance/orders/services) are already
+clean. Fixing it means inventing a light palette for a page whose light
+treatment has never been designed — that is Phase 9.
 
 ## Remaining queue (older, pre-V2)
 
