@@ -2,7 +2,7 @@
 
 > Handoff doc for continuing work in fresh sessions. Update the relevant section
 > whenever a page ships, a decision lands, or a blocker appears.
-> Last updated: **2026-08-20** (V2 redesign Phase 7 — Settings).
+> Last updated: **2026-08-20** (V2 redesign Phase 8 — Auth).
 
 ## Where things stand
 
@@ -59,8 +59,8 @@ Read it with the `DesignSync` tool (`method: get_file`).
 | 5 | Wallet & Credit (`wallet.vue`) | ✅ Done |
 | 6 | Support (`support.vue`) | ✅ Done |
 | 7 | Settings (`settings.vue`) | ✅ Done |
-| 8 | Auth flow | ⬅ next |
-| 9 | Mobile & light theme | ☐ |
+| 8 | Auth flow | ✅ Done |
+| 9 | Mobile & light theme | ⬅ next |
 
 **Phase 1 shipped:** Apex brand mark (+ favicon/title), 44px nav rows with a
 violet `color-mix` active tint, hairline sub-nav, one account dropdown with
@@ -387,6 +387,73 @@ from here without real credentials.
 **Still outstanding:** the VPS's `.demo/nuxt.config.ts` build fixes are on the
 box but not in the repo, and the root password (pasted in chat long ago) should
 be rotated now that key auth works.
+
+**Phase 8 shipped (Auth):** new `layouts/auth.vue`; `login-1`, `signup-2` and
+`recover` rewritten onto it; `/auth` turned into a redirect and four demo
+pages deleted; two new `/legal/*` routes; one line of `nuxt.config.ts`. The
+auth endpoints are untouched.
+
+- **Five Tairo demo auth pages were publicly reachable.** `/auth` — the most
+  guessable auth URL — served a demo that told the visitor the password was
+  `"password"`, faked a 4s submit and pushed to `/dashboards` without
+  authenticating. Deleted `login-2`/`login-3`/`signup-1`/`signup-3`, made
+  `/auth` redirect, and delisted them from `layouts/default.vue` and
+  `collapse.vue` (which also listed `/auth/forgot`, a route that never existed).
+- **The login error banner was a sibling of the full-screen layout**, above it,
+  so a failed sign-in pushed the whole page down — and the same sentence also
+  fired as a toast. Now one `role="alert"` inside the form column. Verified:
+  the brand panel's top stays at 0 across a failure.
+- **Three dead social buttons** (Google/X/LinkedIn — no handler, no provider,
+  no route) and the "OR" divider removed; **"Trust for 60 days"** removed
+  because the value was never sent.
+- **Signup now asks for a name.** The endpoint already accepted `name`; the
+  page never sent one, which is why the dashboard greeted people by their
+  email local part. Verified end to end: signing up "Jane Okafor" stores
+  `firstName: Jane`, `lastName: Okafor`.
+- **The Terms link was inside the checkbox.** Clicking it toggled consent
+  instead of opening the document — which was `href="#"` anyway. Box and
+  sentence are siblings now; verified a click navigates to `/legal/terms`.
+- **"Check your console/email"** replaced with the address, the real
+  60-minute expiry, a spam note and a working resend, keeping the neutral
+  "if an account exists" phrasing. `<ClientOnly>` removed (query params are
+  available during SSR), so no more "Loading..." flash.
+- **A completed reset now confirms before redirecting.** It does *not* claim
+  other sessions ended — `reset-password-confirm` only rewrites the hash and
+  burns the token, so the mockup's "signs you out everywhere else" would be
+  false (same finding as Phase 7).
+- **"Back to Home" pointed at `/dashboards`**, behind the auth guard, so from
+  sign-in it looped back to sign-in. It goes to the marketing site.
+- One password minimum (**10**) across signup, reset and Settings; strength
+  meters on both new-password fields; show/hide toggles everywhere; identifier
+  autofocus; `type="email"` on reset; a signed-in visitor to `/auth/login-1` is
+  redirected to the dashboard; 429 from the rate limiter is surfaced as such.
+
+### Phase 8 gotcha — `/auth/**` was `swr: 3600`
+
+The auth pages were HTML-cached for an hour. Nitro served a stale render that
+no longer matched the client bundle, so **every visit logged a hydration
+mismatch** — I chased it through the layout before finding the route rule. It
+also meant a shipped change to the login form would be invisible for up to an
+hour, and `/auth/recover` varies by `?token=`. Now `swr: false`, the same rule
+`/dashboards/**` learned in ADR-008. Note the browser also caches the response,
+so after changing this you must bust the URL to see it.
+
+### Phase 8 gotcha — a comment before the root element is a second root
+
+A template whose first node is an HTML comment is multi-root, so the client
+hydrates a Fragment where the server rendered an element. Keep layout
+commentary inside the root node.
+
+### Phase 8 note — the legal pages are deliberately not written
+
+`/legal/terms` and `/legal/privacy` exist so the consent links resolve and so
+clicking one opens a document rather than toggling the checkbox. Neither
+contains the actual legal text — writing a real UK company's Terms and Privacy
+Policy is not something to generate. Both carry `TODO(legal)` and state where
+the binding terms currently live (the signed project agreement) and how to
+request them. **A consent checkbox pointing at a page without the terms is
+still not an enforceable click-wrap** — publishing the real documents into
+those routes is a launch blocker.
 
 ## Remaining queue (older, pre-V2)
 

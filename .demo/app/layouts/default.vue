@@ -577,20 +577,11 @@ const menu = [
         icon: 'solar:lock-linear',
         children: [
           {
-            label: 'Login v1',
-            to: '/auth',
-          },
-          {
-            label: 'Login v2',
+            // The Tairo login/signup variants were deleted in V2 Phase 8 —
+            // they were demo forms with fake submits, publicly reachable.
+            // Only the real pages are listed.
+            label: 'Sign in',
             to: '/auth/login-1',
-          },
-          {
-            label: 'Login v3',
-            to: '/auth/login-2',
-          },
-          {
-            label: 'Login v4',
-            to: '/auth/login-3',
           },
         ],
       },
@@ -599,16 +590,8 @@ const menu = [
         icon: 'solar:key-minimalistic-linear',
         children: [
           {
-            label: 'Signup v1',
-            to: '/auth/signup-1',
-          },
-          {
-            label: 'Signup v2',
+            label: 'Create account',
             to: '/auth/signup-2',
-          },
-          {
-            label: 'Signup v3',
-            to: '/auth/signup-3',
           },
         ],
       },

@@ -223,8 +223,21 @@ export default defineNuxtConfig({
     '/starters/**': {
       swr: 3600,
     },
+    /*
+     * The auth pages must not be HTML-cached (found in V2 Phase 8).
+     *
+     * With `swr: 3600` Nitro served an hour-old render of the sign-in page: the
+     * cached HTML no longer matched the client bundle, so every visit logged a
+     * hydration mismatch and Vue re-rendered the shell. It also means a shipped
+     * change to the login form is invisible for up to an hour after deploy, and
+     * `/auth/recover` is served per-token — a route whose output depends on a
+     * `?token=` query is the last thing that should come from a shared cache.
+     *
+     * Same reasoning as `/dashboards/**` below (ADR-008), which is where this
+     * rule was first learned.
+     */
     '/auth/**': {
-      swr: 3600,
+      swr: false,
     },
     '/documentation': {
       swr: 3600,

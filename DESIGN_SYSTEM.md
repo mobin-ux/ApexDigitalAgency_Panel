@@ -82,8 +82,8 @@ ships as a `.dc.html` mockup plus a `PHASE-N-*.md` implementation spec.
 | 5 | **Wallet & Credit** — real credit states, receipts not invoice numbers, honest labels | ✅ Done |
 | 6 | **Support** — no discarded files, an unread dot that means something, tokenised shell offset | ✅ Done |
 | 7 | **Settings** — the outlier brought onto the system, and fields that no longer vanish | ✅ Done |
-| 8 | Auth flow | ⬅ next |
-| 9 | Mobile & light theme | ☐ |
+| 8 | **Auth flow** — one branded shell, no demo pages, no dead controls | ✅ Done |
+| 9 | Mobile & light theme | ⬅ next |
 
 #### Phase 1 — the shell standard (applies to every page from here on)
 
@@ -346,6 +346,81 @@ other six, and three of its defects were losing customer data.
   with a skeleton instead of flashing empty inputs.
 - Native `<select>` count in the customer panel: **zero**. These were the last
   ten.
+
+#### Phase 8 — Auth (the pages a stranger sees first)
+
+Three real pages — sign in, create account, reset — plus five Tairo demos that
+were publicly reachable. Flows and endpoints unchanged.
+
+- **A demo login was live at `/auth`,** the most guessable auth URL in the app.
+  It told the visitor the password was `"password"`, faked a four-second
+  submit, then pushed to `/dashboards` without authenticating, so the guard
+  bounced them back. It advertised a 14-day trial Apex does not sell.
+  `login-2`, `login-3`, `signup-1` and `signup-3` were the same. All five are
+  gone, `/auth` redirects to the real form, and both layout nav trees stopped
+  listing them (including `/auth/forgot`, a route that never existed).
+- **One shell for three pages.** They had three: a split screen with a Tairo
+  illustration, a centred card with `<TairoLogo>`, and a third variant wrapped
+  in `<ClientOnly>`. `layouts/auth.vue` now owns the chrome — Apex brand panel
+  left, 400px form column right — and each page holds only its form.
+- **An error must not move the page.** login-1's alert was the template's
+  first root node, a *sibling of the full-screen layout*, so a failed sign-in
+  pushed everything down and put the message far from the field it described.
+  It is inside the form column now, with `role="alert"`, and the duplicate
+  toast that fired the same sentence is gone.
+- **Don't render controls with nothing behind them.** Three social buttons —
+  Google, X, LinkedIn — had no click handler, no OAuth provider and no route,
+  while being the largest controls on the page, under a subhead promising
+  "login with social media". Removed with the "OR" divider.
+- **A checkbox that changes nothing is a lie.** "Trust for 60 days" was
+  collected by the form and dropped from the request body. Removed rather than
+  sent, because honouring it needs a server-side session length.
+- **Ask for a name once, at the start.** Signup posted only identifier and
+  password, which is why the dashboard greeted people by their email local
+  part and Settings opened with empty name fields. One field fixes the
+  greeting, the sidebar, the avatar initials and message authorship together —
+  and the endpoint already accepted `name`.
+- **Interactive content must not live inside a control.** The consent sentence
+  was slotted *inside* `BaseCheckbox`, so clicking "Terms of Service" bubbled
+  to the checkbox: the customer silently toggled consent and never reached the
+  document — which was `href="#"` anyway. Box and sentence are siblings now,
+  and both links resolve to real routes.
+- **Never ship a developer instruction.** The reset success message read
+  "Check your console/email." It now names the address, states the 60-minute
+  expiry the API actually sets, mentions spam and offers a resend — while
+  keeping the neutral "if an account exists" phrasing so it does not confirm
+  whether the address is registered.
+- **Confirm before redirecting.** A completed reset pushed silently to
+  sign-in, so the customer could not tell whether it had worked. It shows a
+  confirmation first. The copy does *not* claim other devices were signed out:
+  sessions are stateless JWTs and rewriting the hash does not invalidate them
+  (same finding as Phase 7's password form).
+- **`<ClientOnly>` for a query param is a flash for nothing.** Recover was
+  wrapped because it reads `?token=`, which is available during SSR. Removed,
+  along with the "Loading..." string every visitor saw.
+- **The one escape route looped.** "Back to Home" pointed at `/dashboards`,
+  behind the auth guard, so from sign-in it returned to sign-in. It points at
+  the marketing site. (`/` is Tairo's demo landing, so it was not the answer.)
+- **Auth pages must not be HTML-cached.** `/auth/**` carried `swr: 3600`, so
+  Nitro served an hour-old render: it no longer matched the client bundle and
+  every visit logged a hydration mismatch. It also meant a shipped fix to the
+  login form stayed invisible for an hour, and `/auth/recover` varies by
+  `?token=`. Now `swr: false`, the same rule `/dashboards/**` learned in
+  ADR-008.
+- One password minimum — **10** — across signup, reset and Settings, with a
+  strength meter on both new-password fields and a show/hide toggle
+  (`aria-pressed`) on every password input. The APIs still accept 8 and 6; a
+  stricter client is always compatible and raising a server minimum would lock
+  out existing accounts.
+- Also: the identifier field autofocuses, reset's email input is `type="email"`
+  with `autocomplete="email"`, a signed-in visitor to `/auth/login-1` is sent
+  to the dashboard instead of seeing the form again, and a 429 from the rate
+  limiter says so instead of "check your details".
+
+**Phase 8 gotcha — a comment before the root element is a second root.**
+A template whose first node is an HTML comment is multi-root, so the client
+hydrates a Fragment where the server rendered an element. Keep layout commentary
+inside the root node.
 ## 5. Known issues
 
 Fixed:
@@ -398,9 +473,16 @@ Fixed:
 To address:
 - [ ] Stale seed scripts reference fields not in the schema: `server/api/seed-rich.get.ts`,
       `seed-wallet.get.ts`, and `prisma/seed.js` (uses `name`/`status`/`USER`). Dev-only.
-- [ ] Auth pages (login / signup / recover) still hardcode dark hex and predate the
-      Apex system — V2 Phase 8. `settings.vue` was the last dashboard page in that
-      state and was rebuilt in Phase 7.
+- [ ] **Legal content is a launch blocker.** `/legal/terms` and `/legal/privacy`
+      exist so signup's consent links resolve and open real pages instead of
+      `href="#"`, but neither contains the actual document — they state where the
+      binding terms currently live and how to request them. A consent checkbox
+      pointing at a page that does not contain the terms is still not an
+      enforceable click-wrap. Publish the real Terms and Privacy Policy into those
+      two routes (each carries a `TODO(legal)`).
+- [ ] No email or phone verification at signup: `/api/auth/signup` sets the session
+      immediately, so an account can be created against an address the user does not
+      control. Flagged by the Phase 8 spec, out of scope for a UI phase.
 - [ ] Credit-line, expense-split (balance) and the service "from" prices / order plan
       catalogue (new order) are front-end placeholders — back them with real API/data models.
 - [ ] `orders.vue` formats prices in USD and has a hardcoded "Sarah Connor" project manager.

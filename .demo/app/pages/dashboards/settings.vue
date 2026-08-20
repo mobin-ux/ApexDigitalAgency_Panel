@@ -243,8 +243,13 @@ const pwForm = reactive({ current: '', next: '', confirm: '' })
 const pwError = ref('')
 const pwSaving = ref(false)
 
-/** Matches signup's minimum, which the password endpoint's own comment asks for. */
-const PW_MIN = 8
+/**
+ * One password policy across signup, reset and here (V2 Phase 8). The APIs
+ * still accept 8 (signup/reset) and 6 (this endpoint) — a stricter client is
+ * always compatible, and raising a server minimum would lock out accounts
+ * that already exist.
+ */
+const PW_MIN = 10
 
 const pwScore = computed(() => {
   const v = pwForm.next

@@ -380,20 +380,9 @@ const menu = [
     icon: 'solar:lock-linear',
     children: [
       {
-        label: 'Login v1',
-        to: '/auth',
-      },
-      {
-        label: 'Login v2',
+        // Tairo's login/signup variants were deleted in V2 Phase 8.
+        label: 'Sign in',
         to: '/auth/login-1',
-      },
-      {
-        label: 'Login v3',
-        to: '/auth/login-2',
-      },
-      {
-        label: 'Login v4',
-        to: '/auth/login-3',
       },
     ],
   },
@@ -402,23 +391,16 @@ const menu = [
     icon: 'solar:key-minimalistic-linear',
     children: [
       {
-        label: 'Signup v1',
-        to: '/auth/signup-1',
-      },
-      {
-        label: 'Signup v2',
+        label: 'Create account',
         to: '/auth/signup-2',
-      },
-      {
-        label: 'Signup v3',
-        to: '/auth/signup-3',
       },
     ],
   },
   {
+    // Was `/auth/forgot`, a route that has never existed.
     label: 'Forgot password',
     icon: 'solar:refresh-square-linear',
-    to: '/auth/forgot',
+    to: '/auth/recover',
   },
   {
     label: 'Account',

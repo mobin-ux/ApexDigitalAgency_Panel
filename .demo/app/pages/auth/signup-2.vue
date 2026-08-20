@@ -1,33 +1,46 @@
 <script setup lang="ts">
+/**
+ * Create account — Apex Design V2, Phase 8.
+ *
+ * POST /api/auth/signup is unchanged. It already accepted an optional `name`
+ * alongside the identifier and password; the page simply never sent one,
+ * which is why the endpoint fell back to the email local part and the
+ * dashboard greeted people as "mobin.gh505". Asking once here also fills the
+ * sidebar, the avatar initials, the Settings name fields and the author name
+ * on support messages.
+ *
+ * The client-side `looksLikeIdentifier` mirror of the server's
+ * `parseIdentifier` heuristic is good and stays — the server re-validates.
+ */
 import type { AddonInputPassword } from '#components'
 import { toTypedSchema } from '@vee-validate/zod'
 import { Field, useForm } from 'vee-validate'
-
 import { z } from 'zod'
 
 definePageMeta({
-  layout: 'empty',
-  title: 'Signup',
-  preview: {
-    title: 'Signup 2',
-    description: 'For authentication and sign up',
-    categories: ['layouts', 'authentication'],
-    src: '/img/screens/auth-signup-2.png',
-    srcDark: '/img/screens/auth-signup-2-dark.png',
-    order: 158,
-  },
+  layout: 'auth',
+  title: 'Create account',
 })
 
+/**
+ * One password policy across signup, reset and Settings. The API still
+ * accepts 8 — a stricter client is always compatible, and raising the server
+ * minimum would lock out existing accounts.
+ */
+const PASSWORD_MIN = 10
+
 const VALIDATION_TEXT = {
+  NAME_REQUIRED: 'Tell us what to call you',
   IDENTIFIER_REQUIRED: 'An email address or phone number is required',
   IDENTIFIER_INVALID: 'Enter a valid email address or phone number',
-  PASSWORD_LENGTH: 'Password must be at least 8 characters',
+  PASSWORD_LENGTH: `Use at least ${PASSWORD_MIN} characters`,
   PASSWORD_MATCH: 'Passwords do not match',
-  TERMS_REQUIRED: 'You must agree to the terms and conditions',
+  TERMS_REQUIRED: 'Please accept the Terms of Service and Privacy Policy',
 }
 
-// Client-side mirror of the server's parseIdentifier heuristic (utils/identifier):
-// an `@` means email, otherwise 7–15 digits means phone. The server re-validates.
+// Client-side mirror of the server's parseIdentifier heuristic
+// (server/utils/identifier): an `@` means email, otherwise 7–15 digits means
+// phone. The server re-validates and is the authority.
 function looksLikeIdentifier(value: string): boolean {
   const v = value.trim()
   if (v.includes('@')) {
@@ -38,22 +51,22 @@ function looksLikeIdentifier(value: string): boolean {
 }
 
 const passwordRef = ref<InstanceType<typeof AddonInputPassword>>()
+const showPassword = ref(false)
+const errorMessage = ref('')
 
-// This is the Zod schema for the form input
-// It's used to define the shape that the form data will have
 const zodSchema = z
   .object({
+    name: z.string().trim().min(1, VALIDATION_TEXT.NAME_REQUIRED).max(200),
     identifier: z
       .string()
       .min(1, VALIDATION_TEXT.IDENTIFIER_REQUIRED)
       .refine(looksLikeIdentifier, VALIDATION_TEXT.IDENTIFIER_INVALID),
-    password: z.string().min(8, VALIDATION_TEXT.PASSWORD_LENGTH),
+    password: z.string().min(PASSWORD_MIN, VALIDATION_TEXT.PASSWORD_LENGTH),
     confirmPassword: z.string(),
     terms: z.boolean(),
   })
   .superRefine((data, ctx) => {
-    // This is a custom validation function that will be called
-    // before the form is submitted
+    // zxcvbn feedback from AddonInputPassword, surfaced as a form error.
     if (passwordRef.value?.validation?.feedback?.warning || passwordRef.value?.validation?.feedback?.suggestions?.length) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -62,248 +75,244 @@ const zodSchema = z
       })
     }
     if (data.password !== data.confirmPassword) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: VALIDATION_TEXT.PASSWORD_MATCH,
-        path: ['confirmPassword'],
-      })
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: VALIDATION_TEXT.PASSWORD_MATCH, path: ['confirmPassword'] })
     }
     if (!data.terms) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: VALIDATION_TEXT.TERMS_REQUIRED,
-        path: ['terms'],
-      })
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: VALIDATION_TEXT.TERMS_REQUIRED, path: ['terms'] })
     }
   })
 
-// Zod has a great infer method that will
-// infer the shape of the schema into a TypeScript type
 type FormInput = z.infer<typeof zodSchema>
 
 const validationSchema = toTypedSchema(zodSchema)
 const initialValues = {
+  name: '',
   identifier: '',
   password: '',
   confirmPassword: '',
   terms: false,
 } satisfies FormInput
 
-const { values, handleSubmit, isSubmitting } = useForm({
-  validationSchema,
-  initialValues,
-})
+const { values, handleSubmit, isSubmitting } = useForm({ validationSchema, initialValues })
 
 const { fetchUser } = useUser()
 const router = useRouter()
-const toaster = useNuiToasts()
 
-// Register the account, then (signup sets the session cookie) sign in and
-// go straight to the dashboard.
 const onSubmit = handleSubmit(async (formValues) => {
+  errorMessage.value = ''
   try {
     await $fetch('/api/auth/signup', {
       method: 'POST',
       body: {
+        // `name` is split into firstName / lastName server-side.
+        name: formValues.name.trim(),
         identifier: formValues.identifier,
         password: formValues.password,
       },
     })
-
-    toaster.add({
-      title: 'Welcome to Apex',
-      description: 'Your account has been created.',
-      icon: 'ph:user-circle-fill',
-      progress: true,
-    })
-
+    // Signup sets the session cookie, so the new customer is already in.
     await fetchUser({ force: true })
     await router.push('/dashboards/balance')
   }
   catch (error: any) {
-    toaster.add({
-      title: 'Sign up failed',
-      description: error.data?.message || 'Something went wrong. Please try again.',
-      icon: 'ph:warning-circle-fill',
-      progress: true,
-    })
+    // Beside the form, like sign-in — not a toast that outlives the page.
+    errorMessage.value = error?.data?.message || 'We couldn\'t create your account. Please try again.'
   }
 })
 </script>
 
 <template>
-  <div
-    class="bg-muted-100 dark:bg-muted-900 relative min-h-screen w-full overflow-hidden px-4 dark:[--color-input-default-bg:var(--color-muted-950)]"
-  >
+  <div class="apex-fade">
+    <h1 class="font-heading text-3xl font-extrabold leading-[1.1] tracking-[-0.02em] text-muted-900 dark:text-white">
+      Create your account
+    </h1>
+    <p class="text-muted-400 mt-2.5 text-[14.5px]">
+      Takes a minute. No card needed.
+    </p>
+
     <div
-      class="mx-auto flex h-16 w-full max-w-6xl items-center justify-between px-4"
+      v-if="errorMessage"
+      role="alert"
+      class="mt-5 flex items-start gap-2.5 rounded-xl border border-[#EC6453]/32 bg-[#EC6453]/10 px-[15px] py-[13px]"
     >
-      <NuxtLink
-        to="/"
-        class="text-muted-400 hover:text-primary-500 dark:text-muted-700 dark:hover:text-primary-500 transition-colors duration-300"
-      >
-        <TairoLogo class="size-10" />
-      </NuxtLink>
-      <div>
-        <BaseThemeToggle />
-      </div>
+      <Icon name="lucide:alert-triangle" class="mt-px size-[17px] shrink-0 text-[#EC6453]" />
+      <span class="flex-1 text-[13px] leading-[1.5] text-muted-900 dark:text-white">{{ errorMessage }}</span>
     </div>
-    <div class="flex w-full items-center justify-center">
-      <div class="relative mx-auto w-full max-w-2xl">
-        <!-- Form -->
-        <div class="me-auto ms-auto mt-4 w-full">
-          <form
-            method="POST"
-            action=""
-            class="me-auto ms-auto mt-4 w-full max-w-md"
-            novalidate
-            @submit.prevent="onSubmit"
+
+    <form novalidate class="mt-6 flex flex-col gap-4" @submit.prevent="onSubmit">
+      <!-- First, because it is the easiest field to answer. -->
+      <Field v-slot="{ field, errorMessage: fieldError, handleChange, handleBlur }" name="name">
+        <BaseField
+          v-slot="{ inputAttrs, inputRef }"
+          label="Full name"
+          :state="fieldError ? 'error' : 'idle'"
+          :error="fieldError"
+          :disabled="isSubmitting"
+        >
+          <BaseInput
+            :ref="inputRef"
+            v-bind="inputAttrs"
+            :model-value="field.value"
+            autocomplete="name"
+            placeholder="Jane Okafor"
+            rounded="lg"
+            class="h-[46px]! rounded-xl!"
+            @update:model-value="handleChange"
+            @blur="handleBlur"
+          />
+        </BaseField>
+        <span class="text-muted-500 -mt-1 block text-[11.5px] leading-[1.45]">
+          So we know what to call you — this is the name your project manager sees.
+        </span>
+      </Field>
+
+      <Field v-slot="{ field, errorMessage: fieldError, handleChange, handleBlur }" name="identifier">
+        <BaseField
+          v-slot="{ inputAttrs, inputRef }"
+          label="Email or phone number"
+          :state="fieldError ? 'error' : 'idle'"
+          :error="fieldError"
+          :disabled="isSubmitting"
+        >
+          <BaseInput
+            :ref="inputRef"
+            v-bind="inputAttrs"
+            :model-value="field.value"
+            autocomplete="username"
+            placeholder="you@company.co.uk or 07911 123456"
+            rounded="lg"
+            class="h-[46px]! rounded-xl!"
+            @update:model-value="handleChange"
+            @blur="handleBlur"
+          />
+        </BaseField>
+      </Field>
+
+      <Field v-slot="{ field, errorMessage: fieldError, handleChange, handleBlur }" name="password">
+        <div class="relative">
+          <BaseField
+            v-slot="{ inputAttrs, inputRef }"
+            label="Password"
+            :state="fieldError ? 'error' : 'idle'"
+            :error="fieldError"
+            :disabled="isSubmitting"
           >
-            <div class="text-center">
-              <BaseHeading
-                as="h2"
-                size="3xl"
-                weight="medium"
-              >
-                Create your account
-              </BaseHeading>
-              <BaseParagraph size="sm" class="text-muted-400 mb-6">
-                Sign up with your email or mobile number
-              </BaseParagraph>
-            </div>
-            <div class="px-8 py-4">
-              <div class="mb-4 space-y-4">
-                <Field
-                  v-slot="{ field, errorMessage, handleChange, handleBlur }"
-                  name="identifier"
-                >
-                  <BaseField
-                    v-slot="{ inputAttrs, inputRef }"
-                    label="Email or phone number"
-                    :state="errorMessage ? 'error' : 'idle'"
-                    :error="errorMessage"
-                    :disabled="isSubmitting"
-                    required
-                  >
-                    <BaseInput
-                      :ref="inputRef"
-                      v-bind="inputAttrs"
-                      :model-value="field.value"
-                      type="text"
-                      placeholder="you@example.com or 07911 123456"
-                      autocomplete="username"
-                      @update:model-value="handleChange"
-                      @blur="handleBlur"
-                    />
-                  </BaseField>
-                </Field>
-
-                <Field
-                  v-slot="{ field, errorMessage, handleChange, handleBlur }"
-                  name="password"
-                >
-                  <BaseField
-                    v-slot="{ inputAttrs }"
-                    label="Password"
-                    :state="errorMessage ? 'error' : 'idle'"
-                    :error="errorMessage"
-                    :disabled="isSubmitting"
-                    required
-                  >
-                    <LazyAddonInputPassword
-                      ref="passwordRef"
-                      v-bind="inputAttrs"
-                      :model-value="field.value"
-                      :error="errorMessage"
-                      :user-inputs="[values.identifier ?? '']"
-                      placeholder="••••••••••"
-                      autocomplete="new-password"
-                      class="rounded-s-none ring-0!"
-                      @update:model-value="handleChange"
-                      @blur="handleBlur"
-                    />
-                  </BaseField>
-                </Field>
-
-                <Field
-                  v-slot="{ field, errorMessage, handleChange, handleBlur }"
-                  name="confirmPassword"
-                >
-                  <BaseField
-                    v-slot="{ inputAttrs, inputRef }"
-                    label="Confirm Password"
-                    :state="errorMessage ? 'error' : 'idle'"
-                    :error="errorMessage"
-                    :disabled="isSubmitting"
-                    required
-                  >
-                    <BaseInput
-                      :ref="inputRef"
-                      v-bind="inputAttrs"
-                      :model-value="field.value"
-                      type="password"
-                      placeholder="••••••••••"
-                      @update:model-value="handleChange"
-                      @blur="handleBlur"
-                    />
-                  </BaseField>
-                </Field>
-              </div>
-              <div class="mb-6">
-                <div class="mt-6 flex items-center justify-between">
-                  <Field
-                    v-slot="{ field, errorMessage, handleChange, handleBlur }"
-                    name="terms"
-                  >
-                    <BaseCheckbox
-                      :model-value="field.value"
-                      :disabled="isSubmitting"
-                      :error="errorMessage"
-                      variant="default"
-                      @update:model-value="handleChange"
-                      @blur="handleBlur"
-                    >
-                      <span>
-                        <span>
-                          I accept the
-                        </span>
-                        <a
-                          href="#"
-                          class="text-primary-500 hover:underline focus:underline"
-                        >Terms of Service</a>
-                      </span>
-                    </BaseCheckbox>
-                  </Field>
-                </div>
-              </div>
-              <div class="mb-6">
-                <BaseButton
-                  :disabled="isSubmitting"
-                  :loading="isSubmitting"
-                  type="submit"
-                  variant="primary"
-                  class="h-12! w-full"
-                >
-                  Sign Up
-                </BaseButton>
-              </div>
-
-              <!-- Already have an account link -->
-              <p
-                class="text-muted-400 mt-4 flex justify-between font-sans text-sm leading-5"
-              >
-                <span>Already have an account?</span>
-                <NuxtLink
-                  to="/auth/login-1"
-                  class="text-primary-600 hover:text-primary-500 font-medium underline-offset-4 transition duration-150 ease-in-out hover:underline"
-                >
-                  Sign in
-                </NuxtLink>
-              </p>
-            </div>
-          </form>
+            <AddonInputPassword
+              :ref="(el: any) => { inputRef(el); passwordRef = el }"
+              v-bind="inputAttrs"
+              :model-value="field.value"
+              :type="showPassword ? 'text' : 'password'"
+              :user-inputs="[values.identifier ?? '', values.name ?? '']"
+              autocomplete="new-password"
+              :placeholder="`At least ${PASSWORD_MIN} characters`"
+              rounded="lg"
+              class="h-[46px]! rounded-xl! pe-12!"
+              @update:model-value="handleChange"
+              @blur="handleBlur"
+            />
+          </BaseField>
+          <button
+            type="button"
+            :aria-pressed="showPassword"
+            :aria-label="showPassword ? 'Hide password' : 'Show password'"
+            class="apex-focus text-muted-500 hover:text-muted-300 absolute end-[5px] top-[30px] inline-flex size-9 items-center justify-center rounded-lg"
+            @click="showPassword = !showPassword"
+          >
+            <Icon :name="showPassword ? 'lucide:eye-off' : 'lucide:eye'" class="size-[18px]" />
+          </button>
         </div>
-      </div>
-    </div>
+      </Field>
+
+      <Field v-slot="{ field, errorMessage: fieldError, handleChange, handleBlur }" name="confirmPassword">
+        <BaseField
+          v-slot="{ inputAttrs, inputRef }"
+          label="Confirm password"
+          :state="fieldError ? 'error' : 'idle'"
+          :error="fieldError"
+          :disabled="isSubmitting"
+        >
+          <BaseInput
+            :ref="inputRef"
+            v-bind="inputAttrs"
+            :model-value="field.value"
+            :type="showPassword ? 'text' : 'password'"
+            autocomplete="new-password"
+            placeholder="Re-enter it"
+            rounded="lg"
+            class="h-[46px]! rounded-xl!"
+            @update:model-value="handleChange"
+            @blur="handleBlur"
+          />
+        </BaseField>
+      </Field>
+
+      <!--
+        The checkbox and the sentence are SIBLINGS, never parent and child.
+        Tairo's BaseCheckbox slots its label inside the control, so a click on
+        "Terms of Service" bubbled to the checkbox handler: the customer
+        silently consented (or withdrew consent) and never reached the
+        document. Interactive content inside a control is also invalid HTML.
+      -->
+      <Field v-slot="{ field, errorMessage: fieldError, handleChange }" name="terms">
+        <div>
+          <div class="flex items-start gap-3">
+            <BaseCheckbox
+              :model-value="field.value"
+              :disabled="isSubmitting"
+              aria-labelledby="signup-terms-label"
+              variant="default"
+              class="mt-px"
+              @update:model-value="handleChange"
+            />
+            <span id="signup-terms-label" class="text-muted-400 flex-1 text-[13px] leading-[1.5]">
+              I agree to the
+              <NuxtLink to="/legal/terms" class="apex-focus text-primary-400 hover:text-primary-300 rounded font-semibold">Terms of Service</NuxtLink>
+              and
+              <NuxtLink to="/legal/privacy" class="apex-focus text-primary-400 hover:text-primary-300 rounded font-semibold">Privacy Policy</NuxtLink>.
+            </span>
+          </div>
+          <span v-if="fieldError" class="mt-1.5 block text-[12px] text-[#EC6453]">{{ fieldError }}</span>
+        </div>
+      </Field>
+
+      <BaseButton
+        type="submit"
+        variant="primary"
+        rounded="full"
+        :disabled="isSubmitting"
+        :loading="isSubmitting"
+        class="mt-2 h-12! w-full shadow-[0_10px_24px_rgba(125,83,242,0.32)]"
+      >
+        Create account
+      </BaseButton>
+    </form>
+
+    <p class="text-muted-400 mt-[22px] text-center text-[13.5px]">
+      Already have an account?
+      <NuxtLink to="/auth/login-1" class="apex-focus text-primary-400 hover:text-primary-300 rounded font-semibold">
+        Sign in
+      </NuxtLink>
+    </p>
   </div>
 </template>
+
+<style scoped>
+.apex-fade {
+  animation: apexFade 0.2s both;
+}
+@keyframes apexFade {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .apex-fade {
+    animation: none;
+  }
+}
+</style>
