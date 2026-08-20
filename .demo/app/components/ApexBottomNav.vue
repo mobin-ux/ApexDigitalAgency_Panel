@@ -63,7 +63,7 @@ const activeTo = computed(() => {
   <nav
     v-if="!suppressed"
     aria-label="Primary"
-    class="border-muted-200 dark:border-muted-800 dark:bg-muted-950/94 fixed inset-x-0 bottom-0 z-40 flex items-stretch gap-0.5 border-t bg-white/94 px-1.5 pt-1.5 pb-[max(6px,env(safe-area-inset-bottom))] backdrop-blur-md md:hidden"
+    class="border-muted-200 dark:border-muted-800 dark:bg-muted-950/94 fixed inset-x-0 bottom-0 z-40 flex items-stretch gap-0.5 border-t bg-white/94 px-1.5 pt-1.5 pb-[max(6px,env(safe-area-inset-bottom))] backdrop-blur-md lg:hidden"
   >
     <NuxtLink
       v-for="tab in TABS"
@@ -88,5 +88,5 @@ const activeTo = computed(() => {
     remember it, and the one that forgot would hide its own last row behind the
     bar. 52px bar + the inset.
   -->
-  <div v-if="!suppressed" aria-hidden="true" class="h-[calc(52px+env(safe-area-inset-bottom))] md:hidden" />
+  <div v-if="!suppressed" aria-hidden="true" class="h-[calc(52px+env(safe-area-inset-bottom))] lg:hidden" />
 </template>

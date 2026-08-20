@@ -184,7 +184,7 @@ const VIOLET_BLOB = 'radial-gradient(circle at 50% 38%, #9b79f6 0%, #7d53f2 55%,
       <section
         v-if="showPromo"
         aria-label="Offer"
-        class="order-3 relative overflow-hidden rounded-2xl border border-white/10 p-6 sm:p-7 md:order-none lg:p-9"
+        class="order-3 relative overflow-hidden rounded-2xl border border-white/10 p-6 md:order-none md:p-[26px] lg:p-9"
         style="background: radial-gradient(110% 130% at 84% 16%, rgba(125,83,242,.24) 0%, rgba(125,83,242,0) 52%), linear-gradient(150deg, #16252A 0%, #101D21 62%, #0E181B 100%);"
       >
         <!--
@@ -462,7 +462,7 @@ const VIOLET_BLOB = 'radial-gradient(circle at 50% 38%, #9b79f6 0%, #7d53f2 55%,
         </NuxtLink>
       </div>
 
-      <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
+      <div class="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-4">
         <NuxtLink
           v-for="svc in services" :key="svc.key"
           :to="`/dashboards/services?service=${svc.key}`"
@@ -492,7 +492,7 @@ const VIOLET_BLOB = 'radial-gradient(circle at 50% 38%, #9b79f6 0%, #7d53f2 55%,
       <ApexSectionLabel label="Expenses" />
       <div
         class="grid grid-cols-1 items-center gap-8 rounded-2xl border border-white/10 bg-muted-800 p-6"
-        :class="expenses.length ? 'md:grid-cols-[minmax(200px,240px)_1fr]' : ''"
+        :class="expenses.length ? 'lg:grid-cols-[minmax(200px,240px)_1fr]' : ''"
       >
         <div>
           <div class="text-[13px] font-medium text-muted-500">

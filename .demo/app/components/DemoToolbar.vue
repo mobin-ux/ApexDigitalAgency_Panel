@@ -33,7 +33,7 @@ onMounted(() => {
       inset so the row clears the notch. `--apex-shell-offset` (main.css)
       carries the matching figure for pages that subtract it.
     -->
-    <div class="flex min-h-[60px] w-full items-center gap-4 pt-[env(safe-area-inset-top)] md:h-[76px] md:min-h-0 md:pt-0">
+    <div class="flex min-h-[60px] w-full items-center gap-4 pt-[env(safe-area-inset-top)] lg:h-[76px] lg:min-h-0 lg:pt-0">
       <!--
         Primary mobile navigation control. The bars are decorative (20x10px of
         ink); the tap area is the button, so it carries the size explicitly —
@@ -43,7 +43,7 @@ onMounted(() => {
       <button
         type="button"
         aria-label="Open navigation menu"
-        class="apex-focus hover:bg-muted-100 dark:hover:bg-muted-800 -ms-2.5 flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-xl transition-colors xl:hidden"
+        class="apex-focus hover:bg-muted-100 dark:hover:bg-muted-800 -ms-2.5 flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-xl transition-colors lg:hidden"
         @click="emits('toggleMobileNav')"
       >
         <span class="flex flex-col gap-1.5">
@@ -63,16 +63,16 @@ onMounted(() => {
         still the app's single source of location.
       -->
       <nav aria-label="Breadcrumb" class="min-w-0">
-        <ol class="flex min-w-0 items-center gap-2 md:text-[13.5px]">
-          <li class="text-muted-500 hidden md:block">
+        <ol class="flex min-w-0 items-center gap-2 lg:text-[13.5px]">
+          <li class="text-muted-500 hidden lg:block">
             {{ route.path.startsWith('/admin') ? 'Admin' : 'Account' }}
           </li>
-          <li aria-hidden="true" class="text-muted-400 dark:text-muted-600 hidden md:block">
+          <li aria-hidden="true" class="text-muted-400 dark:text-muted-600 hidden lg:block">
             /
           </li>
           <li
             aria-current="page"
-            class="font-heading text-muted-900 truncate text-[17px] font-extrabold tracking-[-0.02em] md:font-sans md:text-[13.5px] md:font-semibold md:tracking-normal dark:text-white"
+            class="font-heading text-muted-900 truncate text-[17px] font-extrabold tracking-[-0.02em] lg:font-sans lg:text-[13.5px] lg:font-semibold lg:tracking-normal dark:text-white"
           >
             {{ route.meta.title }}
           </li>
@@ -85,7 +85,7 @@ onMounted(() => {
         <!-- Search: icon-only where there is no room for the full field. -->
         <button
           type="button"
-          class="apex-focus border-muted-200 dark:border-muted-700 dark:bg-muted-950 text-muted-500 hover:border-muted-300 hover:text-muted-900 dark:hover:border-muted-600 flex size-10 cursor-pointer items-center justify-center rounded-xl border bg-white transition-colors md:hidden dark:hover:text-white"
+          class="apex-focus border-muted-200 dark:border-muted-700 dark:bg-muted-950 text-muted-500 hover:border-muted-300 hover:text-muted-900 dark:hover:border-muted-600 flex size-10 cursor-pointer items-center justify-center rounded-xl border bg-white transition-colors lg:hidden dark:hover:text-white"
           aria-label="Search"
           @click="isSearchOpen = true"
         >
@@ -93,7 +93,7 @@ onMounted(() => {
         </button>
         <button
           type="button"
-          class="apex-focus border-muted-200 dark:border-muted-700 dark:bg-muted-950 text-muted-500 hover:border-muted-300 hover:text-muted-900 dark:hover:border-muted-600 hidden h-10 w-[250px] cursor-pointer items-center gap-2.5 rounded-xl border bg-white px-3 text-start text-[13.5px] transition-colors md:flex dark:hover:text-white"
+          class="apex-focus border-muted-200 dark:border-muted-700 dark:bg-muted-950 text-muted-500 hover:border-muted-300 hover:text-muted-900 dark:hover:border-muted-600 hidden h-10 w-[250px] cursor-pointer items-center gap-2.5 rounded-xl border bg-white px-3 text-start text-[13.5px] transition-colors lg:flex dark:hover:text-white"
           aria-label="Search"
           @click="isSearchOpen = true"
         >
