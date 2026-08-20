@@ -88,7 +88,25 @@
   --color-muted-200: #dde1e4;
   --color-muted-300: #c2c8cd;
   --color-muted-400: #9aa2a8;
-  --color-muted-500: #6b747b;
+  /*
+   * Light-theme muted text (V2 Phase 9).
+   *
+   * The ramp's 500 step was `#6b747b` (the design system's `--apex-gray-500`).
+   * It clears the page and cards but not the surfaces secondary text actually
+   * sits on:
+   *     4.76:1 on the card         (#ffffff)              ✓
+   *     4.48:1 on raised rows      (muted-50  #f7f8f9)    ✗
+   *     4.12:1 on the selection tint (violet-50 #f1ecfe)  ✗
+   *     4.20:1 on the desk         (#eef1f3)              ✗
+   * Section labels, field hints, timestamps and row metadata are 11–12.5px, so
+   * AA wants 4.5:1 and three of the five light surfaces missed it.
+   *
+   * `--apex-gray-600` is the design system's stated floor for light muted text
+   * and clears every one of them (7.96 / 7.48 / 6.88 / 7.01). Re-tuning the
+   * token fixes each usage at once; `.dark` re-tunes the same step separately
+   * below, so this does not touch the shipping dark theme.
+   */
+  --color-muted-500: #4a5258;
   --color-muted-600: #4a5258;
   --color-muted-700: #1e2f35;
   --color-muted-800: #16252a;
@@ -133,6 +151,18 @@
  */
 :root {
   --apex-shell-offset: 109px;
+}
+
+/*
+ * Below `md` the shell is a 56px header rather than the 76px desktop band, so
+ * a page that subtracts the desktop figure loses ~38px of usable height — on
+ * the Support inbox that is the composer sliding under the fold, which is the
+ * exact failure the bounded height exists to prevent.
+ */
+@media (max-width: 767px) {
+  :root {
+    --apex-shell-offset: 94px;
+  }
 }
 
 @layer base {

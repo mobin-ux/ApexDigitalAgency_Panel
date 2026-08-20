@@ -2,7 +2,7 @@
 
 > Handoff doc for continuing work in fresh sessions. Update the relevant section
 > whenever a page ships, a decision lands, or a blocker appears.
-> Last updated: **2026-08-20** (V2 redesign Phase 8 — Auth).
+> Last updated: **2026-08-20** (V2 redesign Phase 9 — Mobile & Light, IN PROGRESS).
 
 ## Where things stand
 
@@ -60,7 +60,7 @@ Read it with the `DesignSync` tool (`method: get_file`).
 | 6 | Support (`support.vue`) | ✅ Done |
 | 7 | Settings (`settings.vue`) | ✅ Done |
 | 8 | Auth flow | ✅ Done |
-| 9 | Mobile & light theme | ⬅ next |
+| 9 | Mobile & light theme | 🚧 In progress — foundation + bottom nav landed |
 
 **Phase 1 shipped:** Apex brand mark (+ favicon/title), 44px nav rows with a
 violet `color-mix` active tint, hairline sub-nav, one account dropdown with
@@ -454,6 +454,49 @@ the binding terms currently live (the signed project agreement) and how to
 request them. **A consent checkbox pointing at a page without the terms is
 still not an enforceable click-wrap** — publishing the real documents into
 those routes is a launch blocker.
+
+**Phase 9 in progress (Mobile & Light).** Two specs: `PHASE-9-MOBILE.md` and
+`PHASE-9-LIGHT-THEME.md`. Several of their §0 items were already closed by earlier
+phases — the Support pane offset (Phase 6), Settings' `.hidden` override (Phase 7),
+the >12 installment bar collapse (Phase 5) and `viewport-fit=cover` (responsive pass).
+
+**Landed so far**
+
+- **Light muted text was below AA.** The ramp's 500 step (`#6b747b`) cleared the page
+  and cards but failed the surfaces secondary text actually sits on: 4.48:1 on raised
+  rows, 4.11:1 on the violet selection tint, 4.20:1 on the desk. Re-tuned to `#4a5258`
+  (the design system's `--apex-gray-600`, its stated floor for light muted text) —
+  7.46 / 6.85 / 6.99. Ratios were computed rather than taken from the spec's table.
+  Dark had already been fixed in an earlier pass (`muted-500` → `#89959e`); re-checked
+  at 5.10 card / 4.50 raised, with `muted-400` at 6.03 / 5.32. Only one non-text use of
+  `bg-muted-500` exists in the customer pages (a status dot), so collapsing the 500 step
+  onto 600 in light is safe.
+- **`--apex-shell-offset` gained a mobile value** (94px below `md`, against the 109px
+  desktop band). A page subtracting the desktop figure loses ~38px of height, which on
+  the Support inbox is the composer sliding under the fold.
+- **`interactive-widget=resizes-content`** added to the viewport meta, so the on-screen
+  keyboard shrinks the viewport instead of covering the composer.
+- **`ApexBottomNav`** — mobile tab bar (Home · Orders · Order · Wallet · Support) with
+  52px rows, a raised centre create action, home-indicator inset, longest-prefix active
+  matching identical to `ApexSidebarNav`, and a flow spacer so no page ends underneath
+  it. Suppressed inside the New Order wizard — a checkout should not offer five ways to
+  leave it. Verified at 393px (fixed to the viewport bottom, 79x52 targets, correct
+  `aria-current`, zero horizontal overflow) and at 1280px (bar and spacer both
+  `display:none`, so no desktop layout moved).
+
+**Still outstanding — the bulk of the light conversion**
+
+~227 unpaired `text-white` and ~83 bare `text-muted-400` across
+balance / orders / services / wallet / support / settings.
+
+**This is not a mechanical sweep.** The design system keeps deliberate navy islands —
+the dashboard promo, the cash-balance card, the Wallet credit card, the auth brand
+panel — plus every white-on-violet button, and their unpaired `text-white` is *correct*.
+A blind pairing pass would wreck exactly the thing §4 of the light spec says to
+preserve, so each one needs the rendered-surface contrast probe to decide. Also
+outstanding: the shared `utils/status.ts` palette (§3), My Orders' filter bottom sheet,
+Settings' drill-in section navigation, the Auth mobile brand header, and the mobile type
+scale (§4 of the mobile spec).
 
 ## Remaining queue (older, pre-V2)
 

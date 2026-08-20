@@ -13,10 +13,16 @@ export default defineNuxtConfig({
    * values — the shell gutters (main.css) and the full-height / modal calcs rely
    * on it. Without this, safe-area insets are always 0 and mobile content can
    * sit under the notch or the home indicator in standalone / PWA mode.
+   *
+   * `interactive-widget=resizes-content` makes the on-screen keyboard SHRINK
+   * the viewport instead of overlaying it (V2 Phase 9). Combined with the
+   * `dvh` units the pages already use, that keeps a focused composer or a
+   * sticky action bar above the keyboard rather than hidden behind it — the
+   * Support reply box being the case that matters most.
    */
   app: {
     head: {
-      viewport: 'width=device-width, initial-scale=1, viewport-fit=cover',
+      viewport: 'width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content',
     },
   },
 

@@ -87,6 +87,14 @@ const maintenanceMode = computed(() => (appConfig.value as any)?.maintenanceMode
           <span><strong>Scheduled maintenance in progress.</strong> Some actions may be briefly unavailable — your data and payments are safe.</span>
         </div>
         <slot />
+
+        <!--
+          Mobile primary navigation. Lives inside the padded wrapper so its
+          spacer participates in the page's normal flow; the bar itself is
+          fixed and carries the home-indicator inset. Hidden from `md` up,
+          where the sidebar is the navigation.
+        -->
+        <ApexBottomNav />
       </div>
     </TairoSidenavContent>
   </TairoSidenavLayout>
