@@ -31,7 +31,39 @@ const MARKETING_URL = 'https://apexdigi.co.uk'
 </script>
 
 <template>
-  <div class="dark:bg-muted-950 flex min-h-dvh bg-white font-sans">
+  <!--
+    Field colours for the whole shell, set once as Shuriken's own input
+    variables rather than as `!` overrides on each of the ten inputs across
+    three pages. Written as `dark:` utilities, not scoped CSS: a
+    `:global(.dark) .apex-auth` rule is silently dropped by the scoped-style
+    compiler, and this is the form the Tairo page this replaced already used
+    (`dark:[--color-input-default-bg:var(--color-muted-950)]`).
+
+    Shuriken's dark defaults put the field on muted-900 (#0C1719) — a shade
+    DARKER than the muted-950 page it sits on — outlined in muted-800, the
+    colour it should have been filled with, with a muted-700 placeholder that
+    is all but invisible. The Apex design system says a field is
+    `--surface-card` on `--bg-page` behind a `--border-subtle` hairline, i.e. a
+    raised surface: ink-800 (#16252A) and rgba(255,255,255,.08) in the dark
+    scope, white and gray-200 in the light one.
+  -->
+  <div
+    class="apex-auth dark:bg-muted-950 flex min-h-dvh bg-white font-sans
+           [--color-field-label:var(--color-muted-900)]
+           [--color-input-default-bg:var(--color-white)]
+           [--color-input-default-border:var(--color-muted-200)]
+           [--color-input-default-placeholder:var(--color-muted-400)]
+           [--color-input-default-text:var(--color-muted-900)]
+           [--apex-focus-inner:var(--color-white)]
+           [--apex-focus-outer:var(--color-primary-500)]
+           dark:[--apex-focus-inner:var(--color-muted-950)]
+           dark:[--apex-focus-outer:var(--color-primary-400)]
+           dark:[--color-field-label:var(--color-white)]
+           dark:[--color-input-default-bg:var(--color-muted-800)]
+           dark:[--color-input-default-border:color-mix(in_oklab,#fff_8%,transparent)]
+           dark:[--color-input-default-placeholder:var(--color-muted-500)]
+           dark:[--color-input-default-text:var(--color-white)]"
+  >
     <!--
       The form side is a light/dark pair, the brand panel is not. login-1 used
       `bg-white` and signup/recover `bg-muted-100`, so a dark-only shell would
@@ -108,3 +140,37 @@ const MARKETING_URL = 'https://apexdigi.co.uk'
     </div>
   </div>
 </template>
+
+<style scoped>
+/*
+ * Label typography and input padding come from utility classes on the
+ * component rather than from a variable, so they are the one thing the
+ * custom properties above cannot reach. The design's label is 12.5px/600 with
+ * 8px beneath it; Shuriken's is 14px/500 with none. Its input pads 12px; the
+ * design pads 14px.
+ */
+.apex-auth :deep(label) {
+  margin-bottom: 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.apex-auth :deep(input) {
+  padding-inline: 14px;
+}
+
+/*
+ * Focus ring: the shell's `.apex-focus` treatment, applied to fields rendered
+ * by `BaseInput` (which carries Shuriken's `nui-focus` instead). The design
+ * asks for a 2px `--apex-violet-400` outline at 2px offset; expressing it as
+ * the same double box-shadow the rest of the app uses keeps one focus
+ * language across the product, and keeps the ring readable by laying the
+ * inner band over the page colour rather than the field.
+ */
+.apex-auth :deep(input:focus-visible) {
+  outline: none;
+  box-shadow:
+    0 0 0 2px var(--apex-focus-inner),
+    0 0 0 4px var(--apex-focus-outer);
+}
+</style>
