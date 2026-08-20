@@ -28,7 +28,9 @@ defineProps<{
 <template>
   <div class="flex flex-wrap items-start justify-between gap-x-6 gap-y-4">
     <div class="min-w-0">
-      <h1 class="font-heading text-muted-900 text-3xl font-extrabold leading-[1.1] tracking-[-0.02em] dark:text-white">
+      <!-- 23px on a phone, 30px from `md` up: the desktop size wraps a
+           two-tone headline onto three lines at 393px. -->
+      <h1 class="font-heading text-muted-900 text-[23px] font-extrabold leading-[1.1] tracking-[-0.02em] md:text-3xl dark:text-white">
         <!--
           The separator is `{{ ' ' }}`, not a literal space: Vue's `condense`
           whitespace handling strips whitespace-only text between elements when

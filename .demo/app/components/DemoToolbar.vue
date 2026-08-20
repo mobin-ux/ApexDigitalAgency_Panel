@@ -28,7 +28,12 @@ onMounted(() => {
     below runs straight into the sidebar's own edge and the two read as one.
   -->
   <div class="relative z-10 mb-8">
-    <div class="flex h-[76px] w-full items-center gap-4">
+    <!--
+      60px on a phone against the 76px desktop band, and the top safe-area
+      inset so the row clears the notch. `--apex-shell-offset` (main.css)
+      carries the matching figure for pages that subtract it.
+    -->
+    <div class="flex min-h-[60px] w-full items-center gap-4 pt-[env(safe-area-inset-top)] md:h-[76px] md:min-h-0 md:pt-0">
       <!--
         Primary mobile navigation control. The bars are decorative (20x10px of
         ink); the tap area is the button, so it carries the size explicitly —
@@ -51,16 +56,24 @@ onMounted(() => {
         The only breadcrumb in the app. Pages used to print a second one inside
         the body that sometimes disagreed with this one; location lives here.
       -->
+      <!--
+        Below `md` this is a page title, not a trail: at 393px the parent crumb
+        and separator only crowd the name, and the bottom bar already shows
+        where you are. The full breadcrumb returns from `md` up, where it is
+        still the app's single source of location.
+      -->
       <nav aria-label="Breadcrumb" class="min-w-0">
-        <ol class="flex min-w-0 items-center gap-2 text-[13.5px]">
-          <!-- Hide the parent crumb on the narrowest phones so the current page never gets squeezed by the toolbar's icon cluster. -->
-          <li class="text-muted-500 hidden min-[400px]:block">
+        <ol class="flex min-w-0 items-center gap-2 md:text-[13.5px]">
+          <li class="text-muted-500 hidden md:block">
             {{ route.path.startsWith('/admin') ? 'Admin' : 'Account' }}
           </li>
-          <li aria-hidden="true" class="text-muted-400 dark:text-muted-600 hidden min-[400px]:block">
+          <li aria-hidden="true" class="text-muted-400 dark:text-muted-600 hidden md:block">
             /
           </li>
-          <li aria-current="page" class="text-muted-900 truncate font-semibold dark:text-white">
+          <li
+            aria-current="page"
+            class="font-heading text-muted-900 truncate text-[17px] font-extrabold tracking-[-0.02em] md:font-sans md:text-[13.5px] md:font-semibold md:tracking-normal dark:text-white"
+          >
             {{ route.meta.title }}
           </li>
         </ol>

@@ -7,8 +7,10 @@
  * a permanent bar and the drawer keeps only what the bar cannot hold (the
  * account menu and the Services sub-items).
  *
- * "New order" sits centre as the primary create action, raised out of the bar
- * the way a create affordance usually is.
+ * Five equal tabs, flat — the design draws "Order" as a plus glyph in the same
+ * row rather than a raised FAB. A raised centre button would sit over the page
+ * content above it and needs its own dismiss affordance; the design does not
+ * ask for one, and five even targets divide 393px cleanly.
  *
  * Hidden from `md` up, where the sidebar is the navigation. Also hidden inside
  * the New Order wizard: a checkout should not offer five ways to leave it —
@@ -20,13 +22,12 @@ interface Tab {
   label: string
   icon: string
   to: string
-  primary?: boolean
 }
 
 const TABS: Tab[] = [
   { label: 'Home', icon: 'solar:widget-2-linear', to: '/dashboards/balance' },
-  { label: 'Orders', icon: 'solar:clipboard-list-linear', to: '/dashboards/orders' },
-  { label: 'Order', icon: 'lucide:plus', to: '/dashboards/services', primary: true },
+  { label: 'Orders', icon: 'solar:suitcase-linear', to: '/dashboards/orders' },
+  { label: 'Order', icon: 'lucide:plus', to: '/dashboards/services' },
   { label: 'Wallet', icon: 'solar:wallet-2-linear', to: '/dashboards/wallet' },
   { label: 'Support', icon: 'solar:headphones-round-linear', to: '/dashboards/support' },
 ]
@@ -62,31 +63,24 @@ const activeTo = computed(() => {
   <nav
     v-if="!suppressed"
     aria-label="Primary"
-    class="border-muted-200 dark:border-muted-800 bg-white/95 dark:bg-muted-950/95 fixed inset-x-0 bottom-0 z-40 border-t pb-[env(safe-area-inset-bottom)] backdrop-blur-md md:hidden"
+    class="border-muted-200 dark:border-muted-800 dark:bg-muted-950/94 fixed inset-x-0 bottom-0 z-40 flex items-stretch gap-0.5 border-t bg-white/94 px-1.5 pt-1.5 pb-[max(6px,env(safe-area-inset-bottom))] backdrop-blur-md md:hidden"
   >
-    <ul class="flex items-stretch justify-around">
-      <li v-for="tab in TABS" :key="tab.to" class="flex-1">
-        <NuxtLink
-          :to="tab.to"
-          :aria-current="activeTo === tab.to ? 'page' : undefined"
-          class="apex-focus flex h-[52px] w-full flex-col items-center justify-center gap-1 rounded-lg transition-colors"
-          :class="tab.primary
-            ? 'text-primary-600 dark:text-primary-400'
-            : activeTo === tab.to
-              ? 'text-primary-600 dark:text-primary-400'
-              : 'text-muted-500 dark:text-muted-400'"
-        >
-          <span
-            v-if="tab.primary"
-            class="bg-primary-500 -mt-4 inline-flex size-11 items-center justify-center rounded-full text-white shadow-[0_8px_20px_rgba(125,83,242,0.35)]"
-          >
-            <Icon :name="tab.icon" class="size-5" />
-          </span>
-          <Icon v-else :name="tab.icon" class="size-[21px]" />
-          <span class="text-[10px] font-semibold leading-none" :class="tab.primary ? '-mt-0.5' : ''">{{ tab.label }}</span>
-        </NuxtLink>
-      </li>
-    </ul>
+    <NuxtLink
+      v-for="tab in TABS"
+      :key="tab.to"
+      :to="tab.to"
+      :aria-current="activeTo === tab.to ? 'page' : undefined"
+      class="apex-focus flex min-h-[52px] min-w-0 flex-1 flex-col items-center justify-center gap-[3px] rounded-xl px-0.5 transition-colors"
+      :class="activeTo === tab.to
+        ? 'text-primary-600 dark:text-primary-400'
+        : 'text-muted-500 dark:text-muted-400'"
+    >
+      <Icon :name="tab.icon" class="size-[21px] shrink-0" />
+      <span
+        class="whitespace-nowrap text-[10px] leading-none tracking-[-0.01em]"
+        :class="activeTo === tab.to ? 'font-bold' : 'font-semibold'"
+      >{{ tab.label }}</span>
+    </NuxtLink>
   </nav>
 
   <!--

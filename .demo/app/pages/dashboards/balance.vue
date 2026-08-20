@@ -184,7 +184,7 @@ const VIOLET_BLOB = 'radial-gradient(circle at 50% 38%, #9b79f6 0%, #7d53f2 55%,
       <section
         v-if="showPromo"
         aria-label="Offer"
-        class="relative overflow-hidden rounded-2xl border border-white/10 p-5 sm:p-7 lg:p-9"
+        class="order-3 relative overflow-hidden rounded-2xl border border-white/10 p-6 sm:p-7 md:order-none lg:p-9"
         style="background: radial-gradient(110% 130% at 84% 16%, rgba(125,83,242,.24) 0%, rgba(125,83,242,0) 52%), linear-gradient(150deg, #16252A 0%, #101D21 62%, #0E181B 100%);"
       >
         <!--
@@ -292,7 +292,15 @@ const VIOLET_BLOB = 'radial-gradient(circle at 50% 38%, #9b79f6 0%, #7d53f2 55%,
     </Transition>
 
     <!-- ========== FINANCIAL STATUS ========== -->
-    <section class="flex flex-col gap-4">
+    <!--
+      Mobile reorders the page; desktop keeps the promo first, as designed.
+      On a phone the promo is a full viewport of marketing before any of the
+      customer's own data, so below `md` the order becomes greeting → cash
+      balance → active work → promo → services → expenses. `order-*` does this
+      without duplicating markup; `md:order-none` returns every section to its
+      DOM position, which is the desktop order.
+    -->
+    <section class="order-1 flex flex-col gap-4 md:order-none">
       <ApexSectionLabel label="Financial status" />
 
       <div class="grid grid-cols-1 items-stretch gap-5 lg:grid-cols-[1fr_1.32fr]">
@@ -304,7 +312,9 @@ const VIOLET_BLOB = 'radial-gradient(circle at 50% 38%, #9b79f6 0%, #7d53f2 55%,
             <span class="text-xs font-bold uppercase tracking-[0.06em] text-primary-200">Cash balance</span>
           </div>
           <div class="relative flex items-baseline gap-2">
-            <span class="font-heading text-[38px] font-extrabold leading-none tracking-[-0.02em] text-white tabular-nums sm:text-[44px]">{{ formatCurrency(stats.walletBalance) }}</span>
+            <!-- 36px on a phone: the mobile type scale caps the money display
+                 at 36px, and £-thousands wrap the 44px size at 393px. -->
+            <span class="font-heading text-[36px] font-extrabold leading-none tracking-[-0.02em] text-white tabular-nums sm:text-[44px]">{{ formatCurrency(stats.walletBalance) }}</span>
           </div>
           <div class="relative mt-2.5 text-[13.5px] text-muted-400">
             Available to spend right now
@@ -380,7 +390,7 @@ const VIOLET_BLOB = 'radial-gradient(circle at 50% 38%, #9b79f6 0%, #7d53f2 55%,
     </section>
 
     <!-- ========== ACTIVE WORK ========== -->
-    <section class="flex flex-col gap-4">
+    <section class="order-2 flex flex-col gap-4 md:order-none">
       <div class="flex flex-wrap items-center justify-between gap-4">
         <div class="flex flex-wrap items-center gap-3.5">
           <ApexSectionLabel label="Active work" />
@@ -439,7 +449,7 @@ const VIOLET_BLOB = 'radial-gradient(circle at 50% 38%, #9b79f6 0%, #7d53f2 55%,
     </section>
 
     <!-- ========== ORDER A SERVICE ========== -->
-    <section class="flex flex-col gap-4">
+    <section class="order-4 flex flex-col gap-4 md:order-none">
       <div class="flex flex-wrap items-end justify-between gap-4">
         <div>
           <ApexSectionLabel label="Order a service" class="mb-2" />
@@ -478,7 +488,7 @@ const VIOLET_BLOB = 'radial-gradient(circle at 50% 38%, #9b79f6 0%, #7d53f2 55%,
     </section>
 
     <!-- ========== EXPENSES ========== -->
-    <section class="flex flex-col gap-4">
+    <section class="order-5 flex flex-col gap-4 md:order-none">
       <ApexSectionLabel label="Expenses" />
       <div
         class="grid grid-cols-1 items-center gap-8 rounded-2xl border border-white/10 bg-muted-800 p-6"
