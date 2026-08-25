@@ -42,7 +42,7 @@ defineProps<{
           {{ title }}{{ ' ' }}<span v-if="accent" class="text-primary-600 dark:text-primary-400">{{ accent }}</span>
         </slot>
       </h1>
-      <p v-if="subtitle || $slots.subtitle" class="text-muted-500 mt-2.5 max-w-2xl text-[15px] leading-[1.5]">
+      <p v-if="subtitle || $slots.subtitle" class="text-muted-500 mt-2.5 max-w-2xl text-[14.5px] leading-[1.5] md:text-[15px]">
         <slot name="subtitle">
           {{ subtitle }}
         </slot>

@@ -2,7 +2,7 @@
 
 > Handoff doc for continuing work in fresh sessions. Update the relevant section
 > whenever a page ships, a decision lands, or a blocker appears.
-> Last updated: **2026-08-20** (V2 redesign Phase 9 — Mobile & Light, IN PROGRESS).
+> Last updated: **2026-08-26** (V2 Phase 1 Mobile — shared shell at 393px, shipped).
 
 ## Where things stand
 
@@ -60,7 +60,8 @@ Read it with the `DesignSync` tool (`method: get_file`).
 | 6 | Support (`support.vue`) | ✅ Done |
 | 7 | Settings (`settings.vue`) | ✅ Done |
 | 8 | Auth flow | ✅ Done |
-| 9 | Mobile & light theme | 🚧 In progress — foundation + bottom nav landed |
+| 9 | Mobile & light theme | 🚧 Light conversion still outstanding |
+| 1M | Shared shell at 393px (`PHASE-1-MOBILE.md`) | ✅ Done |
 
 **Phase 1 shipped:** Apex brand mark (+ favicon/title), 44px nav rows with a
 violet `color-mix` active tint, hairline sub-nav, one account dropdown with
@@ -497,6 +498,67 @@ preserve, so each one needs the rendered-surface contrast probe to decide. Also
 outstanding: the shared `utils/status.ts` palette (§3), My Orders' filter bottom sheet,
 Settings' drill-in section navigation, the Auth mobile brand header, and the mobile type
 scale (§4 of the mobile spec).
+
+**Phase 1 Mobile shipped (the shared shell at 393px).** Layout and hit-target
+pass only — no endpoint, route or component-API change. Everything below `lg`;
+desktop re-measured at 1280px afterwards and is unchanged (76px static bar, 32px
+gutter, full breadcrumb, 260px rail, Services accordion back, 250px search field
+with the ⌘K hint, bottom nav `display:none`).
+
+New: `ApexSearch`, `ApexBottomSheet`, `ApexShell`, `ApexNotificationsList`,
+`useIsCompact()`, `useApexDrawer()`.
+
+- **The search button was a dead end dressed as a feature.** It opened Tairo's
+  `DemoAppSearch`, which indexes the `docs` collection and routes with
+  `meta.preview`. No Apex page sets `preview` (checked: 0 across all six), so
+  customer pages were literally unindexable and a search for "orders" returned
+  Tairo demo layouts plus a link to Shuriken UI docs — and the docs routes are
+  404 in production. `ApexSearch` now serves `/dashboards/**` and `/admin/**`
+  over the panel's destinations + the customer's own projects and tickets, via
+  the two endpoints those pages already call. Verified: typing "w" returns
+  Wallet/New order/Dashboard under **Pages** and the account's real projects
+  (E-Commerce Redesign, P1 Verify Order, QA Test Project) under **Projects**.
+- **Its results linked to query params nothing read.** `?project=` and
+  `?ticket=` were ignored by both pages, so a result landed you on a list. Both
+  now honour them, SSR included.
+- Drawer: `100% - 68px`, 48px rows, Services flattened, close button, focus trap
+  (Tab and Shift+Tab both wrap), Escape, scrim tap, route-change close, focus
+  returned to the hamburger. `invisible` when closed so it leaves the tab order.
+- Account and notifications are bottom sheets below `lg`, dropdowns above.
+- Top bar 56px sticky/full-bleed; `--apex-shell-offset` 109 → **77px** below
+  `lg`. Its media query said `max-width: 767px`, left behind when the shell moved
+  to 1024px — so between 768 and 1023px the Support pane subtracted the desktop
+  figure. Now measured exact: pane top 77 + height 735 = 812 viewport.
+
+Verified at 375×812 (narrower than the spec's 393): all six customer routes and
+all seven admin routes SSR 200, zero page-level horizontal scroll on every one,
+h1 23px, header actions 48px full-width below the copy (Settings' pair shares
+the row at flex:1), AA contrast on the bar, bottom nav, drawer, both sheets and
+search in **both** themes with zero failures, console clean (no hydration
+mismatch, no reka warning). ESLint clean.
+
+### Phase 1 Mobile gotcha — the preview pane is a hidden tab, so transitions never run
+
+`document.hidden` is `true`, `requestAnimationFrame` never fires and every
+CSS transition sits at `currentTime: 0` forever. That pins any transitioned
+property at its *start* value: the drawer read `visibility: hidden` while open
+and the scrim read `opacity: 0`, both of which look exactly like product bugs
+and are not. **Neutralise transitions before measuring**
+(`*{transition:none!important;animation:none!important}`) or the end state is
+unobservable. It also changed a real decision: `visibility` is kept out of the
+drawer's transition list, because an accessibility property must not depend on a
+transition completing.
+
+### Phase 1 Mobile gotcha — the layer's markup is scanned, but check before blaming Tailwind
+
+When the drawer would not become visible, the first hypothesis was that
+`layers/tairo/**` is outside Tailwind's content scan. It is not —
+`layers/tairo/theme.css` has `@source './components'`, and `.visible` /
+`.invisible` / `.opacity-100` were all present in the served CSS (confirmed by
+fetching the stylesheet text and by probing a synthetic element). The cause was
+the frozen timeline above. Note that `document.styleSheets` walking needs
+per-rule `try/catch` and recursion into `@layer` blocks, or it silently reports
+"no matching rule".
 
 ## Remaining queue (older, pre-V2)
 

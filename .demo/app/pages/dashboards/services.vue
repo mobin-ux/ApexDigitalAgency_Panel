@@ -409,7 +409,7 @@ const radioBase = 'flex size-[22px] shrink-0 items-center justify-center rounded
 
 <template>
   <!-- Location lives in the toolbar breadcrumb; this page no longer prints its own. -->
-  <div class="mx-auto flex max-w-[1180px] flex-col gap-8 pb-12 font-sans text-muted-400">
+  <div class="mx-auto flex max-w-[1180px] flex-col gap-7 pb-12 font-sans text-muted-400 md:gap-8">
     <!-- title -->
     <ApexPageHeader
       title="Start your"

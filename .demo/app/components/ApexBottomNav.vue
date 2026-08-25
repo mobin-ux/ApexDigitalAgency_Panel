@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * Mobile tab bar — the primary navigation below `md` (V2 Phase 9).
+ * Mobile tab bar — the primary navigation below `lg` (V2 Phase 1 mobile, §4).
  *
  * The product has five destinations. Reaching any of them through a drawer
  * costs a tap every time, which is the wrong trade at that count, so they get
@@ -12,7 +12,7 @@
  * content above it and needs its own dismiss affordance; the design does not
  * ask for one, and five even targets divide 393px cleanly.
  *
- * Hidden from `md` up, where the sidebar is the navigation. Also hidden inside
+ * Hidden from `lg` up, where the sidebar is the navigation. Also hidden inside
  * the New Order wizard: a checkout should not offer five ways to leave it —
  * see `suppressed` below.
  */

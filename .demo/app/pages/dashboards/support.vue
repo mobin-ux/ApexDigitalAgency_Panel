@@ -226,6 +226,25 @@ function backToList() {
   mobileShowDetail.value = false
 }
 
+/**
+ * Deep link: `/dashboards/support?ticket=<id>` opens that thread.
+ *
+ * Panel search links here. It also switches to the tickets tab, because
+ * arriving on the FAQ with a ticket silently selected behind it would look
+ * like the link did nothing. Guarded on the ticket existing.
+ */
+const route = useRoute()
+watch(
+  [() => route.query.ticket, tickets],
+  ([id]) => {
+    if (typeof id === 'string' && id && tickets.value.some(t => t.id === id)) {
+      tab.value = 'tickets'
+      selectTicket(id)
+    }
+  },
+  { immediate: true },
+)
+
 // ---- thread (full message history, fetched per ticket) ---------------------
 const threadCache = ref<Record<string, { id: string, content: string, isAdmin: boolean, createdAt: string }[]>>({})
 const threadLoading = ref(false)
@@ -390,7 +409,7 @@ const faqRows = computed(() => {
           <span class="size-2 rounded-full bg-[#22B07D] shadow-[0_0_0_3px_rgba(34,176,125,0.18)]" />
           <span class="text-[12.5px] font-semibold text-white">Team online · replies in {{ replyEta }}</span>
         </div>
-        <BaseButton rounded="full" variant="primary" class="h-11! w-full px-6 shadow-[0_10px_24px_rgba(125,83,242,0.32)] sm:w-auto" @click="openNew">
+        <BaseButton rounded="full" variant="primary" class="h-12! w-full px-6 shadow-[0_10px_24px_rgba(125,83,242,0.32)] sm:h-11! sm:w-auto" @click="openNew">
           <Icon name="lucide:plus" class="size-4" />
           <span>New request</span>
         </BaseButton>

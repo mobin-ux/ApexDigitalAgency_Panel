@@ -381,7 +381,7 @@ const LABEL_CLASS = 'mb-2 block text-[12.5px] font-semibold text-white'
 </script>
 
 <template>
-  <div class="mx-auto flex max-w-[1180px] flex-col gap-8">
+  <div class="mx-auto flex max-w-[1180px] flex-col gap-7 md:gap-8">
     <ApexPageHeader
       title="Account"
       accent="settings"
@@ -396,7 +396,7 @@ const LABEL_CLASS = 'mb-2 block text-[12.5px] font-semibold text-white'
         -->
         <BaseButton
           rounded="full"
-          class="apex-focus h-11! border-muted-300! dark:border-white/8! bg-muted-100! dark:bg-muted-800! text-muted-700! dark:text-white! border px-5"
+          class="apex-focus h-12! flex-1 border-muted-300! dark:border-white/8! bg-muted-100! dark:bg-muted-800! text-muted-700! dark:text-white! border px-5 sm:h-11! sm:flex-none"
           :disabled="!isDirty || saving"
           @click="discard"
         >
@@ -410,7 +410,7 @@ const LABEL_CLASS = 'mb-2 block text-[12.5px] font-semibold text-white'
         <BaseButton
           rounded="full"
           variant="primary"
-          class="h-11! px-6 shadow-[0_10px_24px_rgba(125,83,242,0.32)]"
+          class="h-12! flex-1 px-6 shadow-[0_10px_24px_rgba(125,83,242,0.32)] sm:h-11! sm:flex-none"
           :disabled="!isDirty || saving"
           @click="saveAll"
         >

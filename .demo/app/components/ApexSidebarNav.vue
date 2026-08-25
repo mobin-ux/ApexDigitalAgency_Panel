@@ -8,13 +8,15 @@
  * utility class names that CSS cannot reliably re-target from the outside. The
  * layer stays untouched; this component owns the whole row.
  *
- * Rows are 44px at every breakpoint (Apple HIG 44pt / Material 48dp): the
- * drawer below `xl` is finger-driven, and the desktop rail loses nothing by
- * matching it.
+ * Rows are 48px in the drawer and 44px on the desktop rail (Material 48dp /
+ * Apple HIG 44pt): the drawer is finger-driven and has the vertical room, the
+ * rail is pointer-driven and does not need it.
  */
 export interface ApexNavChild {
   label: string
   to: string
+  /** Shown only where the group is flattened into top-level rows — see below. */
+  icon?: string
 }
 
 export interface ApexNavItem {
@@ -62,7 +64,7 @@ function isGroupActive(item: ApexNavItem) {
 }
 
 const ROW_BASE
-  = 'apex-focus group relative flex w-full min-h-11 items-center gap-3 rounded-xl px-[13px] py-2 text-[14.5px] transition-colors'
+  = 'apex-focus group relative flex w-full min-h-12 items-center gap-3 rounded-xl px-[13px] py-2 text-[15px] transition-colors lg:min-h-11 lg:text-[14.5px]'
 const ROW_IDLE
   = 'font-medium text-muted-600 dark:text-muted-400 hover:bg-muted-100 hover:text-muted-900 dark:hover:bg-muted-800/60 dark:hover:text-white'
 const ROW_ACTIVE
@@ -98,41 +100,71 @@ const CHILD_ACTIVE
       </NuxtLink>
 
       <!--
-        Collapsible group. Defaults open when one of its children is the
-        current route, so a deep link never lands on a hidden active row.
+        Below `lg` the group flattens: its children become top-level rows and
+        the accordion disappears. In a drawer an accordion charges a tap to
+        reveal two links, and there is vertical room for both — so the tap buys
+        nothing. Rendered as a sibling pair gated by `lg:` rather than by a
+        media query in JS: both are visible on load, and picking between them in
+        JavaScript is a hydration mismatch. `display: none` keeps the hidden
+        half out of the accessibility tree, so only one set is ever announced.
       -->
-      <CollapsibleRoot v-else :default-open="isGroupActive(item) || undefined" class="group/collapsible w-full">
-        <CollapsibleTrigger class="cursor-pointer" :class="[ROW_BASE, ROW_IDLE]">
+      <template v-else>
+        <NuxtLink
+          v-for="child in item.children"
+          :key="`flat-${child.label}`"
+          :to="child.to"
+          :aria-current="isActive(child.to) ? 'page' : undefined"
+          class="lg:hidden" :class="[ROW_BASE, isActive(child.to) ? ROW_ACTIVE : ROW_IDLE]"
+        >
           <Icon
-            v-if="item.icon"
-            :name="item.icon"
-            class="text-muted-400 dark:text-muted-500 group-hover:text-muted-700 dark:group-hover:text-muted-200 size-5 shrink-0"
+            v-if="child.icon || item.icon"
+            :name="child.icon || item.icon!"
+            class="size-5 shrink-0"
+            :class="isActive(child.to)
+              ? 'text-muted-900 dark:text-white'
+              : 'text-muted-400 dark:text-muted-500'"
           />
-          <span class="grow truncate text-start">{{ item.label }}</span>
-          <Icon
-            name="lucide:chevron-down"
-            class="text-muted-400 dark:text-muted-500 size-4 shrink-0 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-180"
-          />
-        </CollapsibleTrigger>
-        <CollapsibleContent class="w-full overflow-hidden">
-          <!--
-            The hairline rule replaces the layer's bullet dots: it groups the
-            children into one visible unit at a glance, which floating dots do
-            not, and costs no horizontal room.
-          -->
-          <div class="border-muted-200 dark:border-muted-800 my-[3px] ms-5 flex flex-col gap-0.5 border-s ps-3.5">
-            <NuxtLink
-              v-for="child in item.children"
-              :key="child.label"
-              :to="child.to"
-              :aria-current="isActive(child.to) ? 'page' : undefined"
-              :class="[CHILD_BASE, isActive(child.to) ? CHILD_ACTIVE : CHILD_IDLE]"
-            >
-              <span class="truncate">{{ child.label }}</span>
-            </NuxtLink>
-          </div>
-        </CollapsibleContent>
-      </CollapsibleRoot>
+          <span class="truncate">{{ child.label }}</span>
+        </NuxtLink>
+
+        <!--
+          Collapsible group — the rail's form of the same two links. Defaults
+          open when one of its children is the current route, so a deep link
+          never lands on a hidden active row.
+        -->
+        <CollapsibleRoot :default-open="isGroupActive(item) || undefined" class="group/collapsible hidden w-full lg:block">
+          <CollapsibleTrigger class="cursor-pointer" :class="[ROW_BASE, ROW_IDLE]">
+            <Icon
+              v-if="item.icon"
+              :name="item.icon"
+              class="text-muted-400 dark:text-muted-500 group-hover:text-muted-700 dark:group-hover:text-muted-200 size-5 shrink-0"
+            />
+            <span class="grow truncate text-start">{{ item.label }}</span>
+            <Icon
+              name="lucide:chevron-down"
+              class="text-muted-400 dark:text-muted-500 size-4 shrink-0 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-180"
+            />
+          </CollapsibleTrigger>
+          <CollapsibleContent class="w-full overflow-hidden">
+            <!--
+              The hairline rule replaces the layer's bullet dots: it groups the
+              children into one visible unit at a glance, which floating dots do
+              not, and costs no horizontal room.
+            -->
+            <div class="border-muted-200 dark:border-muted-800 my-[3px] ms-5 flex flex-col gap-0.5 border-s ps-3.5">
+              <NuxtLink
+                v-for="child in item.children"
+                :key="child.label"
+                :to="child.to"
+                :aria-current="isActive(child.to) ? 'page' : undefined"
+                :class="[CHILD_BASE, isActive(child.to) ? CHILD_ACTIVE : CHILD_IDLE]"
+              >
+                <span class="truncate">{{ child.label }}</span>
+              </NuxtLink>
+            </div>
+          </CollapsibleContent>
+        </CollapsibleRoot>
+      </template>
     </template>
   </nav>
 </template>

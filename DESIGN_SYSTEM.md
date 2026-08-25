@@ -83,7 +83,8 @@ ships as a `.dc.html` mockup plus a `PHASE-N-*.md` implementation spec.
 | 6 | **Support** — no discarded files, an unread dot that means something, tokenised shell offset | ✅ Done |
 | 7 | **Settings** — the outlier brought onto the system, and fields that no longer vanish | ✅ Done |
 | 8 | **Auth flow** — one branded shell, no demo pages, no dead controls | ✅ Done |
-| 9 | Mobile & light theme | ⬅ next |
+| 9 | Mobile & light theme | 🚧 Light conversion outstanding |
+| 1M | **Shared shell at 393px** — 56px bar, drawer, sheets, full-screen search | ✅ Done |
 
 #### Phase 1 — the shell standard (applies to every page from here on)
 
@@ -416,6 +417,92 @@ were publicly reachable. Flows and endpoints unchanged.
   with `autocomplete="email"`, a signed-in visitor to `/auth/login-1` is sent
   to the dashboard instead of seeing the form again, and a 429 from the rate
   limiter says so instead of "check your details".
+
+#### Phase 1 (mobile) — the shared shell at 393px
+
+Companion spec `PHASE-1-MOBILE.md`. A layout and hit-target pass over the shell
+every page inherits: same components, same routes, same data, same endpoints.
+Everything is scoped below `lg` (1024px) — the breakpoint where the sidebar
+becomes a permanent rail — and desktop was re-measured after to confirm it did
+not move.
+
+- **The top bar is 56px, and it carries a title rather than a breadcrumb.**
+  Desktop's 76px band exists to line up with the sidebar's brand block; with no
+  sidebar there is nothing to line up with. It is sticky, full-bleed, 6px of
+  padding either side, `bg` at 92% with a 10px backdrop blur, and it sits
+  *outside* the layout's gutter wrapper so it can span the viewport while page
+  content keeps its 16px gutter. `--apex-shell-offset` follows it: 77px below
+  `lg` (56 + 20 margin + 1 divider), 109px above.
+- **The search button opened Tairo's demo search.** It indexes the `docs`
+  collection and every route carrying `meta.preview` — and no Apex page sets
+  `preview`, so MiniSearch had nothing to index for them. A customer typing
+  "orders" got Tairo demo layouts and links to Shuriken UI documentation; their
+  own orders were the one thing it could not find, and in production the docs
+  routes 404 so half the results led nowhere. `ApexSearch` replaces it on
+  `/dashboards/**` and `/admin/**`: full screen below `lg`, a centred dialog
+  above, over the panel's own destinations plus the customer's projects and
+  tickets from `/api/orders` and `/api/support/tickets` — the same two endpoints
+  Orders and Support already call, fetched lazily on first open. Recents persist.
+  The demo dialog is gated by route rather than unmounted, because it has a
+  top-level `await` and a `v-if` would remount an async setup inside the root
+  Suspense boundary on every navigation in or out of the panel.
+- **A search result has to land on the thing.** The rows link to
+  `?project=<id>` and `?ticket=<id>`, which neither page read — so every result
+  dropped the customer on a list to find the row themselves. Both pages now
+  honour the query (watched, not read once, so searching again from the same
+  page works), guarded on the record existing.
+- **The sidebar is a drawer below `lg`**, `100% - 68px` wide: leaving a strip of
+  page visible is what says "overlay you can tap away" and gives them a target
+  to do it with. It is `invisible` when closed, not merely translated off-screen
+  — a transform leaves every link in the tab order and the accessibility tree,
+  so a screen-reader user could walk the whole menu while it was shut.
+  `visibility` is deliberately **not** in the transition list: that would defer
+  an accessibility property to a transition completing, and transitions do not
+  always complete (in a background tab the document timeline is frozen at
+  `currentTime: 0` and the drawer stays pinned invisible while open). The cost
+  is the slide-*out*; the slide-in is intact.
+- **Services flattens in the drawer.** An accordion there charges a tap to
+  reveal two links when there is room for both. Done as a `lg:`-gated sibling
+  pair, not a JS media query — both halves are visible on load, and choosing
+  between them in JavaScript is a hydration mismatch. `display: none` keeps the
+  hidden half out of the accessibility tree.
+- **Drawer keyboard behaviour is now real**: focus moves in on open and returns
+  to the hamburger on close, Tab wraps at both ends, Escape closes, and so does
+  a route change. The scrim was `role="button" tabindex="0"` with no key handler
+  — a focusable control that did nothing on Enter; it is `aria-hidden` now and
+  Escape is the keyboard route. Its `xl:hidden` was also stale from the 1024px
+  move, so it could cover the page between 1024 and 1279px.
+- **Both dropdowns become bottom sheets** (account, notifications). A dropdown
+  anchored to the edge of a 393px viewport either clips or covers the control
+  that opened it. `ApexBottomSheet` is built on reka's Dialog for the focus
+  trap, Escape, scroll lock and focus return, with an entry-only keyframe —
+  a `<Transition>` leave is what left an invisible overlay eating clicks on
+  Wallet. Notification rows **wrap** rather than truncate; the list is the
+  message.
+- **One list, two containers.** `ApexNotificationsList` renders in both the
+  sheet and the dropdown, with `lg:` marking the dropdown's values — only one
+  container is ever mounted, so a row cannot gain a field in one and not the
+  other.
+- **Sheets need a description, not just a title.** reka generates an
+  `aria-describedby` for every `DialogContent`; with no `DialogDescription` it
+  pointed at an element that did not exist. A dangling reference is worse than
+  none.
+- Page header: h1 23px, sub-line 14.5px, and the primary action moved below the
+  copy at full width and 48px (two side by side share the row at `flex:1`, per
+  §10). Section rhythm 28px below `md`, dashboard money 32px.
+- **A hidden browser tab freezes the document timeline.** Verified with
+  `document.hidden`, zero `requestAnimationFrame` ticks and
+  `getAnimations()[0].currentTime === 0`. Nothing that depends on a CSS
+  transition finishing can be verified in the preview pane — measure end states
+  with transitions neutralised.
+
+**Not done in this phase:** the §8 card-padding compression (24 → 20px) across
+the other five pages. That is 31 `p-6` sites, many of them modals and empty
+states rather than cards, and a blind sweep is exactly the improvised spacing
+rule 7 forbids. The §10 form-control inventory (48px inputs at 16px type) is
+likewise per-page and belongs with each page's own spec. `ApexSearch`'s index is
+customer-oriented, so searching from `/admin` finds customer destinations and
+the admin panel link, not the individual admin modules.
 
 **Phase 8 gotcha — a comment before the root element is a second root.**
 A template whose first node is an HTML comment is multi-root, so the client

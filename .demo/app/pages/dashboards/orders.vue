@@ -195,13 +195,39 @@ const detail = computed(() => projects.value.find(p => p.id === selId.value) || 
 function openDetail(id: string) {
   selId.value = id
   view.value = 'detail'
-  window.scrollTo({ top: 0 })
+  // Client-only: the deep-link watch below calls this during SSR too, where
+  // there is no `window` to scroll — and nothing to scroll it to.
+  if (import.meta.client) {
+    window.scrollTo({ top: 0 })
+  }
 }
 function backToList() {
   view.value = 'list'
   selId.value = null
   window.scrollTo({ top: 0 })
 }
+
+/**
+ * Deep link: `/dashboards/orders?project=<id>` opens that project's detail.
+ *
+ * Panel search links here, and a search result that drops you on the list to
+ * find the row yourself is not a result. Watching the query rather than reading
+ * it once also covers searching again from this very page, where the router
+ * changes the query without remounting anything.
+ *
+ * Guarded on the project actually existing, so a stale or hand-typed id leaves
+ * the customer on the list rather than on an empty detail pane.
+ */
+const route = useRoute()
+watch(
+  [() => route.query.project, projects],
+  ([id]) => {
+    if (typeof id === 'string' && id && projects.value.some(p => p.id === id)) {
+      openDetail(id)
+    }
+  },
+  { immediate: true },
+)
 function clearFilters() {
   filter.value = 'all'
   q.value = ''
@@ -414,7 +440,7 @@ async function payNow() {
 
 <template>
   <!-- Location lives in the toolbar breadcrumb; this page no longer prints its own. -->
-  <div class="mx-auto flex max-w-[1180px] flex-col gap-8 pb-14 font-sans text-muted-400">
+  <div class="mx-auto flex max-w-[1180px] flex-col gap-7 pb-14 font-sans text-muted-400 md:gap-8">
     <!-- ============================ LIST VIEW ============================ -->
     <div v-if="view === 'list'">
       <!-- title + primary action -->
@@ -425,7 +451,7 @@ async function payNow() {
         class="mb-8"
       >
         <template #actions>
-          <BaseButton rounded="full" variant="primary" to="/dashboards/services" class="h-11! px-6 shadow-[0_10px_24px_rgba(125,83,242,.32)]">
+          <BaseButton rounded="full" variant="primary" to="/dashboards/services" class="h-12! w-full px-6 shadow-[0_10px_24px_rgba(125,83,242,.32)] sm:h-11! sm:w-auto">
             <Icon name="lucide:plus" class="size-4" />New project
           </BaseButton>
         </template>

@@ -4,9 +4,31 @@ import { onKeyStroke } from '@vueuse/core'
 import MiniSearch from 'minisearch'
 
 const router = useRouter()
+const route = useRoute()
 const isMacLike = useIsMacLike()
 const isOpen = useSearchOpen()
 const search = ref('')
+
+/**
+ * This dialog indexes the `docs` collection and the demo pages' `meta.preview`.
+ * The Apex panel's pages set no `preview`, so a customer searching here could
+ * only ever find Tairo demo layouts and Shuriken UI docs — never their own
+ * orders — and in production the docs routes 404. `ApexSearch` serves those
+ * routes instead, over the same `useSearchOpen()` state.
+ *
+ * Gating the dialog rather than the component: `DemoAppSearch` has a top-level
+ * `await`, so a `v-if` would remount an async setup inside the root Suspense
+ * boundary on every navigation in or out of the panel.
+ */
+const isApexPanel = computed(() =>
+  route.path.startsWith('/dashboards') || route.path.startsWith('/admin'),
+)
+const isDialogOpen = computed({
+  get: () => isOpen.value && !isApexPanel.value,
+  set: (value: boolean) => {
+    isOpen.value = value
+  },
+})
 
 onKeyStroke('k', (event) => {
   const modifier = isMacLike.value ? event.metaKey : event.ctrlKey
@@ -93,7 +115,7 @@ function handleSelect(ev: CustomEvent) {
 </script>
 
 <template>
-  <DialogRoot v-model:open="isOpen">
+  <DialogRoot v-model:open="isDialogOpen">
     <DialogPortal>
       <DialogOverlay class="bg-muted-800/70 dark:bg-muted-900/80 fixed inset-0 z-50" />
 

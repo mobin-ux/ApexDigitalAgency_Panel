@@ -154,14 +154,19 @@
 }
 
 /*
- * Below `md` the shell is a 56px header rather than the 76px desktop band, so
- * a page that subtracts the desktop figure loses ~38px of usable height — on
+ * Below `lg` the shell is a 56px header rather than the 76px desktop band, so
+ * a page that subtracts the desktop figure loses ~40px of usable height — on
  * the Support inbox that is the composer sliding under the fold, which is the
  * exact failure the bounded height exists to prevent.
+ *
+ * 56px band + 20px bottom margin + 1px divider. The bound is `lg`, not `md`,
+ * because `lg` is where the sidebar appears and the bar goes back to 76px;
+ * between 768px and 1023px this used to claim the desktop figure while
+ * rendering the mobile bar.
  */
-@media (max-width: 767px) {
+@media (max-width: 1023.98px) {
   :root {
-    --apex-shell-offset: 94px;
+    --apex-shell-offset: 77px;
   }
 }
 
@@ -291,4 +296,53 @@
     color-mix(in oklab, var(--color-primary-500) 20%, transparent),
     color-mix(in oklab, var(--color-primary-500) 7%, transparent)
   );
+}
+
+/*
+ * Mobile overlay entry animations (V2 Phase 1 mobile).
+ *
+ * Entry only, and expressed as keyframes rather than Vue `<Transition>`
+ * classes. A `<Transition>` leave animates the node to `opacity: 0` but does
+ * not necessarily unmount it — that is what left an invisible full-screen
+ * overlay eating every click on Wallet, and the close handlers looked broken.
+ * reka's `DialogContent` unmounts on close, so an entry-only keyframe has no
+ * such failure mode.
+ */
+@keyframes apexSheetIn {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+@keyframes apexScrimIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.apex-sheet-in {
+  animation: apexSheetIn 0.22s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.apex-scrim-in {
+  animation: apexScrimIn 0.15s ease-out both;
+}
+
+/*
+ * `both` above holds the animation's *from* state before it starts, so a
+ * customer who has asked for reduced motion would be left looking at a sheet
+ * parked off-screen if the animation were simply cancelled. Reset the offset
+ * as well as the animation.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .apex-sheet-in,
+  .apex-scrim-in {
+    animation: none;
+    transform: none;
+    opacity: 1;
+  }
 }

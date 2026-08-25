@@ -536,7 +536,7 @@ async function payInstallment(plan: Plan) {
       class="mb-8"
     >
       <template #actions>
-        <BaseButton rounded="full" variant="primary" class="h-11! px-6 shadow-[0_10px_24px_rgba(125,83,242,0.32)]" @click="openTopup">
+        <BaseButton rounded="full" variant="primary" class="h-12! w-full px-6 shadow-[0_10px_24px_rgba(125,83,242,0.32)] sm:h-11! sm:w-auto" @click="openTopup">
           <Icon name="lucide:plus" class="size-4" />
           <span>Top up wallet</span>
         </BaseButton>

@@ -79,8 +79,14 @@ useHead({
     :toast="{ position: 'top-center' }"
   >
     <!--
-      Global app search modal
-      @see .demo/components/DemoAppSearch.vue
+      Global app search modal — Tairo's, which indexes the `docs` collection
+      and the demo pages' `meta.preview`. It stays mounted for the template
+      routes it was written for, and declines to open on the Apex panel, which
+      has its own search (`ApexSearch`, mounted by the `sidenav` and `admin`
+      layouts) over the customer's own projects and tickets. Both read the same
+      `useSearchOpen()` state, so ⌘K and the toolbar button open whichever one
+      belongs to the current route.
+      @see .demo/app/components/DemoAppSearch.vue
     -->
     <DemoAppSearch />
     <!--

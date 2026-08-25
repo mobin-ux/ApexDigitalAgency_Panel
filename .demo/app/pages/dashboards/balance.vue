@@ -164,7 +164,7 @@ const VIOLET_BLOB = 'radial-gradient(circle at 50% 38%, #9b79f6 0%, #7d53f2 55%,
 </script>
 
 <template>
-  <div class="mx-auto flex max-w-[1180px] flex-col gap-8 pb-8 font-sans text-muted-400">
+  <div class="mx-auto flex max-w-[1180px] flex-col gap-7 pb-8 font-sans text-muted-400 md:gap-8">
     <!--
       No header action: the cash card below already links to the wallet twice
       (Deposit funds, Transactions), and three routes to one page in a single
@@ -314,7 +314,7 @@ const VIOLET_BLOB = 'radial-gradient(circle at 50% 38%, #9b79f6 0%, #7d53f2 55%,
           <div class="relative flex items-baseline gap-2">
             <!-- 36px on a phone: the mobile type scale caps the money display
                  at 36px, and £-thousands wrap the 44px size at 393px. -->
-            <span class="font-heading text-[36px] font-extrabold leading-none tracking-[-0.02em] text-white tabular-nums sm:text-[44px]">{{ formatCurrency(stats.walletBalance) }}</span>
+            <span class="font-heading text-[32px] font-extrabold leading-none tracking-[-0.02em] text-white tabular-nums sm:text-[44px]">{{ formatCurrency(stats.walletBalance) }}</span>
           </div>
           <div class="relative mt-2.5 text-[13.5px] text-muted-400">
             Available to spend right now
