@@ -141,6 +141,15 @@ const expenseLegend = computed(() =>
   expenses.value.map(row => `${formatCurrency(row.value)} ${row.label}`).join(', '),
 )
 
+/**
+ * The plan's terms, shown as chips below `lg` in place of the growth card.
+ *
+ * All three are commitments the product actually makes (REQUIREMENTS §2), not
+ * marketing adjectives — which is why they read as facts and why the 12-month
+ * figure matches the financing maths in `services.vue` (ADR-011).
+ */
+const PROMO_FACTS = ['0% interest', '12 months', 'No credit check']
+
 const HOW_STEPS = [
   { n: '1', title: 'Apply in two minutes', body: 'No credit card, no paperwork. We review your account, not your credit file.' },
   { n: '2', title: 'We start the work', body: 'Your campaign or build begins immediately, with nothing paid up front.' },
@@ -184,7 +193,7 @@ const VIOLET_BLOB = 'radial-gradient(circle at 50% 38%, #9b79f6 0%, #7d53f2 55%,
       <section
         v-if="showPromo"
         aria-label="Offer"
-        class="order-3 relative overflow-hidden rounded-2xl border border-white/10 p-6 md:order-none md:p-[26px] lg:p-9"
+        class="order-3 relative overflow-hidden rounded-2xl border border-white/10 p-5 md:order-none md:p-[26px] lg:p-9"
         style="background: radial-gradient(110% 130% at 84% 16%, rgba(125,83,242,.24) 0%, rgba(125,83,242,0) 52%), linear-gradient(150deg, #16252A 0%, #101D21 62%, #0E181B 100%);"
       >
         <!--
@@ -210,15 +219,35 @@ const VIOLET_BLOB = 'radial-gradient(circle at 50% 38%, #9b79f6 0%, #7d53f2 55%,
                 Limited spots this month
               </span>
             </div>
-            <h2 class="font-heading text-[32px] font-extrabold leading-[1.05] tracking-[-0.025em] text-white sm:text-[40px]">
+            <h2 class="font-heading text-[25px] font-extrabold leading-[1.05] tracking-[-0.025em] text-white sm:text-[40px]">
               Scale your business,<br>
               <span class="text-primary-400">pay from profits.</span>
             </h2>
-            <p class="mb-6 mt-[18px] max-w-[520px] text-[15.5px] leading-[1.55] text-muted-400">
+            <p class="mb-[18px] mt-3 max-w-[520px] text-[14.5px] leading-[1.55] text-muted-400 sm:mb-6 sm:mt-[18px] sm:text-[15.5px]">
               Don't let cash flow stop your growth. Use our <strong class="font-semibold text-white">Zero Upfront Payment</strong> plan for Digital Marketing &amp; SEO services. We invest in you, you split the win.
             </p>
-            <div class="flex flex-wrap items-center gap-4">
-              <BaseButton to="/dashboards/services" rounded="full" variant="primary" class="h-12! px-6 shadow-[0_12px_28px_rgba(125,83,242,.32)]">
+            <!--
+              The plan's three terms, as chips, below `lg` — exactly where the
+              growth card is hidden. They are claims the product actually makes
+              (REQUIREMENTS §2: 0% over twelve months, no credit check), not
+              decoration, so they carry a tick rather than a colour.
+            -->
+            <div class="mb-[18px] flex flex-wrap gap-2 lg:hidden">
+              <span
+                v-for="fact in PROMO_FACTS" :key="fact"
+                class="inline-flex items-center gap-[7px] rounded-full border border-white/10 bg-white/5 px-3 py-[7px] text-[12.5px] font-semibold text-white"
+              >
+                <Icon name="lucide:check" class="size-3.5 text-[#22B07D]" />{{ fact }}
+              </span>
+            </div>
+
+            <!--
+              Stacked and full width on a phone, side by side from `sm`: at
+              393px two pills on one row leave each about 150px, and the
+              secondary one wraps its own label.
+            -->
+            <div class="flex flex-col gap-2.5 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
+              <BaseButton to="/dashboards/services" rounded="full" variant="primary" class="h-[50px]! w-full px-6 shadow-[0_12px_28px_rgba(125,83,242,.32)] sm:h-12! sm:w-auto">
                 <span>Get started now</span>
                 <Icon name="lucide:arrow-right" class="size-4" />
               </BaseButton>
@@ -229,27 +258,34 @@ const VIOLET_BLOB = 'radial-gradient(circle at 50% 38%, #9b79f6 0%, #7d53f2 55%,
               -->
               <button
                 type="button"
-                class="apex-focus inline-flex h-12 items-center gap-2.5 rounded-full px-2 text-[14.5px] font-semibold text-white transition hover:text-primary-400"
+                class="apex-focus inline-flex h-12 w-full items-center justify-center gap-2.5 rounded-full border border-white/20 px-2 text-[14.5px] font-semibold text-white transition hover:text-primary-400 sm:w-auto sm:justify-start sm:border-0"
                 :aria-expanded="howOpen"
                 aria-controls="apex-how-it-works"
                 @click="howOpen = !howOpen"
               >
-                <span class="inline-flex size-[34px] items-center justify-center rounded-full border border-white/15">
+                <span class="hidden size-[34px] items-center justify-center rounded-full border border-white/15 sm:inline-flex">
                   <Icon :name="howOpen ? 'lucide:chevron-up' : 'lucide:play'" class="size-3.5" />
                 </span>
                 How it works
+                <Icon
+                  name="lucide:chevron-down"
+                  class="size-4 transition-transform duration-200 sm:hidden"
+                  :class="howOpen ? 'rotate-180' : ''"
+                />
               </button>
             </div>
 
             <div v-if="howOpen" id="apex-how-it-works" class="apex-fade mt-[22px] rounded-2xl border border-white/10 bg-muted-950/55 p-5">
-              <div class="grid grid-cols-1 gap-[18px] sm:grid-cols-3">
-                <div v-for="step in HOW_STEPS" :key="step.n">
-                  <span class="inline-flex size-6 items-center justify-center rounded-full bg-primary-500/16 text-xs font-extrabold text-primary-400">{{ step.n }}</span>
-                  <div class="mt-2.5 text-[13.5px] font-semibold text-white">
-                    {{ step.title }}
-                  </div>
-                  <div class="mt-1 text-[12.5px] leading-[1.5] text-muted-500">
-                    {{ step.body }}
+              <div class="grid grid-cols-1 gap-4 sm:grid-cols-3 sm:gap-[18px]">
+                <div v-for="step in HOW_STEPS" :key="step.n" class="flex items-start gap-3 sm:block">
+                  <span class="inline-flex size-[26px] shrink-0 items-center justify-center rounded-full bg-primary-500/16 text-xs font-extrabold text-primary-400 sm:size-6">{{ step.n }}</span>
+                  <div class="min-w-0 flex-1 sm:flex-none">
+                    <div class="text-[13.5px] font-semibold text-white sm:mt-2.5">
+                      {{ step.title }}
+                    </div>
+                    <div class="mt-1 text-[12.5px] leading-[1.5] text-muted-500">
+                      {{ step.body }}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -305,7 +341,7 @@ const VIOLET_BLOB = 'radial-gradient(circle at 50% 38%, #9b79f6 0%, #7d53f2 55%,
 
       <div class="grid grid-cols-1 items-stretch gap-5 lg:grid-cols-[1fr_1.32fr]">
         <!-- cash balance (emphasised) -->
-        <div class="relative flex flex-col overflow-hidden rounded-2xl border border-primary-500/30 p-6" style="background: linear-gradient(150deg, #241846, #16252A 72%);">
+        <div class="relative flex flex-col overflow-hidden rounded-2xl border border-primary-500/30 p-5 md:p-6" style="background: linear-gradient(150deg, #241846, #16252A 72%);">
           <div class="pointer-events-none absolute -top-12 -right-6 size-40 rounded-full opacity-50 blur-[50px]" :style="{ background: VIOLET_BLOB }" />
           <div class="relative mb-5 flex items-center gap-3">
             <span class="flex size-9 items-center justify-center rounded-xl bg-white/10 text-white"><Icon name="lucide:wallet" class="size-[18px]" /></span>
@@ -330,7 +366,7 @@ const VIOLET_BLOB = 'radial-gradient(circle at 50% 38%, #9b79f6 0%, #7d53f2 55%,
         </div>
 
         <!-- credit line — real CreditLine record, four states -->
-        <div class="flex flex-col rounded-2xl border border-white/10 bg-muted-800 p-6 transition hover:border-white/15">
+        <div class="flex flex-col rounded-2xl border border-white/10 bg-muted-800 p-5 transition hover:border-white/15 md:p-6">
           <div class="mb-5 flex items-center justify-between gap-3">
             <span class="inline-flex items-center gap-3 text-xs font-bold uppercase tracking-[0.06em] text-muted-500">
               <span class="flex size-9 items-center justify-center rounded-xl bg-[#22B07D]/14 text-[#22B07D]"><Icon name="lucide:credit-card" class="size-[18px]" /></span>Credit line
@@ -349,9 +385,15 @@ const VIOLET_BLOB = 'radial-gradient(circle at 50% 38%, #9b79f6 0%, #7d53f2 55%,
             <div role="progressbar" :aria-valuenow="credit.used" aria-valuemin="0" :aria-valuemax="credit.limit" class="my-[18px] h-2.5 overflow-hidden rounded-full bg-white/5">
               <div class="h-full rounded-full bg-gradient-to-r from-primary-400 to-primary-500" :style="{ width: `${credit.pct}%` }" />
             </div>
-            <div class="flex flex-wrap items-center justify-between gap-2 text-[12.5px]">
-              <span class="inline-flex items-center gap-1.5 text-muted-400"><span class="size-2 rounded-full bg-primary-500" />Used <strong class="font-semibold text-white tabular-nums">{{ formatCurrency(credit.used) }}</strong></span>
-              <span class="inline-flex items-center gap-1.5 text-muted-400"><span class="size-2 rounded-full border border-white/15 bg-white/5" />Available <strong class="font-semibold text-white tabular-nums">{{ formatCurrency(credit.available) }}</strong></span>
+            <!--
+              One labelled row each below `sm`, with the figure pushed right in
+              tabular numerals so the two amounts line up under one another.
+              Side by side they collided at 393px: two labels and two
+              currency values on one 12.5px line had nowhere to wrap.
+            -->
+            <div class="flex flex-col gap-2 text-[13px] sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-2 sm:text-[12.5px]">
+              <span class="flex items-center gap-2 text-muted-400 sm:inline-flex sm:gap-1.5"><span class="size-2 shrink-0 rounded-full bg-primary-500" />Used <strong class="ml-auto font-semibold text-white tabular-nums sm:ml-0">{{ formatCurrency(credit.used) }}</strong></span>
+              <span class="flex items-center gap-2 text-muted-400 sm:inline-flex sm:gap-1.5"><span class="size-2 shrink-0 rounded-full border border-white/15 bg-white/5" />Available <strong class="ml-auto font-semibold text-white tabular-nums sm:ml-0">{{ formatCurrency(credit.available) }}</strong></span>
             </div>
             <div class="mt-auto flex items-center gap-2 border-t border-white/10 pt-[18px] text-[13px] text-muted-400">
               <Icon :name="credit.status === 'FROZEN' ? 'lucide:info' : 'lucide:shield-check'" class="size-[15px] shrink-0" :class="credit.status === 'FROZEN' ? 'text-[#EC6453]' : 'text-[#22B07D]'" />
@@ -394,10 +436,15 @@ const VIOLET_BLOB = 'radial-gradient(circle at 50% 38%, #9b79f6 0%, #7d53f2 55%,
       <div class="flex flex-wrap items-center justify-between gap-4">
         <div class="flex flex-wrap items-center gap-3.5">
           <ApexSectionLabel label="Active work" />
-          <span class="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[12.5px] font-semibold text-white tabular-nums">{{ plural(stats.activeProjects, 'project') }}</span>
+          <!-- Just the count on a phone: "Active work" already says what is being counted. -->
+          <span class="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[12.5px] font-semibold text-white tabular-nums">
+            <span class="sm:hidden">{{ stats.activeProjects }}</span>
+            <span class="hidden sm:inline">{{ plural(stats.activeProjects, 'project') }}</span>
+          </span>
         </div>
-        <NuxtLink to="/dashboards/orders" class="apex-focus inline-flex items-center gap-1.5 rounded-md text-[13.5px] font-semibold text-primary-400 transition hover:text-white">
-          View all projects <Icon name="lucide:arrow-right" class="size-3.5" />
+        <NuxtLink to="/dashboards/orders" aria-label="View all projects" class="apex-focus inline-flex min-h-11 items-center gap-1.5 rounded-md text-[13.5px] font-semibold text-primary-400 transition hover:text-white sm:min-h-0">
+          <span class="sm:hidden">All</span><span class="hidden sm:inline">View all projects</span>
+          <Icon name="lucide:arrow-right" class="size-3.5" />
         </NuxtLink>
       </div>
 
@@ -409,27 +456,48 @@ const VIOLET_BLOB = 'radial-gradient(circle at 50% 38%, #9b79f6 0%, #7d53f2 55%,
             coloured left border on top of the coloured progress bar — three
             encodings of the same fact, which is what made the list feel busy.
           -->
+          <!--
+            Two lines on a phone, one from `sm`: identity and status first, then
+            progress, percentage and deadline. Squeezing all five onto one line
+            at 393px is why the bar and the deadline used to be hidden below
+            `sm` and `md` — which left a phone with no progress on screen at
+            all, on the section whose whole job is progress.
+
+            `sm:contents` dissolves the two line wrappers on wider screens so
+            their children become direct flex items of the row again; the chip
+            takes `sm:order-last` to land back at the end, where it was.
+          -->
           <NuxtLink
             to="/dashboards/orders" role="listitem"
-            class="flex items-center gap-4 px-[22px] py-[18px] transition hover:bg-white/[0.03]"
+            class="flex flex-col gap-3 px-4 py-[14px] transition hover:bg-white/[0.03] sm:flex-row sm:items-center sm:gap-4 sm:px-[22px] sm:py-[18px]"
           >
-            <span class="flex size-[42px] shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-muted-400"><Icon :name="project.icon" class="size-[19px]" /></span>
-            <div class="min-w-0 flex-1">
-              <div class="truncate text-[15px] font-semibold text-white">
-                {{ project.name }}
+            <div class="flex items-center gap-3 sm:contents">
+              <span class="flex size-10 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-muted-400 sm:size-[42px]"><Icon :name="project.icon" class="size-[19px]" /></span>
+              <div class="min-w-0 flex-1">
+                <div class="truncate text-[15px] font-semibold text-white">
+                  {{ project.name }}
+                </div>
+                <div class="mt-0.5 truncate text-[12.5px] text-muted-500 sm:text-[13px]">
+                  {{ project.category }}
+                </div>
               </div>
-              <div class="mt-0.5 truncate text-[13px] text-muted-500">
-                {{ project.category }}
-              </div>
+              <span class="shrink-0 rounded-full px-3 py-1.5 text-center text-[11px] font-bold sm:order-last" :class="[statusMeta(project.status).chip, statusMeta(project.status).text]">{{ statusMeta(project.status).label }}</span>
             </div>
-            <div class="hidden w-[170px] shrink-0 items-center gap-2.5 sm:flex">
-              <div class="h-1.5 flex-1 overflow-hidden rounded-full bg-white/5">
-                <div class="h-full rounded-full" :class="statusMeta(project.status).bar" :style="{ width: `${project.progress}%` }" />
+
+            <div class="flex items-center gap-2.5 sm:contents">
+              <div class="flex min-w-0 flex-1 items-center gap-2.5 sm:w-[170px] sm:flex-none sm:shrink-0">
+                <div class="h-1.5 flex-1 overflow-hidden rounded-full bg-white/5">
+                  <div class="h-full rounded-full" :class="statusMeta(project.status).bar" :style="{ width: `${project.progress}%` }" />
+                </div>
+                <span class="w-[34px] shrink-0 text-right text-xs font-bold text-white tabular-nums">{{ project.progress }}%</span>
               </div>
-              <span class="w-[34px] text-right text-xs font-bold text-white tabular-nums">{{ project.progress }}%</span>
+              <!--
+                Shown on a phone, where line two has the room, and from `md`,
+                where the row does. Hidden only in the 640–767px band, which is
+                the one width with neither — exactly as before this change.
+              -->
+              <span v-if="project.deadline" class="inline-flex shrink-0 items-center gap-1.5 text-[12px] text-muted-500 sm:hidden md:inline-flex md:w-24 md:text-[12.5px]"><Icon name="lucide:calendar" class="size-3.5" />{{ project.deadline }}</span>
             </div>
-            <span v-if="project.deadline" class="hidden w-24 shrink-0 items-center gap-1.5 text-[12.5px] text-muted-500 md:inline-flex"><Icon name="lucide:calendar" class="size-3.5" />{{ project.deadline }}</span>
-            <span class="shrink-0 rounded-full px-3 py-1.5 text-center text-[11px] font-bold" :class="[statusMeta(project.status).chip, statusMeta(project.status).text]">{{ statusMeta(project.status).label }}</span>
           </NuxtLink>
         </template>
       </div>
@@ -462,27 +530,48 @@ const VIOLET_BLOB = 'radial-gradient(circle at 50% 38%, #9b79f6 0%, #7d53f2 55%,
         </NuxtLink>
       </div>
 
-      <div class="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-4">
+      <!--
+        Four 20px-padded cards stacked is four screens of scrolling, so below
+        `md` each becomes a 76px row: icon, name, one line of description, the
+        from price, and a chevron doing the work the Order link did. Same link,
+        same target, same accessible name — only the composition changes.
+      -->
+      <div class="grid grid-cols-1 gap-2.5 md:grid-cols-2 md:gap-5 lg:grid-cols-4">
         <NuxtLink
           v-for="svc in services" :key="svc.key"
           :to="`/dashboards/services?service=${svc.key}`"
           :aria-label="`Order ${svc.name} — from ${formatCurrency(svc.from)} per month`"
-          class="apex-focus group flex flex-col rounded-2xl border border-white/10 bg-muted-800 p-5 transition duration-150 hover:-translate-y-[3px] hover:border-primary-500/50"
+          class="apex-focus group relative flex min-h-[76px] flex-row items-center gap-3.5 rounded-2xl border border-white/10 bg-muted-800 px-4 py-3.5 transition duration-150 hover:border-primary-500/50 md:min-h-0 md:flex-col md:items-stretch md:gap-0 md:px-5 md:py-5 md:hover:-translate-y-[3px]"
         >
-          <div class="mb-[18px] flex items-start justify-between gap-2.5">
-            <span class="flex size-11 shrink-0 items-center justify-center rounded-xl bg-primary-500/14 text-primary-400"><Icon :name="svc.icon" class="size-[21px]" /></span>
-            <span v-if="svc.badge" class="shrink-0 whitespace-nowrap rounded-full bg-primary-500 px-2.5 py-1 text-[10.5px] font-extrabold uppercase tracking-[0.04em] text-white">{{ svc.badge }}</span>
+          <span class="flex size-11 shrink-0 items-center justify-center rounded-xl bg-primary-500/14 text-primary-400 md:mb-[18px]"><Icon :name="svc.icon" class="size-[21px]" /></span>
+          <!--
+            The badge sits beside the name on a row and at the top-right corner
+            on a tile. Absolute positioning from `md` reproduces the tile
+            exactly without a second copy of the element.
+          -->
+          <span
+            v-if="svc.badge"
+            class="order-2 shrink-0 whitespace-nowrap rounded-full bg-primary-500 px-2 py-[3px] text-[9.5px] font-extrabold uppercase tracking-[0.04em] text-white md:absolute md:right-5 md:top-5 md:px-2.5 md:py-1 md:text-[10.5px]"
+          >{{ svc.badge }}</span>
+
+          <div class="order-1 flex min-w-0 flex-1 flex-col md:order-none md:w-full">
+            <div class="flex min-w-0 items-center gap-2">
+              <span class="font-heading truncate text-base font-bold leading-[1.2] tracking-[-0.01em] text-white md:text-[18px] md:leading-normal">{{ svc.name }}</span>
+            </div>
+            <div class="mt-[3px] truncate text-[12.5px] leading-[1.4] text-muted-500 md:mt-1.5 md:whitespace-normal md:text-[13px] md:leading-[1.45]">
+              {{ svc.desc }}
+            </div>
+            <!-- Price inline on a row; in the bordered footer on a tile. -->
+            <div class="mt-[5px] text-[12.5px] leading-[1.3] text-muted-500 md:hidden">
+              from <strong class="text-[13.5px] font-bold text-white tabular-nums">{{ formatCurrency(svc.from) }}</strong>/mo
+            </div>
+            <div class="mt-auto hidden items-center justify-between border-t border-white/10 pt-4 md:flex">
+              <span class="text-[12.5px] text-muted-500">from <strong class="text-sm font-bold text-white tabular-nums">{{ formatCurrency(svc.from) }}</strong>/mo</span>
+              <span class="inline-flex items-center gap-1.5 text-[13px] font-bold text-primary-400">Order <Icon name="lucide:arrow-right" class="size-3.5 transition-transform group-hover:translate-x-0.5" /></span>
+            </div>
           </div>
-          <div class="font-heading text-[18px] font-bold tracking-[-0.01em] text-white">
-            {{ svc.name }}
-          </div>
-          <div class="mt-1.5 text-[13px] leading-[1.45] text-muted-500">
-            {{ svc.desc }}
-          </div>
-          <div class="mt-auto flex items-center justify-between border-t border-white/10 pt-4">
-            <span class="text-[12.5px] text-muted-500">from <strong class="text-sm font-bold text-white tabular-nums">{{ formatCurrency(svc.from) }}</strong>/mo</span>
-            <span class="inline-flex items-center gap-1.5 text-[13px] font-bold text-primary-400">Order <Icon name="lucide:arrow-right" class="size-3.5 transition-transform group-hover:translate-x-0.5" /></span>
-          </div>
+
+          <Icon name="lucide:chevron-right" aria-hidden="true" class="order-3 size-4 shrink-0 text-muted-500 md:hidden" />
         </NuxtLink>
       </div>
     </section>
@@ -490,8 +579,13 @@ const VIOLET_BLOB = 'radial-gradient(circle at 50% 38%, #9b79f6 0%, #7d53f2 55%,
     <!-- ========== EXPENSES ========== -->
     <section class="order-5 flex flex-col gap-4 md:order-none">
       <ApexSectionLabel label="Expenses" />
+      <!--
+        Total, then the split bar, then one row per project. The two-column
+        desktop split put the legend beside a 12px bar with nowhere to wrap,
+        so below `lg` it reads straight down instead.
+      -->
       <div
-        class="grid grid-cols-1 items-center gap-8 rounded-2xl border border-white/10 bg-muted-800 p-6"
+        class="grid grid-cols-1 items-center gap-5 rounded-2xl border border-white/10 bg-muted-800 p-5 md:p-6 lg:gap-8"
         :class="expenses.length ? 'lg:grid-cols-[minmax(200px,240px)_1fr]' : ''"
       >
         <div>
@@ -515,10 +609,18 @@ const VIOLET_BLOB = 'radial-gradient(circle at 50% 38%, #9b79f6 0%, #7d53f2 55%,
           <div role="img" :aria-label="`Spending by project: ${expenseLegend}`" class="flex h-3 gap-[3px] overflow-hidden rounded-full">
             <div v-for="e in expenses" :key="e.label" class="h-full" :class="e.class" :style="{ flexGrow: e.value }" />
           </div>
-          <div class="mt-[18px] grid grid-cols-1 gap-[18px] sm:grid-cols-3">
-            <div v-for="e in expenses" :key="e.label" class="flex min-w-0 flex-col gap-1.5">
-              <span class="inline-flex min-w-0 items-center gap-2 text-[13px] text-muted-400"><span class="size-[9px] shrink-0 rounded-[3px]" :class="e.class" /><span class="truncate">{{ e.label }}</span></span>
-              <span class="font-heading text-[18px] font-bold text-white tabular-nums">{{ formatCurrency(e.value) }} <span class="font-sans text-xs font-medium text-muted-500">{{ Math.round((e.value / expenseTotal) * 100) }}%</span></span>
+          <!--
+            One row per project below `sm` — dot, name, amount, share — with
+            the share in a fixed column so the percentages line up under one
+            another. Stacking the label over the amount only works once there
+            are three columns to stack into.
+          -->
+          <div class="mt-4 grid grid-cols-1 gap-3 sm:mt-[18px] sm:grid-cols-3 sm:gap-[18px]">
+            <div v-for="e in expenses" :key="e.label" class="flex min-w-0 items-center gap-2.5 sm:flex-col sm:items-start sm:gap-1.5">
+              <span class="inline-flex min-w-0 flex-1 items-center gap-2 text-[13.5px] text-muted-400 sm:flex-none sm:text-[13px]"><span class="size-[9px] shrink-0 rounded-[3px]" :class="e.class" /><span class="truncate">{{ e.label }}</span></span>
+              <span class="font-heading shrink-0 text-base font-bold text-white tabular-nums sm:text-[18px]">{{ formatCurrency(e.value) }}</span>
+              <span class="w-[34px] shrink-0 text-right font-sans text-xs font-medium text-muted-500 tabular-nums sm:hidden">{{ Math.round((e.value / expenseTotal) * 100) }}%</span>
+              <span class="font-sans hidden text-xs font-medium text-muted-500 sm:inline">{{ Math.round((e.value / expenseTotal) * 100) }}%</span>
             </div>
           </div>
         </div>

@@ -2,7 +2,7 @@
 
 > Handoff doc for continuing work in fresh sessions. Update the relevant section
 > whenever a page ships, a decision lands, or a blocker appears.
-> Last updated: **2026-08-26** (V2 Phase 1 Mobile — shared shell at 393px, shipped).
+> Last updated: **2026-08-26** (V2 Phase 2 Mobile — dashboard at 393px, shipped).
 
 ## Where things stand
 
@@ -62,6 +62,7 @@ Read it with the `DesignSync` tool (`method: get_file`).
 | 8 | Auth flow | ✅ Done |
 | 9 | Mobile & light theme | 🚧 Light conversion still outstanding |
 | 1M | Shared shell at 393px (`PHASE-1-MOBILE.md`) | ✅ Done |
+| 2M | Dashboard at 393px (`Dashboard - Mobile.dc.html`) | ✅ Done |
 
 **Phase 1 shipped:** Apex brand mark (+ favicon/title), 44px nav rows with a
 violet `color-mix` active tint, hairline sub-nav, one account dropdown with
@@ -559,6 +560,52 @@ fetching the stylesheet text and by probing a synthetic element). The cause was
 the frozen timeline above. Note that `document.styleSheets` walking needs
 per-rule `try/catch` and recursion into `@layer` blocks, or it silently reports
 "no matching rule".
+
+**Phase 2 Mobile shipped (the dashboard at 393px).** `balance.vue` only. No
+API change, no new data, no change to the Phase 2 reconciliation gate. Desktop
+re-measured at 1280px and pixel-identical.
+
+- **Active work showed no progress on a phone.** The bar was `hidden sm:flex`
+  and the deadline `hidden md:inline-flex` — five items do not fit one line at
+  393px — so the section whose job is progress rendered a name and a chip.
+  Rows are two lines now, using `sm:contents` to dissolve the line wrappers on
+  wider screens so the original one-line desktop row is reproduced exactly
+  (chip returns to the end via `sm:order-last`).
+- Promo: growth card stays `lg`-only, padding 20px, headline 25px, the plan's
+  three real terms as wrapping chips, both CTAs stacked full width (50px/48px).
+- Credit legend: two labelled rows, figures right-aligned — verified landing on
+  the same pixel (x=338 at 375px).
+- Service tiles → 76px rows below `md` (measured 92px with three lines of real
+  copy, against the design's 76px floor); badge absolutely positioned from `md`
+  so the tile is unchanged.
+- Expenses: total → bar → one row per project, amount and share in fixed
+  columns. Verified by **temporarily** relaxing `partsReconcile`, measuring,
+  then restoring it and diffing the guard block against HEAD to prove it was
+  put back.
+
+**Deliberate deviation:** the mockup's "Payment history" header action is not
+implemented. Phase 2 removed the dashboard's header action because the cash
+card below already links to Wallet twice; on a phone all three would be in one
+viewport. The full-width action pattern it demonstrates is live on the four
+pages that do have one.
+
+**Light-theme cost, measured:** 27 low-contrast elements of 71 before → 32 of
+80 after (38% → 40%). The five additions are duplicated text reusing this
+page's existing dark-only classes, so they are the same Phase 9 backlog item
+rather than a new defect. Do not fix them in isolation — a second convention on
+one page makes the sweep harder.
+
+### Phase 2 Mobile gotcha — a contrast probe must handle gradients and oklab
+
+Two traps, both of which produced confident, wrong numbers here. (1) Tailwind
+emits `oklab()` for themed colours; parsing it as if it were `rgb()` turns a
+near-white background into near-black and every ratio is nonsense. Convert
+properly, or normalise through a canvas — and note Chrome's canvas `fillStyle`
+does **not** normalise `oklab`. (2) A gradient set through the `background`
+shorthand lands in `background-image`, leaving `background-color` transparent,
+so walking up the tree for a background colour sails straight past the promo's
+dark panel to the white page and reports white-on-white. The dashboard's navy
+islands are all gradients.
 
 ## Remaining queue (older, pre-V2)
 

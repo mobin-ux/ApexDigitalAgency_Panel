@@ -85,6 +85,7 @@ ships as a `.dc.html` mockup plus a `PHASE-N-*.md` implementation spec.
 | 8 | **Auth flow** — one branded shell, no demo pages, no dead controls | ✅ Done |
 | 9 | Mobile & light theme | 🚧 Light conversion outstanding |
 | 1M | **Shared shell at 393px** — 56px bar, drawer, sheets, full-screen search | ✅ Done |
+| 2M | **Dashboard at 393px** — promo without its art, two-line rows, service rows | ✅ Done |
 
 #### Phase 1 — the shell standard (applies to every page from here on)
 
@@ -503,6 +504,72 @@ rule 7 forbids. The §10 form-control inventory (48px inputs at 16px type) is
 likewise per-page and belongs with each page's own spec. `ApexSearch`'s index is
 customer-oriented, so searching from `/admin` finds customer destinations and
 the admin panel link, not the individual admin modules.
+
+#### Phase 2 (mobile) — the dashboard at 393px
+
+`Dashboard - Mobile.dc.html`. One file (`balance.vue`), no API change, no new
+data. Every rule is scoped below `md` or `lg`; desktop was re-measured at
+1280px afterwards and is pixel-identical (promo 36px padding, h2 40px, growth
+card visible, four service tiles in one row with the badge at the corner and
+the footer bottom-aligned, one-line project rows, credit legend on one row).
+
+- **The promo keeps its argument and loses its art.** The 260px growth card is
+  decorative and would push the CTA below the fold, so it stays `lg`-only.
+  Padding 24 → 20px, headline 40 → 25px, body 15.5 → 14.5px, and the plan's
+  three terms — 0% interest, 12 months, no credit check — appear as wrapping
+  chips exactly where the card is hidden. They are commitments the product
+  actually makes (REQUIREMENTS §2), which is the only reason they are allowed
+  to sit in a promo: a chip that cannot be checked against the product is
+  decoration, and Phase 2 removed the last of those.
+- **The two CTAs stack.** At 393px, two pills on one row leave about 150px
+  each and the secondary one wraps its own label. Primary is 50px full width,
+  "How it works" 48px full width with a hairline border and a rotating
+  chevron; from `sm` both revert to the desktop pair. It still expands in
+  place — that behaviour was the point of the Phase 2 fix and is untouched.
+- **The credit legend became two rows.** Used and Left sat side by side and
+  collided at 393px: two labels and two currency values on one 12.5px line had
+  nowhere to wrap. One labelled row each now, figure pushed right in tabular
+  numerals — measured, both values land on the same pixel.
+- **A phone could not see any progress on the progress section.** The bar was
+  `hidden sm:flex` and the deadline `hidden md:inline-flex`, because five items
+  will not fit one line at 393px. So Active work — the section whose entire job
+  is progress — showed a name and a status chip and nothing else. Rows are two
+  lines now: identity and status, then bar, percentage and deadline. Done with
+  `sm:contents` on the two line wrappers, which dissolves them on wider screens
+  so their children become direct flex items of the original row again; the
+  chip takes `sm:order-last` to return to the end. The deadline keeps its
+  640–767px gap, the one width with room for neither treatment.
+- **Service tiles became 76px rows.** Four 20px-padded cards stacked is four
+  screens of scrolling. Same link, same target, same accessible name — only the
+  composition changes: icon, name, one line of description, the from price, and
+  a chevron doing the work the "Order" link did. The badge sits beside the name
+  on a row and is absolutely positioned at the corner from `md`, so the tile is
+  reproduced without a second copy of the element.
+- **Expenses reads top to bottom**: total, split bar, then one row per project
+  with the amount and the share in a fixed column, so both align vertically.
+  The two-column desktop split put the legend beside a 12px bar with nowhere to
+  wrap. The reconciliation gate from Phase 2 is untouched — the breakdown still
+  renders only when the plans provably sum to the ledger total.
+- Card padding 24 → 20px on the cash, credit and expenses cards, as drawn. This
+  is the §8 figure the Phase 1 mobile pass declined to apply blind across all
+  six pages; here it is actually in the mockup.
+
+**Deliberate deviation — no "Payment history" header action.** The mockup draws
+one to demonstrate the full-width header-action pattern. Phase 2 removed the
+dashboard's header action on purpose, because the cash card immediately below
+already links to Wallet twice (Deposit funds, Transactions) — on a phone those
+sit within one screen of the header, so a third would be the same destination
+three times in one viewport. The pattern the badge demonstrates is implemented
+and verified on the four pages that do have a header action.
+
+**Known cost — five more elements on the Phase 9 light-theme backlog.**
+Splitting text into responsive variants (the count chip, the "All" link, the
+row-form price) adds elements that reuse this page's existing dark-only
+classes. Measured in light mode: 27 low-contrast elements of 71 before, 32 of
+80 after — the same proportion and the same single cause (`text-muted-500` on
+`bg-muted-800`, and unpaired `text-white`), not a new kind of defect. Using a
+light pair for only these five would leave the page with two conventions and
+make the Phase 9 sweep harder.
 
 **Phase 8 gotcha — a comment before the root element is a second root.**
 A template whose first node is an HTML comment is multi-root, so the client
