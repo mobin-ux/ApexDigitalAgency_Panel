@@ -34,9 +34,11 @@ const TABS: Tab[] = [
 
 /**
  * The wizard owns the whole screen while a customer is committing to a
- * purchase; the sticky total bar is the only chrome it should carry.
+ * purchase; the sticky total bar is the only chrome it should carry. The route
+ * list is shared with the top bar (`useApexTaskBar`) so the two halves of the
+ * shell cannot disagree about what counts as a task.
  */
-const suppressed = computed(() => route.path.startsWith('/dashboards/services'))
+const { isTask: suppressed } = useApexTaskBar()
 
 /**
  * Longest-prefix match, so a detail route keeps its tab lit — the same rule

@@ -35,6 +35,13 @@ defineProps<{
    * four rows and should size to them).
    */
   scrollable?: boolean
+  /**
+   * `ink` pins the sheet to the dark surface regardless of theme. The order
+   * wizard is navy in both themes (its light treatment is Phase 9's), so a
+   * sheet that turned white in light mode would be the only light surface on
+   * the screen, and the summary it carries is written for dark ink.
+   */
+  surface?: 'default' | 'ink'
 }>()
 
 const open = defineModel<boolean>('open', { required: true })
@@ -45,8 +52,13 @@ const open = defineModel<boolean>('open', { required: true })
     <DialogPortal>
       <DialogOverlay class="apex-scrim-in fixed inset-0 z-[60] bg-[rgba(3,10,12,.62)]" />
       <DialogContent
-        class="apex-sheet-in border-muted-200 dark:border-muted-700 dark:bg-muted-800 fixed inset-x-0 bottom-0 z-[61] flex flex-col rounded-t-[20px] border-t bg-white focus:outline-none"
-        :class="scrollable ? 'max-h-[72%]' : 'max-h-[85%]'"
+        class="apex-sheet-in fixed inset-x-0 bottom-0 z-[61] flex flex-col rounded-t-[20px] border-t focus:outline-none"
+        :class="[
+          scrollable ? 'max-h-[72%]' : 'max-h-[85%]',
+          surface === 'ink'
+            ? 'border-muted-700 bg-muted-800'
+            : 'border-muted-200 dark:border-muted-700 bg-white dark:bg-muted-800',
+        ]"
       >
         <!--
           The grabber is decorative: the sheet is dismissed by the scrim, Escape
@@ -55,7 +67,7 @@ const open = defineModel<boolean>('open', { required: true })
           which is what tells a customer the scrim is tappable.
         -->
         <div class="flex shrink-0 justify-center pb-0.5 pt-2">
-          <span aria-hidden="true" class="bg-muted-300 dark:bg-white/[.18] block h-1 w-[38px] rounded-full" />
+          <span aria-hidden="true" class="block h-1 w-[38px] rounded-full" :class="surface === 'ink' ? 'bg-white/[.18]' : 'bg-muted-300 dark:bg-white/[.18]'" />
         </div>
 
         <!-- Named for assistive tech; the visible heading is the caller's own. -->

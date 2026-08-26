@@ -86,6 +86,7 @@ ships as a `.dc.html` mockup plus a `PHASE-N-*.md` implementation spec.
 | 9 | Mobile & light theme | 🚧 Light conversion outstanding |
 | 1M | **Shared shell at 393px** — 56px bar, drawer, sheets, full-screen search | ✅ Done |
 | 2M | **Dashboard at 393px** — promo without its art, two-line rows, service rows | ✅ Done |
+| 3M | **New Order at 393px** — a task not a page, segments, select sheets, footer strip | ✅ Done |
 
 #### Phase 1 — the shell standard (applies to every page from here on)
 
@@ -553,6 +554,106 @@ the footer bottom-aligned, one-line project rows, credit legend on one row).
 - Card padding 24 → 20px on the cash, credit and expenses cards, as drawn. This
   is the §8 figure the Phase 1 mobile pass declined to apply blind across all
   six pages; here it is actually in the mockup.
+
+#### Phase 3 (mobile) — New Order at 393px
+
+`New Order - Mobile.dc.html` + `PHASE-3-MOBILE.md`. One page (`services.vue`),
+one new component, one new composable, no endpoint or payload change. The five
+steps, the pricing model, the contract and the signing evidence are all
+untouched; what changes is that below `lg` the wizard stops being a page and
+becomes a task.
+
+- **A wizard is a task, so the shell stops offering ways to leave it.** The
+  hamburger becomes a close button, search and notifications step out of the
+  bar, the `Secured` chip moves into it from the page header, and the bottom tab
+  bar stays suppressed (it already was). The route list behind all of this is
+  `useApexTaskBar()`, shared by `DemoToolbar` and `ApexBottomNav` — the two
+  halves of the shell were about to hold two copies of the same literal, which
+  is how one of them goes stale. The close button *asks* the page rather than
+  routing itself, because only the page knows whether there is a half-filled
+  order to lose.
+- **The exit guard says what actually happens.** The mockup offers to keep the
+  order "as a draft for 30 days". Nothing here is persisted anywhere — the order
+  does not exist until `/api/orders` has accepted it — so the sheet says the
+  choices are cleared, and the secondary action is "Leave without saving". The
+  spec's own checklist asks for exactly this ("draft language matches what the
+  backend does"). It also only asks when there is something to lose; a
+  confirmation on an untouched step 1 teaches people to dismiss confirmations.
+- **The stepper becomes a name plus five segments.** Five labelled nodes with
+  connecting rules need ~620px. Sticky directly under the 56px bar — the bar's
+  own bottom margin is cancelled so nothing scrolls through the gap — and
+  full-bleed via `apex-bleed`, so its divider spans the viewport like the bar's.
+  The segment row is a `role="group"`, **not** the spec's `progressbar`: a
+  progressbar announces a value and its five children here are buttons, so the
+  two would talk over each other. The "Step 2 of 5" counter beside the step name
+  already states the progress in words.
+- **Selection grids become rows.** Service tiles are 72px rows below `sm` (the
+  width at which that grid is one column anyway) with a 24px radio, because a
+  border tint alone is not a reliable selected state on a phone. Plan cards
+  become a header row (icon, name, Popular, radio) over the price and features
+  below `md`. Both are done with `contents`/`block` wrappers that dissolve at the
+  breakpoint, so the desktop composition is *reproduced* rather than re-specified
+  — verified pixel-identical, down to the glyph positions inside the plan card.
+- **Selects open sheets.** A listbox anchored near the bottom of a 393px viewport
+  opens over the field it belongs to, so below `lg` the field is a 48px button
+  and the options are a bottom sheet at 52px each. One sheet serves all four
+  selects. Nothing is preselected and an unanswered field is still omitted from
+  the brief (Phase 3 §3). Only one control is ever mounted, so the label's `for`
+  always points at exactly one thing.
+- **Inputs are 16px on a phone.** Not a size preference: iOS zooms the page in
+  when a focused input is under 16px, and the customer then pinches back out to
+  see the field they are filling. With the existing padding it is also the 48px
+  control the spec asks for.
+- **The 340px rail becomes a 52px footer strip.** It carries the one figure the
+  customer is deciding about and opens the full summary as a sheet.
+  `ApexOrderSummary` is one definition rendered in both containers — Phase 3 §2
+  spent a fix on making the card, the rail and the contract agree, and two
+  hand-maintained copies is how they would start disagreeing again. With no plan
+  chosen the strip says so rather than quoting `£0/mo`.
+- **A disabled button must say why.** On a phone "Sign & start" sits in a fixed
+  footer, a screen away from the checkbox it is waiting on, so the reason is
+  stated next to the controls that answer it. This is rendered at both sizes —
+  the desktop button was equally mute.
+- **The signature canvas scaled the wrong axis.** `sigPos()` scaled *both* axes
+  by the width ratio, which is only correct while the element and its 640x130
+  backing store share an aspect ratio — and the element's width is fluid. At
+  150px tall on a phone a stroke drawn across the middle would have mapped to
+  row ~139 of a 130-row canvas, i.e. off the canvas entirely. Per-axis now:
+  verified a mid-height stroke lands at rows 63-66 against an expected 65.
+- **Two dead ends in the contract, fixed.** The terms-of-service link was
+  `href="#"`; it resolves to `/legal/terms` and opens in a new tab, because
+  navigating away mid-wizard discards the order. And the mockup's "Open full
+  agreement" button has no document behind it — this text *is* the agreement —
+  so it expands the box in place instead.
+- **The step details form does not offer to take a file.** The mockup says
+  attachments can be added "after kickoff from the project page"; the customer's
+  project view is read-only and there is no upload endpoint, so the note points
+  at the route that really works (Support, for a secure upload link) — the same
+  resolution Phase 6 reached.
+- Success is a full screen below `lg` rather than a card behind a scrim, with
+  the two actions pinned to the bottom. The second one is "Back to dashboard",
+  not "New order": someone who has just committed to a project is not choosing
+  between seeing it and starting another.
+
+**The card removal moved the ink onto the page.** Below `lg` the step cards go,
+as drawn — but those `bg-muted-800` cards were the only thing putting the
+wizard's `text-white` on a dark surface, and the shell's page is near-white
+(`#f7f8f9`) in light mode. Dropping them alone would have rendered the entire
+form white-on-white for anyone whose OS prefers light. The page wrapper carries
+the ink instead (`bg-muted-950`, full-bleed, `lg:bg-transparent`), which in dark
+mode is exactly the page colour and therefore invisible — the mockup's look —
+and in light mode keeps the surface the text was designed for. The progress bar,
+the footer strip and the sheets (`surface="ink"`) follow the same rule, so the
+wizard is one ink surface in both themes rather than three different answers.
+Measured at 375px in light mode: worst contrast ratio went from **1.06**
+(invisible) at HEAD to **2.23**. What remains is the pre-existing
+`text-muted-500`-on-ink class that Phase 9 owns, not a new kind of defect.
+
+**`.apex-bleed`** (main.css) cancels the shared page gutter and re-applies it as
+padding, so a sticky bar inside the content column can span the viewport. Its
+`lg` reset reinstates `margin-inline: auto`, not `0` — a bled element may also be
+the page's `mx-auto` wrapper, and a hard zero silently un-centres it once the
+viewport passes the max-width. Verified centred at 1800px.
 
 **Deliberate deviation — no "Payment history" header action.** The mockup draws
 one to demonstrate the full-width header-action pattern. Phase 2 removed the

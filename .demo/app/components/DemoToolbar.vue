@@ -8,6 +8,19 @@ const isSearchOpen = useSearchOpen()
 const { t } = useI18n()
 
 /**
+ * Task mode (V2 Phase 3 mobile, §1). On a wizard route below `lg` the bar stops
+ * being navigation: the hamburger becomes a close button, and search and
+ * notifications step out so the only thing inviting the customer away from a
+ * half-signed order is the control that asks first.
+ *
+ * Derived from the route rather than pushed up from the page, so the server and
+ * the first client render already agree — a page setting shared state in its own
+ * `setup()` runs *after* this component has rendered, which would show the
+ * hamburger for a frame before it swapped.
+ */
+const { isTask, closeRequests } = useApexTaskBar()
+
+/**
  * Platform-aware shortcut hint, resolved after mount.
  *
  * The server has no idea what the visitor is typing on, so anything derived
@@ -46,6 +59,7 @@ onMounted(() => {
         ink); the tap area is the button, so it carries the size explicitly.
       -->
       <button
+        v-if="!isTask"
         type="button"
         aria-label="Open navigation menu"
         class="apex-focus hover:bg-muted-100 dark:hover:bg-muted-800 flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-xl transition-colors lg:hidden"
@@ -55,6 +69,20 @@ onMounted(() => {
           <span class="bg-muted-500 block h-0.5 w-4" />
           <span class="bg-muted-500 block h-0.5 w-5" />
         </span>
+      </button>
+      <!--
+        The page owns what closing means — it is the only thing that knows
+        whether there is a half-filled order to lose — so the bar asks and waits
+        rather than routing anywhere itself.
+      -->
+      <button
+        v-else
+        type="button"
+        aria-label="Leave order"
+        class="apex-focus hover:bg-muted-100 dark:hover:bg-muted-800 text-muted-600 dark:text-muted-200 flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-xl transition-colors lg:hidden"
+        @click="closeRequests++"
+      >
+        <Icon name="lucide:x" class="size-5" />
       </button>
 
       <!--
@@ -83,7 +111,18 @@ onMounted(() => {
 
       <span class="grow" />
 
-      <div class="flex shrink-0 items-center gap-0.5 lg:gap-3">
+      <!--
+        In task mode the reassurance the heading row carries on desktop moves
+        into the bar, where the page header no longer is.
+      -->
+      <span
+        v-if="isTask"
+        class="me-1.5 inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full bg-[#22B07D]/12 px-3 text-[11.5px] font-bold text-[#22B07D] lg:hidden"
+      >
+        <Icon name="lucide:lock" class="size-3.5" />Secured
+      </span>
+
+      <div class="shrink-0 items-center gap-0.5 lg:gap-3" :class="isTask ? 'hidden lg:flex' : 'flex'">
         <!--
           Search: a 44px plain icon below `lg`. The 250px field and the ⌘K hint
           are desktop affordances — there is no hardware keyboard to hint at,

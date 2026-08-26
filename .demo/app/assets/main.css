@@ -346,3 +346,48 @@
     opacity: 1;
   }
 }
+
+/*
+ * Full-bleed inside the shared page gutter (V2 Phase 3 mobile).
+ *
+ * `sidenav.vue` wraps every page in `max(1rem, env(safe-area-inset-*))` of
+ * horizontal padding, so an element that has to span the viewport — a sticky
+ * progress bar sitting flush under a full-bleed top bar — has to cancel it and
+ * re-apply it as its own padding. Written once here rather than as four
+ * arbitrary-value utilities per site, because it is the shell's number: if the
+ * gutter changes, this changes with it and nothing else does.
+ *
+ * `calc(-1 * …)`, not a negative arbitrary value: `margin-left: -max(…)` is not
+ * valid CSS, and a negated `max()` has to go through `calc()`.
+ */
+.apex-bleed {
+  margin-left: calc(-1 * max(1rem, env(safe-area-inset-left)));
+  margin-right: calc(-1 * max(1rem, env(safe-area-inset-right)));
+  padding-left: max(1rem, env(safe-area-inset-left));
+  padding-right: max(1rem, env(safe-area-inset-right));
+}
+
+/* The layout's gutter grows to 24px from `md`; mirror it or the bleed stops short. */
+@media (min-width: 768px) and (max-width: 1023.98px) {
+  .apex-bleed {
+    margin-left: calc(-1 * max(1.5rem, env(safe-area-inset-left)));
+    margin-right: calc(-1 * max(1.5rem, env(safe-area-inset-right)));
+    padding-left: max(1.5rem, env(safe-area-inset-left));
+    padding-right: max(1.5rem, env(safe-area-inset-right));
+  }
+}
+
+/*
+ * `auto`, not `0`: a bled element may also be the page's `mx-auto` wrapper, and
+ * resetting to a hard zero would silently un-centre it once the viewport passes
+ * its max-width. `auto` computes to 0 for a block that has no room to spare, so
+ * it is the safer reset in both cases.
+ */
+@media (min-width: 1024px) {
+  .apex-bleed {
+    margin-left: auto;
+    margin-right: auto;
+    padding-left: 0;
+    padding-right: 0;
+  }
+}

@@ -2,7 +2,7 @@
 
 > Handoff doc for continuing work in fresh sessions. Update the relevant section
 > whenever a page ships, a decision lands, or a blocker appears.
-> Last updated: **2026-08-26** (V2 Phase 2 Mobile — dashboard at 393px, shipped).
+> Last updated: **2026-08-27** (V2 Phase 3 Mobile — New Order at 393px, shipped).
 
 ## Where things stand
 
@@ -63,6 +63,7 @@ Read it with the `DesignSync` tool (`method: get_file`).
 | 9 | Mobile & light theme | 🚧 Light conversion still outstanding |
 | 1M | Shared shell at 393px (`PHASE-1-MOBILE.md`) | ✅ Done |
 | 2M | Dashboard at 393px (`Dashboard - Mobile.dc.html`) | ✅ Done |
+| 3M | New Order at 393px (`PHASE-3-MOBILE.md`) | ✅ Done |
 
 **Phase 1 shipped:** Apex brand mark (+ favicon/title), 44px nav rows with a
 violet `color-mix` active tint, hairline sub-nav, one account dropdown with
@@ -606,6 +607,56 @@ shorthand lands in `background-image`, leaving `background-color` transparent,
 so walking up the tree for a background colour sails straight past the promo's
 dark panel to the white page and reports white-on-white. The dashboard's navy
 islands are all gradients.
+
+**Phase 3 Mobile shipped (New Order at 393px).** `services.vue`, plus
+`ApexOrderSummary.vue`, `useApexTaskBar.ts`, an `ink` surface on
+`ApexBottomSheet`, task mode in `DemoToolbar`, `.apex-bleed` in `main.css`. No
+endpoint, no payload, no pricing change. Desktop re-measured at 1280px and
+**pixel-identical**, including every internal of the plan card I restructured.
+
+- **Below `lg` the wizard is a task, not a page.** Hamburger to close button
+  (which asks the page, since only it knows if there is an order to lose),
+  search and notifications out of the bar, Secured chip in, page header hidden
+  with an `sr-only` h1 keeping the heading order intact. The task-route list is
+  shared with `ApexBottomNav` so the two halves of the shell cannot disagree.
+- **The exit guard tells the truth.** The mockup promises a 30-day draft; there
+  is no draft store, so it says the choices are cleared.
+- Stepper → step name + counter + five tappable segments; `role="group"`, not
+  the spec's `progressbar` (a value announcement fighting five buttons).
+- Service tiles → 72px rows below `sm`; plan cards → header row below `md`; both
+  via `contents`/`block` wrappers, so desktop is reproduced, not restated.
+- Selects → one bottom sheet with 52px options; inputs 16px (iOS zoom) = 48px.
+- Rail → 52px footer strip + summary sheet, both reading `ApexOrderSummary`.
+- Success → full screen, actions pinned to the bottom, "Back to dashboard"
+  replacing "New order".
+- Fixed in passing: `sigPos()` scaled both axes by the width ratio (see gotcha),
+  the terms link was `href="#"`, and the disabled sign button never said why.
+
+### Phase 3 Mobile gotcha — removing a card can remove the theme with it
+
+`bg-muted-800` on the step sections was the only thing putting this page's ~200
+`text-white` classes on a dark surface. The mockup removes those cards at 393px,
+and doing that alone rendered the whole wizard **white-on-white** in light mode,
+because the shell's page is `#f7f8f9`. The ink had to move to the page wrapper
+(`bg-muted-950`, full-bleed, `lg:bg-transparent`) — invisible in dark mode
+because it *is* the page colour, and load-bearing in light. Before assuming a
+dark-only page is "already broken in light and cannot get worse", measure it:
+worst ratio here went 1.06 → 2.23, and 1.06 would have been my doing.
+
+### Phase 3 Mobile gotcha — `BaseButton` sets its own `display`
+
+`class="hidden lg:inline-flex"` on a `BaseButton` does nothing: the component's
+own `inline-flex` is declared later in the same layer and wins, so the desktop
+sign button stayed visible on the phone beside the footer's copy of it. Put the
+visibility on a wrapper element, or use `!`.
+
+### Phase 3 Mobile gotcha — `text-sm` carries a line-height, arbitrary sizes do not
+
+Swapping `text-[14.5px]` for `text-sm lg:text-[14.5px]` looks breakpoint-safe and
+is not: `text-sm` sets font-size **and** line-height, and the arbitrary `lg:`
+size only overrides the former, so desktop silently lost ~2px of leading on
+every sub-line. Caught by diffing geometry against HEAD. Use an arbitrary mobile
+size (`text-[14px]`) when the `lg:` value is arbitrary too.
 
 ## Remaining queue (older, pre-V2)
 
