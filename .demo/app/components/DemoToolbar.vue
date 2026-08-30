@@ -21,6 +21,14 @@ const { t } = useI18n()
 const { isTask, closeRequests } = useApexTaskBar()
 
 /**
+ * Sub-view mode (V2 Phase 4 mobile, §1). Inside one record of a page — a
+ * single project on My Orders — the bar names the record and offers the way
+ * back out of it, because on a phone the page's own back button scrolls away
+ * exactly when it is needed. Route-derived for the same reason task mode is.
+ */
+const { isSubView, backLabel, title: subViewTitle, leave: leaveSubView } = useApexSubView()
+
+/**
  * Platform-aware shortcut hint, resolved after mount.
  *
  * The server has no idea what the visitor is typing on, so anything derived
@@ -59,7 +67,7 @@ onMounted(() => {
         ink); the tap area is the button, so it carries the size explicitly.
       -->
       <button
-        v-if="!isTask"
+        v-if="!isTask && !isSubView"
         type="button"
         aria-label="Open navigation menu"
         class="apex-focus hover:bg-muted-100 dark:hover:bg-muted-800 flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-xl transition-colors lg:hidden"
@@ -69,6 +77,20 @@ onMounted(() => {
           <span class="bg-muted-500 block h-0.5 w-4" />
           <span class="bg-muted-500 block h-0.5 w-5" />
         </span>
+      </button>
+      <!--
+        One level down, the hamburger is the wrong offer: the customer wants out
+        of this record, not into the menu. Unlike task mode there is nothing to
+        lose here, so the bar can act rather than ask.
+      -->
+      <button
+        v-else-if="isSubView"
+        type="button"
+        :aria-label="backLabel"
+        class="apex-focus hover:bg-muted-100 dark:hover:bg-muted-800 text-muted-600 dark:text-muted-200 flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-xl transition-colors lg:hidden"
+        @click="leaveSubView"
+      >
+        <Icon name="lucide:arrow-left" class="size-5" />
       </button>
       <!--
         The page owns what closing means — it is the only thing that knows
@@ -104,7 +126,20 @@ onMounted(() => {
             aria-current="page"
             class="font-heading text-muted-900 truncate text-[17px] font-extrabold tracking-[-0.02em] lg:font-sans lg:text-[13.5px] lg:font-semibold lg:tracking-normal dark:text-white"
           >
-            {{ route.meta.title }}
+            <!--
+              Below `lg` a sub-view shows the record's own name; the desktop
+              breadcrumb keeps naming the section, because the detail still
+              prints its own back button and heading there. The fallback is the
+              section title, so the server and the first client render agree
+              even though the name only arrives once the page has fetched it.
+            -->
+            <template v-if="isSubView">
+              <span class="lg:hidden">{{ subViewTitle || route.meta.title }}</span>
+              <span class="hidden lg:inline">{{ route.meta.title }}</span>
+            </template>
+            <template v-else>
+              {{ route.meta.title }}
+            </template>
           </li>
         </ol>
       </nav>

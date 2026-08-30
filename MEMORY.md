@@ -2,7 +2,7 @@
 
 > Handoff doc for continuing work in fresh sessions. Update the relevant section
 > whenever a page ships, a decision lands, or a blocker appears.
-> Last updated: **2026-08-27** (V2 Phase 3 Mobile — New Order at 393px, shipped).
+> Last updated: **2026-08-30** (V2 Phase 4 Mobile — My Orders at 393px, shipped).
 
 ## Where things stand
 
@@ -64,6 +64,7 @@ Read it with the `DesignSync` tool (`method: get_file`).
 | 1M | Shared shell at 393px (`PHASE-1-MOBILE.md`) | ✅ Done |
 | 2M | Dashboard at 393px (`Dashboard - Mobile.dc.html`) | ✅ Done |
 | 3M | New Order at 393px (`PHASE-3-MOBILE.md`) | ✅ Done |
+| 4M | My Orders at 393px (`PHASE-4-MOBILE.md`) | ✅ Done |
 
 **Phase 1 shipped:** Apex brand mark (+ favicon/title), 44px nav rows with a
 violet `color-mix` active tint, hairline sub-nav, one account dropdown with
@@ -657,6 +658,53 @@ is not: `text-sm` sets font-size **and** line-height, and the arbitrary `lg:`
 size only overrides the former, so desktop silently lost ~2px of leading on
 every sub-line. Caught by diffing geometry against HEAD. Use an arbitrary mobile
 size (`text-[14px]`) when the `lg:` value is arbitrary too.
+
+**Phase 4 Mobile shipped (My Orders at 393px).** `orders.vue`, plus
+`useApexSubView.ts` and a sub-view mode in `DemoToolbar`. No endpoint, no
+payload, no change to `payState()` or any other Phase 4 data-truth rule.
+Desktop re-measured at 1280px against HEAD element by element; the only
+differences are the three below, all chosen.
+
+- **The open project is `?project=<id>` now, not a ref.** The bar has to know
+  it is inside a record, and a page cannot tell it without a frame of wrong
+  chrome first (the toolbar renders before the page). The URL is the one place
+  both halves of the shell read the same answer at the same time — and it makes
+  the browser back button return to the list. Opening pushes, the bar's back
+  arrow replaces, so back never goes *forward* into the detail.
+- Bar: hamburger → back arrow, section title → project name, below `lg`.
+- Stats → one card of three labelled rows; filters → two lines of 38px pills
+  ("Done" below `sm`); sort → 44px trigger + sheet; in-page search removed in
+  favour of the shell's, whose results now land on the project.
+- Card → one `<button>` with a phone body and the desktop body, because the
+  chip, chevron and short id all move between rows; detail sections reorder via
+  `display: contents` on both column wrappers; ring → labelled bar; real
+  "no projects yet" state that hides the stats and filters instead of zeroing
+  them.
+- Kept against the mockup: the ⋯ options menu is not shipped (rename has no
+  customer endpoint, "download brief" has no document, "contact team"
+  duplicates the row below — the search button keeps the slot), the payment
+  "Pay" button stays, and the summary keeps the PM chip.
+
+### Phase 4 Mobile gotcha — `order` still applies at `lg`
+
+The sections are sequenced for the phone with `order-*` on grid items exposed
+by `display: contents`. The desktop rail is `lg:flex lg:flex-col` — also a flex
+container — so those same classes reordered the rail and put the payment card
+above the project summary at 1280px. Nothing on screen said so; it showed up as
+a y-coordinate diff against HEAD. Every ordered element now carries
+`lg:order-none`. `order` on a child of a `lg:block` container is safe, which is
+why the header/milestones pair needed no fix.
+
+### Phase 4 Mobile note — the three intended desktop changes
+
+Header sub-line copy, the third stat tile's icon tint (violet → green, as
+drawn), and `useSegments` 16 → 24 so a 24-month plan draws segments instead of
+a bar. Only the last is visible: it makes everything below it in the rail sit
+1px higher (a 7px segment row against an 8px bar). One fact, one encoding.
+
+Light theme measured identical to HEAD at 393px: 4 low-contrast elements of 157
+vs 4 of 156, the same four filter count badges at the same ratios — pre-existing
+Phase 9 work, not a new defect.
 
 ## Remaining queue (older, pre-V2)
 

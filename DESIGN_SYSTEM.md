@@ -87,6 +87,7 @@ ships as a `.dc.html` mockup plus a `PHASE-N-*.md` implementation spec.
 | 1M | **Shared shell at 393px** — 56px bar, drawer, sheets, full-screen search | ✅ Done |
 | 2M | **Dashboard at 393px** — promo without its art, two-line rows, service rows | ✅ Done |
 | 3M | **New Order at 393px** — a task not a page, segments, select sheets, footer strip | ✅ Done |
+| 4M | **My Orders at 393px** — bar carries the level, one stat card, rows not tiles | ✅ Done |
 
 #### Phase 1 — the shell standard (applies to every page from here on)
 
@@ -671,6 +672,95 @@ classes. Measured in light mode: 27 low-contrast elements of 71 before, 32 of
 `bg-muted-800`, and unpaired `text-white`), not a new kind of defect. Using a
 light pair for only these five would leave the page with two conventions and
 make the Phase 9 sweep harder.
+
+#### Phase 4 (mobile) — My Orders at 393px
+
+`My Orders - Mobile.dc.html` + `PHASE-4-MOBILE.md`. One page (`orders.vue`), one
+new composable, one mode added to `DemoToolbar`. No endpoint, no payload, no
+change to the Phase 4 data-truth rules — `payState()` still answers "how far
+through the plan are we" and the card, the chip and the note still follow from
+it. Desktop re-measured at 1280px against HEAD, element by element.
+
+- **The open project moved into the URL.** It was a local `ref`, which meant
+  the shell could not tell it was inside a record without the page telling it —
+  and a page sets shared state in its own `setup()`, which runs *after* the
+  toolbar has rendered, so the bar would show the hamburger for a frame and
+  then swap. `?project=<id>` was already the deep link panel search used; making
+  it the only representation buys the bar's back arrow, a browser back button
+  that returns to the list rather than leaving the page, and one less pair of
+  states to fall out of step. Scroll position is remembered on the way in and
+  restored on the way out, because Nuxt does not restore across a query-only
+  navigation.
+- **The bar carries the level you are on** (§1). List: hamburger, "My orders",
+  search. Detail: back arrow, the project's name, search. `useApexSubView()`
+  derives membership from the route the same way `useApexTaskBar()` does; the
+  record's *name* is data, so it travels through `useState` with the section
+  title as the fallback both renders start from.
+- **Three tiles became one card of three rows** (§2). Side by side they leave
+  about 110px each — not enough for `£10,622` above a label naming what it
+  counts. The row reads label-then-value on a phone and value-then-label on
+  desktop, which is `flex-col-reverse` against one DOM order rather than a
+  second copy of either line.
+- **The filter strip clipped its last pill.** A single scrolling strip at 393px
+  cut "Completed" against the right edge with nothing to say it had. The pills
+  now wrap onto two lines as standalone 38px controls, and the last one reads
+  "Done" below `sm` as drawn.
+- **Sort is a 44px trigger that says what it is sorted by**, opening a sheet
+  with 52px options. The desktop listbox stays; only one of the two is ever
+  mounted.
+- **The in-page search left the list.** The shell's search covers the whole
+  panel, already indexes this customer's projects, and its results link to
+  `?project=<id>` — which is now the detail's own address, so a hit lands on the
+  project instead of back on the list. Keeping a second, narrower search inside
+  the page would spend a row on the worse of the two.
+- **The card is one button with two compositions** (§4). The chip, the chevron
+  and the short id each move between rows between the two designs, so this is
+  not a reflow of one arrangement — each body is written out and the other is
+  `display:none`, which keeps it out of the accessible tree too. Both read the
+  same project object, and the `aria-label`, the click target and the focus ring
+  belong to the single `<button>` around them.
+- **The detail's sections reorder below `lg`** (§7): identity, money, the work,
+  its files, the facts, then the way to ask about any of it. Both column
+  wrappers are `display: contents` there, which dissolves them so every section
+  becomes a direct child of the grid and can take an `order`; from `lg` they
+  become real containers again with exactly the classes they had. The desktop
+  arrangement is reproduced rather than restated.
+- **The 82px ring became a labelled bar** (§5). A ring beside a name at 393px
+  costs a third of the column to say one number, and it cannot show how far
+  along a mid-build project is the way a bar can.
+- **The empty state replaces the page** (§8). "No projects at all" is a
+  different screen from "nothing matches this filter" — the second keeps its
+  filters because clearing them is the fix; the first has nothing to filter, so
+  the stat card and the pills are hidden rather than rendered as a wall of
+  zeros.
+
+**Deliberate deviations, all for the same reason.** The mockup's detail bar
+carries an options (⋯) button whose sheet the spec itself marks "not yet
+built": of its three actions, rename has no customer endpoint, "download brief"
+has no such document, and "contact team" duplicates the row already at the
+bottom of the page. Shipping a menu with one item that repeats what is on
+screen is the dead end Phases 3, 5 and 7 each removed, so the slot keeps the
+search button that works. For the same reason the payment card keeps its "Pay"
+button, which the mockup does not draw — its example project has nothing due —
+and the summary keeps the project-manager chip, which is the only place that
+fact appears. Filter pills are the design's 38px rather than the shell's 44px
+floor; they are secondary controls in a wrapped group, and raising them would
+push the two lines further apart than drawn.
+
+**Three desktop changes, on purpose.** The header sub-line takes the mockup's
+copy; the third stat tile's icon takes its green; and `useSegments` rises from
+16 to 24, so a 24-month plan draws segments rather than collapsing to a bar. The
+last is the only visible one: one fact should have one encoding, and the design
+counts on the segments surviving a 361px card. Everything else measured
+identical to HEAD.
+
+**Phase 4 Mobile gotcha — `order` applies wherever the parent is a flex
+container, including `lg`.** The rail is `lg:flex lg:flex-col`, so the
+`order-*` classes that sequence the sections below `lg` also sequenced them at
+`lg` — and the payment card jumped above the project summary on desktop. Caught
+only by diffing computed geometry against HEAD; the fix is an explicit
+`lg:order-none` on every ordered element. Setting `order` on a child of a
+`lg:block` container is safe, because `order` is ignored outside flex and grid.
 
 **Phase 8 gotcha — a comment before the root element is a second root.**
 A template whose first node is an HTML comment is multi-root, so the client
