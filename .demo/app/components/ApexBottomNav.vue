@@ -37,8 +37,14 @@ const TABS: Tab[] = [
  * purchase; the sticky total bar is the only chrome it should carry. The route
  * list is shared with the top bar (`useApexTaskBar`) so the two halves of the
  * shell cannot disagree about what counts as a task.
+ *
+ * The second rule is narrower: a screen that pins its own control to the
+ * bottom edge — the Support reply composer, the new-request submit footer —
+ * keeps this bar out of the way, because the customer's target is the lower of
+ * the two and stacking them puts a tab bar under their thumb instead.
  */
-const { isTask: suppressed } = useApexTaskBar()
+const { isTask, ownsBottomEdge } = useApexTaskBar()
+const suppressed = computed(() => isTask.value || ownsBottomEdge.value)
 
 /**
  * Longest-prefix match, so a detail route keeps its tab lit — the same rule

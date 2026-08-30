@@ -89,6 +89,7 @@ ships as a `.dc.html` mockup plus a `PHASE-N-*.md` implementation spec.
 | 3M | **New Order at 393px** — a task not a page, segments, select sheets, footer strip | ✅ Done |
 | 4M | **My Orders at 393px** — bar carries the level, one stat card, rows not tiles | ✅ Done |
 | 5M | **Wallet & credit at 393px** — four tabs that fit, a plan is a screen, sheets not modals | ✅ Done |
+| 6M | **Support at 393px** — one entry point, a thread is a screen, the composer takes the bottom edge | ✅ Done |
 
 #### Phase 1 — the shell standard (applies to every page from here on)
 
@@ -840,6 +841,105 @@ seen from the other side.
 sm:h-auto!` on a `BaseButton` does not restore the component's own 40px; it
 computes the content height, which came out at 38. Use `max-sm:h-12!` so the
 override never reaches the breakpoint you wanted to leave alone.
+
+#### Phase 6 (mobile) — Support at 393px
+
+`Support - Mobile.dc.html` + `PHASE-6-MOBILE.md`. One page (`support.vue`), one
+sub-view registration, one new rule in `useApexTaskBar` and the two lines in
+`ApexBottomNav` that read it. No endpoint, no payload; the four Phase 6
+data-truth fixes — no picker that discards a file, an unread dot that means
+something, one config-driven ETA, the tokenised shell offset — carry over
+unchanged. Desktop re-measured at 1280px across all three sections.
+
+- **Every screen moved into the URL** (§1, §4). Which section is showing was a
+  local `ref` and the open request was another, so the shell could not tell
+  where the customer was: the bar has to swap its hamburger for a back arrow
+  and name the request, and the tab bar has to step aside for the composer —
+  and both render *before* this page's `setup()` runs. `?ticket=<id>` was
+  already the deep link panel search used; `?tab=new|faq` joins it. The
+  browser's own back button now walks out of a request and back through the
+  sections, and every screen is linkable. Opening pushes, the bar's back arrow
+  replaces, so back never goes *forward* into the request again.
+- **The desktop pane still auto-selects; the phone does not.** An empty
+  right-hand column is half a screen of nothing, so from `lg` up the first
+  request is chosen for you — but that choice stays a plain ref and never
+  touches the address bar, because on a phone "a request is open" has to mean
+  the customer opened it. That is also what keeps the Phase 6 read rule honest:
+  an auto-selected request is not a read one.
+- **One entry point per action** (§1). The header's `New request` button and the
+  `New request` tab are the same action twice, and at 393px they land within a
+  hundred pixels of each other, so the button is `sm`-and-up only and the tab
+  strip becomes one three-up 40px segmented control with two labels shortened.
+  The team-online pill becomes a full-width row under the copy.
+- **The composer takes the bottom edge from the tab bar** (§4). Two bars
+  stacked there is ~110px of chrome under the thumb and the one the customer
+  needs is the lower. `useApexTaskBar` grew a second, narrower rule for this:
+  `ownsBottomEdge` says a screen pins its own control to the bottom, which is
+  *not* the same claim as task mode — the thread still wants the sub-view back
+  arrow and the search button, not a close button and a `Secured` chip.
+- **The new-request footer sticks rather than restructuring the form.** Below
+  `lg` the form card dissolves, as drawn, and the submit row — the card's last
+  child either way — becomes `sticky bottom-0` with the ETA above it via
+  `flex-col-reverse` against one DOM order. The DOM is untouched, so the
+  desktop row is provably the row it always was. Its one requirement is that
+  the section stops being `overflow-y-auto` below `lg`: that property makes an
+  element a scrollport even when it never scrolls, and a sticky child of one is
+  pinned to a box that never moves.
+- **The unread dot gained a word** (§3) — "New reply" plus a violet card
+  border, with the state now carried by the card's `aria-label` so the dot
+  itself is decorative. Verified by posting a real staff reply through the
+  admin endpoint: the border lights, the label says `new reply`, opening clears
+  both, and the browser back button returns to a cleared list.
+- **The staff avatar belongs to a run, not a bubble** (§6). The mockup keeps a
+  30px spacer for continuation replies, so the alignment it wants is exactly
+  what `visibility: hidden` gives — which is why the repeats are hidden below
+  `lg` rather than removed, and desktop still shows every face at the same
+  coordinates it always did. Bubbles cap at 84% at 15px.
+- **Two selects became sheets** (§2, §8): the category filter and the related
+  project. Both keep the themed `BaseSelect` from `lg` up, and only one of the
+  two controls is ever mounted, so there is one thing to label and one to test.
+- **Enter no longer sends on a touch keyboard.** It was the only way to start a
+  new line there, so a multi-line reply was impossible to write on a phone —
+  in a composer whose textarea grows to several lines precisely because
+  customers write them. Read from `(pointer: coarse)` at event time, so nothing
+  is decided during SSR.
+- Status filters gained `aria-pressed`, which they had never had, and wrap as
+  38px pills with "Awaiting you" spelled out; the FAQ's category tag sits above
+  its question below `sm` via a `sm:contents` wrapper, so the desktop row is
+  reproduced rather than restated; search, subject, message and both sheet
+  triggers are 16px (iOS zooms the page in below that) and 48–52px tall.
+
+**Two deliberate desktop changes.** The still-stuck card now quotes the config
+ETA — §9 asks for it, and "our team is online and ready to help" promised
+nothing. And the reply placeholder loses its `(Enter to send, Shift+Enter for a
+new line)` hint: a placeholder cannot be responsive, the long one truncates in a
+393px field, and the hint is no longer true on the device that would see it.
+
+**Deliberate deviations.** The mockup's thread bar carries an options (⋯)
+button; rename has no customer endpoint, there is no brief to download and
+"contact team" is what this screen already is, so the slot keeps the search
+button that works — the same call Phase 4 Mobile made. The H1 stays "Support
+center" rather than the mockup's "How can we help?": one page, one name, and the
+spec only asks that the ETA row sit under the H1. The page sub-line stays, as it
+does on the other five mobile pages. And the empty inbox keeps two bodies — the
+mockup's dashed card below `lg`, the existing sentence in the desktop pane,
+where the filters, the tabs and the header button are all still on screen beside
+it.
+
+**Phase 6 Mobile gotcha — a contrast probe must scale relative-colour output.**
+Chrome answers `rgb(from <col> r g b / alpha)` with `color(srgb r g b / a)`,
+whose channels are 0–1 floats rather than the 0–255 of `rgb()`. Reading one as
+the other turns every colour near-black and reports a ratio of exactly 1 for
+every element on the page — confidently, and for text that is genuinely fine.
+This is the third trap in the same probe family, after oklab parsing and
+gradient backgrounds (Phase 2 Mobile).
+
+**Phase 6 Mobile note — the ETA row was a real light-theme regression.**
+Making the team-online pill visible at 393px put `text-white` on a 10% green
+tint over a near-white page: measured **1.17**. It is `text-muted-900
+dark:text-white` now. With that fixed the page measures 12 low-contrast
+elements of 36 against HEAD's 11 of 34 — the same proportion, and every one of
+them the documented `text-muted-500`-on-`bg-muted-800` debt that Phase 9 owns.
 
 **Phase 8 gotcha — a comment before the root element is a second root.**
 A template whose first node is an HTML comment is multi-root, so the client

@@ -2,7 +2,7 @@
 
 > Handoff doc for continuing work in fresh sessions. Update the relevant section
 > whenever a page ships, a decision lands, or a blocker appears.
-> Last updated: **2026-08-30** (V2 Phase 5 Mobile — Wallet & credit at 393px, shipped).
+> Last updated: **2026-08-30** (V2 Phase 6 Mobile — Support at 393px, shipped).
 
 ## Where things stand
 
@@ -66,6 +66,7 @@ Read it with the `DesignSync` tool (`method: get_file`).
 | 3M | New Order at 393px (`PHASE-3-MOBILE.md`) | ✅ Done |
 | 4M | My Orders at 393px (`PHASE-4-MOBILE.md`) | ✅ Done |
 | 5M | Wallet & credit at 393px (`PHASE-5-MOBILE.md`) | ✅ Done |
+| 6M | Support at 393px (`PHASE-6-MOBILE.md`) | ✅ Done |
 
 **Phase 1 shipped:** Apex brand mark (+ favicon/title), 44px nav rows with a
 violet `color-mix` active tint, hairline sub-nav, one account dropdown with
@@ -762,6 +763,74 @@ the Plans accordion's 24-row schedule is no longer rendered there. Overview
 alone rose 28 → 34, all of it `text-muted-500` on `bg-muted-800` and
 `!text-white` on `BaseButton` — the page's documented dark-only problem, which
 is Phase 9's, not a new kind of defect.
+
+**Phase 6 Mobile shipped (Support at 393px).** `support.vue`, one line in
+`useApexSubView`, a second rule in `useApexTaskBar` and the two lines in
+`ApexBottomNav` that read it. No endpoint, no payload; all four Phase 6
+data-truth fixes are untouched. Desktop re-measured at 1280px across the three
+sections — the only diffs are the two intended copy changes below and the
+now-familiar `min-height: auto → 0px` where a mobile floor is scoped off.
+
+- **Every screen is in the URL now.** The section was a ref and the open
+  request was another, so the shell could not tell where the customer was —
+  and the bar and the tab bar both render before this page's `setup()`.
+  `?ticket=<id>` was already the panel-search deep link; `?tab=new|faq` joins
+  it. Browser back walks out of a request and back through the sections.
+- The desktop split pane still auto-selects the first request, but that stays a
+  plain ref and never writes to the address bar — on a phone "open" has to mean
+  the customer opened it, which is also what keeps the read rule honest.
+- Header `New request` is `sm`+ only (the tab is the entry point); tabs become a
+  three-up 40px segmented control with short labels; the team-online pill
+  becomes a full-width row.
+- The composer takes the bottom edge from the tab bar via a new
+  `ownsBottomEdge` rule — narrower than task mode, because the thread still
+  wants the sub-view back arrow and search, not a close button.
+- New-request submit sticks rather than moving in the DOM (`sticky bottom-0` +
+  `flex-col-reverse`), so the desktop row is provably unchanged.
+- Unread gained the word "New reply", a violet border and the state in the
+  card's `aria-label`; verified with a real staff reply through the admin
+  endpoint, including that it clears on open and stays cleared.
+- Staff avatar hidden (not removed) on continuation replies below `lg`, so the
+  30px column the mockup draws as a spacer is exactly what desktop keeps.
+- Category filter and related project become sheets below `lg`; status filters
+  gained `aria-pressed` and wrap as 38px pills; FAQ tag sits above the question
+  via `sm:contents`; every input is 16px.
+- Enter stops sending on a touch keyboard — it was the only way to start a new
+  line there, so multi-line replies were impossible to write on a phone.
+
+**Two intended desktop changes:** the still-stuck card now quotes the config ETA
+(§9 asks for it), and the reply placeholder drops its Enter-to-send hint (a
+placeholder cannot be responsive, and the hint is no longer true on touch).
+
+**Deviations:** no ⋯ options menu (rename has no endpoint, no brief exists,
+"contact team" is this screen) — the search button keeps the slot, as in Phase 4
+Mobile; the H1 stays "Support center"; the page sub-line stays; the empty inbox
+keeps the mockup's dashed card below `lg` and the existing sentence in the
+desktop pane.
+
+### Phase 6 Mobile gotcha — `overflow-y: auto` breaks `position: sticky`
+
+An element with `overflow-y: auto` is a scrollport even when its content never
+overflows, so a `sticky bottom-0` child is pinned to a box that does not move —
+the footer simply sat in the flow. The new-request section is
+`max-lg:overflow-visible` for exactly this reason; it keeps the desktop
+`overflow-y-auto` that the bounded page height needs.
+
+### Phase 6 Mobile gotcha — relative-colour output is 0–1, not 0–255
+
+`rgb(from <col> r g b / alpha)` is the reliable way to get oklab/lab into sRGB,
+but Chrome answers with `color(srgb r g b / a)` whose channels are floats.
+Parsing them as 0–255 made every colour near-black and every contrast ratio
+exactly 1.00 — a whole page of confident false failures. Third trap in this
+probe family, after oklab parsing and gradient backgrounds.
+
+### Phase 6 Mobile note — one real light-theme regression, found and fixed
+
+Making the team-online pill visible at 393px put `text-white` on a 10% green
+tint over a near-white page: **1.17**. Now `text-muted-900 dark:text-white`.
+With that fixed the page measures 12 low-contrast elements of 36 against HEAD's
+11 of 34 — same proportion, and all of them the `text-muted-500`-on-`bg-muted-800`
+debt Phase 9 owns.
 
 ## Remaining queue (older, pre-V2)
 
