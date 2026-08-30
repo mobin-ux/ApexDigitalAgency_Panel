@@ -31,6 +31,7 @@ interface SubView {
 
 const SUB_VIEWS: SubView[] = [
   { path: '/dashboards/orders', key: 'project', back: 'All projects' },
+  { path: '/dashboards/wallet', key: 'plan', back: 'All plans' },
 ]
 
 export function useApexSubView() {

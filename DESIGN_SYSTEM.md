@@ -88,6 +88,7 @@ ships as a `.dc.html` mockup plus a `PHASE-N-*.md` implementation spec.
 | 2M | **Dashboard at 393px** — promo without its art, two-line rows, service rows | ✅ Done |
 | 3M | **New Order at 393px** — a task not a page, segments, select sheets, footer strip | ✅ Done |
 | 4M | **My Orders at 393px** — bar carries the level, one stat card, rows not tiles | ✅ Done |
+| 5M | **Wallet & credit at 393px** — four tabs that fit, a plan is a screen, sheets not modals | ✅ Done |
 
 #### Phase 1 — the shell standard (applies to every page from here on)
 
@@ -761,6 +762,84 @@ container, including `lg`.** The rail is `lg:flex lg:flex-col`, so the
 only by diffing computed geometry against HEAD; the fix is an explicit
 `lg:order-none` on every ordered element. Setting `order` on a child of a
 `lg:block` container is safe, because `order` is ignored outside flex and grid.
+
+#### Phase 5 (mobile) — Wallet & credit at 393px
+
+`Wallet - Mobile.dc.html` + `PHASE-5-MOBILE.md`. One page (`wallet.vue`), one
+sub-view registration, and a container change to `WalletTopUp`. No endpoint, no
+payload, and the three Phase 5 data-truth fixes are untouched — the credit
+zero-state, the `TX_LABEL` map and Receipts-not-invoices all carry over as they
+were. Desktop re-measured at 1280px against HEAD across all four tabs.
+
+- **Four tabs that fit.** `Overview · Transactions · Installments · Banking`
+  needs about 430px of pill at 13.5px against 361px of content, so the strip
+  either truncated or became a sideways scroll nobody discovers. Below `sm` it
+  is one four-up segmented control, full width, 40px, with two labels shortened
+  to `Activity` and `Plans` (§1). The short label is a third entry in
+  `TAB_DEFS`, not a second array.
+- **A plan is a screen, not an accordion** (§6). Desktop expands a schedule in
+  place because the rail has room; at 393px a 24-row schedule inside a collapsed
+  card inside the page scroll cannot be scanned. The card becomes a link into
+  its own view with the back arrow in the bar — the same move a project makes
+  on My Orders, registered in the same `useApexSubView` list, and in the URL for
+  the same reason: the shell's bar renders before the page's `setup()` runs, so
+  it cannot be told, only read. The desktop accordion is untouched and stays
+  mounted from `lg` up, expanding whichever plan the query names.
+- **Balance figures drop to 38px and the cards stack** (§2) — still the largest
+  thing on screen, and `£12,500` clears 361px with room. The auto-pay switch
+  goes to 48 × 28 with a 22px knob; the desktop 44 × 25 is under the thumb.
+- **Paying an installment asks first** (§7). Money leaves the wallet the moment
+  the button is pressed, and on a phone that button sits in a card a screen away
+  from the schedule it belongs to. The sheet restates the amount, where it comes
+  from and what is left — and when the balance would go negative it says so in
+  amber, because the server refuses that charge and the customer should see it
+  coming rather than meet it as an error.
+- **Top-up is a bottom sheet, not a centred modal** (§3). A dialog centred in a
+  393px viewport is pushed off-screen the moment the keyboard opens; anchored to
+  the bottom edge, with the viewport meta's `interactive-widget=resizes-content`
+  shrinking the visual viewport, the panel stays above it. Presets become a 2 × 2
+  grid of 56px targets and the custom field is 56px with a 22px value — 22px
+  because iOS zooms the page in on a focused input under 16px.
+- **Filters gained `aria-pressed`.** The five transaction filters had none —
+  they were the only pressed-state control group in the customer panel still
+  missing it, next to a tab strip and a My Orders filter row that both have it.
+  Below `sm` they wrap onto two lines as standalone 38px pills (§5).
+- **Banking stacks in the order a phone reads it** (§8): how you pay, how to pay
+  by transfer, what you have paid, who it is billed to. Both column wrappers are
+  `display: contents` below `lg` so all four sections become grid children that
+  can take an `order`, with `lg:order-none` on each. A payment-method row
+  becomes a small card — identity and remove on one line, the default state
+  full-width beneath — because five controls do not fit one 361px line.
+- Transaction rows are 72px with the date joining the sub-line, since there is
+  no second column to put it in; the row title wraps to two lines rather than
+  truncating away the project it names.
+
+**Deliberate deviations.** The mockup drops the in-page transaction search in
+favour of the top bar's. `ApexSearch` indexes the panel's destinations plus the
+customer's projects and tickets — not ledger rows — so removing it would leave
+no way to search transactions on a phone; it stays, at 16px. The plan detail
+says `24-month plan` and not the mockup's `24-month plan · 0%`: 0% is true of a
+12-month plan and false of a 24-month one (ADR-011 puts 1% a month on that
+term), and this page has no rate to read. The credit card keeps its
+config-driven term copy rather than the mockup's flattened wording — that copy
+is the Phase 5 §6 fix, and it already withholds a term the wizard is not
+offering. Receipts keep no download control, because there is still no receipt
+endpoint and the spec's own rule is "real or absent". `WalletTopUp`'s per-screen
+footers stay inside its scroll: pinning them is a restructure of a 1,300-line
+PCI flow, and the sheet geometry already puts the confirm above the keyboard.
+
+**Phase 5 Mobile gotcha — an unconditional `leading-*` outranks a breakpointed
+`text-*`.** `text-[12.5px] leading-[1.4] sm:text-xs` looks like it hands desktop
+back to `text-xs`, and it does for the size — but `leading-[1.4]` has no variant
+and still won the line-height, making the auto-pay row 1px taller than HEAD.
+Scope the leading (`max-sm:leading-[1.4]`) whenever the breakpoint's own class
+carries one. This is the same family as the Phase 3 Mobile note about `text-sm`,
+seen from the other side.
+
+**Phase 5 Mobile gotcha — `sm:h-auto!` is not "undo the height".** `h-12!
+sm:h-auto!` on a `BaseButton` does not restore the component's own 40px; it
+computes the content height, which came out at 38. Use `max-sm:h-12!` so the
+override never reaches the breakpoint you wanted to leave alone.
 
 **Phase 8 gotcha — a comment before the root element is a second root.**
 A template whose first node is an HTML comment is multi-root, so the client

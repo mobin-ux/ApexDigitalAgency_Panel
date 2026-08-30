@@ -860,11 +860,23 @@ watch(screen, (s) => {
 </script>
 
 <template>
-  <div v-if="open" class="apex-fade fixed inset-0 z-[70] flex items-center justify-center bg-[rgba(5,10,12,0.68)] p-4 backdrop-blur-[4px] sm:p-6" @click.self="close">
+  <!--
+    A bottom sheet on a phone, a centred dialog from `sm` (V2 Phase 5 mobile,
+    §3). A dialog centred in a 393px viewport is pushed off-screen the moment
+    the keyboard opens; anchored to the bottom edge — with the viewport meta's
+    `interactive-widget=resizes-content` shrinking the visual viewport — the
+    panel and its controls stay above it. 88% leaves the page visible behind,
+    which is what says the scrim is tappable.
+  -->
+  <div v-if="open" class="apex-fade fixed inset-0 z-[70] flex items-end justify-center bg-[rgba(5,10,12,0.68)] backdrop-blur-[4px] sm:items-center sm:p-6" @click.self="close">
     <div
-      class="apex-pop relative flex max-h-[calc(100dvh-2rem)] w-full max-w-[480px] flex-col overflow-hidden rounded-[24px] border border-white/10 bg-muted-800 shadow-[0_40px_80px_rgba(0,0,0,0.5)]"
+      class="apex-pop relative flex max-h-[88%] w-full flex-col overflow-hidden rounded-t-[20px] border border-white/10 bg-muted-800 pb-[env(safe-area-inset-bottom)] shadow-[0_40px_80px_rgba(0,0,0,0.5)] sm:max-h-[calc(100dvh-2rem)] sm:max-w-[480px] sm:rounded-[24px] sm:pb-0"
       role="dialog" aria-modal="true" :aria-label="headerTitle"
     >
+      <!-- The platform's signal that this panel came up from the bottom edge. -->
+      <div class="flex shrink-0 justify-center pb-0.5 pt-2 sm:hidden">
+        <span aria-hidden="true" class="block h-1 w-[38px] rounded-full bg-white/[.18]" />
+      </div>
       <!-- header -->
       <div class="flex items-center justify-between gap-3 border-b border-white/8 px-5 py-4">
         <div class="flex items-center gap-2.5">
@@ -906,11 +918,12 @@ watch(screen, (s) => {
           <!-- amount (topup only) -->
           <div v-if="mode === 'topup'" class="mb-5">
             <label for="tu-amount" class="mb-2 block text-xs font-semibold uppercase tracking-[0.04em] text-muted-500">Amount</label>
-            <div class="mb-2.5 grid grid-cols-4 gap-2">
+            <div class="mb-2.5 grid grid-cols-2 gap-2.5 sm:grid-cols-4 sm:gap-2">
               <button
                 v-for="p in presets" :key="p"
                 type="button"
-                class="rounded-xl border px-1 py-2.5 text-[13.5px] font-bold tabular-nums transition"
+                :aria-pressed="Number(amount) === p"
+                class="font-heading min-h-14 rounded-xl border px-1 text-[18px] font-extrabold tabular-nums transition sm:min-h-0 sm:py-2.5 sm:font-sans sm:text-[13.5px] sm:font-bold"
                 :class="Number(amount) === p ? 'border-primary-500 bg-primary-500/16 text-white' : 'border-white/8 bg-muted-700 text-muted-400 hover:border-white/20'"
                 @click="amount = String(p)"
               >
@@ -918,10 +931,10 @@ watch(screen, (s) => {
               </button>
             </div>
             <div class="relative">
-              <span class="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[15px] font-semibold text-muted-500">£</span>
+              <span class="font-heading pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[20px] font-bold text-muted-500 sm:left-3.5 sm:font-sans sm:text-[15px] sm:font-semibold">£</span>
               <input
                 id="tu-amount" :value="amount" inputmode="decimal" placeholder="Other amount"
-                class="w-full rounded-xl border bg-muted-700 py-3 pl-8 pr-3.5 text-[15px] font-semibold text-white outline-none transition tabular-nums focus:border-primary-400"
+                class="font-heading h-14 w-full rounded-xl border bg-muted-700 pl-9 pr-4 text-[22px] font-extrabold tracking-[-0.02em] text-white outline-none transition tabular-nums focus:border-primary-400 sm:h-auto sm:py-3 sm:pl-8 sm:pr-3.5 sm:font-sans sm:text-[15px] sm:font-semibold sm:tracking-normal"
                 :class="amountError ? 'border-[#EC6453]/60' : 'border-white/8'"
                 :aria-invalid="Boolean(amountError)"
                 @input="onAmountInput"
@@ -941,7 +954,7 @@ watch(screen, (s) => {
               <button
                 v-for="m in usableMethods" :key="m.id"
                 type="button"
-                class="flex items-center gap-3 rounded-xl border px-3.5 py-3 text-left transition"
+                class="flex min-h-[60px] items-center gap-3 rounded-xl border px-3.5 py-3 text-left transition sm:min-h-0"
                 :class="selectedMethodId === m.id ? 'border-primary-500 bg-primary-500/10' : 'border-white/8 bg-muted-700 hover:border-white/20'"
                 @click="pickSaved(m.id)"
               >
@@ -994,7 +1007,7 @@ watch(screen, (s) => {
 
           <button
             type="button"
-            class="mt-6 flex w-full items-center justify-center gap-2 rounded-full py-3.5 text-[14px] font-bold transition"
+            class="mt-6 flex min-h-[52px] w-full items-center justify-center gap-2 rounded-full py-3.5 text-[16px] font-bold transition sm:min-h-0 sm:text-[14px]"
             :class="canContinue ? 'cursor-pointer bg-primary-500 text-white shadow-[0_8px_20px_rgba(125,83,242,0.28)] hover:bg-primary-600' : 'cursor-not-allowed bg-muted-700 text-muted-500'"
             :disabled="!canContinue"
             @click="proceed"

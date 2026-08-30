@@ -2,7 +2,7 @@
 
 > Handoff doc for continuing work in fresh sessions. Update the relevant section
 > whenever a page ships, a decision lands, or a blocker appears.
-> Last updated: **2026-08-30** (V2 Phase 4 Mobile — My Orders at 393px, shipped).
+> Last updated: **2026-08-30** (V2 Phase 5 Mobile — Wallet & credit at 393px, shipped).
 
 ## Where things stand
 
@@ -65,6 +65,7 @@ Read it with the `DesignSync` tool (`method: get_file`).
 | 2M | Dashboard at 393px (`Dashboard - Mobile.dc.html`) | ✅ Done |
 | 3M | New Order at 393px (`PHASE-3-MOBILE.md`) | ✅ Done |
 | 4M | My Orders at 393px (`PHASE-4-MOBILE.md`) | ✅ Done |
+| 5M | Wallet & credit at 393px (`PHASE-5-MOBILE.md`) | ✅ Done |
 
 **Phase 1 shipped:** Apex brand mark (+ favicon/title), 44px nav rows with a
 violet `color-mix` active tint, hairline sub-nav, one account dropdown with
@@ -705,6 +706,62 @@ a bar. Only the last is visible: it makes everything below it in the rail sit
 Light theme measured identical to HEAD at 393px: 4 low-contrast elements of 157
 vs 4 of 156, the same four filter count badges at the same ratios — pre-existing
 Phase 9 work, not a new defect.
+
+**Phase 5 Mobile shipped (Wallet & credit at 393px).** `wallet.vue`, one line
+in `useApexSubView`, and a container change to `WalletTopUp`. No endpoint, no
+payload; the Phase 5 data-truth fixes (credit zero-state, `TX_LABEL`,
+Receipts-not-invoices) are untouched. Desktop re-measured at 1280px across all
+four tabs.
+
+- Tabs → one four-up 40px segmented control, `Activity`/`Plans` shortened so
+  four labels fit 361px instead of scrolling sideways.
+- A plan gets its own screen below `lg` (`?plan=<id>`, back arrow in the bar,
+  registered in the same `useApexSubView` list as a project). The desktop
+  accordion is untouched and expands whichever plan the query names.
+- Balance figures 38px, cards stacked, auto-pay switch 48 × 28.
+- Paying an installment goes through a confirm sheet that shows the balance
+  after — and warns in amber when it would go negative, which is the charge the
+  server refuses.
+- Top-up is a bottom sheet below `sm` with 56px presets in a 2 × 2 grid and a
+  22px custom field (under 16px, iOS zooms the page in).
+- The five transaction filters gained `aria-pressed`, which they had never had,
+  and wrap onto two lines as 38px pills.
+- Banking stacks methods → transfer → receipts → billing via `display: contents`
+  on both column wrappers; a method row becomes a small card because five
+  controls do not fit one line.
+
+**Deviations, all documented in DESIGN_SYSTEM.md:** the in-page transaction
+search stays (the shell's search does not index ledger rows), the plan detail
+says `24-month plan` without the mockup's `· 0%` (false for a 24-month plan
+under ADR-011), the credit card keeps its config-driven term copy (that *is*
+the Phase 5 §6 fix), and receipts still have no download because there is still
+no endpoint.
+
+### Phase 5 Mobile gotcha — an unconditional `leading-*` beats a breakpointed `text-*`
+
+`text-[12.5px] leading-[1.4] sm:text-xs` hands the *size* back at `sm` but not
+the line-height: `leading-[1.4]` has no variant and still wins, which made the
+auto-pay row 1px taller than HEAD. Scope it (`max-sm:leading-[1.4]`). Same
+family as the Phase 3 Mobile `text-sm` note, from the other direction.
+
+### Phase 5 Mobile gotcha — `sm:h-auto!` does not restore a component's height
+
+`h-12! sm:h-auto!` on a `BaseButton` computes the *content* height (38px), not
+the component's own 40px, so four desktop buttons quietly shrank. `max-sm:h-12!`
+keeps the override out of the breakpoint entirely.
+
+### Phase 5 Mobile note — measured deltas
+
+Desktop: the only differences left against HEAD are the shorter header
+sub-line, a 1px shorter Receipts section (sub-pixel rounding from the extra
+list wrapper the mobile card treatment needs), and computed `min-height`
+values changing from `auto` to `0px` where a mobile floor is scoped off — no
+rendered geometry moves. Light theme at 393px measured **better**: 186
+low-contrast elements of 450 across the four tabs at HEAD → 114 of 360, because
+the Plans accordion's 24-row schedule is no longer rendered there. Overview
+alone rose 28 → 34, all of it `text-muted-500` on `bg-muted-800` and
+`!text-white` on `BaseButton` — the page's documented dark-only problem, which
+is Phase 9's, not a new kind of defect.
 
 ## Remaining queue (older, pre-V2)
 
