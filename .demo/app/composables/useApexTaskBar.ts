@@ -31,6 +31,7 @@ const TASK_ROUTES = ['/dashboards/services']
  */
 const BOTTOM_EDGE_ROUTES: { path: string, when: (query: Record<string, unknown>) => boolean }[] = [
   { path: '/dashboards/support', when: q => !!q.ticket || q.tab === 'new' },
+  { path: '/dashboards/settings', when: q => q.section === 'profile' || q.section === 'company' || q.section === 'billing' },
 ]
 
 /**

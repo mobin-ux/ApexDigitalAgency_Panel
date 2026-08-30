@@ -27,12 +27,35 @@ interface SubView {
   key: string
   /** Accessible name for the bar's back control. */
   back: string
+  /**
+   * Resolves the bar's title from the query value alone, for sub-views whose
+   * name *is* in the route rather than in fetched data.
+   *
+   * Settings is the one case: a section is called "Company" because the URL
+   * says `?section=company`, not because a request came back. Letting the page
+   * push that through `title` below produced a real hydration mismatch — the
+   * toolbar renders before the page on the server, so the server emitted the
+   * section fallback while the SSR payload already carried "Company", and the
+   * client's first render disagreed with the HTML it was hydrating. A record
+   * whose name needs a fetch (a project, a ticket) has no such shortcut and
+   * still uses `title`, which is null on both renders until the data lands.
+   */
+  label?: (value: string) => string | null
+}
+
+/** Settings' four sections, named the same way the page names them. */
+const SETTINGS_SECTIONS: Record<string, string> = {
+  profile: 'Profile',
+  company: 'Company',
+  security: 'Security',
+  billing: 'Billing',
 }
 
 const SUB_VIEWS: SubView[] = [
   { path: '/dashboards/orders', key: 'project', back: 'All projects' },
   { path: '/dashboards/wallet', key: 'plan', back: 'All plans' },
   { path: '/dashboards/support', key: 'ticket', back: 'All requests' },
+  { path: '/dashboards/settings', key: 'section', back: 'All settings', label: v => SETTINGS_SECTIONS[v] ?? null },
 ]
 
 export function useApexSubView() {
@@ -46,6 +69,23 @@ export function useApexSubView() {
 
   /** Set by the page once its record has loaded; null until then. */
   const title = useState<string | null>('apex-subview-title', () => null)
+
+  /**
+   * What the bar actually prints: the route-derived name when the sub-view has
+   * one, otherwise whatever the page has published. Route-derived wins because
+   * both renders can compute it before the page has run.
+   */
+  const barTitle = computed(() => {
+    const v = current.value
+    if (v?.label) {
+      const q = route.query[v.key]
+      const derived = typeof q === 'string' ? v.label(q) : null
+      if (derived) {
+        return derived
+      }
+    }
+    return title.value
+  })
 
   /**
    * `replace`, not `push`: opening a project pushes, so the browser's back
@@ -62,5 +102,5 @@ export function useApexSubView() {
     router.replace({ path: route.path, query })
   }
 
-  return { isSubView, backLabel: computed(() => current.value?.back ?? 'Back'), title, leave }
+  return { isSubView, backLabel: computed(() => current.value?.back ?? 'Back'), title, barTitle, leave }
 }

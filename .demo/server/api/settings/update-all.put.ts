@@ -51,7 +51,14 @@ const bodySchema = z.object({
       notes: optionalTrimmed(2000),
       logo: optionalTrimmed(500),
     })
-    .default({}),
+    /*
+     * Optional, not `.default({})`. The mobile Settings page saves one section
+     * at a time (V2 Phase 7 mobile, §13), so a profile save sends no `company`
+     * key at all — and with a default the upsert still ran, creating a
+     * "My Company" row for an account that has none. Omitting the key now means
+     * "don't touch the company record"; sending it means what it always did.
+     */
+    .optional(),
 })
 
 export default defineEventHandler(async (event) => {
@@ -73,10 +80,21 @@ export default defineEventHandler(async (event) => {
     },
   })
 
+  if (!company) {
+    return { status: 'success', message: 'Settings saved successfully' }
+  }
+
   await prisma.company.upsert({
     where: { userId: session.id },
     update: {
-      name: company.name || '',
+      /*
+       * `?? undefined` like every other column, so a payload that omits the
+       * name leaves it alone. It used to be `company.name || ''`, which meant a
+       * partial save — Billing sending only a VAT number — would blank the
+       * registered company name. An explicit empty string still clears it,
+       * because `''` is not nullish.
+       */
+      name: company.name ?? undefined,
       email: company.email ?? undefined,
       website: company.website ?? undefined,
       phone: company.phone ?? undefined,

@@ -26,7 +26,7 @@ const { isTask, closeRequests } = useApexTaskBar()
  * back out of it, because on a phone the page's own back button scrolls away
  * exactly when it is needed. Route-derived for the same reason task mode is.
  */
-const { isSubView, backLabel, title: subViewTitle, leave: leaveSubView } = useApexSubView()
+const { isSubView, backLabel, barTitle: subViewTitle, leave: leaveSubView } = useApexSubView()
 
 /**
  * Platform-aware shortcut hint, resolved after mount.

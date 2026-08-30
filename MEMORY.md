@@ -2,7 +2,7 @@
 
 > Handoff doc for continuing work in fresh sessions. Update the relevant section
 > whenever a page ships, a decision lands, or a blocker appears.
-> Last updated: **2026-08-30** (V2 Phase 6 Mobile — Support at 393px, shipped).
+> Last updated: **2026-08-31** (V2 Phase 7 Mobile — Settings at 393px, shipped).
 
 ## Where things stand
 
@@ -67,6 +67,7 @@ Read it with the `DesignSync` tool (`method: get_file`).
 | 4M | My Orders at 393px (`PHASE-4-MOBILE.md`) | ✅ Done |
 | 5M | Wallet & credit at 393px (`PHASE-5-MOBILE.md`) | ✅ Done |
 | 6M | Support at 393px (`PHASE-6-MOBILE.md`) | ✅ Done |
+| 7M | Settings at 393px (`PHASE-7-MOBILE.md`) | ✅ Done |
 
 **Phase 1 shipped:** Apex brand mark (+ favicon/title), 44px nav rows with a
 violet `color-mix` active tint, hairline sub-nav, one account dropdown with
@@ -831,6 +832,68 @@ tint over a near-white page: **1.17**. Now `text-muted-900 dark:text-white`.
 With that fixed the page measures 12 low-contrast elements of 36 against HEAD's
 11 of 34 — same proportion, and all of them the `text-muted-500`-on-`bg-muted-800`
 debt Phase 9 owns.
+
+**Phase 7 Mobile shipped (Settings at 393px).** `settings.vue`, a sub-view
+registration, a bottom-edge rule, a title resolver in `useApexSubView`, and two
+**additive** fixes in `update-all.put.ts`. Every Phase 7 data-truth rule is
+untouched. Desktop re-measured at 1280px across all four sections; the only
+diffs are the copy changes listed below.
+
+- **Hub → section drill-down below `lg`.** Account row, four 72px section rows,
+  notifications, legal, sign out; each section is its own screen with the back
+  arrow in the bar and a save footer on the bottom edge. `?section=` carries it
+  — same reason as Orders/Wallet/Support. No query = the desktop panel shows
+  Profile, exactly as before.
+- **The footer posts only its own section**, verified by intercepting the PUT:
+  Company sends `{company:{…}}`, Profile sends `{user:{…}}`. Two additive
+  server fixes made that safe: `company` is now `.optional()` (omitting it means
+  "don't touch the company record" rather than running an upsert), and the
+  update branch uses `name: company.name ?? undefined` instead of
+  `company.name || ''`, which used to blank the registered company name on any
+  payload that left it out. Checked by saving Profile alone and reading the
+  company row back intact.
+- **The mockup's new fields are absent, deliberately.** Trading name, company
+  number, six-field UK address with postcode validation, separate billing
+  email, a second billing address behind a "same as office" switch, three
+  notification switches and a photo action sheet all need columns or endpoints
+  that do not exist. What ships: the single free-text address (heading still
+  switches to "Business address" for sole traders), the billing summary derived
+  from the company record, a notifications card stating what we send, and the
+  standing photo-upload statement.
+- Business type is a 52px wrapping trigger over a 56px-row sheet; every input is
+  52px at 16px; password keeps its own button and fires **zero** requests on all
+  three invalid cases; mismatch shows on the confirm field as you type; 44px
+  show/hide eye on the current password; 6px strength meter.
+
+**Two intended desktop copy changes:** company email/phone marked `(optional)`,
+and the notes field takes the mockup's label plus a line saying who sees it. The
+show/hide eye renders at both sizes (Phase 8's standard for password inputs).
+
+**Deviations:** the tab bar stays on Security (the mockup gates it on "hub
+only", but its reason is the save footer, and Security has none — so
+`ownsBottomEdge` already answers it); no `v2.4.0` version line (nothing real to
+read); no "Needed" chip on Billing (VAT is optional and the page says so).
+
+### Phase 7 Mobile gotcha — a route-derived bar title mismatches on hydration
+
+Publishing the section name through `useApexSubView`'s shared `title` looked
+exactly like what My Orders and Support do, and it mismatched on every deep
+link: the toolbar renders *before* the page on the server, so the server emitted
+"Settings" while the SSR payload already carried "Company". The other pages are
+safe only because their names come from a lazily fetched record, so the payload
+is null on both renders. A name that is a pure function of the query has to be
+resolved *in the composable* — `SUB_VIEWS[].label` — and `barTitle` prefers that
+over anything a page publishes.
+
+### Phase 7 Mobile gotcha — dissolving the cards took the theme with it
+
+`bg-muted-800` on the section cards was the only thing putting this page's
+`text-white` labels on a dark surface. The design removes those cards at 393px;
+doing that alone measured **1.06** on six labels in light mode — white on
+near-white, and mine, not the backlog's. The section-screen wrapper carries the
+ink instead (invisible in dark mode because it *is* the page colour), the same
+fix the New Order wizard needed. After it: 9 low-contrast elements of 22, all
+`text-muted-500`, at 2.33 against HEAD's 1.98 for the same elements.
 
 ## Remaining queue (older, pre-V2)
 

@@ -90,6 +90,7 @@ ships as a `.dc.html` mockup plus a `PHASE-N-*.md` implementation spec.
 | 4M | **My Orders at 393px** — bar carries the level, one stat card, rows not tiles | ✅ Done |
 | 5M | **Wallet & credit at 393px** — four tabs that fit, a plan is a screen, sheets not modals | ✅ Done |
 | 6M | **Support at 393px** — one entry point, a thread is a screen, the composer takes the bottom edge | ✅ Done |
+| 7M | **Settings at 393px** — the sub-nav becomes a hub, save is pinned and scoped | ✅ Done |
 
 #### Phase 1 — the shell standard (applies to every page from here on)
 
@@ -940,6 +941,95 @@ tint over a near-white page: measured **1.17**. It is `text-muted-900
 dark:text-white` now. With that fixed the page measures 12 low-contrast
 elements of 36 against HEAD's 11 of 34 — the same proportion, and every one of
 them the documented `text-muted-500`-on-`bg-muted-800` debt that Phase 9 owns.
+
+#### Phase 7 (mobile) — Settings at 393px
+
+`Settings - Mobile.dc.html` + `PHASE-7-MOBILE.md`. One page (`settings.vue`),
+one sub-view registration, one bottom-edge rule, a title resolver in
+`useApexSubView`, and two additive fixes in `update-all.put.ts`. Every Phase 7
+data-truth rule carries over unchanged — and this is the page where they bite
+hardest, because it is where customers type their company details.
+
+- **The sub-nav becomes a hub** (§1). A 220px rail beside a form cannot exist
+  at 393px, and a four-tab strip across the top is the width Wallet and Support
+  already spend on theirs. Below `lg` the page is a hub — account row, four
+  72px section rows, notifications, legal, sign out — and each section opens as
+  its own screen with the back arrow in the bar. `?section=` carries it, for
+  the reason My Orders, Wallet and Support all put theirs in the URL: the bar
+  and the tab bar render before the page's `setup()`. With no query the desktop
+  panel shows Profile, exactly as it did when this was a local ref.
+- **Save is pinned and scoped** (§13). The footer posts *only* the section on
+  screen — verified by intercepting the request: Company sends
+  `{company:{…}}` with no `user` key, Profile sends `{user:{…}}` with no
+  `company` key. Two things had to change server-side for that to be safe, both
+  additive: `company` is `.optional()` rather than `.default({})`, so omitting
+  it means "don't touch the company record" instead of running an upsert; and
+  the update branch writes `name: company.name ?? undefined` rather than
+  `company.name || ''`, so a payload without a name leaves it alone instead of
+  blanking the registered company name. Confirmed by saving Profile alone and
+  reading the company row back intact.
+- **Only the fields that round-trip, again.** The mockup draws a trading name,
+  a company number with live validation, a six-field structured UK address with
+  a postcode check, a separate billing email, a "same as our registered office"
+  switch over a second billing address, three notification switches, and a
+  "Change photo" action sheet. `Company` has one free-text `address` column and
+  no CRN; `User` has no notification columns; there is no upload endpoint. All
+  of those are absent rather than rendered, because a box that cannot be stored
+  is the write-then-lose defect Phase 7 existed to remove. What ships instead:
+  one address field whose heading still switches to **Business address** for
+  sole traders, the billing summary **derived** from the company record (which
+  is what §11 actually asks for), a notifications card that says what we send
+  and where to change it, and the standing statement about photo uploads.
+- **Every select is a sheet** (§5). Business type is a 52px trigger that wraps
+  rather than truncates, over a sheet of 56px options with the UK-legal-form
+  hint in its header. Country has no column, so there is no country control to
+  convert. Native `<select>` count in the customer panel: still zero.
+- **The password form keeps its own button** (§7), and it matters more here
+  because the section's Save footer is always visible beneath it. Verified that
+  all three invalid cases — no current password, too short, mismatched confirm
+  — fire **zero** API requests. Mismatch shows on the confirm field as you
+  type, the strength meter is 6px, and a 44px show/hide eye sits in the
+  current-password field.
+- Fields are 52px at 16px (iOS zooms the page in below that), rows and switches
+  are sized for thumbs, and the section screen is bounded to the viewport so
+  the footer lands on the bottom edge — Billing is short enough that a `sticky`
+  footer would have sat mid-screen.
+
+**Two deliberate desktop changes**, both copy: company email and phone are
+marked `(optional)`, which they are; and the notes field takes the mockup's
+label and gains a line saying who sees it. The show/hide eye on the current
+password renders at both sizes, matching the standard Phase 8 set for every
+password input.
+
+**Deliberate deviations.** The bottom tab bar stays on the Security screen. The
+mockup gates it on "hub only", but its stated reason is that section screens
+give that space to the save footer — and Security has no footer, so the rule
+that already exists (`ownsBottomEdge`) answers it correctly and the tab bar is
+not competing with anything. The hub's version line drops the mockup's
+`v2.4.0`: there is no build version to read, and inventing one is the same
+class of fabrication as the invented session. And the Billing row carries no
+"Needed" chip — VAT is optional, and the page says so two lines above.
+
+**Phase 7 Mobile gotcha — a route-derived bar title is a hydration mismatch
+waiting to happen.** Publishing the section name through `useApexSubView`'s
+shared `title` looked identical to what My Orders and Support do, and it
+mismatched on every deep link: the toolbar renders *before* the page on the
+server, so the server emitted the fallback while the SSR payload already
+carried "Company". The other pages get away with it because their names come
+from a lazily fetched record, so the payload is null too. Settings' name is a
+pure function of `?section=`, so the composable now resolves it itself
+(`label`), and `barTitle` prefers that over anything a page publishes.
+
+**Phase 7 Mobile gotcha — dissolving the cards took the theme with it, again.**
+`bg-muted-800` on the section cards was the only thing putting this page's
+`text-white` field labels on a dark surface. The design removes those cards at
+393px, and doing that alone measured **1.06** on six labels in light mode —
+white on near-white, and this phase's doing rather than the backlog's. The
+section-screen wrapper carries the ink instead (invisible in dark mode because
+it *is* the page colour), exactly as the New Order wizard does. With that in
+place the screen measures 9 low-contrast elements of 22, all of them the
+documented `text-muted-500` debt — and at 2.33 against HEAD's 1.98 for the same
+elements, so slightly better than before.
 
 **Phase 8 gotcha — a comment before the root element is a second root.**
 A template whose first node is an HTML comment is multi-root, so the client
