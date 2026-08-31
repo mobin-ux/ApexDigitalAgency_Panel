@@ -1,8 +1,11 @@
 <script setup lang="ts">
 /**
- * Admin — Tools. Platform utilities: the full audit trail (filterable,
- * with expandable metadata), an announcement broadcaster (in-app
- * notifications — there is no mail provider) and dev-only seed helpers.
+ * Admin — Tools. Customer announcements and platform utilities.
+ *
+ * The audit trail used to live here as the left-hand column. Phase 9 gives
+ * it its own screen at `/admin/audit`, because the design treats the log as
+ * a first-class System destination with its own filters and export — not a
+ * panel sharing a page with dev seed buttons.
  */
 definePageMeta({
   title: 'Tools',
@@ -11,46 +14,14 @@ definePageMeta({
 })
 
 const toaster = useNuiToasts()
+const { can } = useStaffAccess()
 
-// --- Audit trail ---
-const search = ref('')
-const debouncedSearch = ref('')
-const targetType = ref('')
-const page = ref(1)
-
-watchDebounced(search, (value) => {
-  debouncedSearch.value = value.trim()
-}, { debounce: 300 })
-
-watch([debouncedSearch, targetType], () => {
-  page.value = 1
-})
-
-const auditQuery = computed(() => ({
-  page: page.value,
-  pageSize: 20,
-  ...(debouncedSearch.value ? { search: debouncedSearch.value } : {}),
-  ...(targetType.value ? { targetType: targetType.value } : {}),
-}))
-
-const { data: auditData, pending: auditPending } = await useFetch('/api/admin/audit', { query: auditQuery })
-
-const expanded = ref<string | null>(null)
-
-function prettyMetadata(raw: string | null) {
-  if (!raw)
-    return null
-  try {
-    return JSON.stringify(JSON.parse(raw), null, 2)
-  }
-  catch {
-    return raw
-  }
-}
-
-function fmtDateTime(iso: string | Date) {
-  return new Date(iso).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-}
+/**
+ * A broadcast writes a notification into every customer's feed, which is
+ * customer-facing content — the same permission that governs the service
+ * catalogue and help articles.
+ */
+const allowed = computed(() => can('catalogue.edit'))
 
 // --- Broadcast ---
 const broadcast = reactive({ title: '', message: '', type: 'INFO', link: '' })
@@ -58,8 +29,9 @@ const showBroadcastConfirm = ref(false)
 const broadcasting = ref(false)
 
 async function sendBroadcast() {
-  if (broadcasting.value)
+  if (broadcasting.value) {
     return
+  }
   broadcasting.value = true
   try {
     const result = await $fetch('/api/admin/notifications/broadcast', {
@@ -96,8 +68,9 @@ const devSeeds = [
 ]
 
 async function runSeed(path: string) {
-  if (seeding.value)
+  if (seeding.value) {
     return
+  }
   seeding.value = path
   try {
     await $fetch(path)
@@ -111,174 +84,161 @@ async function runSeed(path: string) {
   }
 }
 
-const inputClass = 'w-full rounded-[11px] border border-white/8 bg-muted-700 px-3.5 py-3 sm:py-2.5 text-sm text-white outline-none placeholder:text-muted-500 focus:border-primary-400'
-const labelClass = 'mb-2 block text-[12.5px] font-semibold text-white'
+const CARD = 'rounded-2xl border border-muted-200 bg-white p-6 dark:border-white/10 dark:bg-muted-800'
+const INPUT = 'w-full rounded-xl border border-muted-200 bg-muted-50 px-3.5 py-3 text-sm text-muted-900 outline-none placeholder:text-muted-400 focus:border-primary-400 sm:py-2.5 dark:border-white/10 dark:bg-white/5 dark:text-white dark:placeholder:text-muted-500'
+const LABEL = 'mb-2 block text-[12.5px] font-semibold text-muted-900 dark:text-white'
 </script>
 
 <template>
-  <div class="mx-auto flex max-w-[1240px] flex-col gap-7 pb-8 font-sans text-muted-400">
-    <AdminPageHeader
-      eyebrow="ADMIN · TOOLS"
-      title="Tools"
-      subtitle="The audit trail, customer announcements and platform utilities."
+  <div class="mx-auto flex max-w-[1240px] flex-col gap-6 pb-10 font-sans">
+    <AdminAccessWall
+      v-if="!allowed"
+      permission="catalogue.edit"
+      title="Tools are restricted"
+      body="An announcement is written into every client's notification feed, so sending one is limited to the roles that own client-facing content."
     />
 
-    <div class="grid grid-cols-1 items-start gap-6 xl:grid-cols-[1.45fr_1fr]">
-      <!-- ========== AUDIT TRAIL ========== -->
-      <section class="flex flex-col gap-4" aria-label="Audit trail">
-        <h2 class="flex items-center gap-2.5 font-heading text-[15px] font-bold uppercase tracking-[0.04em] text-muted-500">
-          <span class="h-[18px] w-1.5 rounded-full bg-primary-500" />Audit trail
-        </h2>
+    <template v-else>
+      <AdminPageHeader
+        dense
+        title="Tools"
+        subtitle="Customer announcements and platform utilities."
+      />
 
-        <div class="grid grid-cols-1 gap-3 rounded-[20px] border border-white/10 bg-muted-800 p-4 sm:grid-cols-[1.6fr_1fr]">
-          <label class="flex items-center gap-2.5 rounded-[11px] border border-white/8 bg-muted-700 px-3.5 py-2.5 focus-within:border-primary-400">
-            <Icon name="lucide:search" class="size-4 shrink-0 text-muted-500" />
-            <input v-model="search" placeholder="Search actor, action or target id…" class="min-w-0 flex-1 border-none bg-transparent text-[13.5px] text-white outline-none placeholder:text-muted-500">
-          </label>
-          <select v-model="targetType" aria-label="Filter by record type" class="w-full cursor-pointer rounded-[11px] border border-white/8 bg-muted-700 px-3.5 py-3 sm:py-2.5 text-[13px] text-white outline-none focus:border-primary-400">
-            <option value="">
-              All record types
-            </option>
-            <option v-for="t in ['User', 'Project', 'Milestone', 'Transaction', 'WithdrawalRequest', 'Ticket', 'Company', 'Setting', 'Notification']" :key="t" :value="t">
-              {{ t }}
-            </option>
-          </select>
-        </div>
-
-        <div v-if="auditPending" class="flex flex-col gap-2" aria-hidden="true">
-          <div v-for="i in 6" :key="i" class="h-[64px] animate-pulse rounded-[16px] border border-white/5 bg-muted-800/60" />
-        </div>
-
-        <div v-else-if="auditData?.items?.length" class="overflow-hidden rounded-[20px] border border-white/10 bg-white/[0.02]" role="list">
-          <template v-for="(entry, idx) in auditData.items" :key="entry.id">
-            <div v-if="idx > 0" class="h-px bg-white/10" />
-            <div role="listitem">
-              <button
-                type="button"
-                class="flex w-full items-center gap-3.5 px-[22px] py-3.5 text-left transition hover:bg-white/[0.03]"
-                :aria-expanded="expanded === entry.id"
-                @click="expanded = expanded === entry.id ? null : entry.id"
-              >
-                <span class="flex size-8 shrink-0 items-center justify-center rounded-[9px] bg-white/5 text-muted-500">
-                  <Icon name="lucide:activity" class="size-4" />
-                </span>
-                <div class="min-w-0 flex-1">
-                  <div class="truncate text-[13.5px] font-semibold text-white">
-                    <span class="font-mono text-[12.5px] text-primary-200">{{ entry.action }}</span>
-                    <span v-if="entry.targetId" class="ms-2 font-mono text-[11px] text-muted-500">{{ entry.targetId.slice(0, 8) }}</span>
-                  </div>
-                  <div class="mt-0.5 truncate text-[12px] text-muted-500">
-                    {{ entry.actorEmail }} · {{ fmtDateTime(entry.createdAt) }}<span v-if="entry.ip"> · {{ entry.ip }}</span>
-                  </div>
-                </div>
-                <Icon :name="expanded === entry.id ? 'lucide:chevron-up' : 'lucide:chevron-down'" class="size-4 shrink-0 text-muted-500" />
-              </button>
-              <pre
-                v-if="expanded === entry.id && prettyMetadata(entry.metadata)"
-                class="mx-[22px] mb-4 overflow-x-auto rounded-[12px] border border-white/8 bg-muted-950 p-4 font-mono text-[11.5px] leading-[1.6] text-muted-300"
-              >{{ prettyMetadata(entry.metadata) }}</pre>
-            </div>
-          </template>
-        </div>
-
-        <AdminEmptyState v-else icon="lucide:scroll-text" title="No audit entries" subtitle="Privileged actions are recorded here automatically." />
-
-        <AdminPager
-          v-if="auditData" :page="auditData.page" :page-count="auditData.pageCount" :total="auditData.total" noun="entries"
-          @update:page="page = $event"
-        />
-      </section>
-
-      <!-- ========== RIGHT RAIL ========== -->
-      <div class="flex flex-col gap-6">
+      <div class="grid grid-cols-1 items-start gap-[18px] lg:grid-cols-2">
         <!-- broadcast -->
-        <section class="rounded-[20px] border border-white/10 bg-muted-800 p-6" aria-label="Announcement">
-          <h2 class="mb-2 flex items-center gap-2.5 font-heading text-[15px] font-bold uppercase tracking-[0.04em] text-muted-500">
-            <span class="h-[18px] w-1.5 rounded-full bg-[#6EA8FE]" />Announcement
-          </h2>
-          <p class="mb-5 text-[13px] leading-[1.5] text-muted-400">
-            Sends an in-app notification to every active customer. No emails are sent — there's no mail provider wired up.
+        <section :class="CARD" aria-label="Announcement">
+          <div class="font-heading text-muted-900 text-[16.5px] font-bold tracking-[-0.01em] dark:text-white">
+            Announcement
+          </div>
+          <p class="text-muted-500 mb-5 mt-[7px] text-[13px] leading-[1.55]">
+            Writes an in-app notification into every active customer's feed. No emails are sent — there is no mail provider wired up.
           </p>
           <form class="flex flex-col gap-3.5" @submit.prevent="showBroadcastConfirm = true">
             <div>
-              <label for="bc-title" :class="labelClass">Title</label>
-              <input id="bc-title" v-model="broadcast.title" required maxlength="150" placeholder="e.g. New: 24-month financing" :class="inputClass">
+              <label for="bc-title" :class="LABEL">Title</label>
+              <input id="bc-title" v-model="broadcast.title" required maxlength="150" placeholder="e.g. New: 24-month financing" :class="INPUT">
             </div>
             <div>
-              <label for="bc-message" :class="labelClass">Message</label>
-              <textarea id="bc-message" v-model="broadcast.message" rows="3" required maxlength="1000" placeholder="Keep it short and benefit-led…" class="w-full resize-y rounded-[11px] border border-white/8 bg-muted-700 px-3.5 py-2.5 text-sm leading-[1.55] text-white outline-none placeholder:text-muted-500 focus:border-primary-400" />
+              <label for="bc-message" :class="LABEL">Message</label>
+              <textarea
+                id="bc-message"
+                v-model="broadcast.message"
+                rows="3"
+                required
+                maxlength="1000"
+                placeholder="Keep it short and benefit-led…"
+                class="border-muted-200 bg-muted-50 text-muted-900 placeholder:text-muted-400 focus:border-primary-400 dark:placeholder:text-muted-500 w-full resize-y rounded-xl border px-3.5 py-2.5 text-sm leading-[1.55] outline-none dark:border-white/10 dark:bg-white/5 dark:text-white"
+              />
             </div>
             <div class="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
               <div>
-                <label for="bc-type" :class="labelClass">Type</label>
-                <select id="bc-type" v-model="broadcast.type" class="w-full cursor-pointer rounded-[11px] border border-white/8 bg-muted-700 px-3.5 py-3 sm:py-2.5 text-sm text-white outline-none focus:border-primary-400">
-                  <option value="INFO">
+                <!-- A span, not a label: `BaseSelect` does not forward `id`, so
+                     `for="bc-type"` would point at nothing. The select is named
+                     by its own aria-label. -->
+                <span :class="LABEL" aria-hidden="true">Type</span>
+                <!-- `BaseSelect`, not a native `<select>`: the OS popup renders
+                     white-on-black on a dark surface and CSS cannot reach it. -->
+                <BaseSelect
+                  v-model="broadcast.type"
+                  rounded="lg"
+                  aria-label="Announcement type"
+                  class="dark:bg-muted-700! h-11! w-full! rounded-xl! dark:border-white/10! dark:text-white!"
+                  :classes="{ text: 'text-[13.5px]' }"
+                >
+                  <BaseSelectItem value="INFO">
                     Info
-                  </option>
-                  <option value="SUCCESS">
+                  </BaseSelectItem>
+                  <BaseSelectItem value="SUCCESS">
                     Success
-                  </option>
-                  <option value="WARNING">
+                  </BaseSelectItem>
+                  <BaseSelectItem value="WARNING">
                     Warning
-                  </option>
-                </select>
+                  </BaseSelectItem>
+                </BaseSelect>
               </div>
               <div>
-                <label for="bc-link" :class="labelClass">In-app link <span class="font-normal text-muted-500">(optional)</span></label>
-                <input id="bc-link" v-model="broadcast.link" placeholder="/dashboards/services" :class="inputClass">
+                <label for="bc-link" :class="LABEL">In-app link <span class="text-muted-500 font-normal">(optional)</span></label>
+                <input id="bc-link" v-model="broadcast.link" placeholder="/dashboards/services" :class="INPUT">
               </div>
             </div>
-            <BaseButton type="submit" rounded="full" variant="primary" class="self-end" :disabled="!broadcast.title.trim() || !broadcast.message.trim()">
+            <BaseButton type="submit" rounded="lg" variant="primary" class="self-end" :disabled="!broadcast.title.trim() || !broadcast.message.trim()">
               <Icon name="lucide:megaphone" class="size-4" />Send announcement
             </BaseButton>
           </form>
         </section>
 
-        <!-- dev utilities -->
-        <section v-if="isDev" class="rounded-[20px] border border-[#D9A521]/25 bg-[#D9A521]/[0.04] p-6" aria-label="Developer utilities">
-          <h2 class="mb-2 flex items-center gap-2.5 font-heading text-[15px] font-bold uppercase tracking-[0.04em] text-[#F2C14E]">
-            <span class="h-[18px] w-1.5 rounded-full bg-[#F2C14E]" />Dev utilities
-          </h2>
-          <p class="mb-4 text-[13px] leading-[1.5] text-muted-400">
-            Local development only — these endpoints return 404 in production builds.
-          </p>
-          <div class="flex flex-col gap-2">
-            <div v-for="seed in devSeeds" :key="seed.path" class="flex items-center gap-3 rounded-[12px] border border-white/8 bg-muted-800/70 px-4 py-3">
-              <div class="min-w-0 flex-1">
-                <div class="text-[13px] font-semibold text-white">
-                  {{ seed.label }}
-                </div>
-                <div class="truncate text-[11.5px] text-muted-500">
-                  {{ seed.desc }}
-                </div>
-              </div>
-              <BaseButton size="sm" rounded="full" class="shrink-0 border border-white/10 bg-muted-700 !text-white hover:bg-muted-600" :loading="seeding === seed.path" :disabled="Boolean(seeding)" @click="runSeed(seed.path)">
-                Run
-              </BaseButton>
+        <div class="flex flex-col gap-[18px]">
+          <!-- pointer to the log's new home -->
+          <section :class="CARD" aria-label="Audit trail">
+            <div class="font-heading text-muted-900 text-[16.5px] font-bold tracking-[-0.01em] dark:text-white">
+              Audit trail
             </div>
-          </div>
-        </section>
+            <p class="text-muted-500 mb-4 mt-[7px] text-[13px] leading-[1.55]">
+              Every action that changes access, money or a client's records now has its own screen, with filters by kind and a CSV export.
+            </p>
+            <BaseButton to="/admin/audit" rounded="lg">
+              <Icon name="lucide:scroll-text" class="size-4" />Open the audit log
+            </BaseButton>
+          </section>
+
+          <!-- dev utilities -->
+          <section v-if="isDev" class="rounded-2xl border border-[#D9A521]/25 bg-[#D9A521]/[0.04] p-6" aria-label="Developer utilities">
+            <div class="font-heading text-[16.5px] font-bold tracking-[-0.01em] text-[#F2C14E]">
+              Dev utilities
+            </div>
+            <p class="text-muted-500 mb-4 mt-[7px] text-[13px] leading-[1.55]">
+              Local development only — these endpoints return 404 in production builds.
+            </p>
+            <div class="flex flex-col gap-2">
+              <div
+                v-for="seed in devSeeds"
+                :key="seed.path"
+                class="border-muted-200 dark:bg-muted-800/70 flex items-center gap-3 rounded-xl border bg-white px-4 py-3 dark:border-white/10"
+              >
+                <div class="min-w-0 flex-1">
+                  <div class="text-muted-900 text-[13px] font-semibold dark:text-white">
+                    {{ seed.label }}
+                  </div>
+                  <div class="text-muted-500 truncate text-[11.5px]">
+                    {{ seed.desc }}
+                  </div>
+                </div>
+                <BaseButton
+                  size="sm"
+                  rounded="lg"
+                  class="shrink-0"
+                  :loading="seeding === seed.path"
+                  :disabled="Boolean(seeding)"
+                  @click="runSeed(seed.path)"
+                >
+                  Run
+                </BaseButton>
+              </div>
+            </div>
+          </section>
+        </div>
       </div>
-    </div>
+    </template>
 
     <!-- ========== BROADCAST CONFIRM MODAL ========== -->
     <div v-if="showBroadcastConfirm" class="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Confirm announcement">
       <div class="apex-fade absolute inset-0 bg-black/60 backdrop-blur-sm" @click="showBroadcastConfirm = false" />
-      <div class="apex-pop relative w-full max-w-[420px] rounded-[20px] border border-white/10 bg-muted-800 p-6 shadow-[0_30px_60px_rgba(0,0,0,.5)]">
-        <span class="mb-4 flex size-11 items-center justify-center rounded-xl bg-[#6EA8FE]/14 text-[#6EA8FE]">
+      <div class="apex-pop border-muted-200 dark:bg-muted-800 relative w-full max-w-[420px] rounded-2xl border bg-white p-6 shadow-[0_30px_60px_rgba(0,0,0,.5)] dark:border-white/10">
+        <span aria-hidden="true" class="mb-4 flex size-11 items-center justify-center rounded-xl bg-[#6EA8FE]/14 text-[#6EA8FE]">
           <Icon name="lucide:megaphone" class="size-5" />
         </span>
-        <div class="font-heading text-[19px] font-extrabold tracking-[-0.01em] text-white">
+        <div class="font-heading text-muted-900 text-[19px] font-extrabold tracking-[-0.01em] dark:text-white">
           Send to every active customer?
         </div>
-        <p class="mt-2 text-[13.5px] leading-[1.55] text-muted-400">
-          "<strong class="text-white">{{ broadcast.title }}</strong>" will appear in every active customer's notification feed. This can't be recalled.
+        <p class="text-muted-600 dark:text-muted-300 mt-2 text-[13.5px] leading-[1.55]">
+          "<strong class="text-muted-900 dark:text-white">{{ broadcast.title }}</strong>" will appear in every active customer's notification feed. This can't be recalled.
         </p>
         <div class="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-          <BaseButton rounded="full" class="border border-white/10 bg-muted-700 !text-white hover:bg-muted-600" @click="showBroadcastConfirm = false">
+          <BaseButton rounded="lg" @click="showBroadcastConfirm = false">
             Cancel
           </BaseButton>
-          <BaseButton rounded="full" variant="primary" :loading="broadcasting" :disabled="broadcasting" @click="sendBroadcast">
+          <BaseButton rounded="lg" variant="primary" :loading="broadcasting" :disabled="broadcasting" @click="sendBroadcast">
             <Icon name="lucide:send" class="size-4" />Send announcement
           </BaseButton>
         </div>
@@ -288,6 +248,7 @@ const labelClass = 'mb-2 block text-[12.5px] font-semibold text-white'
 </template>
 
 <style scoped>
+/* Plain keyframes, not a Vue <Transition> — see MEMORY.md's wallet gotcha. */
 @keyframes apex-fade {
   from {
     opacity: 0;

@@ -61,8 +61,22 @@ implementation. Hard rules live in CLAUDE.md; rationale in docs/decisions/.
 ## 5. Security requirements
 
 - Every customer page: `middleware: 'auth'`; every customer API route verifies the
-  JWT via `requireAuth(event)`; admin APIs use `requireAdmin(event)` with a
-  DB-fresh role check (ADR-013). Bad/expired tokens → clean 401, never 500.
+  JWT via `requireAuth(event)`; **every admin API route uses
+  `requireStaffPermission(event, '<permission>')`** — the coarse `Role` gate plus
+  one of eleven staff permissions, both checked DB-fresh (ADR-013, ADR-016).
+  Bad/expired tokens → clean 401, never 500; an insufficient role → 403 naming
+  the roles that do hold the permission.
+- **Six fixed staff roles** (Owner · Admin · Project manager · Support agent ·
+  Finance · Read-only) over eleven permissions, defined once in
+  `shared/permissions.ts` and imported by both the server guard and the admin UI,
+  so the documented matrix and the enforced matrix are the same object.
+- **Suspension ends a live session**: `requireRole` refuses a `SUSPENDED` account
+  on the next request, rather than only blocking the next sign-in (sessions are
+  stateless 7-day JWTs).
+- **Privilege escalation is impossible at invite acceptance**: the role and email
+  come from the `StaffInvite` row, never the request body, and the single-use
+  token is claimed by a conditional update inside the account-creating
+  transaction.
 - Authenticated routes are never SWR/HTML-cached (ADR-008).
 - Server APIs return raw data scoped to `userId` from the verified session — no
   cross-user data. Object access is ownership-checked (404 for "not yours").
@@ -102,3 +116,6 @@ implementation. Hard rules live in CLAUDE.md; rationale in docs/decisions/.
 | Unread-message counts per project | unread chips in My Orders list (designed, hidden) |
 | ~~Broken seeds (`seed-rich`, `seed-wallet`)~~ fixed (schema-valid, dev-gated); `prisma/seed.js` still stale | realistic local test data |
 | ~~Admin UI pages~~ **done** — all 7 modules at `/admin/**` (overview, users, projects, payments, tickets, settings, tools) on the `/api/admin/**` backend (ADR-013) | — |
+| No mail provider: staff invites, password resets and notifications cannot be emailed. The invite panel hands the operator a link to pass on instead | a self-service invite flow; "check your inbox" copy that is literally true |
+| No `DeliverableRelease` model: nothing releases or withholds project files, so the "hold deliverables until fully paid" platform rule has nothing to govern and the audit log has no Files bucket | Phase 9's Overview & Work file (release deliverables, badges 6–7) |
+| Instalment pricing is fixed to 12 and 24 months (ADR-011), so the platform cannot offer the design's 3/6/36-month terms | a per-service term catalogue (Phase 9 Support & Catalogue, badge 21) |

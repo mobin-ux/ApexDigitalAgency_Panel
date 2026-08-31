@@ -91,6 +91,7 @@ ships as a `.dc.html` mockup plus a `PHASE-N-*.md` implementation spec.
 | 5M | **Wallet & credit at 393px** — four tabs that fit, a plan is a screen, sheets not modals | ✅ Done |
 | 6M | **Support at 393px** — one entry point, a thread is a screen, the composer takes the bottom edge | ✅ Done |
 | 7M | **Settings at 393px** — the sub-nav becomes a hub, save is pinned and scoped | ✅ Done |
+| 9A | **Admin — Team & platform** — six staff roles, one enforced matrix, invites, platform settings, audit log | ✅ Done |
 
 #### Phase 1 — the shell standard (applies to every page from here on)
 
@@ -1030,6 +1031,104 @@ it *is* the page colour), exactly as the New Order wizard does. With that in
 place the screen measures 9 low-contrast elements of 22, all of them the
 documented `text-muted-500` debt — and at 2.33 against HEAD's 1.98 for the same
 elements, so slightly better than before.
+
+#### Phase 9 (admin) — Team & platform
+
+`Admin - Team & Platform.dc.html` + `PHASE-9-ADMIN.md` (badges 24–31). Three
+screens — **Team & access** (`/admin/team`, new), **Platform settings**
+(`/admin/settings`, rebuilt) and **Audit log** (`/admin/audit`, lifted out of
+Tools) — plus the shell regrouping every admin page inherits. The sidebar is now
+the design's five groups (Work · People · Money · Service · System) and a
+destination your role cannot open renders as a padlock, never a link that 403s.
+
+- **The matrix is the enforcement, literally** (badge 26). `shared/permissions.ts`
+  holds six roles × eleven permissions and is imported by *both* halves of the
+  app: `requireStaffPermission()` throws the 403 from it, and `/admin/team`
+  renders the table with a `v-for` over the same array. There is no second copy
+  to drift. See ADR-016. The 403 even names the roles that do hold it, so an API
+  client and a person get the same sentence.
+- **Two changes are refused, in the API as well as the UI** (badge 25). You
+  cannot change or suspend your own access; the last owner cannot be demoted or
+  suspended. The reason replaces the buttons in the row rather than greying them
+  out with nothing to explain it, and a crafted `PATCH` gets the identical
+  wording.
+- **Invites are not members** (badge 24). They sit in their own amber panel with
+  the expiry, Resend and Cancel — never as "pending" rows in the staff table,
+  where they would inflate the headcount and read as people who can already act.
+- **An invite you cannot accept is a dead end**, so `/auth/accept-invite` ships
+  with it, on the Phase 8 auth shell. The role and the address come from the
+  invite row, never the request body, and the token is claimed inside the same
+  transaction that creates the account.
+- **One reply promise, one wording** (badge 27). `shared/support-eta.ts` turns
+  the stored minutes into the sentence the client reads, and *both* the admin
+  preview and `/api/config` call it. Verified end to end: setting the Normal
+  target to 25 makes the customer Support page say "~25 min".
+- **Absolute timestamps and the role held at the time** (badges 30, 31). The
+  audit log gained `roleAtTime` and `reason` columns; entries written before this
+  phase show "—" rather than being back-filled from the account's role today,
+  which would state something the log never recorded. No edit, no delete, and no
+  endpoint behind one.
+- Suspension now ends a **live** session. `requireRole` checked the role fresh
+  but never the status, and sessions are seven-day JWTs — so "Suspend" blocked
+  the next sign-in while leaving the person working. Verified with two cookie
+  jars: 200 → 403 on the same cookie, and back on restore.
+
+**Deliberate deviations, all for the standing "real or absent" rule.**
+
+- **No 3/6/36-month instalment terms.** The mockup offers five as a free
+  selection; ADR-011 fixes pricing for exactly two, so the other three would let
+  an owner switch on a term the wizard cannot quote. 12 months is shown as the
+  base product and 24 as the one real toggle — which is the same setting
+  `/api/orders` checks.
+- **No "hold deliverables until fully paid" switch.** There is no deliverables
+  feature in this codebase, so it would store a boolean nothing reads — the
+  `twoFactor` field Phase 7 deleted. Stated as "Not built" instead.
+- **"Last active" is "Last action".** Nothing here records a sign-in. The column
+  reports the member's most recent *audited action*, which the database can
+  answer, and the heading says so. Deriving "Active now" from `updatedAt` would
+  be Phase 7's invented session list.
+- **The audit log's Files filter is Work.** Deliverable release has no model and
+  writes no entry, so a Files filter could only ever return zero rows — a dead
+  control. Work (projects, milestones, tickets) is real. The five buckets were
+  verified to *partition* the log: 45 entries, five filters, zero double-counted,
+  zero unreachable.
+- **Nothing is emailed on invite.** No mail provider exists, so the acceptance
+  link is handed to the operator with a line saying to pass it on.
+- **Sign-in limits state the code's numbers, not the mockup's.** The design says
+  "5 attempts per 15 minutes"; `RateLimits.login` is 5 per *minute* with a
+  15-minute block. On a page operators consult when someone cannot sign in, the
+  mockup's figure would be worse than none.
+- **Settings keeps everything the old page controlled.** The four design panels
+  hold only values a client can see; payment-rail routing, maintenance mode and
+  the rest sit below under "Other configuration", so the rebuild does not quietly
+  remove admin control of the payment providers.
+
+**Phase 9 Admin gotcha — `BaseSelect` does not forward `id`.**
+`<BaseSelect :id="...">` puts nothing on the trigger, so a `<label for>` beside
+it points at an element that does not exist — a dangling reference, which is
+worse than no label (the same finding as Phase 1 Mobile's `aria-describedby` on
+the sheets). Six of these shipped before the sweep caught them. Name the select
+with `aria-label` and use a plain `<span>` for the visible text. Note also that
+reka renders a 1px `aria-hidden` native `<select>` for form compatibility when
+the component sits inside a `<form>` — that one is not the dark-popup defect and
+should not be counted as a native select.
+
+**Phase 9 Admin gotcha — a kind filter needs exclusions, and a catch-all.**
+Classifying audit rows by action prefix has two traps. `admin.team.` belongs to
+Team but `admin.team.suspend` is Access, so every *more specific* prefix owned by
+another bucket must be excluded from the query or a row appears under two
+filters. And the display fallback ("unknown action → Config") has to be mirrored
+in the query, or an action nobody classified renders a Config chip while being
+invisible under every filter — visible in "All", unfindable by clicking the kind
+it says it is. Both were live until measured; the fix is one `kindFilter()` the
+query and the chip share.
+
+**Light theme: these four screens are clean.** Written with light/dark pairs from
+the start rather than inheriting the panel's dark-only debt. Measured at 1440px
+in light mode: 1 low-contrast element of 258 (team), 228 (settings), 311 (audit)
+and 82 (tools) — the *same* element every time, the shared toolbar's decorative
+`/` breadcrumb separator, which measures identically on the untouched
+`/admin/users`. So they add nothing to the Phase 9 light backlog.
 
 **Phase 8 gotcha — a comment before the root element is a second root.**
 A template whose first node is an HTML comment is multi-root, so the client

@@ -1,7 +1,7 @@
 import { createError, defineEventHandler, getRouterParam } from 'h3'
 import { z } from 'zod'
 import { recordAudit } from '../../../utils/audit'
-import { requireAdmin } from '../../../utils/auth'
+import { requireStaffPermission } from '../../../utils/permissions'
 import prisma from '../../../utils/prisma'
 import { validateBody } from '../../../utils/validate'
 
@@ -19,7 +19,7 @@ const bodySchema = z
   .refine(data => Object.keys(data).length > 0, { message: 'At least one field must be provided' })
 
 export default defineEventHandler(async (event) => {
-  const admin = await requireAdmin(event)
+  const admin = await requireStaffPermission(event, 'work.assign')
 
   const id = getRouterParam(event, 'id')
   if (!id) {

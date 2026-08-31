@@ -34,6 +34,11 @@ Detail lives in the docs — read on demand, don't guess:
 8. **Never kill the user's dev server on port 3000**; preview uses `autoPort` (launch.json).
 9. **Never fabricate financial actions** — no fake charges; route to Wallet + `TODO(api)`.
 10. Rewrite Persian comments to English whenever touching a legacy file.
+11. **Admin routes gate on a permission, not on "is admin"** — every
+    `/api/admin/**` handler calls `requireStaffPermission(event, '<perm>')` from
+    the eleven in `shared/permissions.ts` (ADR-016). Never add an admin endpoint
+    on bare `requireAdmin`, and never duplicate the matrix: the admin UI reads
+    the same file, which is what stops the documented and enforced rules drifting.
 
 ## Conventions
 
@@ -79,6 +84,10 @@ Detail lives in the docs — read on demand, don't guess:
 .demo/app/layouts/sidenav.vue customer shell (nav + real user + sign out)
 .demo/app/assets/main.css     THE token source: violet primary, navy-ink muted, Yellix
 .demo/server/api/             Nitro endpoints (auth, orders, finance, support, settings)
+.demo/server/utils/           requireAuth / requireStaffPermission, prisma, zod, audit
+.demo/shared/                 imported by BOTH halves: permissions.ts (the staff role
+                              matrix the UI renders AND the server enforces — ADR-016),
+                              support-eta.ts, audit-kinds.ts
 prisma/schema.prisma          User/Project/Milestone/Transaction/Installment/Ticket…
 ```
 

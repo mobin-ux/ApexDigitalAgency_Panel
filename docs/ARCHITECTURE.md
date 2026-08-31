@@ -77,15 +77,28 @@ Yellix fonts, and reference screenshots). Integration strategy:
 - `Installment`: **exists but unlinked** — `project` is a string name, no FK to Project.
   This is why per-project installment plans are presentation-derived (ADR-010).
 - `Ticket` + `TicketMessage`, `Notification`, `PasswordResetToken`.
+- **Staff access (ADR-016)**: `User.staffRole` (nullable string, one of the six
+  roles in `shared/permissions.ts`) and `User.staffJoinedAt`. Additive and
+  separate from `Role`, which still answers only "can this account reach the
+  panel". `StaffInvite` (email, name, role, single-use token, 7-day expiry,
+  `acceptedAt`/`cancelledAt`) — a record of who was asked, granting nothing.
+- `AuditLog` gained `roleAtTime` and `reason`: the log has to say what was true
+  when the action happened, and a role can change afterwards. Null on rows
+  written before Phase 9, and rendered as absent rather than back-filled.
 
 ## 5. API surface (customer-relevant)
 
 **Server conventions (ADR-013)**: every Prisma-backed route uses the shared
-utils in `.demo/server/utils/` — `requireAuth(event)` / `requireAdmin(event)`
-(never inline JWT; bad tokens → 401, not 500), the `prisma` singleton (never
-`new PrismaClient()`), zod `validateBody`/`validateQuery` (400 with
-`data.fieldErrors`), and `recordAudit()` on every admin mutation. List
+utils in `.demo/server/utils/` — `requireAuth(event)` for customer routes and
+**`requireStaffPermission(event, '<permission>')`** for every `/api/admin/**`
+route (ADR-016; never inline JWT; bad tokens → 401, not 500), the `prisma`
+singleton (never `new PrismaClient()`), zod `validateBody`/`validateQuery`
+(400 with `data.fieldErrors`), and `recordAudit()` on every admin mutation. List
 endpoints return the `paginated()` envelope `{items,total,page,pageSize,pageCount}`.
+`requireAdmin` still exists as the coarse panel gate that
+`requireStaffPermission` is built on, and `requireRole` now also refuses a
+`SUSPENDED` account so withdrawing access ends a live session rather than only
+blocking the next sign-in.
 JWT secret: `runtimeConfig.jwtSecret` (`NUXT_JWT_SECRET` env override).
 
 | Endpoint | Notes |
@@ -108,6 +121,13 @@ JWT secret: `runtimeConfig.jwtSecret` (`NUXT_JWT_SECRET` env override).
 | POST `/api/finance/topup` | **real gateway top-up** (ADR-015). Creates a `PaymentIntent` *before* calling the provider, returns redirect/clientSecret; the wallet moves only in `settleIntent`. Supersedes `/api/finance/deposit` for the UI |
 | POST `/api/webhooks/:provider` | **the only unauthenticated writes** — the HMAC signature is the auth. Raw body → constant-time verify → unique `(provider, providerEventId)` insert → 200. `stripe`\|`gocardless`\|`paypal`\|`mock` |
 | GET `/api/admin/payments/health` | ADMIN — rails status: configured providers + mode, trial balance, stuck intents, webhook failures, provider balances |
+| **`/api/admin/team`** (GET) | `team.manage` — staff members (role ADMIN) with their `staffRole`, project load and most recent audited action, **plus** pending invites as a separate list (badge 24) |
+| **`/api/admin/team/:id`** (PATCH) | `team.manage` — change `staffRole` or suspend/restore. Refuses self-edits and last-owner demotion/suspension with the sentence the UI shows; writes an audit row with the typed reason |
+| **`/api/admin/team/invites`** (POST) | `team.manage` — create a `StaffInvite` (single-use token, 7-day expiry). Grants nothing. Returns the acceptance link, because there is no mail provider |
+| **`/api/admin/team/invites/:id`** (DELETE) | `team.manage` — withdraw; stamps `cancelledAt` rather than deleting, so the audit trail's subject survives |
+| **`/api/admin/team/invites/:id/resend`** (POST) | `team.manage` — mints a NEW token and restarts the clock, invalidating the previous link |
+| GET `/api/auth/invite?token=` | unauthenticated by necessity (the invitee has no account). Returns only the offered name, address and role — never the token or the inviter |
+| POST `/api/auth/accept-invite` | the **only** route that can create a non-CUSTOMER account. Role and email come from the invite row, never the body; the invite is claimed by a conditional update inside the account-creating transaction |
 | GET `/api/create-admin`, `/api/seed-*` | **dev-only (404 in production builds)**. All seeds now schema-valid |
 
 Deleted: `/api/users` GET/POST (were unauthenticated user list/create — superseded by `/api/admin/users`).
@@ -152,6 +172,13 @@ All customer pages: `definePageMeta({ layout: 'sidenav', middleware: 'auth' })`.
   `/dashboards/support` (real page, not the design's stub).
 - **Old-style pages awaiting redesign**: settings.vue, auth pages — still hardcoded
   hex/USD/native alerts; rebuild only on design arrival.
+- **Admin — Team & platform (V2 Phase 9)**: `/admin/team` (staff, invites and the
+  role matrix), `/admin/settings` rebuilt as the design's four platform panels
+  with the rest of the catalogue below it, `/admin/audit` (the log, lifted out of
+  Tools, with kind filters and CSV export). The sidebar is grouped Work · People ·
+  Money · Service · System and renders a padlock — not a link that 403s — for a
+  destination the signed-in `staffRole` cannot open. `/auth/accept-invite`
+  completes the invite loop on the Phase 8 auth shell. See ADR-016.
 - **Admin panel** (`/admin/**`): `layout: 'admin'` + `middleware: 'admin'` (role gate;
   non-admins → customer dashboard), swr:false, shared `Admin*` components. Seven
   modules — overview, users (+detail), projects (+detail w/ milestone CRUD), payments

@@ -1,4 +1,5 @@
 import { defineEventHandler } from 'h3'
+import { DEFAULT_REPLY_TARGETS, formatReplyEta, replyTargetKey } from '../../shared/support-eta'
 import { requireAuth } from '../utils/auth'
 import { DEFAULT_BANK_DETAILS, DEFAULT_CATALOG, DEFAULT_FAQ, DEFAULT_FROM_PRICES } from '../utils/catalog'
 import { getSettings } from '../utils/settings'
@@ -22,7 +23,7 @@ export default defineEventHandler(async (event) => {
     'finance.withdrawal-min': 25,
     'finance.withdrawal-max': 10_000,
     'finance.bank-details': DEFAULT_BANK_DETAILS,
-    'support.reply-eta': '~15 min',
+    [replyTargetKey('normal')]: DEFAULT_REPLY_TARGETS.normal,
     'support.hours': 'Mon–Fri · 9am–6pm GMT',
     'support.faq': DEFAULT_FAQ,
     'catalog.services': DEFAULT_CATALOG,
@@ -42,7 +43,9 @@ export default defineEventHandler(async (event) => {
     },
     bank: s['finance.bank-details'],
     support: {
-      replyEta: s['support.reply-eta'],
+      // Derived from the one stored number rather than a second string
+      // setting, so the admin preview and this cannot disagree (badge 27).
+      replyEta: formatReplyEta(Number(s[replyTargetKey('normal')]) || DEFAULT_REPLY_TARGETS.normal),
       hours: s['support.hours'],
       faq: s['support.faq'],
     },

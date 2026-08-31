@@ -85,11 +85,23 @@ export async function requireRole(event: H3Event, ...roles: Role[]): Promise<Aut
   const session = requireAuth(event)
   const user = await prisma.user.findUnique({
     where: { id: session.id },
-    select: { role: true },
+    select: { role: true, status: true },
   })
   if (!user) {
     // Token is valid but the account no longer exists.
     throw createError({ statusCode: 401, statusMessage: 'Unauthorized', message: 'Authentication required' })
+  }
+  /*
+   * Suspension has to end a live session, not just block the next sign-in
+   * (Phase 9 Admin). Login already refuses a suspended account, but tokens
+   * last seven days and nothing here re-checked, so withdrawing a
+   * colleague's access left them working in the panel until their cookie
+   * happened to expire — which is not what "Suspend" says it does. Read
+   * fresh from the database for the same reason the role is: the JWT
+   * states what was true when it was issued.
+   */
+  if (user.status === 'SUSPENDED') {
+    throw createError({ statusCode: 403, statusMessage: 'Forbidden', message: 'This account has been suspended.' })
   }
   if (!roles.includes(user.role)) {
     throw createError({ statusCode: 403, statusMessage: 'Forbidden', message: 'Insufficient permissions' })

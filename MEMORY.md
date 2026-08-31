@@ -2,7 +2,7 @@
 
 > Handoff doc for continuing work in fresh sessions. Update the relevant section
 > whenever a page ships, a decision lands, or a blocker appears.
-> Last updated: **2026-08-31** (V2 Phase 7 Mobile — Settings at 393px, shipped).
+> Last updated: **2026-08-31** (V2 Phase 9 Admin — Team & platform, shipped).
 
 ## Where things stand
 
@@ -68,6 +68,7 @@ Read it with the `DesignSync` tool (`method: get_file`).
 | 5M | Wallet & credit at 393px (`PHASE-5-MOBILE.md`) | ✅ Done |
 | 6M | Support at 393px (`PHASE-6-MOBILE.md`) | ✅ Done |
 | 7M | Settings at 393px (`PHASE-7-MOBILE.md`) | ✅ Done |
+| 9A | Admin — Team & platform (`PHASE-9-ADMIN.md`) | ✅ Done |
 
 **Phase 1 shipped:** Apex brand mark (+ favicon/title), 44px nav rows with a
 violet `color-mix` active tint, hairline sub-nav, one account dropdown with
@@ -895,6 +896,89 @@ ink instead (invisible in dark mode because it *is* the page colour), the same
 fix the New Order wizard needed. After it: 9 low-contrast elements of 22, all
 `text-muted-500`, at 2.33 against HEAD's 1.98 for the same elements.
 
+**Phase 9 Admin shipped (Team & platform).** The first of the four admin
+mockups. Three screens — `/admin/team` (new), `/admin/settings` (rebuilt),
+`/admin/audit` (lifted out of Tools) — plus a shell regrouping and a real
+six-role permission model. **This phase adds schema and server code**, all
+additive; see ADR-016.
+
+- **One matrix, both halves of the app.** `shared/permissions.ts` holds six
+  staff roles × eleven permissions. `requireStaffPermission()` throws the 403
+  from it and `/admin/team` renders the table from it, so documentation and
+  enforcement are literally the same array (badge 26). All 38 pre-existing
+  `/api/admin/**` routes moved off `requireAdmin` onto it — behaviour-identical,
+  because every existing admin backfills to `owner` and the fallback is `owner`
+  too. Verified after: 11 admin pages + 15 admin APIs still 200 for an owner,
+  six customer pages untouched.
+- **Additive schema:** `User.staffRole`, `User.staffJoinedAt`, `StaffInvite`,
+  and `AuditLog.roleAtTime` / `.reason`. No column changed type, nothing dropped.
+  **`prisma db push` + a backfill (`role: ADMIN` → `staffRole: 'owner'`) is
+  required on deploy**, or every admin silently falls back to owner — which is
+  safe, but not what the panel will say.
+- **Suspension now ends a live session.** `requireRole` checked the role fresh
+  but never the status, and sessions are 7-day JWTs, so "Suspend" blocked the
+  next sign-in while the person kept working. Verified with two cookie jars:
+  200 → 403 on the same cookie, 403 → 200 on restore.
+- **The invite loop is closed.** `/auth/accept-invite` ships on the Phase 8 auth
+  shell. Role and email come from the invite row, never the body; the token is
+  claimed by a conditional update inside the account-creating transaction
+  (replay verified → 400). Nothing is emailed — no mail provider — so the panel
+  hands over the link and says so.
+- **Badge 27 verified end to end:** setting the Normal reply target to 25 in the
+  admin made `/api/config` serve "~25 min" to the customer Support page, through
+  the one `shared/support-eta.ts` formatter both call.
+- **Audit log:** absolute timestamps with timezone, actor + role-held-at-the-time
+  (pre-Phase-9 rows show "—" rather than a back-filled lie), typed reason, kind
+  chips, CSV export of the whole filtered set (47 rows, UTF-8 BOM verified in the
+  bytes). No edit or delete affordance, and no endpoint behind one.
+
+### Phase 9 Admin gotcha — `BaseSelect` does not forward `id`
+
+`<BaseSelect :id="x">` puts nothing on the trigger, so a sibling
+`<label for="x">` points at an element that does not exist. Six shipped that way
+before the sweep caught them; a dangling label is worse than none (same family as
+Phase 1 Mobile's dangling `aria-describedby`). Name the select with `aria-label`
+and make the visible text a `<span>`. Separately: reka renders a 1px
+`aria-hidden` `tabindex="-1"` native `<select>` for form compatibility when the
+component is inside a `<form>` — do not count that as a native select.
+
+### Phase 9 Admin gotcha — a prefix filter needs exclusions AND a catch-all
+
+Classifying audit rows by action prefix broke twice. `admin.team.` is Team but
+`admin.team.suspend` is Access, so every more-specific prefix owned by another
+bucket has to be excluded or a row shows under two filters. And the display's
+"unknown action → Config" fallback has to be mirrored in the query, or a row
+renders a Config chip while being invisible under every filter — visible in
+"All", unfindable by clicking the kind it claims to be. Four rows were in that
+state until measured. Fix: one `kindFilter()` the query and the chip share, then
+assert the buckets *partition* the log (45 rows, 5 filters, 0 double-counted).
+
+### Phase 9 Admin — deliberate deviations
+
+No 3/6/36-month instalment terms (ADR-011 prices only 12 and 24); no
+"hold deliverables until fully paid" switch (no deliverables feature — it would
+be Phase 7's `twoFactor`); "Last active" is **Last action**, derived from the
+audit trail, because nothing records a sign-in; the audit log's **Files** filter
+is **Work**, because deliverable release writes no entry and a filter that always
+returns zero is a dead control; sign-in limits state the code's real numbers
+(5/minute, 15-minute block) not the mockup's; and Settings keeps every control
+the old page had, with the non-client-facing ones below the four design panels.
+
+### Phase 9 Admin — light theme
+
+These four screens were written with light/dark pairs from the start. Measured at
+1440px in light mode: **1** low-contrast element on each of team (258 checked),
+settings (228), audit (311) and tools (82) — the same one every time, the shared
+toolbar's decorative `/` separator, which measures identically on the untouched
+`/admin/users`. They add nothing to the Phase 9 light backlog.
+
+### Phase 9 Admin — dev test data
+
+`admin@apex.com` is `owner`. Five more staff seeded locally at
+`{priya,sara,tom,hannah,alex}@apexdigi.co.uk` / `staff12345`, one per role, plus
+`leah@apexdigi.co.uk` created by actually accepting an invite. Local only —
+`prisma/dev.db` is never committed.
+
 ## Remaining queue (older, pre-V2)
 
 1. Not yet designed at all: service *compare* view, invoices
@@ -915,6 +999,16 @@ fix the New Order wizard needed. After it: 9 low-contrast elements of 22, all
 
 ## Known issues (open, non-blocking)
 
+- **ESLint crashes on some files**: `eslint-plugin-unicorn@60` + `eslint@9.24`
+  → `TypeError: context.sourceCode.isGlobalReference is not a function` from
+  `unicorn/error-message`, on any file with a bare `throw new Error()`
+  (`server/utils/crypto.ts`, `app/components/AddonInputPhone.vue`, …). It aborts
+  the whole run, so `pnpm lint` over a broad path fails. Pre-existing and
+  unrelated to page work — lint an explicit file list instead. Fixing it means
+  bumping eslint or pinning the plugin.
+- `pnpm test:tsc-demo` now runs (it used to die on an npx/vue-tsc env issue) and
+  reports **87 pre-existing errors**, 36 of them in `layers/tairo`. Check a
+  change against that baseline rather than expecting zero.
 - Preview **screenshots time out** on this machine — verify via `preview_eval` DOM
   checks + computed styles; curl + cookie jar for SSR auth paths.
 - **`claude-in-chrome` `resize_window` doesn't actually resize the viewport here** —

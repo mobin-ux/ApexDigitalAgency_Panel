@@ -1,7 +1,7 @@
 import { createError, defineEventHandler, getRouterParam } from 'h3'
 import { z } from 'zod'
 import { recordAudit } from '../../../../utils/audit'
-import { requireAdmin } from '../../../../utils/auth'
+import { requireStaffPermission } from '../../../../utils/permissions'
 import prisma from '../../../../utils/prisma'
 import { validateBody } from '../../../../utils/validate'
 
@@ -32,7 +32,7 @@ const bodySchema = z.union([
 ])
 
 export default defineEventHandler(async (event) => {
-  const admin = await requireAdmin(event)
+  const admin = await requireStaffPermission(event, 'clients.approve')
 
   const userId = getRouterParam(event, 'id')
   if (!userId) {

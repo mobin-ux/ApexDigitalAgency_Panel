@@ -1,7 +1,7 @@
 import { defineEventHandler } from 'h3'
 import { z } from 'zod'
-import { requireAdmin } from '../../../utils/auth'
 import { paginated, paginationQuerySchema, toSkipTake } from '../../../utils/http'
+import { requireStaffPermission } from '../../../utils/permissions'
 import prisma from '../../../utils/prisma'
 import { validateQuery } from '../../../utils/validate'
 
@@ -18,7 +18,7 @@ const querySchema = paginationQuerySchema.extend({
 })
 
 export default defineEventHandler(async (event) => {
-  await requireAdmin(event)
+  await requireStaffPermission(event, 'money.view')
   const { page, pageSize, search, status, userId } = validateQuery(event, querySchema)
 
   const where = {

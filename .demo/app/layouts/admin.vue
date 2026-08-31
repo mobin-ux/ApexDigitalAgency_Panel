@@ -1,58 +1,88 @@
 <script setup lang="ts">
+import type { Permission } from '~~/shared/permissions'
 import type { ApexNavItem } from '~/components/ApexSidebarNav.vue'
 
 /**
  * Admin panel navigation. Same shell as the customer `sidenav` layout
  * (one product, one design language) with the management modules and a
  * violet ADMIN marker so it's always obvious which side you're on.
+ *
+ * Phase 9 groups the modules the way the design does — Work · People ·
+ * Money · Service · System — and gates each row on the permission its
+ * screens require. A row the signed-in role cannot open renders as a
+ * padlock rather than a link that 403s: the point of the matrix is that
+ * the panel tells you what your role covers before you click, not after.
  */
-const menu: ApexNavItem[] = [
+const { can, roleDef } = useStaffAccess()
+
+interface AdminNavDef extends Omit<ApexNavItem, 'locked' | 'lockedReason'> {
+  /** Permission this destination needs; omitted rows are open to all staff. */
+  needs?: Permission
+}
+
+const groups: { heading: string, items: AdminNavDef[] }[] = [
   {
-    label: 'Overview',
-    icon: 'solar:widget-2-linear',
-    to: '/admin',
+    heading: 'Work',
+    items: [
+      { label: 'Overview', icon: 'solar:widget-2-linear', to: '/admin', needs: 'work.view' },
+      { label: 'Projects', icon: 'solar:suitcase-linear', to: '/admin/projects', needs: 'work.view' },
+    ],
   },
   {
-    label: 'Users',
-    icon: 'solar:users-group-rounded-linear',
-    to: '/admin/users',
+    heading: 'People',
+    items: [
+      { label: 'Clients', icon: 'solar:users-group-rounded-linear', to: '/admin/users', needs: 'work.view' },
+      { label: 'Team & access', icon: 'solar:shield-user-linear', to: '/admin/team', needs: 'team.manage' },
+    ],
   },
   {
-    label: 'Projects',
-    icon: 'solar:suitcase-linear',
-    to: '/admin/projects',
+    heading: 'Money',
+    items: [
+      { label: 'Payments', icon: 'solar:wallet-2-linear', to: '/admin/payments', needs: 'money.view' },
+      { label: 'Contracts', icon: 'solar:document-text-linear', to: '/admin/contracts', needs: 'money.view' },
+    ],
   },
   {
-    label: 'Services',
-    icon: 'solar:box-linear',
-    to: '/admin/services',
+    heading: 'Service',
+    items: [
+      { label: 'Support', icon: 'solar:headphones-round-linear', to: '/admin/tickets', needs: 'support.answer' },
+      { label: 'Catalogue', icon: 'solar:box-linear', to: '/admin/services', needs: 'work.view' },
+    ],
   },
   {
-    label: 'Contracts',
-    icon: 'solar:document-text-linear',
-    to: '/admin/contracts',
-  },
-  {
-    label: 'Payments',
-    icon: 'solar:wallet-2-linear',
-    to: '/admin/payments',
-  },
-  {
-    label: 'Tickets',
-    icon: 'solar:headphones-round-linear',
-    to: '/admin/tickets',
-  },
-  {
-    label: 'Tools',
-    icon: 'solar:tuning-2-linear',
-    to: '/admin/tools',
-  },
-  {
-    label: 'Settings',
-    icon: 'solar:settings-linear',
-    to: '/admin/settings',
+    heading: 'System',
+    items: [
+      { label: 'Platform settings', icon: 'solar:settings-linear', to: '/admin/settings', needs: 'platform.settings' },
+      { label: 'Audit log', icon: 'solar:clock-circle-linear', to: '/admin/audit', needs: 'team.manage' },
+      { label: 'Tools', icon: 'solar:tuning-2-linear', to: '/admin/tools', needs: 'catalogue.edit' },
+    ],
   },
 ]
+
+/**
+ * Flattened for `ApexSidebarNav`: the heading rides on each group's first
+ * row, which keeps the component's longest-prefix active match working
+ * over one list of targets.
+ */
+const menu = computed<ApexNavItem[]>(() =>
+  groups.flatMap(group =>
+    group.items.map((item, index) => {
+      const locked = Boolean(item.needs) && !can(item.needs!)
+      return {
+        label: item.label,
+        icon: item.icon,
+        to: item.to,
+        ...(index === 0 ? { heading: group.heading } : {}),
+        ...(locked
+          ? {
+              locked: true,
+              lockedReason: `not available to ${roleDef.value?.label ?? 'your role'}`,
+            }
+          : {}),
+      }
+    }),
+  ),
+)
 </script>
 
 <template>

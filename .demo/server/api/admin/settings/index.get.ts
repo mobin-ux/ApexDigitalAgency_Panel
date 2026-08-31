@@ -1,5 +1,5 @@
 import { defineEventHandler } from 'h3'
-import { requireAdmin } from '../../../utils/auth'
+import { requireStaffPermission } from '../../../utils/permissions'
 import prisma from '../../../utils/prisma'
 
 /**
@@ -8,7 +8,7 @@ import prisma from '../../../utils/prisma'
  */
 
 export default defineEventHandler(async (event) => {
-  await requireAdmin(event)
+  await requireStaffPermission(event, 'platform.settings')
 
   const rows = await prisma.setting.findMany({ orderBy: [{ group: 'asc' }, { key: 'asc' }] })
 

@@ -1,11 +1,11 @@
+import type { ProviderName } from '../../../payments/types'
 import { defineEventHandler } from 'h3'
-import { availableProviders, getProviderByName } from '../../../payments/registry'
 import { trialBalance } from '../../../payments/ledger'
-import { requireAdmin } from '../../../utils/auth'
+import { availableProviders, getProviderByName } from '../../../payments/registry'
 import { createLogger } from '../../../utils/logger'
 import { toMajor } from '../../../utils/money'
+import { requireStaffPermission } from '../../../utils/permissions'
 import prisma from '../../../utils/prisma'
-import type { ProviderName } from '../../../payments/types'
 
 /**
  * GET /api/admin/payments/health — operational status of the payment rails.
@@ -21,7 +21,7 @@ import type { ProviderName } from '../../../payments/types'
 const log = createLogger('payments:health')
 
 export default defineEventHandler(async (event) => {
-  await requireAdmin(event)
+  await requireStaffPermission(event, 'money.view')
 
   const providers = availableProviders()
   const since = new Date(Date.now() - 24 * 60 * 60 * 1000)

@@ -1,5 +1,5 @@
 import { createError, defineEventHandler, getRouterParam } from 'h3'
-import { requireAdmin } from '../../../utils/auth'
+import { requireStaffPermission } from '../../../utils/permissions'
 import prisma from '../../../utils/prisma'
 
 /**
@@ -9,7 +9,7 @@ import prisma from '../../../utils/prisma'
  */
 
 export default defineEventHandler(async (event) => {
-  await requireAdmin(event)
+  await requireStaffPermission(event, 'work.view')
 
   const id = getRouterParam(event, 'id')
   if (!id) {

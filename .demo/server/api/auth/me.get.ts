@@ -21,6 +21,10 @@ export default defineEventHandler(async (event) => {
       firstName: true,
       lastName: true,
       role: true,
+      // Which of the six staff roles this account holds inside the admin
+      // panel (Phase 9 Admin). Null for customers. The client uses it only
+      // to decide what to render; every endpoint re-checks it server-side.
+      staffRole: true,
       avatar: true,
       adCredits: true,
     },

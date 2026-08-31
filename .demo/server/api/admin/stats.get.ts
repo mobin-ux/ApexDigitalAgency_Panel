@@ -1,5 +1,5 @@
 import { defineEventHandler } from 'h3'
-import { requireAdmin } from '../../utils/auth'
+import { requireStaffPermission } from '../../utils/permissions'
 import prisma from '../../utils/prisma'
 
 /**
@@ -11,7 +11,7 @@ import prisma from '../../utils/prisma'
  */
 
 export default defineEventHandler(async (event) => {
-  await requireAdmin(event)
+  await requireStaffPermission(event, 'work.view')
 
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
 

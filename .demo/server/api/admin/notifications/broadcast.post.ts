@@ -1,7 +1,7 @@
 import { createError, defineEventHandler } from 'h3'
 import { z } from 'zod'
 import { recordAudit } from '../../../utils/audit'
-import { requireAdmin } from '../../../utils/auth'
+import { requireStaffPermission } from '../../../utils/permissions'
 import prisma from '../../../utils/prisma'
 import { validateBody } from '../../../utils/validate'
 
@@ -22,7 +22,7 @@ const bodySchema = z.object({
 })
 
 export default defineEventHandler(async (event) => {
-  const admin = await requireAdmin(event)
+  const admin = await requireStaffPermission(event, 'catalogue.edit')
   const { title, message, type, link, userId } = await validateBody(event, bodySchema)
 
   let recipients: string[]

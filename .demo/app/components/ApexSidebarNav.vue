@@ -24,6 +24,22 @@ export interface ApexNavItem {
   icon?: string
   to?: string
   children?: ApexNavChild[]
+  /**
+   * Section label rendered above this row, which starts a new group
+   * (Phase 9 Admin: Work · People · Money · Service · System). Carried by
+   * the group's first row rather than by a wrapper object so the
+   * longest-prefix match below still sees one flat list of targets.
+   */
+  heading?: string
+  /**
+   * Rendered as a padlocked, non-interactive row instead of a link, for a
+   * destination the signed-in staff member's role cannot open. A link
+   * that 403s teaches people the panel is broken; a padlock tells them
+   * the truth before they click (Phase 9 Admin §2).
+   */
+  locked?: boolean
+  /** Why it is locked — becomes the row's accessible description. */
+  lockedReason?: string
 }
 
 const { items } = defineProps<{
@@ -42,7 +58,7 @@ const route = useRoute()
  */
 const activePath = computed(() => {
   const targets = items.flatMap(item =>
-    item.children ? item.children.map(child => child.to) : (item.to ? [item.to] : []),
+    item.children ? item.children.map(child => child.to) : (item.to && !item.locked ? [item.to] : []),
   )
 
   let best = ''
@@ -81,9 +97,39 @@ const CHILD_ACTIVE
 <template>
   <nav aria-label="Primary" class="flex flex-col gap-[3px]">
     <template v-for="item in items" :key="item.label">
+      <!--
+        Group label. Sits inside the same flat list rather than wrapping its
+        rows, so adding groups cannot change which row the active-path match
+        picks. `gap` on the nav would double up here, hence the negative-free
+        spacing via margin on the label itself.
+      -->
+      <div
+        v-if="item.heading"
+        class="text-muted-500 dark:text-muted-500 px-[13px] pb-2 pt-4 text-[10px] font-extrabold uppercase tracking-[0.08em] first:pt-0"
+      >
+        {{ item.heading }}
+      </div>
+
+      <!--
+        Locked destination — a padlock, not a link. Rendered as a plain
+        element with no tabindex: there is nothing to activate, and putting
+        a focusable dead control in the tab order is the dead end Phases 5
+        and 7 each removed.
+      -->
+      <div
+        v-if="item.locked"
+        :title="item.lockedReason"
+        :aria-label="item.lockedReason ? `${item.label} — ${item.lockedReason}` : `${item.label} — not available to your role`"
+        class="text-muted-400 dark:text-muted-500 font-medium cursor-default" :class="[ROW_BASE]"
+      >
+        <Icon v-if="item.icon" :name="item.icon" class="text-muted-300 dark:text-muted-600 size-5 shrink-0" />
+        <span class="grow truncate">{{ item.label }}</span>
+        <Icon name="lucide:lock" aria-hidden="true" class="text-muted-400 dark:text-muted-600 size-4 shrink-0" />
+      </div>
+
       <!-- Leaf route -->
       <NuxtLink
-        v-if="!item.children"
+        v-else-if="!item.children"
         :to="item.to"
         :aria-current="isActive(item.to) ? 'page' : undefined"
         :class="[ROW_BASE, isActive(item.to) ? ROW_ACTIVE : ROW_IDLE]"

@@ -1,13 +1,13 @@
 import { createError, defineEventHandler, getRouterParam } from 'h3'
 import { z } from 'zod'
 import { recordAudit } from '../../../utils/audit'
-import { requireAdmin } from '../../../utils/auth'
+import { requireStaffPermission } from '../../../utils/permissions'
 import prisma from '../../../utils/prisma'
 import { validateBody } from '../../../utils/validate'
 
 /**
  * PATCH /api/admin/users/:id — constrained admin update of a customer.
- * Exemplar for every future admin mutation: requireAdmin → whitelist-
+ * Exemplar for every future admin mutation: requireStaffPermission → whitelist-
  * validated body → update → audit row with before/after snapshots.
  *
  * Deliberately NOT updatable here: password (needs a dedicated reset
@@ -46,7 +46,7 @@ const auditedFields = {
 } as const
 
 export default defineEventHandler(async (event) => {
-  const admin = await requireAdmin(event)
+  const admin = await requireStaffPermission(event, 'clients.approve')
 
   const id = getRouterParam(event, 'id')
   if (!id) {

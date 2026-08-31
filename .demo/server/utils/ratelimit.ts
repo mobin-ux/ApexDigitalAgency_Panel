@@ -139,6 +139,15 @@ export const RateLimits = {
   login: { bucket: 'auth:login', limit: 5, windowMs: 60_000, blockMs: 15 * 60_000 },
   signup: { bucket: 'auth:signup', limit: 3, windowMs: 60 * 60_000, blockMs: 60 * 60_000 },
   passwordReset: { bucket: 'auth:reset', limit: 3, windowMs: 15 * 60_000, blockMs: 30 * 60_000 },
+  /*
+   * Staff invitations (Phase 9 Admin). Deliberately looser than the reset
+   * bucket they used to share: `auth:invite:read` runs on every load of
+   * the acceptance page, so a reset-sized limit of 3 locked a new hire out
+   * for half an hour just for refreshing. Both still throttle guessing at
+   * a 32-byte token, which is not realistically guessable anyway.
+   */
+  inviteRead: { bucket: 'auth:invite:read', limit: 20, windowMs: 15 * 60_000 },
+  inviteAccept: { bucket: 'auth:invite:accept', limit: 5, windowMs: 15 * 60_000, blockMs: 15 * 60_000 },
   /** Anything that moves money or calls a paid provider API. */
   payment: { bucket: 'payment', limit: 10, windowMs: 60_000 },
   /** Writes in general — generous, catches runaway clients not attackers. */

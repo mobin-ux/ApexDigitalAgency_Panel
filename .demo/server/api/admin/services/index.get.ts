@@ -1,6 +1,6 @@
 import { defineEventHandler } from 'h3'
-import { requireAdmin } from '../../../utils/auth'
 import { DEFAULT_CATALOG, DEFAULT_FROM_PRICES } from '../../../utils/catalog'
+import { requireStaffPermission } from '../../../utils/permissions'
 import { getSettings } from '../../../utils/settings'
 
 /**
@@ -10,7 +10,7 @@ import { getSettings } from '../../../utils/settings'
  * customers, merged over the canonical defaults so the editor is always full.
  */
 export default defineEventHandler(async (event) => {
-  await requireAdmin(event)
+  await requireStaffPermission(event, 'work.view')
 
   const s = await getSettings({
     'catalog.services': DEFAULT_CATALOG,
