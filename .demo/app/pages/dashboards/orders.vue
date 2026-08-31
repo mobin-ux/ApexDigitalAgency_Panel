@@ -54,6 +54,8 @@ interface UiProject {
   createdAt: number
   stages: Stage[]
   files: { id: string, name: string, size: string, type: string, url: string }[]
+  /** True when the team is holding the files until the balance is settled. */
+  filesHeld: boolean
 }
 
 const PM_GRADS = [
@@ -179,6 +181,8 @@ const projects = computed<UiProject[]>(() => {
       createdAt: new Date(o.createdAt).getTime(),
       stages,
       files: (o.files ?? []).map((f: any) => ({ id: f.id, name: f.name, size: f.size, type: f.type, url: f.url })),
+      // Server-side gate (see /api/orders): held files arrive with no URL.
+      filesHeld: Boolean(o.deliverables?.held),
     }
   })
 })
@@ -1035,15 +1039,44 @@ async function payNow() {
               container is a flex column, so the desktop columns can stay
               declared where they were.
             -->
+            <!--
+              While the files are held the row is a plain element, not a link
+              with its href stripped: an anchor that goes nowhere reads as a
+              download that failed. The name and size still show, because
+              what is waiting is exactly what the customer needs to know.
+            -->
+            <div v-if="detail.filesHeld" class="mb-3 flex items-start gap-3 rounded-xl border border-[#D9A521]/30 bg-[#D9A521]/8 px-4 py-3.5">
+              <Icon name="lucide:lock" aria-hidden="true" class="mt-px size-[18px] shrink-0 text-[#F2C14E]" />
+              <p class="text-[13px] leading-[1.6] text-muted-300">
+                These files are ready and will be released once your balance is settled. Paying the
+                remaining instalments unlocks them — or
+                <NuxtLink to="/dashboards/support" class="font-semibold text-primary-400 hover:text-white">
+                  ask your team
+                </NuxtLink>
+                if you need them sooner.
+              </p>
+            </div>
             <div v-if="detail.files.length" class="flex grid-cols-1 flex-col gap-0 divide-y divide-white/10 overflow-hidden rounded-2xl border border-white/10 bg-muted-800 sm:grid-cols-2 lg:grid lg:gap-3 lg:divide-y-0 lg:rounded-none lg:border-0 lg:bg-transparent">
-              <a v-for="f in detail.files" :key="f.id" :href="f.url || '#'" class="flex min-h-16 items-center gap-3 px-4 py-3 transition lg:min-h-0 lg:rounded-xl lg:border lg:border-white/10 lg:bg-white/5 lg:px-3.5 lg:hover:border-white/15">
+              <component
+                :is="detail.filesHeld ? 'div' : 'a'" v-for="f in detail.files" :key="f.id"
+                :href="detail.filesHeld ? undefined : (f.url || undefined)"
+                class="flex min-h-16 items-center gap-3 px-4 py-3 transition lg:min-h-0 lg:rounded-xl lg:border lg:border-white/10 lg:bg-white/5 lg:px-3.5"
+                :class="detail.filesHeld ? 'opacity-70' : 'lg:hover:border-white/15'"
+              >
                 <span class="flex size-10 shrink-0 items-center justify-center rounded-[11px] border border-white/10 bg-white/5 text-muted-500 lg:size-[38px] lg:rounded-xl lg:border-0 lg:bg-primary-500/14 lg:text-primary-400"><Icon :name="f.type === 'zip' ? 'lucide:folder-archive' : 'lucide:file-text'" class="size-[18px]" /></span>
                 <div class="min-w-0 flex-1">
-                  <div class="truncate text-[14px] font-semibold text-white lg:text-[13.5px]">{{ f.name }}</div>
-                  <div class="mt-0.5 text-[12px] text-muted-500 lg:mt-0 lg:text-[11.5px]">{{ f.size }}</div>
+                  <div class="truncate text-[14px] font-semibold text-white lg:text-[13.5px]">
+                    {{ f.name }}
+                  </div>
+                  <div class="mt-0.5 text-[12px] text-muted-500 lg:mt-0 lg:text-[11.5px]">
+                    {{ f.size }}
+                  </div>
                 </div>
-                <Icon name="lucide:download" aria-hidden="true" class="size-[18px] shrink-0 text-muted-500 lg:size-4" />
-              </a>
+                <Icon
+                  :name="detail.filesHeld ? 'lucide:lock' : 'lucide:download'" aria-hidden="true"
+                  class="size-[18px] shrink-0 lg:size-4" :class="detail.filesHeld ? 'text-[#F2C14E]' : 'text-muted-500'"
+                />
+              </component>
             </div>
             <div v-else class="rounded-xl border border-dashed border-white/10 p-6 text-center text-[13.5px] text-muted-500">
               No files shared yet. Deliverables will appear here as your team uploads them.

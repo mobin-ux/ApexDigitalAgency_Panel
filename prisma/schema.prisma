@@ -219,6 +219,16 @@ model Project {
 
   // Tickets the customer explicitly linked to this project.
   relatedTickets Ticket[] @relation("TicketProject")
+
+  // Deliverable release history (Phase 9 Admin — Overview & Work). The
+  // *current* state is the newest row with no `withdrawnAt`; older rows
+  // are kept so the trail can answer "who handed these over, and when".
+  deliverableReleases DeliverableRelease[]
+
+  // Staff-only notes. Deliberately a separate model from TicketMessage:
+  // client-visible text and internal text are kept apart at the storage
+  // level, so a note has no path into a customer thread (badge 8).
+  notes ProjectNote[]
 }
 
 model Milestone {
@@ -749,6 +759,58 @@ model LedgerEntry {
  * role that was actually offered. Access begins only when `acceptedAt` is
  * stamped and a User row exists.
  */
+// Hand-over of a project's files to the client (Phase 9 Admin, badges 6-7).
+//
+// Files are withheld while the platform's `deliverables.hold-until-paid`
+// rule applies and a balance is outstanding; a release lifts that for one
+// project. Append-only in spirit: withdrawing access stamps `withdrawnAt`
+// on the active row rather than deleting it, and a later re-release writes
+// a new row, so the sequence of decisions survives.
+//
+// The actor's email and staff role are denormalised for the same reason
+// AuditLog denormalises them: the log has to stay readable after the
+// account is deleted or the role changes.
+model DeliverableRelease {
+  id                   String  @id @default(uuid())
+  fileCount            Int     @default(0)
+  // The balance still owed when the release was made, snapshotted. Zero
+  // means it was a routine hand-over; anything above it was an early
+  // release, which is why `reason` is required in that case.
+  outstandingAtRelease Float   @default(0)
+  reason               String?
+
+  actorId    String
+  actorEmail String?
+  actorRole  String?
+  releasedAt DateTime @default(now())
+
+  withdrawnAt      DateTime?
+  withdrawnById    String?
+  withdrawnByEmail String?
+  withdrawnByRole  String?
+  withdrawnReason  String?
+
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, releasedAt])
+}
+
+// A staff-only note on a project. Never returned by any customer endpoint.
+model ProjectNote {
+  id          String   @id @default(uuid())
+  body        String
+  authorId    String
+  authorEmail String?
+  authorRole  String?
+  createdAt   DateTime @default(now())
+
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, createdAt])
+}
+
 model StaffInvite {
   id          String    @id @default(uuid())
   email       String

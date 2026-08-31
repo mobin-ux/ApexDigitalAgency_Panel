@@ -2,7 +2,7 @@
 
 > Handoff doc for continuing work in fresh sessions. Update the relevant section
 > whenever a page ships, a decision lands, or a blocker appears.
-> Last updated: **2026-08-31** (V2 Phase 9 Admin — Team & platform, shipped).
+> Last updated: **2026-09-01** (V2 Phase 9 Admin — Overview & work, shipped).
 
 ## Where things stand
 
@@ -69,6 +69,7 @@ Read it with the `DesignSync` tool (`method: get_file`).
 | 6M | Support at 393px (`PHASE-6-MOBILE.md`) | ✅ Done |
 | 7M | Settings at 393px (`PHASE-7-MOBILE.md`) | ✅ Done |
 | 9A | Admin — Team & platform (`PHASE-9-ADMIN.md`) | ✅ Done |
+| 9B | Admin — Overview & work (`PHASE-9-ADMIN.md`) | ✅ Done |
 
 **Phase 1 shipped:** Apex brand mark (+ favicon/title), 44px nav rows with a
 violet `color-mix` active tint, hairline sub-nav, one account dropdown with
@@ -978,6 +979,92 @@ toolbar's decorative `/` separator, which measures identically on the untouched
 `{priya,sara,tom,hannah,alex}@apexdigi.co.uk` / `staff12345`, one per role, plus
 `leah@apexdigi.co.uk` created by actually accepting an invite. Local only —
 `prisma/dev.db` is never committed.
+
+**Phase 9B shipped (Admin — Overview & work).** The second of the four
+admin mockups. Three screens — `/admin` (rebuilt as a work queue),
+`/admin/projects` (rebuilt as the design's Orders table) and
+`/admin/projects/[id]` (the management screen plus the release gate) —
+plus the feature the file is named for. **This phase adds schema and
+server code**, all additive; see ADR-017.
+
+- **Deliverables can now be withheld and released.** `DeliverableRelease`
+  + `deliverables.hold-until-paid` + one shared `utils/deliverables.ts`
+  that the admin panel *and* `/api/orders` both read. Verified end to end:
+  with holding on, the customer's own project page returns file names and
+  sizes with **blanked URLs** and renders them as plain rows rather than
+  dead links; releasing hands the URLs over; withdrawing takes them back.
+  Release requires a typed reason while a balance is outstanding (400
+  without one), is idempotent (409 on a double release/withdraw), and
+  writes an audit row carrying the reason and the role held at the time.
+- **The audit log's Files bucket is real now**, closing the deviation the
+  Team & Platform phase documented. Re-verified the partition after adding
+  a sixth bucket: 54 rows = 15 access + 5 team + 7 money + 2 files + 12
+  work + 13 config, **0** double-counted, **0** orphaned, and **0**
+  chip/filter mismatches across every row.
+- **Money is omitted, not blanked, for roles without `money.view`.**
+  Verified across five roles: PM / Support / Read-only get no `money`
+  object and a `null` contract value; Finance gets both; release is 403
+  for Finance, Support and Read-only, naming "Owner, Admin or Project
+  manager", and 200 for a PM.
+- **Bulk assign** from the Orders table PATCHes through the endpoint that
+  already audits the change — no second, unaudited path. The picker lists
+  exactly the staff whose role holds `work.assign` (verified: Owner,
+  Admin and both PMs; no Support, Finance or Read-only).
+- **Stage is the milestone timeline**, and advancing it recomputes
+  `progress` in the same transaction. Verified in the browser: 65% → 60%
+  (3 of 5) with the button moving to the next stage and the audit entry
+  appearing at the top of Activity.
+
+**Two real bugs found and fixed while building, both pre-existing:**
+
+### Phase 9B gotcha — SQLite sorts NULL first, so milestones rendered backwards
+
+`orderBy: { date: 'asc' }` on milestones: only *completed* ones carry a
+date, so the finished stages sorted to the **end**. The timeline read
+"Frontend Development, Backend Integration, Testing & QA, Project
+Scoping, Wireframing & UI" — on the **customer's** My Orders page as well
+as the admin panel — and it silently corrupted the progress figure my new
+`advance` endpoint derives from the order. `{ sort: 'asc', nulls: 'last' }`
+is supported on SQLite; applied at all four sites. Verified both timelines
+now read in order.
+
+### Phase 9B gotcha — `<BaseSelectItem value="">` throws at hydration
+
+reka reserves the empty string for "no selection": *A `<SelectItem />`
+must have a value prop that is not an empty string.* The Orders service
+filter shipped with `value=""` for "All services". The SSR HTML rendered
+a perfectly good table and the page then **replaced itself with a 500
+screen on hydration** — a DOM probe immediately after navigation saw 12
+rows, and the same probe a moment later saw an error page. Use the
+`placeholder` prop; clearing then means setting the model back to `''`,
+so the filter got its own visible reset row. Phase 7 documented the
+blank-trigger half of this; this is the same trap throwing rather than
+rendering wrong.
+
+### Phase 9B note — no amber the design system defines is legible on white
+
+Measured: `#F2C14E` 1.68:1 on white, `--apex-warning` `#D9A521` 2.24,
+`#EC6453` 3.22, and amber on its own tint 1.99. The light spec's answer
+is a tinted chip rather than coloured text, in a shared `utils/status.ts`
+that does not exist yet — so bare accent *text* pairs to the ink token in
+light and keeps the accent in dark, and chips/icons are left alone rather
+than given a convention the rest of the panel does not share. Light theme
+measured at 1440px: Overview **1** of 100, detail **10** of 127, Orders
+**14** of 138, against untouched `/admin/users` at **52 of 113**.
+
+### Phase 9B — dev test data
+
+`deliverables.hold-until-paid` is **ON** in the local DB and project
+`5afb0805` (E-Commerce Redesign) was set to COMPLETED with four seeded
+`ProjectFile` rows and an outstanding plan, so the held/release flow is
+visible without setup. Turn the setting off in Platform settings to see
+the other states. Local only — `prisma/dev.db` is never committed.
+
+### Phase 9B — deploy note
+
+`prisma db push` is required (two new tables: `DeliverableRelease`,
+`ProjectNote`). No backfill needed — with the hold setting absent it
+defaults to **off**, which is exactly the behaviour production has today.
 
 ## Remaining queue (older, pre-V2)
 

@@ -102,6 +102,14 @@ function detailOf(entry: { action: string, metadata: string | null }) {
       return 'Withdrew an invitation'
     case 'auth.invite.accept':
       return 'Accepted a staff invitation'
+    case 'admin.project.deliverables.release':
+      return meta?.fileCount
+        ? `Released ${meta.fileCount} deliverable${meta.fileCount === 1 ? '' : 's'} to the client`
+        : 'Released deliverables to the client'
+    case 'admin.project.deliverables.withdraw':
+      return 'Withdrew client access to deliverables'
+    case 'admin.project.stage-advance':
+      return meta?.completed ? `Completed stage "${meta.completed}"` : 'Advanced the project stage'
     case 'admin.settings.update':
       return settingsDetail(meta)
     case 'auth.login.failed':
@@ -167,6 +175,7 @@ const KIND_TONE: Record<AuditKind, string> = {
   access: 'bg-[#D9A521]/16 text-[#F2C14E]',
   team: 'bg-[#6EA8FE]/14 text-[#6EA8FE]',
   money: 'bg-[#22B07D]/14 text-[#22B07D]',
+  files: 'bg-[#EC6453]/14 text-[#EC6453]',
   work: 'bg-primary-500/14 text-primary-400',
   config: 'bg-muted-200 text-muted-600 dark:bg-white/5 dark:text-muted-400',
 }

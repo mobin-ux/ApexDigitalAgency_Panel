@@ -64,6 +64,7 @@ const PANEL_DEFAULTS: SettingDef[] = [
     group: 'support',
   })),
   { key: 'credit.max-limit', label: 'Credit ceiling', type: 'number', default: 20_000, group: 'credit' },
+  { key: 'deliverables.hold-until-paid', label: 'Hold deliverables until paid', type: 'boolean', default: false, group: 'credit' },
   { key: 'finance.enable-24mo-plans', label: '24-month financing', type: 'boolean', default: true, group: 'finance' },
   { key: 'finance.first-installment-days', label: 'First instalment after', type: 'number', default: 30, group: 'finance' },
   { key: 'general.site-name', label: 'Trading name', type: 'text', default: 'Apex Digital Agency', group: 'general' },
@@ -420,24 +421,40 @@ const GHOST_BTN = 'apex-focus inline-flex min-h-11 cursor-pointer items-center r
             </div>
 
             <!--
-              The mockup's "Hold deliverables until fully paid" switch is
-              not rendered. There is no deliverables feature in this
-              codebase — no `DeliverableRelease` model and no handover
-              screen — so the toggle would store a boolean nothing reads,
-              which is exactly the `twoFactor` field Phase 7 deleted from
-              Settings. It arrives with the Overview & Work file.
+              This shipped as a "Not built" statement in the Team & Platform
+              phase, because a switch storing a boolean nothing reads is the
+              `twoFactor` field Phase 7 deleted. The Overview & Work phase
+              added `DeliverableRelease`, so it is a real rule now: it is
+              what `utils/deliverables.ts` reads, and turning it on withholds
+              download links on the customer's own project page.
+
+              It defaults to **off**. Enabling it retrospectively withholds
+              files customers can download today, and that is a commercial
+              decision for an owner to take deliberately rather than one a
+              deployment makes on their behalf.
             -->
             <div class="border-muted-200 flex items-center gap-3.5 border-t pt-3.5 dark:border-white/10">
               <span class="min-w-0 flex-1">
                 <span class="text-muted-900 block text-[13.5px] font-semibold dark:text-white">Hold deliverables until fully paid</span>
                 <span class="text-muted-500 mt-[3px] block text-xs leading-[1.45]">
-                  There is no deliverable handover in the panel yet, so there is nothing for this rule to govern. It arrives with project deliverables.
+                  Live: while a balance is outstanding the client sees the file names but cannot download them. Staff release them from the project, with a stated reason where the balance is unpaid.
                 </span>
               </span>
-              <span class="bg-muted-200 text-muted-600 dark:text-muted-400 shrink-0 rounded-full px-2.5 py-[5px] text-[10.5px] font-extrabold uppercase tracking-[0.04em] dark:bg-white/5">
-                Not built
-              </span>
+              <button
+                type="button"
+                role="switch"
+                :aria-checked="Boolean(values['deliverables.hold-until-paid'])"
+                aria-label="Hold deliverables until fully paid"
+                class="apex-focus relative h-6 w-11 shrink-0 cursor-pointer rounded-full transition"
+                :class="values['deliverables.hold-until-paid'] ? 'bg-[#22B07D]' : 'bg-muted-300 dark:bg-white/10'"
+                @click="values['deliverables.hold-until-paid'] = !values['deliverables.hold-until-paid']"
+              >
+                <span class="absolute top-0.5 size-5 rounded-full bg-white shadow transition-all" :class="values['deliverables.hold-until-paid'] ? 'left-[22px]' : 'left-0.5'" />
+              </button>
             </div>
+            <p v-if="values['deliverables.hold-until-paid']" class="text-muted-500 text-xs leading-[1.5]">
+              Applies to every project with an outstanding balance, including ones already delivered. Files already released stay released.
+            </p>
           </div>
         </section>
 

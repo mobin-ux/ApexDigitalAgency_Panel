@@ -23,7 +23,7 @@ export default defineEventHandler(async (event) => {
       },
       project: {
         include: {
-          milestones: { orderBy: { date: 'asc' } },
+          milestones: { orderBy: { date: { sort: 'asc', nulls: 'last' } } },
           files: true,
           manager: { select: { id: true, email: true, firstName: true, lastName: true } },
           installmentPlan: true,

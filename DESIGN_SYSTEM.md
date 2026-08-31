@@ -92,6 +92,7 @@ ships as a `.dc.html` mockup plus a `PHASE-N-*.md` implementation spec.
 | 6M | **Support at 393px** — one entry point, a thread is a screen, the composer takes the bottom edge | ✅ Done |
 | 7M | **Settings at 393px** — the sub-nav becomes a hub, save is pinned and scoped | ✅ Done |
 | 9A | **Admin — Team & platform** — six staff roles, one enforced matrix, invites, platform settings, audit log | ✅ Done |
+| 9B | **Admin — Overview & work** — a work queue, an orders table with counts, the deliverable release gate | ✅ Done |
 
 #### Phase 1 — the shell standard (applies to every page from here on)
 
@@ -1129,6 +1130,123 @@ in light mode: 1 low-contrast element of 258 (team), 228 (settings), 311 (audit)
 and 82 (tools) — the *same* element every time, the shared toolbar's decorative
 `/` breadcrumb separator, which measures identically on the untouched
 `/admin/users`. So they add nothing to the Phase 9 light backlog.
+
+#### Phase 9 (admin) — Overview & work
+
+`Admin - Overview & Work.dc.html` + `PHASE-9-ADMIN.md` (badges 1–8). Three
+screens — **Overview** (`/admin`, rebuilt as a work queue), **Orders**
+(`/admin/projects`, rebuilt as the design's table) and **project detail**
+(`/admin/projects/[id]`, the existing management screen plus the release
+gate) — and the feature the file is named for: releasing a project's
+deliverables to the client. **This phase adds schema and server code**,
+all additive; see ADR-017.
+
+- **Every tile is a count of records you can click through to** (badge 1).
+  The old header carried "Total revenue" with no period beside a customer
+  count — a figure nobody can act on. The four tiles are active projects,
+  finished work whose files are still withheld, open requests and overdue
+  instalments, and each links to the list it counts. Nothing renders a
+  growth rate, because no comparison period is stored.
+- **The home screen is a to-do list** (badge 2). One queue, oldest first,
+  each row naming the record, who owns it and how long it has waited. The
+  wait on a held-deliverables row is measured from the **newest file**,
+  not from `updatedAt` — that column moves whenever anyone edits the
+  project, so renaming it would reset the clock and drop the row out of an
+  oldest-first list.
+- **Permissions hide the panel and say why** (badge 3). The money card is
+  not greyed out for a Project manager: `/api/admin/stats` does not *send*
+  the figures to a role without `money.view`, and the card names the roles
+  that have them. Same for the Orders table's Value column, where the
+  contract value is dropped server-side rather than blanked in the
+  template — a gate the reader can see through is not a gate.
+- **62 rows want filters and a total, not a pager** (badge 4). Stage tabs
+  carry live counts of the whole directory (they ignore the selected
+  stage, or the counts would move when you press a tab), search covers
+  name, reference and client, and the footer states how many of how many.
+  The pager renders only if the directory outgrows a page.
+- **Enums are mapped, blanks are words** (badge 5). `IN_PROGRESS` reads
+  "In progress"; an unowned project reads "Unassigned", never an empty
+  cell, which is indistinguishable from a loading failure.
+- **The payment gate is stated, not silent** (badge 6). Four states, each
+  naming itself — held, released, nothing-to-release, and available-with-
+  the-reason-why. The release dialog restates exactly what has been paid,
+  an early release requires a typed reason (enforced in the endpoint, not
+  only the dialog), and the confirm button says why it is disabled rather
+  than sitting mute.
+- **Actions write audit entries** (badge 7). Release, withdrawal and
+  stage changes call `recordAudit`, and the project's Activity feed
+  renders those same rows merged with the instalment collections the
+  ledger already holds and the order's own creation — one trail read
+  twice, not a second feed written alongside it.
+- **Internal and client-visible text are separate** (badge 8).
+  `ProjectNote` is its own model, not a flag on `TicketMessage`, so no
+  code path can put a staff note in front of a customer.
+
+**Stage is the milestone timeline.** There is no stage enum in this
+codebase, and inventing the design's five would have been a vocabulary
+with nothing behind it. What exists is the project's milestones — already
+the timeline the customer sees on their own project page — so that is
+what the stepper renders and what "advance" moves. `progress` is
+recomputed from the timeline in the same transaction, because the two
+were independently editable and the bar could say 80% over a timeline
+showing two of six done.
+
+**Deliberate deviations.**
+
+- **The assign dialog is single-choice.** `Project.managerId` holds one
+  owner; the mockup's multi-select would need a join table with nothing
+  else in the app reading a second assignee. The list is exactly the staff
+  whose role holds `work.assign`, which is the row the assign endpoint is
+  gated on, so the picker cannot offer somebody the endpoint would refuse.
+- **Nothing is emailed on release.** No mail provider, so the copy says
+  the files become downloadable on the client's project page — the same
+  resolution ADR-016 reached for invites.
+- **Holding defaults to off.** Enabling it retrospectively withholds files
+  customers can download today; that is an owner's decision, not a
+  deployment's. The design's default amber panel is therefore not what a
+  fresh install shows, and the panel says which of the two reasons applies.
+
+**Phase 9B gotcha — `<BaseSelectItem value="">` is a runtime 500.**
+reka reserves the empty string for "no selection" and throws *A
+`<SelectItem />` must have a value prop that is not an empty string*. The
+Orders service filter shipped with `value=""` for "All services" and the
+page rendered fine in the SSR HTML, then **replaced itself with a 500
+error screen on hydration** — which is why a DOM probe run immediately
+after navigation saw a working table and the same probe a moment later
+saw nothing. Use the `placeholder` prop, and give the filter its own
+visible reset control, since clearing it now means setting the model back
+to `''`. Phase 7 documented the blank-trigger half of this; this is the
+same trap throwing rather than rendering wrong.
+
+**Phase 9B gotcha — SQLite sorts NULL first, so the milestone timeline
+rendered backwards.** `milestones: { orderBy: { date: 'asc' } }` looks
+obviously right and was wrong: only *completed* milestones carry a date,
+so the finished stages sorted to the **end** and the timeline read
+"Frontend Development, Backend Integration, Testing & QA, Project
+Scoping, Wireframing & UI". This was live on the **customer's** My Orders
+page as well as the admin panel, and it silently broke the progress
+figure derived from the order. `orderBy: { date: { sort: 'asc', nulls:
+'last' } }` is supported on SQLite and is now used at all four sites.
+
+**Phase 9B note — no amber the design system defines is legible on white.**
+Measured against `#ffffff`: `#F2C14E` is **1.68:1**, the DS's darker
+`--apex-warning` `#D9A521` is **2.24**, and `#EC6453` is **3.22** — all
+under the 4.5 AA floor, and amber on its own tint is 1.99. The light
+spec's answer is that a status on a light surface is a tinted chip rather
+than coloured text, and it puts that palette in a shared `utils/status.ts`
+that does not exist yet. Inventing one here would give three screens a
+convention the rest of the panel does not share. So bare accent **text**
+pairs to the ink token in light and keeps the accent in dark; the word
+itself still carries the meaning ("Unassigned", "Overdue") and the tinted
+icon beside it keeps the hue. Chips and icons are untouched — they match
+the rest of the panel and belong to that sweep.
+
+**Light theme, measured at 1440px.** Overview **1** low-contrast element
+of 100, project detail **10** of 127, Orders **14** of 138 — against the
+untouched `/admin/users` at **52 of 113**. Every remaining failure on the
+three screens is either the shared toolbar's decorative `/` separator, a
+status chip, or `AdminUserCell`'s unpaired `text-white`, all of which
+measure identically on pages this phase did not touch.
 
 **Phase 8 gotcha — a comment before the root element is a second root.**
 A template whose first node is an HTML comment is multi-root, so the client

@@ -88,6 +88,9 @@ Detail lives in the docs — read on demand, don't guess:
 .demo/shared/                 imported by BOTH halves: permissions.ts (the staff role
                               matrix the UI renders AND the server enforces — ADR-016),
                               support-eta.ts, audit-kinds.ts
+.demo/server/utils/deliverables.ts  the ONE answer to "are these files in the client's
+                              hands" — read by the admin panel and by /api/orders, so the
+                              two can't disagree (ADR-017)
 prisma/schema.prisma          User/Project/Milestone/Transaction/Installment/Ticket…
 ```
 

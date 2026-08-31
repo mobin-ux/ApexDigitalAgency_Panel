@@ -2,19 +2,19 @@
  * Audit-entry kinds (Phase 9 Admin §6).
  *
  * The design groups the log into Access · Files · Money · Team · Config.
- * Four of those map onto actions this system genuinely records; **Files**
- * does not — deliverable release belongs to the `DeliverableRelease`
- * model the spec lists as a backend dependency, and nothing writes such
- * an entry yet. A filter that can only ever return zero rows is a dead
- * control, so its slot is taken by **Work**, which covers the project,
- * milestone and ticket actions that are actually written today.
+ * **Files** shipped empty in the Team & Platform phase — nothing wrote a
+ * deliverable entry then, and a filter that can only ever return zero rows
+ * is a dead control — so its slot was taken by **Work**. The Overview &
+ * Work phase added `DeliverableRelease`, so Files is now real and both
+ * buckets are kept: releases are Files, and the project, milestone and
+ * ticket actions that are not about handing files over stay in Work.
  *
  * The classifier is a prefix match over the dot-namespaced action string,
  * defined once here so the filter query on the server and the chip on the
  * screen cannot disagree about which bucket a row is in.
  */
 
-export const AUDIT_KINDS = ['access', 'team', 'money', 'work', 'config'] as const
+export const AUDIT_KINDS = ['access', 'team', 'money', 'files', 'work', 'config'] as const
 
 export type AuditKind = typeof AUDIT_KINDS[number]
 
@@ -49,6 +49,18 @@ export const AUDIT_KIND_DEFS: Record<AuditKind, AuditKindDef> = {
       'admin.user.wallet-adjust',
       'contract.',
     ],
+  },
+  /*
+   * Releasing and withdrawing client access to a project's files. Sits
+   * *under* `admin.project.` on purpose: the longest-prefix rule in
+   * `auditKindOf()` gives these rows to Files, and `kindFilter('work')`
+   * excludes them from Work for the same reason, so one row still lands
+   * in exactly one bucket.
+   */
+  files: {
+    key: 'files',
+    label: 'Files',
+    prefixes: ['admin.project.deliverables.'],
   },
   work: {
     key: 'work',
@@ -110,7 +122,7 @@ export function kindFilter(kind: AuditKind): { matchAll: boolean, include: strin
      * which is precisely what `auditKindOf()` does when nothing matches.
      * Selecting on this bucket's own prefixes instead would leave every
      * unclassified action out of all five filters while still showing a
-     * Config chip — the five buckets have to partition the log.
+     * Config chip — the buckets have to partition the log.
      */
     return {
       matchAll: true,

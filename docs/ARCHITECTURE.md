@@ -85,6 +85,12 @@ Yellix fonts, and reference screenshots). Integration strategy:
 - `AuditLog` gained `roleAtTime` and `reason`: the log has to say what was true
   when the action happened, and a role can change afterwards. Null on rows
   written before Phase 9, and rendered as absent rather than back-filled.
+- **Deliverables (ADR-017)**: `DeliverableRelease` (project, file count,
+  the outstanding balance *snapshotted at release*, reason, actor + role,
+  `releasedAt`, and a `withdrawnAt` stamp rather than a delete) records
+  who handed a project's files to the client and why. `ProjectNote` holds
+  staff-only project notes — a separate model from `TicketMessage` on
+  purpose, so internal text has no path into a customer thread.
 
 ## 5. API surface (customer-relevant)
 
@@ -108,7 +114,7 @@ JWT secret: `runtimeConfig.jwtSecret` (`NUXT_JWT_SECRET` env override).
 | POST `/api/auth/signup` | zod-validated; always `role: CUSTOMER`; accepts firstName/lastName or single `name` |
 | logout, reset-password-* | shared cookie util; reset always answers success (no probing) |
 | GET `/api/dashboard/stats` | raw numbers `{stats:{...}, projects[]}` — no formatting server-side |
-| GET `/api/orders` | projects + milestones + files + manager |
+| GET `/api/orders` | projects + milestones + files + manager. **Files are gated (ADR-017)**: while a project's deliverables are held the file names and sizes are returned with a blanked `url`, so the gate is enforced here rather than in the template |
 | POST `/api/orders` | `{ title, category, budget }` → PENDING project + 4 default milestones |
 | POST `/api/orders/pay` | pays FULL amount, activates PENDING project — ownership-checked, atomic conditional debit (no double-spend). **Not** an installment charge (ADR-010) |
 | POST `/api/finance/deposit` | writes ledger entry AND increments `User.walletBalance` (transactional — the column used to drift) |
@@ -116,7 +122,11 @@ JWT secret: `runtimeConfig.jwtSecret` (`NUXT_JWT_SECRET` env override).
 | `/api/settings/*` | schema-valid field names; `get-all` no longer returns the password hash |
 | **`/api/admin/users`** (GET) | ADMIN only — paginated/searchable/role-filterable directory (`?page&pageSize&search&role`) |
 | **`/api/admin/users/:id`** (GET/PATCH) | ADMIN only — detail w/ recent activity; whitelisted PATCH (role/adCredits/profile — not password/walletBalance/email) + audit row; self-demotion blocked |
-| **`/api/admin/stats`** (GET) | ADMIN only — aggregates + 10 latest audit entries |
+| **`/api/admin/stats`** (GET) | `work.view` — the Overview screen: the four count tiles, the oldest-first work queue, the delivery pipeline, and the money card **only** for a role holding `money.view`. Every pre-existing field is still returned |
+| **`/api/admin/projects/:id/deliverables/release`** (POST) | `work.release` — hands the files to the client. A reason is **required** while a balance is outstanding; the balance is snapshotted on the row. 409 if already released |
+| **`/api/admin/projects/:id/deliverables/withdraw`** (POST) | `work.release` — stamps `withdrawnAt` on the active release with a conditional update, so racing withdrawals settle it once |
+| **`/api/admin/projects/:id/advance`** (POST) | `work.assign` — completes the current milestone, lights the next, and recomputes `progress` from the timeline in one transaction and one audit entry |
+| **`/api/admin/projects/:id/notes`** (POST) | `work.assign` — a staff-only project note. No customer endpoint reads `ProjectNote` |
 | **`/api/admin/{projects,finance,tickets,settings,audit,milestones,notifications}`** | ADMIN only — full management surface (list/detail/create/patch/delete per module; finance = summary/transactions/refund/withdrawals/installments; tickets incl. internal notes + reply; settings key/value upsert; broadcast notifications). Same ADR-013 conventions: `requireAdmin`, zod, `paginated()`, `recordAudit()` |
 | POST `/api/finance/topup` | **real gateway top-up** (ADR-015). Creates a `PaymentIntent` *before* calling the provider, returns redirect/clientSecret; the wallet moves only in `settleIntent`. Supersedes `/api/finance/deposit` for the UI |
 | POST `/api/webhooks/:provider` | **the only unauthenticated writes** — the HMAC signature is the auth. Raw body → constant-time verify → unique `(provider, providerEventId)` insert → 200. `stripe`\|`gocardless`\|`paypal`\|`mock` |
