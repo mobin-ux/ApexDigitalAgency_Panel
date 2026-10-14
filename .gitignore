@@ -8,10 +8,7 @@ dist
 .env
 .data
 *Zone.Identifier
-.eslintcachetairo-component-meta/
+.eslintcache
 layers/tairo/node-compile-cache/
 .demo/node-compile-cache/
 node-compile-cache/
-.env .env
-.env
-.env
