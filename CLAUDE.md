@@ -106,8 +106,11 @@ prisma/schema.prisma          User/Project/Milestone/Transaction/Installment/Tic
 
 ## Scope boundaries
 
-- Don't touch `.app/`, template demo pages (`/layouts/**`, `/starters/**`), or
-  `layers/tairo` internals unless asked.
+- Don't touch `.app/` or `layers/tairo` internals unless asked. The Tairo demo pages
+  (`/layouts/**`, `/starters/**`, `/wizard`, the template dashboards) and the components,
+  APIs and images only they used were deleted — don't reintroduce them. The vendor docs
+  subsystem (`.demo/content`, `examples/`, `pages/documentation`) is still wired to
+  `@nuxt/content` and was deliberately left.
 - `settings.vue`, auth pages are still OLD style
   (hex/USD/alerts) — they get rebuilt only when their design zip arrives.
 - Global hydration-mismatch warnings are a known pre-existing issue (shared chrome) —

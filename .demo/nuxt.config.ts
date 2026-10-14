@@ -223,12 +223,6 @@ export default defineNuxtConfig({
     '/': {
       redirect: '/dashboards/balance',
     },
-    '/demos': {
-      swr: 3600,
-    },
-    '/starters/**': {
-      swr: 3600,
-    },
     /*
      * The auth pages must not be HTML-cached (found in V2 Phase 8).
      *
@@ -260,12 +254,6 @@ export default defineNuxtConfig({
     // Admin panel: authenticated + role-gated, same no-cache rule.
     '/admin/**': {
       swr: false,
-    },
-    '/layouts/**': {
-      swr: 3600,
-    },
-    '/wizard/**': {
-      swr: 3600,
     },
   },
 

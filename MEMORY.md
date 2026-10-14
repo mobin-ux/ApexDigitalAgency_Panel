@@ -1066,6 +1066,23 @@ the other states. Local only — `prisma/dev.db` is never committed.
 `ProjectNote`). No backfill needed — with the hold setting absent it
 defaults to **off**, which is exactly the behaviour production has today.
 
+## Repo cleanup — 2026-10-15
+
+Removed code nothing reachable from the Apex product referenced, found by a
+reachability walk from the customer/admin/auth/legal pages (components by tag,
+composables by identifier, APIs by `/api/` string, images by path), then
+verified by an identical 42-check route/API smoke run before and after.
+Gone: the Tairo demo pages (`layouts/**`, `starters/**`, `wizard`, `demos`, the
+template dashboards, the landing page), 5 unused layouts, ~160 components,
+calendar/diceware/format utils, the template API routes, ~916 template images
+(144 MB → 5 MB of `public/img`), plus junk (a committed curl cookie jar, the
+Docker installer, a MySQL migration for a SQLite schema, 1,265 tracked Node
+compile-cache files). **Deliberately kept:** the vendor docs subsystem
+(`content/`, `examples/`, `pages/documentation`, `@nuxt/content`,
+`tairo-component-meta`), `.app/`, `layers/tairo`, `AgencyCalculator.vue` and
+`layouts/default.vue` — removing those means editing module config and
+dependencies and needs a production build to prove safe.
+
 ## Remaining queue (older, pre-V2)
 
 1. Not yet designed at all: service *compare* view, invoices
