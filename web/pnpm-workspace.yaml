@@ -1,0 +1,10 @@
+# Makes web/ its own pnpm workspace root. The marketing site has a separate
+# lockfile and node_modules from the panel on purpose (ADR-018): installing or
+# upgrading one can never change how the other resolves its dependencies.
+packages: []
+
+onlyBuiltDependencies:
+  - '@parcel/watcher'
+  - esbuild
+  - sharp
+  - unrs-resolver

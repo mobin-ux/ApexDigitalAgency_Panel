@@ -16,6 +16,35 @@
 - Stale branch `refactor/apex-dashboard` (local + origin) is superseded by master;
   deletable, but ask the user first.
 
+## Public website — `web/` (started 2026-10-15)  ⬅ NEW WORKSTREAM
+
+The panel phases are done; the current work is the public marketing site,
+designed in the same Claude Design project (`47bcb520-4a3f-437a-b108-9cc02e4acec9`:
+`Homepage`, `About`, `Services`, `ServicePage`, `Service - Website Design`,
+`Our Work`, `Case Study`, `Insights`, `Article`, `Contact`). It is a **separate
+Nuxt 4 app** (`@apex/web`, run with `pnpm web:dev`) with its **own lockfile and
+node_modules** — run `pnpm install` inside `web/`, never add it to the root workspace — see ADR-018 and
+`web/README.md`. Nothing in it touches Prisma, JWT or the payment code.
+
+| Page | Status |
+|---|---|
+| Homepage (`/`) | ✅ built — all 9 sections, responsive 390 → 1440, strict CSP, JSON-LD (Organization + WebPage/FAQPage) |
+| Services, service pages, Our Work, Case Study, Insights, Article, About, Contact, legal | ☐ not built — every link already points at its final URL (`app/data/routes.ts`) |
+
+**Open items for the homepage:** real client logos, case-study and article
+photography (`MediaFrame` already takes an image), the real phone number,
+Companies House and VAT numbers (`app/data/site.ts` — empty strings hide their
+UI), social profile URLs, and the legal pages. The contact email in the design
+is `ceo@digiapex.co.uk` while the domain is `apexdigi.co.uk`; confirm which.
+
+**Gotchas**
+- `nuxt-ai-ready` is disabled: its `@mdream/rust-win32-x64-msvc@2.0.3` native
+  binding is not on the npm mirror yet, so a Windows build fails with it on.
+- A production `nuxt build` is very slow on Windows (Nitro's externals
+  resolver does millions of `stat` calls over the pnpm tree). Dev, lint and the
+  prerender itself are fast; build on Linux/CI when you can.
+- `.claude/launch.json` has a second config, `web`, for the preview pane.
+
 ## Done (implemented, verified, pushed)
 
 | Commit | What |

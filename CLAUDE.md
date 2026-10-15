@@ -104,6 +104,18 @@ prisma/schema.prisma          User/Project/Milestone/Transaction/Installment/Tic
   (`base·0.01/(1−1.01⁻²⁴)`). Plan catalogue lives in `services.vue`.
 - Verify SSR auth flows with curl + cookie jar when the browser is flaky.
 
+## Public website (`web/`)
+
+The marketing site (apexdigi.co.uk) is a **separate Nuxt 4 app**, `@apex/web`, that
+sells and then hands visitors to the panel — see
+@docs/decisions/ADR-018-public-marketing-site.md and `web/README.md`.
+Run `pnpm web:dev` · lint `pnpm exec eslint --fix web` · types `pnpm web:typecheck`.
+The panel's hard rules above are about the panel. In `web/`: tokens not hex (`@theme`
+in `app/assets/css/main.css`), copy as typed data in `app/data/`, **no invented facts**
+(an empty string hides its UI — never a placeholder company/VAT number or phone),
+`motion-safe:` on every animation, AA contrast on rendered text, internal links via
+`app/data/routes.ts`. Never import panel code, Prisma or the JWT utils into it.
+
 ## Scope boundaries
 
 - Don't touch `.app/` or `layers/tairo` internals unless asked. The Tairo demo pages

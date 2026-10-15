@@ -7,6 +7,13 @@
       "runtimeArgs": ["demo:dev"],
       "port": 3000,
       "autoPort": true
+    },
+    {
+      "name": "web",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["web:dev"],
+      "port": 3000,
+      "autoPort": true
     }
   ]
 }
