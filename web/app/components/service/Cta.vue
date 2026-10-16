@@ -1,12 +1,10 @@
 <script setup lang="ts">
 import type { ServicePageContent } from '~/data/service-pages/types'
-import { routes } from '~/data/routes'
 import { company } from '~/data/site'
 
 const props = defineProps<{ page: ServicePageContent }>()
 
-const panel = usePanelLinks()
-const orderUrl = panel.orderFor(props.page.slug)
+const { contact, linkTo } = useServiceLinks(props.page.slug)
 // An unconfirmed phone number is empty and its row is not rendered.
 const phoneHref = company.phone ? `tel:${company.phone.replace(/\s+/g, '')}` : ''
 </script>
@@ -42,14 +40,14 @@ const phoneHref = company.phone ? `tel:${company.phone.replace(/\s+/g, '')}` : '
 
       <div class="relative flex w-full flex-none flex-col gap-4.5 lg:ml-auto lg:w-72">
         <UiButton
-          :href="orderUrl"
+          v-bind="linkTo(page.cta.primary.target)"
           size="lg"
           block
         >
-          Start your order
+          {{ page.cta.primary.label }}
         </UiButton>
         <UiButton
-          :to="`${routes.contact}?service=${page.slug}`"
+          :to="contact()"
           variant="ghost-dark"
           size="lg"
           block

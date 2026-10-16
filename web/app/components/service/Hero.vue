@@ -6,6 +6,7 @@ import { services } from '~/data/services'
 const props = defineProps<{ page: ServicePageContent }>()
 
 const service = services.find(s => s.slug === props.page.slug)!
+const { linkTo } = useServiceLinks(props.page.slug)
 const crumbs = [
   { label: 'Home', to: routes.home },
   { label: 'Services', to: routes.services },
@@ -49,17 +50,17 @@ const crumbs = [
         </ul>
         <div class="mt-2.5 flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
           <UiButton
-            to="#plans"
+            v-bind="linkTo(page.hero.primary.target)"
             size="lg"
           >
-            {{ page.hero.primaryCta }}
+            {{ page.hero.primary.label }}
           </UiButton>
           <UiButton
-            :to="`${routes.contact}?service=${page.slug}`"
+            v-bind="linkTo(page.hero.secondary.target)"
             variant="light"
             size="lg"
           >
-            {{ page.hero.secondaryCta }}
+            {{ page.hero.secondary.label }}
           </UiButton>
         </div>
       </div>

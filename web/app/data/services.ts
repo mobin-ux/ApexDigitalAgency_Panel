@@ -1,4 +1,5 @@
 import type { ServiceSlug } from './routes'
+import { brandPlans, cheapestMonthly, defaultPlanTerm, marketingPlans, ppcPlans, seoPlans, uxPlans, websitePlans } from './plans'
 
 export type ServiceGlyphName = 'software' | 'marketing' | 'seo' | 'ppc' | 'uiux' | 'branding'
 
@@ -28,7 +29,7 @@ export interface Service {
   timeline: string
   /** Outcomes this service answers on the services page filter. */
   goals: readonly ServiceGoalId[]
-  /** Monthly price in pounds (inc. VAT); `null` when the work is scoped on a call. */
+  /** Lowest monthly price in pounds (inc. VAT), from the plan catalogue; `null` when the work is scoped on a call. */
   fromMonthly: number | null
   glyph?: ServiceGlyphName
 }
@@ -46,7 +47,7 @@ export const services: readonly Service[] = [
     bestFor: 'Sole traders and small teams',
     timeline: '4–6 weeks',
     goals: ['enquiries', 'credible', 'sell'],
-    fromMonthly: 149,
+    fromMonthly: Math.min(...websitePlans.map(plan => plan.monthly[defaultPlanTerm])),
   },
   {
     slug: 'software-development',
@@ -73,7 +74,7 @@ export const services: readonly Service[] = [
     bestFor: 'Businesses without a marketer',
     timeline: 'Ongoing, monthly reporting',
     goals: ['enquiries', 'sell', 'google'],
-    fromMonthly: 399,
+    fromMonthly: cheapestMonthly(marketingPlans),
     glyph: 'marketing',
   },
   {
@@ -87,7 +88,7 @@ export const services: readonly Service[] = [
     bestFor: 'Local trades and services',
     timeline: '3–6 months to compound',
     goals: ['google', 'enquiries'],
-    fromMonthly: 349,
+    fromMonthly: cheapestMonthly(seoPlans),
     glyph: 'seo',
   },
   {
@@ -101,7 +102,7 @@ export const services: readonly Service[] = [
     bestFor: 'Anyone with capacity to fill',
     timeline: 'Live in 5 working days',
     goals: ['enquiries', 'sell'],
-    fromMonthly: 299,
+    fromMonthly: cheapestMonthly(ppcPlans),
     glyph: 'ppc',
   },
   {
@@ -115,7 +116,7 @@ export const services: readonly Service[] = [
     bestFor: 'Products and booking flows',
     timeline: '2–4 weeks',
     goals: ['credible', 'admin', 'sell'],
-    fromMonthly: 249,
+    fromMonthly: cheapestMonthly(uxPlans),
     glyph: 'uiux',
   },
   {
@@ -129,7 +130,7 @@ export const services: readonly Service[] = [
     bestFor: 'New and rebranding businesses',
     timeline: '2–3 weeks',
     goals: ['brand', 'credible'],
-    fromMonthly: 129,
+    fromMonthly: cheapestMonthly(brandPlans),
     glyph: 'branding',
   },
 ]

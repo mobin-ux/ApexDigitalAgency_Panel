@@ -77,6 +77,9 @@ is `<HomeHero>`, `components/ui/Button.vue` is `<UiButton>`.
   `app/data/service-pages/<slug>.ts` describes (typed by `types.ts`) and 404s
   for a service without one; register it in `service-pages/index.ts` and it is
   prerendered too. Prices in copy are read from `data/plans.ts`, never typed.
+  A page picks one of three plan forms (`terms` with the 12/6-month switch,
+  `monthly`, or `scoping`) and one of seven hero drawings
+  (`components/service/visual/`) by `kind`.
 - **No third-party requests.** Technology logos come from a local sprite,
   `public/icons/tech.svg`, built from Simple Icons by `pnpm icons` — run it
   after adding an `icon: '<slug>'` to any content file; it fails on an

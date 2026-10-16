@@ -31,7 +31,8 @@ node_modules** — run `pnpm install` inside `web/`, never add it to the root wo
 | Homepage (`/`) | ✅ built — all 9 sections, responsive 390 → 1440, strict CSP, JSON-LD (Organization + WebPage/FAQPage) |
 | Services (`/services`) | ✅ built — goal filter (`?goal=` deep link), 7 cards, combinations, ordering steps, CTA; JSON-LD CollectionPage + ItemList + BreadcrumbList |
 | Website Design (`/services/website-design`) | ✅ built — all 11 sections, 12/6-month plan switch, comparison table, local logo sprite; JSON-LD Service + Offers + FAQPage |
-| Other service pages, Our Work, Case Study, Insights, Article, About, Contact, legal | ☐ not built — every link already points at its final URL (`app/data/routes.ts`) |
+| SEO, PPC, Digital Marketing, Software, UI/UX, Branding (`/services/<slug>`) | ✅ built from `ServicePage.dc.html` + `service-data.js` — one content file each, a bespoke hero drawing each, monthly or scoping plans |
+| Our Work, Case Study, Insights, Article, About, Contact, legal | ☐ not built — every link already points at its final URL (`app/data/routes.ts`) |
 
 **Open items for the homepage:** real client logos, case-study and article
 photography (`MediaFrame` already takes an image), the real phone number,
@@ -69,6 +70,29 @@ is `ceo@digiapex.co.uk` while the domain is `apexdigi.co.uk`; confirm which.
   (CSP `img-src 'self'`, and no visitor IPs to third parties).
 - Testimonials, named clients and case-study figures are the design's —
   `TODO(content)` to confirm each is real and consented (DMCC Act 2024).
+
+**Generic service pages (`ServicePage.dc.html`)**
+- Every plan catalogue lives in `data/plans.ts` (`seoPlans`, `ppcPlans`,
+  `marketingPlans`, `uxPlans`, `brandPlans`), and `services.ts` takes each
+  service's "from" price from it, so the menu, cards and pages cannot drift.
+  Card billing lines ("£199 deposit, then 6 × £249", "No set-up fee ·
+  6-month minimum") are written by `billingNote()` from the figures.
+- Plans come in three forms: `terms` (Website Design), `monthly` and
+  `scoping` (Software: free call → £2,400 discovery → quoted build).
+- **Monthly plans' "Start your order" opens `/contact?service=&plan=`**, as the
+  design says: the panel's wizard does not sell retainers or 6-payment plans,
+  so sending SEO or PPC visitors there would sell them the wrong product.
+  Website Design still opens the panel.
+- Design errors corrected rather than copied: Branding's proof said "£1,643
+  total, over six months" — the Identity plan is £249 + 6 × £249 = **£1,743**,
+  now derived; Branding's intro said "six equal monthly payments" though
+  Brand + Web runs twelve.
+- Ahrefs and Klaviyo are not in Simple Icons (the design's CDN links would
+  have been broken images), so their chips are name-only, like LinkedIn.
+- The hero drawings' mock data (search terms, ad copy, quote lines) is part
+  of each drawing component, not page copy; the drawings are `aria-hidden`.
+- `success-ink` darkened to `#167d58` (4.6:1 on `success-50`); the old value
+  was 4.49 on its own tint.
 
 **Gotchas**
 - An `sr-only` element inside an `overflow-x-auto` box escapes it unless the

@@ -36,9 +36,45 @@ useSeoMeta({
   twitterImage: ogImage,
 })
 
-// The page, its questions, and the service with one offer per plan. Prices
-// are the same catalogue figures the plan cards render. The breadcrumb node
-// comes from <UiBreadcrumbs> in the hero.
+// One offer per plan, priced from the same catalogue the plan cards render.
+// Monthly plans are a unit price per month; a fixed number of payments adds a
+// billing duration. Quoted work lists only the steps that have a price.
+function planOffers() {
+  const url = `${pageUrl}#plans`
+  const monthlyOffer = (name: string, price: number, months?: number) => ({
+    '@type': 'Offer',
+    name,
+    url,
+    'priceCurrency': 'GBP',
+    price,
+    'priceSpecification': {
+      '@type': 'UnitPriceSpecification',
+      price,
+      'priceCurrency': 'GBP',
+      'unitCode': 'MON',
+      ...(months ? { billingDuration: months } : {}),
+      'valueAddedTaxIncluded': true,
+    },
+  })
+  const plans = page.plans
+  switch (plans.kind) {
+    case 'terms':
+      return plans.catalogue.map(plan => monthlyOffer(`${plan.name} plan`, plan.monthly[defaultPlanTerm], defaultPlanTerm))
+    case 'monthly':
+      return plans.items.map(plan => monthlyOffer(
+        `${plan.name} plan`,
+        plan.monthly,
+        plan.billing.kind === 'instalments' ? plan.billing.months : undefined,
+      ))
+    case 'scoping':
+      return plans.steps
+        .filter(step => step.price !== null)
+        .map(step => ({ '@type': 'Offer', 'name': step.name, url, 'priceCurrency': 'GBP', 'price': step.price }))
+  }
+}
+
+// The page, its questions, and the service with its offers. The breadcrumb
+// node comes from <UiBreadcrumbs> in the hero.
 useSchemaOrg([
   defineWebPage({
     '@type': ['WebPage', 'FAQPage'],
@@ -58,21 +94,7 @@ useSchemaOrg([
     'url': pageUrl,
     'provider': { '@id': `${siteUrl}/#identity` },
     'areaServed': { '@type': 'Country', 'name': 'United Kingdom' },
-    'offers': page.plans.catalogue.map(plan => ({
-      '@type': 'Offer',
-      'name': `${plan.name} plan`,
-      'url': `${pageUrl}#plans`,
-      'priceCurrency': 'GBP',
-      'price': plan.monthly[defaultPlanTerm],
-      'priceSpecification': {
-        '@type': 'UnitPriceSpecification',
-        'price': plan.monthly[defaultPlanTerm],
-        'priceCurrency': 'GBP',
-        'unitCode': 'MON',
-        'billingDuration': defaultPlanTerm,
-        'valueAddedTaxIncluded': true,
-      },
-    })),
+    'offers': planOffers(),
   },
 ])
 </script>

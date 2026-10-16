@@ -1,7 +1,11 @@
 <script setup lang="ts">
 import type { ServicePageContent } from '~/data/service-pages/types'
 
-defineProps<{ page: ServicePageContent }>()
+const props = defineProps<{ page: ServicePageContent }>()
+
+const steps = props.page.process.steps
+// Website Design draws its final step as done; the generic template numbers every step.
+const isTicked = (i: number) => props.page.process.tickLastStep === true && i === steps.length - 1
 </script>
 
 <template>
@@ -35,8 +39,8 @@ defineProps<{ page: ServicePageContent }>()
           >
             <span
               class="inline-flex size-7.5 flex-none items-center justify-center rounded-full font-display text-[0.8125rem] font-semibold text-white"
-              :class="i === page.process.steps.length - 1 ? 'bg-success' : 'bg-violet-500'"
-            >{{ i === page.process.steps.length - 1 ? '✓' : i + 1 }}</span>
+              :class="isTicked(i) ? 'bg-success' : 'bg-violet-500'"
+            >{{ isTicked(i) ? '✓' : i + 1 }}</span>
             <span
               v-if="i < page.process.steps.length - 1"
               class="hidden h-px flex-1 bg-linear-to-r from-white/22 to-white/6 lg:block"
@@ -63,7 +67,7 @@ defineProps<{ page: ServicePageContent }>()
         <a
           href="#plans"
           class="text-[0.90625rem] font-semibold text-violet-200 hover:underline sm:ml-auto"
-        >See the plans <span aria-hidden="true">→</span></a>
+        >{{ page.plans.kind === 'scoping' ? 'How pricing works' : 'See the plans' }} <span aria-hidden="true">→</span></a>
       </div>
     </div>
   </section>

@@ -3,7 +3,9 @@ import type { ServicePageContent } from '~/data/service-pages/types'
 import { routes } from '~/data/routes'
 import { company } from '~/data/site'
 
-defineProps<{ page: ServicePageContent }>()
+const props = defineProps<{ page: ServicePageContent }>()
+
+const { contact } = useServiceLinks(props.page.slug)
 </script>
 
 <template>
@@ -87,7 +89,7 @@ defineProps<{ page: ServicePageContent }>()
             :href="`mailto:${company.email}`"
             class="text-[0.90625rem] font-semibold break-all text-white hover:underline"
           >{{ company.email }}</a>
-          <UiButton :to="`${routes.contact}?service=${page.slug}`">
+          <UiButton :to="contact()">
             {{ page.work.callout.cta }}
           </UiButton>
         </div>

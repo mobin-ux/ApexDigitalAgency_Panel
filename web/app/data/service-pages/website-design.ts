@@ -38,19 +38,22 @@ export const websiteDesignPage: ServicePageContent = {
       'Search Engine Optimisation (SEO) foundations from day one',
       'You own the site, the code and the domain',
     ],
-    primaryCta: 'See the plans',
-    secondaryCta: 'Book a free call',
+    primary: { label: 'See the plans', target: 'plans' },
+    secondary: { label: 'Book a free call', target: 'contact' },
   },
   visual: {
+    kind: 'site',
     url: 'yourbusiness.co.uk',
     metricLabel: 'Enquiries this month',
     metric: '128',
     toastTitle: 'New enquiry',
     toastSub: 'Quote request · 2 min ago',
-    cardLabel: 'Your plan',
-    cardValue: from,
-    cardUnit: ' /month',
-    cardNote: `${defaultPlanTerm} payments · no interest · VAT included`,
+    card: {
+      label: 'Your plan',
+      value: from,
+      unit: ' /month',
+      note: `${defaultPlanTerm} payments · no interest · VAT included`,
+    },
   },
   stats: [
     { value: '4–6', label: 'weeks to launch' },
@@ -218,6 +221,7 @@ export const websiteDesignPage: ServicePageContent = {
       { when: 'Week 5', title: 'Launch and handover', body: 'Live, indexed, and every account and file transferred to your name.', you: 'Take the keys' },
     ],
     note: 'Total time from you across the whole build: about two hours.',
+    tickLastStep: true,
   },
 
   work: {
@@ -238,6 +242,7 @@ export const websiteDesignPage: ServicePageContent = {
   },
 
   plans: {
+    kind: 'terms',
     title: 'Choose a plan, pay monthly',
     intro: 'A deposit, then equal monthly payments. Hosting, maintenance and support are included for the whole term, and one-off pricing is available on request.',
     catalogue: websitePlans,
@@ -329,5 +334,6 @@ export const websiteDesignPage: ServicePageContent = {
   cta: {
     title: `Start your website from ${from} a month`,
     body: 'Pick a plan and set your order up in the dashboard, or book a call first and we will do it with you. Nothing is taken until you have seen every payment date.',
+    primary: { label: 'Start your order', target: 'order' },
   },
 }

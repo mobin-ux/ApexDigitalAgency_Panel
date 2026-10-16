@@ -1,4 +1,4 @@
-import type { InstalmentPlan, PlanId, PlanTerm } from '../plans'
+import type { InstalmentPlan, MonthlyPlan, PlanId, PlanTerm } from '../plans'
 import type { ServiceSlug } from '../routes'
 
 /**
@@ -36,8 +36,8 @@ export interface WorkCase {
   tint: 'violet' | 'periwinkle' | 'lilac'
 }
 
-export interface PlanCard {
-  id: PlanId
+/** The words on a plan card; prices come from the plan catalogue. */
+export interface PlanCopy {
   /** Who the plan is for. */
   fit: string
   /** Heading over the feature list ("What you get", "Everything in Starter, plus"). */
@@ -45,6 +45,26 @@ export interface PlanCard {
   features: readonly string[]
   /** Badge shown on the emphasised (dark) card. */
   flag?: string
+}
+
+export interface PlanCard extends PlanCopy {
+  id: PlanId
+}
+
+/** A plan card ready to render: copy plus the figures and link worked out for it. */
+export interface PlanCardView extends PlanCopy {
+  id: string
+  name: string
+  featured: boolean
+  /** "£299". */
+  price: string
+  /** Optional line under the price ("£499 deposit, then 12 × £299"). */
+  detail?: string
+  /** The pill under the price: the total, or the billing terms. */
+  chip: string
+  order: { to: string } | { href: string }
+  /** Read after "Start your order" by screen readers, naming the plan. */
+  orderContext: string
 }
 
 /** One row of the comparison table: a value per plan, `true` = included, `false` = not. */
@@ -59,6 +79,63 @@ export interface Quote {
   role: string
 }
 
+/**
+ * Where a call to action goes: the plans or work section on the page, the
+ * contact form (with the service named), or the panel's New Order wizard.
+ */
+export type CtaTarget = 'plans' | 'work' | 'contact' | 'order'
+
+export interface CtaLink {
+  label: string
+  target: CtaTarget
+}
+
+/**
+ * The decorative composition beside the hero. `kind` picks the drawing; the
+ * labels here are the parts of it that differ per service.
+ */
+export interface HeroVisual {
+  kind: 'site' | 'search' | 'ads' | 'marketing' | 'software' | 'ux' | 'brand'
+  url: string
+  metricLabel: string
+  metric: string
+  toastTitle: string
+  toastSub: string
+  /** The floating card; drawn by the `site` and `ads` kinds. */
+  card?: { label: string, value: string, unit: string, note: string, change?: string }
+}
+
+interface PlansCommon {
+  title: string
+  intro: string
+  footnote: { title: string, body: string }
+}
+
+/**
+ * Three ways a service is priced: instalment plans with a 12 / 6-month switch
+ * (website design), one monthly figure per plan (retainers and short
+ * instalment plans), or a scoping call then a quote (software).
+ */
+export type ServicePlans
+  = | (PlansCommon & {
+    kind: 'terms'
+    catalogue: readonly InstalmentPlan[]
+    cards: readonly PlanCard[]
+    featured: PlanId
+    termNotes: Record<PlanTerm, string>
+    compare?: readonly CompareRow[]
+  })
+  | (PlansCommon & {
+    kind: 'monthly'
+    items: readonly (MonthlyPlan & PlanCopy)[]
+    featured: string
+  })
+  | (PlansCommon & {
+    kind: 'scoping'
+    /** `price` is in pounds; 0 reads "Free" and `null` reads "Quoted". */
+    steps: readonly { name: string, price: number | null, note: string, detail: string }[]
+  })
+
 export interface ServicePageContent {
   slug: ServiceSlug
   seo: { title: string, description: string }
@@ -68,21 +145,10 @@ export interface ServicePageContent {
     title: string
     lead: string
     checks: readonly string[]
-    primaryCta: string
-    secondaryCta: string
+    primary: CtaLink
+    secondary: CtaLink
   }
-  /** The illustrative product window beside the hero copy. */
-  visual: {
-    url: string
-    metricLabel: string
-    metric: string
-    toastTitle: string
-    toastSub: string
-    cardLabel: string
-    cardValue: string
-    cardUnit: string
-    cardNote: string
-  }
+  visual: HeroVisual
   stats: readonly Stat[]
 
   audiences: {
@@ -119,6 +185,8 @@ export interface ServicePageContent {
     intro: string
     steps: readonly { when: string, title: string, body: string, you: string }[]
     note: string
+    /** Draw the last step as done (a tick) rather than numbered. */
+    tickLastStep?: boolean
   }
 
   work: {
@@ -127,16 +195,7 @@ export interface ServicePageContent {
     callout?: { title: string, body: string, cta: string }
   }
 
-  plans: {
-    title: string
-    intro: string
-    catalogue: readonly InstalmentPlan[]
-    cards: readonly PlanCard[]
-    featured: PlanId
-    termNotes: Record<PlanTerm, string>
-    compare?: readonly CompareRow[]
-    footnote: { title: string, body: string }
-  }
+  plans: ServicePlans
 
   proof: {
     caseStudySlug: string
@@ -159,5 +218,5 @@ export interface ServicePageContent {
     items: readonly { question: string, answer: string }[]
   }
 
-  cta: { title: string, body: string }
+  cta: { title: string, body: string, primary: CtaLink }
 }
