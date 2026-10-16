@@ -3,10 +3,12 @@
  * British spelling, sentence case, no emoji outside the two eyebrow chips.
  */
 
+import type { PlanId } from './plans'
+import { defaultPlanTerm, websitePlans } from './plans'
 import { projectsDelivered } from './site'
 
 export interface PaymentPlan {
-  id: 'starter' | 'growth' | 'complete'
+  id: PlanId
   label: string
   /** Monthly payment in pounds, inc. VAT. */
   monthly: number
@@ -14,17 +16,19 @@ export interface PaymentPlan {
   deposit: number
 }
 
+export const planTermMonths = defaultPlanTerm
+
 /**
- * Example plans for the monthly-payment explainer. The total is derived
+ * Example plans for the monthly-payment explainer, taken from the website
+ * plans on their standard term. The total is derived
  * (`deposit + monthly × term`), never typed in, so it cannot drift.
  */
-export const paymentPlans: readonly PaymentPlan[] = [
-  { id: 'starter', label: 'Starter', monthly: 149, deposit: 299 },
-  { id: 'growth', label: 'Growth', monthly: 299, deposit: 499 },
-  { id: 'complete', label: 'Complete', monthly: 499, deposit: 799 },
-]
-
-export const planTermMonths = 12
+export const paymentPlans: readonly PaymentPlan[] = websitePlans.map(plan => ({
+  id: plan.id,
+  label: plan.name,
+  monthly: plan.monthly[planTermMonths],
+  deposit: plan.deposit,
+}))
 
 export const heroStats = [
   { value: projectsDelivered, label: 'Projects delivered' },

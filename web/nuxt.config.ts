@@ -1,5 +1,6 @@
 import process from 'node:process'
 import tailwindcss from '@tailwindcss/vite'
+import { servicePagePaths } from './app/data/service-pages'
 import { company, seoDefaults } from './app/data/site'
 
 const profiles = company.social.filter(profile => profile.url).map(profile => profile.url)
@@ -83,8 +84,10 @@ export default defineNuxtConfig({
     '/**': { headers: { 'permissions-policy': permissionsPolicy } },
     '/': { prerender: true },
     '/services': { prerender: true },
+    ...Object.fromEntries(servicePagePaths.map(slug => [`/services/${slug}`, { prerender: true }])),
     '/fonts/**': { headers: { 'cache-control': 'public, max-age=31536000, immutable' } },
     '/brand/**': { headers: { 'cache-control': 'public, max-age=604800' } },
+    '/icons/**': { headers: { 'cache-control': 'public, max-age=604800' } },
   },
 
   nitro: {

@@ -30,7 +30,8 @@ node_modules** — run `pnpm install` inside `web/`, never add it to the root wo
 |---|---|
 | Homepage (`/`) | ✅ built — all 9 sections, responsive 390 → 1440, strict CSP, JSON-LD (Organization + WebPage/FAQPage) |
 | Services (`/services`) | ✅ built — goal filter (`?goal=` deep link), 7 cards, combinations, ordering steps, CTA; JSON-LD CollectionPage + ItemList + BreadcrumbList |
-| Service pages, Our Work, Case Study, Insights, Article, About, Contact, legal | ☐ not built — every link already points at its final URL (`app/data/routes.ts`) |
+| Website Design (`/services/website-design`) | ✅ built — all 11 sections, 12/6-month plan switch, comparison table, local logo sprite; JSON-LD Service + Offers + FAQPage |
+| Other service pages, Our Work, Case Study, Insights, Article, About, Contact, legal | ☐ not built — every link already points at its final URL (`app/data/routes.ts`) |
 
 **Open items for the homepage:** real client logos, case-study and article
 photography (`MediaFrame` already takes an image), the real phone number,
@@ -54,7 +55,24 @@ is `ceo@digiapex.co.uk` while the domain is `apexdigi.co.uk`; confirm which.
 - The software card's "Book a call" is a real link to `/contact`, raised
   above the card's stretched link; the other cards' CTAs are decorative.
 
+**Service page decisions**
+- `/services/[slug]` is generic: sections render from
+  `data/service-pages/<slug>.ts` (shape in `types.ts`, mirroring the design's
+  `service-data.js`). The other six services need only a content file.
+- Plans live once in `data/plans.ts`; the homepage explainer derives from it.
+- "Start your order" opens the panel's New Order with
+  `?service=web&plan=&term=`. **The panel reads only `service`, prices from its
+  own catalogue on 12/24 months with no deposit, and its auth guard drops the
+  destination for anonymous visitors** — so the site's plans and the panel's
+  checkout disagree until the panel is updated.
+- Logos are a local sprite (`pnpm icons`), never the design's CDN hot-links
+  (CSP `img-src 'self'`, and no visitor IPs to third parties).
+- Testimonials, named clients and case-study figures are the design's —
+  `TODO(content)` to confirm each is real and consented (DMCC Act 2024).
+
 **Gotchas**
+- An `sr-only` element inside an `overflow-x-auto` box escapes it unless the
+  box is `relative`; it widened the whole page by 174px at 390px.
 - `nuxt-ai-ready` is disabled: its `@mdream/rust-win32-x64-msvc@2.0.3` native
   binding is not on the npm mirror yet, so a Windows build fails with it on.
 - A production `nuxt build` is very slow on Windows (Nitro's externals

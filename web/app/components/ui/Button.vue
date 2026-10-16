@@ -5,7 +5,7 @@
  * <button> otherwise, so call sites never choose the tag by hand.
  */
 const props = withDefaults(defineProps<{
-  variant?: 'primary' | 'light' | 'ink'
+  variant?: 'primary' | 'light' | 'ink' | 'ghost-dark'
   size?: 'sm' | 'md' | 'lg'
   shape?: 'rounded' | 'pill'
   to?: string
@@ -38,9 +38,10 @@ const linkProps = computed(() => {
 })
 
 const variants = {
-  primary: 'border-violet-500 bg-violet-500 text-white shadow-button hover:bg-violet-600 hover:border-violet-600',
-  light: 'border-line-strong bg-white text-heading shadow-chip hover:bg-subtle',
-  ink: 'border-ink bg-ink text-white hover:bg-ink-800',
+  'primary': 'border-violet-500 bg-violet-500 text-white shadow-button hover:bg-violet-600 hover:border-violet-600',
+  'light': 'border-line-strong bg-white text-heading shadow-chip hover:bg-subtle',
+  'ink': 'border-ink bg-ink text-white hover:bg-ink-800',
+  'ghost-dark': 'border-white/18 bg-transparent text-white hover:bg-white/8',
 } as const
 
 const sizes = {

@@ -71,6 +71,7 @@
   --color-body-on-dark: #a9b2b8;
 
   /* Brand violet */
+  --color-violet-25: #faf8ff;
   --color-violet-50: #f1ecfe;
   --color-violet-100: #e4dcfd;
   --color-violet-150: #dcd1fb;
@@ -78,10 +79,16 @@
   --color-violet-400: #9b79f6;
   --color-violet-500: #7d53f2;
   --color-violet-600: #6c40e8;
+  --color-violet-700: #5b33d6;
+
+  /* Pale card tints for case-study thumbnails. */
+  --color-lilac-50: #f4f1fe;
+  --color-periwinkle-50: #eff1fe;
 
   /* Status */
   --color-success: #22b07d;
   --color-success-ink: #17805a;
+  --color-success-50: #e9f8f2;
 
   /* Type */
   --font-sans: 'Inter Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
@@ -132,6 +139,8 @@
   --shadow-tile: 0 12px 40px rgb(17 31 34 / 0.05);
   --shadow-tile-hover: 0 22px 52px rgb(17 31 34 / 0.1);
   --shadow-mini: 0 12px 28px rgb(17 31 34 / 0.08);
+  --shadow-toast: 0 18px 40px rgb(17 31 34 / 0.14);
+  --shadow-dark: 0 28px 64px rgb(12 23 25 / 0.24);
   --shadow-menu: 0 24px 56px rgb(17 31 34 / 0.12);
   --shadow-button: 0 16px 40px rgb(125 83 242 / 0.3);
   --shadow-blob: 0 24px 60px rgb(125 83 242 / 0.3);
@@ -143,6 +152,13 @@
   --animate-float-b: float-b 8s ease-in-out infinite;
   --animate-float-c: float-c 6s ease-in-out infinite;
   --animate-grow: grow 900ms var(--ease-out-soft) both;
+  --animate-blob: blob 12s ease-in-out infinite;
+  --animate-drift-a: drift-a 9s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+  --animate-drift-c: drift-c 11s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+  --animate-toast: toast 9s cubic-bezier(0.32, 0.72, 0.28, 1) infinite;
+  --animate-pulse-ring: pulse-ring 4.5s ease-in-out infinite;
+  --animate-grow-loop: grow-loop 6s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+  --animate-fill-dot: fill-dot 9s ease-in-out infinite;
   --animate-rise: rise 320ms var(--ease-out-soft) both;
 
   @keyframes float-a {
@@ -170,6 +186,82 @@
     }
     50% {
       transform: translateY(-7px);
+    }
+  }
+  @keyframes blob {
+    0%,
+    100% {
+      transform: scale(1);
+      opacity: 1;
+    }
+    50% {
+      transform: scale(1.045) translateY(8px);
+      opacity: 0.92;
+    }
+  }
+  @keyframes drift-a {
+    0%,
+    100% {
+      transform: rotate(-1.6deg);
+    }
+    50% {
+      transform: translateY(-12px) rotate(-0.8deg);
+    }
+  }
+  @keyframes drift-c {
+    0%,
+    100% {
+      transform: rotate(0.6deg);
+    }
+    50% {
+      transform: translateY(10px);
+    }
+  }
+  @keyframes toast {
+    0% {
+      opacity: 0;
+      transform: translateY(14px) scale(0.96);
+    }
+    10%,
+    42% {
+      opacity: 1;
+      transform: none;
+    }
+    54%,
+    100% {
+      opacity: 0;
+      transform: translateY(-10px) scale(0.98);
+    }
+  }
+  @keyframes pulse-ring {
+    0%,
+    100% {
+      box-shadow: 0 0 0 0 rgb(125 83 242 / 0);
+    }
+    45% {
+      box-shadow: 0 0 0 6px rgb(125 83 242 / 0.12);
+    }
+  }
+  @keyframes grow-loop {
+    0% {
+      transform: scaleY(0.3);
+    }
+    28%,
+    72% {
+      transform: scaleY(1);
+    }
+    100% {
+      transform: scaleY(0.3);
+    }
+  }
+  @keyframes fill-dot {
+    0%,
+    35% {
+      background-color: var(--color-violet-100);
+    }
+    50%,
+    100% {
+      background-color: var(--color-violet-500);
     }
   }
   @keyframes rise {

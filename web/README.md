@@ -42,10 +42,13 @@ app/
   assets/css/main.css   design tokens (@theme) + base styles
   components/
     layout/             Header, ServicesMenu, MobileMenu, Footer
-    ui/                 Button, EyebrowChip, SectionHeader, ServiceGlyph, MediaFrame
+    ui/                 Button, EyebrowChip, SectionHeader, ServiceGlyph, MediaFrame,
+                        Breadcrumbs, FaqList, Tick, TechMark
     home/               one component per homepage section
     services/           one component per /services section
-  data/                 typed content: routes, site, services, services-page, home, content
+    service/            the sections of /services/[slug], driven by a content file
+  data/                 typed content: routes, site, services, services-page, plans,
+                        home, content, and service-pages/ (one file per service page)
   composables/          usePanelLinks
   utils/                formatters
   pages/                one file per route
@@ -70,6 +73,14 @@ is `<HomeHero>`, `components/ui/Button.vue` is `<UiButton>`.
   menu works without JS, and the plan explainer hydrates when scrolled into view.
 - Every animation uses `motion-safe:`; every control has a visible focus ring.
 - British spelling, sentence-case headings, GBP with VAT stated.
+- **Service pages are content files.** `/services/[slug]` renders whatever
+  `app/data/service-pages/<slug>.ts` describes (typed by `types.ts`) and 404s
+  for a service without one; register it in `service-pages/index.ts` and it is
+  prerendered too. Prices in copy are read from `data/plans.ts`, never typed.
+- **No third-party requests.** Technology logos come from a local sprite,
+  `public/icons/tech.svg`, built from Simple Icons by `pnpm icons` — run it
+  after adding an `icon: '<slug>'` to any content file; it fails on an
+  unknown slug.
 
 ## Environment
 
