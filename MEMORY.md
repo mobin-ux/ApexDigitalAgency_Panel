@@ -29,13 +29,30 @@ node_modules** — run `pnpm install` inside `web/`, never add it to the root wo
 | Page | Status |
 |---|---|
 | Homepage (`/`) | ✅ built — all 9 sections, responsive 390 → 1440, strict CSP, JSON-LD (Organization + WebPage/FAQPage) |
-| Services, service pages, Our Work, Case Study, Insights, Article, About, Contact, legal | ☐ not built — every link already points at its final URL (`app/data/routes.ts`) |
+| Services (`/services`) | ✅ built — goal filter (`?goal=` deep link), 7 cards, combinations, ordering steps, CTA; JSON-LD CollectionPage + ItemList + BreadcrumbList |
+| Service pages, Our Work, Case Study, Insights, Article, About, Contact, legal | ☐ not built — every link already points at its final URL (`app/data/routes.ts`) |
 
 **Open items for the homepage:** real client logos, case-study and article
 photography (`MediaFrame` already takes an image), the real phone number,
 Companies House and VAT numbers (`app/data/site.ts` — empty strings hide their
 UI), social profile URLs, and the legal pages. The contact email in the design
 is `ceo@digiapex.co.uk` while the domain is `apexdigi.co.uk`; confirm which.
+
+**Services page decisions**
+- The goal filter is progressive: the prerendered HTML lists all seven
+  services; `?goal=` is read in `onMounted` (a prerendered page is one file
+  for every query string). Cards animate in only after a filter change, so
+  first paint never waits on an animation — the preview pane freezes the
+  animation timeline, which is how this surfaced.
+- Service facts (summary, fixes, best for, timeline, goals) live on the one
+  `services` record; page-only copy is in `data/services-page.ts`.
+- The combination prices (£239, £649) come from the design and are lower
+  than the sum of the from-prices — `TODO(content)` to confirm.
+- "Create your account — Email and business name" was untrue (signup asks
+  for a name and email), so it reads "Your name and email" here and on the
+  homepage.
+- The software card's "Book a call" is a real link to `/contact`, raised
+  above the card's stretched link; the other cards' CTAs are decorative.
 
 **Gotchas**
 - `nuxt-ai-ready` is disabled: its `@mdream/rust-win32-x64-msvc@2.0.3` native

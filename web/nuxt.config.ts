@@ -82,6 +82,7 @@ export default defineNuxtConfig({
   routeRules: {
     '/**': { headers: { 'permissions-policy': permissionsPolicy } },
     '/': { prerender: true },
+    '/services': { prerender: true },
     '/fonts/**': { headers: { 'cache-control': 'public, max-age=31536000, immutable' } },
     '/brand/**': { headers: { 'cache-control': 'public, max-age=604800' } },
   },

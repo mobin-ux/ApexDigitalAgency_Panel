@@ -54,6 +54,9 @@ export const company: Company = {
   ],
 }
 
+/** Track record quoted on more than one page; one figure, one place. */
+export const projectsDelivered = '497+'
+
 export const seoDefaults = {
   /** Homepage <title>; the site name is appended by the title template. */
   title: 'Websites, marketing & software, paid monthly',

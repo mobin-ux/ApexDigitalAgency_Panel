@@ -44,7 +44,8 @@ app/
     layout/             Header, ServicesMenu, MobileMenu, Footer
     ui/                 Button, EyebrowChip, SectionHeader, ServiceGlyph, MediaFrame
     home/               one component per homepage section
-  data/                 typed content: routes, site, services, home, content
+    services/           one component per /services section
+  data/                 typed content: routes, site, services, services-page, home, content
   composables/          usePanelLinks
   utils/                formatters
   pages/                one file per route

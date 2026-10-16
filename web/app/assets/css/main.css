@@ -54,6 +54,11 @@
   --color-chip: #f4f5f6;
   --color-line: #edeff1;
   --color-line-strong: #dde1e4;
+  --color-line-soft: #f2f4f5;
+  --color-line-dashed: #c2c8cd;
+  /* Placeholder bars inside the small product illustrations. */
+  --color-skeleton: #e8ebed;
+  --color-skeleton-strong: #e4e7ea;
 
   /* Ink (text on light, surfaces on dark) */
   --color-ink: #111f22;
@@ -68,6 +73,7 @@
   /* Brand violet */
   --color-violet-50: #f1ecfe;
   --color-violet-100: #e4dcfd;
+  --color-violet-150: #dcd1fb;
   --color-violet-200: #c9b8fb;
   --color-violet-400: #9b79f6;
   --color-violet-500: #7d53f2;
@@ -86,6 +92,11 @@
   --text-display--line-height: 1.01;
   --text-display--letter-spacing: -0.032em;
   --text-display--font-weight: 800;
+
+  --text-h1: clamp(2.375rem, 1.5rem + 3.6vw, 3.875rem);
+  --text-h1--line-height: 1.03;
+  --text-h1--letter-spacing: -0.03em;
+  --text-h1--font-weight: 800;
 
   --text-h2: clamp(2rem, 1.2rem + 2.8vw, 3rem);
   --text-h2--line-height: 1.06;
@@ -118,6 +129,9 @@
   --shadow-card: 0 20px 48px rgb(17 31 34 / 0.07);
   --shadow-lift: 0 18px 44px rgb(17 31 34 / 0.09);
   --shadow-float: 0 34px 72px rgb(17 31 34 / 0.15);
+  --shadow-tile: 0 12px 40px rgb(17 31 34 / 0.05);
+  --shadow-tile-hover: 0 22px 52px rgb(17 31 34 / 0.1);
+  --shadow-mini: 0 12px 28px rgb(17 31 34 / 0.08);
   --shadow-menu: 0 24px 56px rgb(17 31 34 / 0.12);
   --shadow-button: 0 16px 40px rgb(125 83 242 / 0.3);
   --shadow-blob: 0 24px 60px rgb(125 83 242 / 0.3);
@@ -129,6 +143,7 @@
   --animate-float-b: float-b 8s ease-in-out infinite;
   --animate-float-c: float-c 6s ease-in-out infinite;
   --animate-grow: grow 900ms var(--ease-out-soft) both;
+  --animate-rise: rise 320ms var(--ease-out-soft) both;
 
   @keyframes float-a {
     0%,
@@ -155,6 +170,16 @@
     }
     50% {
       transform: translateY(-7px);
+    }
+  }
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
     }
   }
   @keyframes grow {

@@ -3,6 +3,8 @@
  * British spelling, sentence case, no emoji outside the two eyebrow chips.
  */
 
+import { projectsDelivered } from './site'
+
 export interface PaymentPlan {
   id: 'starter' | 'growth' | 'complete'
   label: string
@@ -25,7 +27,7 @@ export const paymentPlans: readonly PaymentPlan[] = [
 export const planTermMonths = 12
 
 export const heroStats = [
-  { value: '497+', label: 'Projects delivered' },
+  { value: projectsDelivered, label: 'Projects delivered' },
   { value: '12 months', label: 'Interest-free instalments' },
   { value: 'UK only', label: 'In-house, never offshored' },
 ] as const
@@ -40,7 +42,7 @@ export const monthlySteps = [
   },
   {
     title: 'Create your account',
-    body: 'Email and business name. Your plan carries over, so nothing is entered twice.',
+    body: 'Your name and email. Your plan carries over, so nothing is entered twice.',
   },
   {
     title: 'Confirm the schedule',

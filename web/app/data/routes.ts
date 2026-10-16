@@ -3,7 +3,7 @@
  *
  * Pages are linked by their final URL even before the page exists, so adding
  * a page never means touching the components that point at it.
- * Pages not built yet: everything except `home`.
+ * Built so far: `home` and `services`; every other URL is a page still to come.
  */
 
 export const routes = {

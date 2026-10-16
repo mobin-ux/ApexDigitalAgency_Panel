@@ -30,7 +30,11 @@ function onFocusOut(event: FocusEvent) {
   }
 }
 
-watch(() => useRoute().fullPath, () => (open.value = false))
+const route = useRoute()
+watch(() => route.fullPath, () => (open.value = false))
+
+// Lit while the visitor is anywhere in the services section.
+const inSection = computed(() => route.path === routes.services || route.path.startsWith(`${routes.services}/`))
 </script>
 
 <template>
@@ -42,7 +46,8 @@ watch(() => useRoute().fullPath, () => (open.value = false))
     <button
       ref="trigger"
       type="button"
-      class="inline-flex items-center gap-1.5 text-[0.9375rem] font-semibold text-heading transition-colors hover:text-violet-600"
+      class="inline-flex items-center gap-1.5 text-[0.9375rem] font-semibold transition-colors hover:text-violet-600"
+      :class="inSection ? 'text-violet-600' : 'text-heading'"
       :aria-expanded="open"
       aria-controls="services-menu"
       @click="open = !open"
