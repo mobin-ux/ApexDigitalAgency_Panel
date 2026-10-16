@@ -50,20 +50,7 @@ const positions = [
               <span class="text-[0.65625rem] text-muted">yourbusiness.co.uk › electrician</span>
               <span class="truncate font-display text-[0.8125rem] font-bold tracking-[-0.01em] text-violet-600">Electrician in Maidstone | 24/7 Callouts</span>
               <span class="flex items-center gap-1.5 text-[0.65625rem] text-muted">
-                <svg
-                  width="54"
-                  height="10"
-                  viewBox="0 0 54 10"
-                  class="block text-amber-400"
-                >
-                  <path
-                    v-for="n in 5"
-                    :key="n"
-                    :transform="`translate(${(n - 1) * 11} 0)`"
-                    d="M5 0.5 6.3 3.6 9.6 3.9 7.1 6.1 7.8 9.4 5 7.7 2.2 9.4 2.9 6.1 0.4 3.9 3.7 3.6Z"
-                    fill="currentColor"
-                  />
-                </svg>
+                <UiStars class="text-amber-400" />
                 4.9 · 212 reviews
               </span>
             </span>

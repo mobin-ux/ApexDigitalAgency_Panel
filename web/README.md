@@ -43,12 +43,14 @@ app/
   components/
     layout/             Header, ServicesMenu, MobileMenu, Footer
     ui/                 Button, EyebrowChip, SectionHeader, ServiceGlyph, MediaFrame,
-                        Breadcrumbs, FaqList, Tick, TechMark
+                        Breadcrumbs, FaqList, Tick, TechMark, FilterChip, Stars
     home/               one component per homepage section
     services/           one component per /services section
     service/            the sections of /services/[slug], driven by a content file
+    work/               one component per /our-work section
   data/                 typed content: routes, site, services, services-page, plans,
-                        home, content, and service-pages/ (one file per service page)
+                        home, content, case-studies, our-work, and service-pages/
+                        (one file per service page)
   composables/          usePanelLinks
   utils/                formatters
   pages/                one file per route
@@ -80,6 +82,10 @@ is `<HomeHero>`, `components/ui/Button.vue` is `<UiButton>`.
   A page picks one of three plan forms (`terms` with the 12/6-month switch,
   `monthly`, or `scoping`) and one of seven hero drawings
   (`components/service/visual/`) by `kind`.
+- **Filters are progressive.** The services finder and the Our work filters
+  prerender the full list, mirror the selection in the query string
+  (`?goal=`, `?service=` / `?sector=`) and read it after mount, because a
+  prerendered page is one file for every query string.
 - **No third-party requests.** Technology logos come from a local sprite,
   `public/icons/tech.svg`, built from Simple Icons by `pnpm icons` — run it
   after adding an `icon: '<slug>'` to any content file; it fails on an

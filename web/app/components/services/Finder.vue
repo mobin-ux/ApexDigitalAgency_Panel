@@ -93,25 +93,16 @@ function toggle(id: ServiceGoalId) {
         aria-labelledby="finder-title"
         class="flex flex-wrap gap-2.5"
       >
-        <button
+        <UiFilterChip
           v-for="chip in chips"
           :key="chip.id"
-          type="button"
-          :aria-pressed="goal === chip.id"
-          class="inline-flex min-h-11 items-center gap-2.25 rounded-full border px-4.5 py-2.75 text-[0.90625rem] font-semibold transition-colors duration-150"
-          :class="goal === chip.id
-            ? 'border-heading bg-heading text-white'
-            : 'border-line-strong bg-white text-body hover:border-heading hover:text-heading'"
+          :pressed="goal === chip.id"
+          :count="chip.count"
+          :noun="['service', 'services']"
           @click="toggle(chip.id)"
         >
           {{ chip.label }}
-          <span
-            class="text-xs"
-            :class="goal === chip.id ? 'text-white/70' : 'text-muted'"
-            aria-hidden="true"
-          >{{ chip.count }}</span>
-          <span class="sr-only">({{ chip.count }} {{ chip.count === 1 ? 'service' : 'services' }})</span>
-        </button>
+        </UiFilterChip>
       </div>
     </div>
 

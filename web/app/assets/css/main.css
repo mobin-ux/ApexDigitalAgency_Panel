@@ -95,6 +95,9 @@
   --color-amber-50: #fff4e0;
   --color-amber-200: #f8d79a;
   --color-amber-400: #f5a524;
+  /* Review stars (the design system's --apex-warning). Graphic only: a rating is
+     always also written out as text, so the stars carry no contrast duty. */
+  --color-amber-500: #d9a521;
   --color-amber-800: #8a5606;
   --color-blue-50: #eaf2fe;
   --color-blue-500: #2f6fd6;

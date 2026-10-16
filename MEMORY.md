@@ -32,7 +32,8 @@ node_modules** — run `pnpm install` inside `web/`, never add it to the root wo
 | Services (`/services`) | ✅ built — goal filter (`?goal=` deep link), 7 cards, combinations, ordering steps, CTA; JSON-LD CollectionPage + ItemList + BreadcrumbList |
 | Website Design (`/services/website-design`) | ✅ built — all 11 sections, 12/6-month plan switch, comparison table, local logo sprite; JSON-LD Service + Offers + FAQPage |
 | SEO, PPC, Digital Marketing, Software, UI/UX, Branding (`/services/<slug>`) | ✅ built from `ServicePage.dc.html` + `service-data.js` — one content file each, a bespoke hero drawing each, monthly or scoping plans |
-| Our Work, Case Study, Insights, Article, About, Contact, legal | ☐ not built — every link already points at its final URL (`app/data/routes.ts`) |
+| Our Work (`/our-work`) | ✅ built — featured study, service + sector filters (`?service=&sector=` deep links), 12 project cards, client quotes, CTA; JSON-LD CollectionPage + ItemList |
+| Case Study, Insights, Article, About, Contact, legal | ☐ not built — every link already points at its final URL (`app/data/routes.ts`) |
 
 **Open items for the homepage:** real client logos, case-study and article
 photography (`MediaFrame` already takes an image), the real phone number,
@@ -93,6 +94,27 @@ is `ceo@digiapex.co.uk` while the domain is `apexdigi.co.uk`; confirm which.
   of each drawing component, not page copy; the drawings are `aria-hidden`.
 - `success-ink` darkened to `#167d58` (4.6:1 on `success-50`); the old value
   was 4.49 on its own tint.
+
+**Our work page decisions (`Our Work.dc.html`)**
+- Projects live in `data/case-studies.ts` (typed `CaseStudy`, sectors,
+  service slugs); page copy in `data/our-work.ts`. Each card links to
+  `/our-work/<slug>`, the URL the Case Study page will serve.
+- The design's two prototype switches (2 or 3 columns, "single figure"
+  metric) were dropped for its defaults: three columns, before → after.
+- Filter chips count within the other row's selection, as designed, and a
+  pressed chip toggles off. `UiFilterChip` is shared with the services finder.
+- Track-record figures are one place each in `site.ts`: `projectsDelivered`,
+  `averageEnquiryLift` (3.1×) and `reviewRating` (5.0 on Trustpilot; an empty
+  score hides every rating). No `AggregateRating`/`Review` markup: Google
+  ignores self-served reviews on a business's own site.
+- Stars are `UiStars` (SVG, decorative, `amber-500` = the DS's
+  `--apex-warning`); the score is always written out beside them.
+- **Content conflicts to resolve (TODO(content))**: Hartley & Sons is
+  "+214% enquiries, 4.2× ROAS" on the homepage, "4.2× quote requests" here
+  and "29 quote requests a month" in the Case Study design; "Priya Shah" is a
+  partner at a family law firm on the SEO page and at Northgate Accountants
+  here; the service pages' case studies (Brightwire, Keystone …) are not in
+  this list. One catalogue should hold every study once they are real.
 
 **Gotchas**
 - An `sr-only` element inside an `overflow-x-auto` box escapes it unless the

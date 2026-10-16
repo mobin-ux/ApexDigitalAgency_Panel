@@ -17,6 +17,8 @@ export interface Service {
   name: string
   /** Short name for cards and footer columns. */
   shortName: string
+  /** Shortest label, for filter chips and project tags ("SEO", "UI/UX"). */
+  tag: string
   /** One line under the name in the services menu. */
   menuBlurb: string
   /** Sentence on the homepage card. */
@@ -40,6 +42,7 @@ export const services: readonly Service[] = [
     slug: 'website-design',
     name: 'Website Design',
     shortName: 'Website Design',
+    tag: 'Website Design',
     menuBlurb: 'From £149/month over 12 months',
     blurb: 'A site built to win enquiries. Design, build, hosting and SEO foundations included.',
     summary: 'A site built to win enquiries, not just to look modern.',
@@ -53,6 +56,7 @@ export const services: readonly Service[] = [
     slug: 'software-development',
     name: 'Software Development',
     shortName: 'Software Development',
+    tag: 'Software',
     menuBlurb: 'Web apps, portals, internal tools',
     blurb: 'Web apps and internal tools, built around how you work.',
     summary: 'Web apps and internal tools built around how you work.',
@@ -67,6 +71,7 @@ export const services: readonly Service[] = [
     slug: 'digital-marketing',
     name: 'Digital Marketing',
     shortName: 'Digital Marketing',
+    tag: 'Digital Marketing',
     menuBlurb: 'Campaigns that fill the diary',
     blurb: 'One team on your channels, reporting on enquiries.',
     summary: 'One team on your channels, reporting on enquiries.',
@@ -81,6 +86,7 @@ export const services: readonly Service[] = [
     slug: 'seo',
     name: 'Search Engine Optimisation (SEO)',
     shortName: 'Search Engine Optimisation',
+    tag: 'SEO',
     menuBlurb: 'Rank for what customers search',
     blurb: 'Get found for what your customers actually type.',
     summary: 'Get found for what your customers actually type.',
@@ -95,6 +101,7 @@ export const services: readonly Service[] = [
     slug: 'ppc',
     name: 'Pay-Per-Click Advertising (PPC)',
     shortName: 'Pay-Per-Click Advertising',
+    tag: 'PPC',
     menuBlurb: 'Enquiries from week one',
     blurb: 'Enquiries from week one while SEO builds.',
     summary: 'Enquiries from week one while slower channels build.',
@@ -109,6 +116,7 @@ export const services: readonly Service[] = [
     slug: 'ui-ux-design',
     name: 'UI/UX Design',
     shortName: 'UI/UX Design',
+    tag: 'UI/UX',
     menuBlurb: 'Research, flows and prototypes',
     blurb: 'Research, flows and prototypes before any code.',
     summary: 'Research, flows and prototypes before any code.',
@@ -123,6 +131,7 @@ export const services: readonly Service[] = [
     slug: 'branding',
     name: 'Branding & Graphic Design',
     shortName: 'Branding & Graphic Design',
+    tag: 'Branding',
     menuBlurb: 'Identity for new businesses',
     blurb: 'Identity and collateral for businesses starting out.',
     summary: 'Identity and collateral for businesses starting out.',
@@ -134,6 +143,10 @@ export const services: readonly Service[] = [
     glyph: 'branding',
   },
 ]
+
+export function serviceBySlug(slug: ServiceSlug): Service {
+  return services.find(s => s.slug === slug)!
+}
 
 /** The flagship service shown as the large card on the homepage. */
 export const featuredService = {
@@ -167,7 +180,7 @@ const catalogueOrder: readonly ServiceSlug[] = [
   'software-development',
 ]
 
-export const catalogueServices = catalogueOrder.map(slug => services.find(s => s.slug === slug)!)
+export const catalogueServices = catalogueOrder.map(serviceBySlug)
 
 export function isServiceGoal(value: unknown): value is ServiceGoalId {
   return serviceGoals.some(goal => goal.id === value)

@@ -57,6 +57,17 @@ export const company: Company = {
 /** Track record quoted on more than one page; one figure, one place. */
 export const projectsDelivered = '497+'
 
+/** TODO(content): confirm how this is measured and over which projects before launch. */
+export const averageEnquiryLift = '3.1×'
+
+/**
+ * Public review score. TODO(content): confirm against the live Trustpilot
+ * profile and add its URL. An empty `score` hides every rating on the site.
+ * Deliberately not emitted as schema.org `AggregateRating`: Google ignores
+ * self-served review markup on a business's own site.
+ */
+export const reviewRating: { score: string, source: string } = { score: '5.0', source: 'Trustpilot' }
+
 export const seoDefaults = {
   /** Homepage <title>; the site name is appended by the title template. */
   title: 'Websites, marketing & software, paid monthly',
