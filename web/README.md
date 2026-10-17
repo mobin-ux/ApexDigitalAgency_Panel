@@ -48,8 +48,10 @@ app/
     services/           one component per /services section
     service/            the sections of /services/[slug], driven by a content file
     work/               one component per /our-work section
+    case-study/         the sections of /our-work/[slug]: hero, results, story
+                        (contents list + four chapters + chart), CTA, similar projects
   data/                 typed content: routes, site, services, services-page, plans,
-                        home, content, case-studies, our-work, and service-pages/
+                        home, content, case-studies, case-study-page, our-work, and service-pages/
                         (one file per service page)
   composables/          usePanelLinks
   utils/                formatters
@@ -86,6 +88,13 @@ is `<HomeHero>`, `components/ui/Button.vue` is `<UiButton>`.
   prerender the full list, mirror the selection in the query string
   (`?goal=`, `?service=` / `?sector=`) and read it after mount, because a
   prerendered page is one file for every query string.
+- **Case studies come from one catalogue.** `data/case-studies.ts` holds every
+  study; `/our-work/[slug]` renders the full write-up when a study has a
+  `story`, and otherwise a short summary page that `nuxt.config.ts` marks
+  `noindex, follow` (and so keeps out of the sitemap) until the story exists.
+- **No style attributes.** The strict CSP blocks them, so sizes are classes.
+  Data-driven sizes are generated: the case-study chart's bar heights are
+  `h-[N%]` classes from an `@source inline` range in `main.css`.
 - **No third-party requests.** Technology logos come from a local sprite,
   `public/icons/tech.svg`, built from Simple Icons by `pnpm icons` — run it
   after adding an `icon: '<slug>'` to any content file; it fails on an

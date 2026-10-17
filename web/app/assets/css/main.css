@@ -1,6 +1,10 @@
 @import 'tailwindcss';
 @import '@fontsource-variable/inter/wght.css';
 
+/* Bar heights for <CaseStudyChart>: the strict CSP blocks style attributes,
+   so every whole-percent height exists as a class. */
+@source inline('h-[{1..100}%]');
+
 /*
  * Apex design tokens for the public website.
  *

@@ -3,6 +3,19 @@ import { routes } from '~/data/routes'
 import { mainNav } from '~/data/site'
 
 const panel = usePanelLinks()
+const route = useRoute()
+
+// The section's own page is "page"; its child pages, such as a case study
+// under Our work, mark the section link "true". Homepage anchors are never current.
+function currentFor(to: string): 'page' | 'true' | undefined {
+  if (to.includes('#')) {
+    return undefined
+  }
+  if (route.path === to) {
+    return 'page'
+  }
+  return route.path.startsWith(`${to}/`) ? 'true' : undefined
+}
 </script>
 
 <template>
@@ -31,8 +44,8 @@ const panel = usePanelLinks()
           :key="link.to"
 
           :to="link.to"
-          :aria-current-value="link.to.includes('#') ? 'false' : 'page'"
-          class="text-[0.9375rem] font-semibold text-heading transition-colors hover:text-violet-600 aria-[current=page]:text-violet-600"
+          :aria-current="currentFor(link.to)"
+          class="text-[0.9375rem] font-semibold text-heading transition-colors hover:text-violet-600 aria-[current=page]:text-violet-600 aria-[current=true]:text-violet-600"
         >
           {{ link.label }}
         </NuxtLink>

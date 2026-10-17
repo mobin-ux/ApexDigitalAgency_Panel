@@ -1,5 +1,6 @@
 import process from 'node:process'
 import tailwindcss from '@tailwindcss/vite'
+import { allCaseStudies } from './app/data/case-studies'
 import { servicePagePaths } from './app/data/service-pages'
 import { company, seoDefaults } from './app/data/site'
 
@@ -85,6 +86,12 @@ export default defineNuxtConfig({
     '/': { prerender: true },
     '/services': { prerender: true },
     '/our-work': { prerender: true },
+    // A study without its written-up story is a short summary page: reachable
+    // from its card, but kept out of search and the sitemap until it is written.
+    ...Object.fromEntries(allCaseStudies.map(study => [
+      `/our-work/${study.slug}`,
+      study.story ? { prerender: true } : { prerender: true, robots: 'noindex, follow' },
+    ])),
     ...Object.fromEntries(servicePagePaths.map(slug => [`/services/${slug}`, { prerender: true }])),
     '/fonts/**': { headers: { 'cache-control': 'public, max-age=31536000, immutable' } },
     '/brand/**': { headers: { 'cache-control': 'public, max-age=604800' } },
