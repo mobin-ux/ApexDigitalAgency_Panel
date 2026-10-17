@@ -20,6 +20,11 @@ function currentFor(to: string): 'page' | 'true' | undefined {
 
 <template>
   <header class="sticky top-0 z-40 border-b border-line bg-page/85 backdrop-blur-lg">
+    <div
+      v-if="route.meta.readingProgress"
+      class="reading-progress absolute -bottom-px left-0 h-0.75 w-full bg-violet-500"
+      aria-hidden="true"
+    />
     <div class="container-page flex items-center gap-4 py-3 lg:gap-10 lg:py-5">
       <NuxtLink
         :to="routes.home"

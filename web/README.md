@@ -50,11 +50,13 @@ app/
     work/               one component per /our-work section
     case-study/         the sections of /our-work/[slug]: hero, results, story
                         (contents list + four chapters + chart), CTA, similar projects
+    article/            the sections of /insights/[slug]: hero, share row, body
+                        (contents list + typed blocks + FAQ), CTA, keep reading
   data/                 typed content: routes, site, services, services-page, plans,
-                        home, content, case-studies, case-study-page, our-work, and service-pages/
-                        (one file per service page)
+                        home, content, case-studies, case-study-page, our-work, articles,
+                        article-page, and service-pages/ (one file per service page)
   composables/          usePanelLinks
-  utils/                formatters
+  utils/                formatters, initials
   pages/                one file per route
 ```
 
@@ -92,9 +94,16 @@ is `<HomeHero>`, `components/ui/Button.vue` is `<UiButton>`.
   study; `/our-work/[slug]` renders the full write-up when a study has a
   `story`, and otherwise a short summary page that `nuxt.config.ts` marks
   `noindex, follow` (and so keeps out of the sitemap) until the story exists.
+- **Articles are data, block by block.** `data/articles.ts` holds every
+  article; an entry with a `body` (sections of typed blocks: paragraph, table,
+  note, checklist, costs, quote, service card) gets a prerendered
+  `/insights/[slug]` page, and one without is a teaser that can be listed but
+  404s until it is written. Homepage teasers are views of the same catalogue.
 - **No style attributes.** The strict CSP blocks them, so sizes are classes.
   Data-driven sizes are generated: the case-study chart's bar heights are
-  `h-[N%]` classes from an `@source inline` range in `main.css`.
+  `h-[N%]` classes from an `@source inline` range in `main.css`. The article
+  reading bar is a CSS scroll-driven animation (`.reading-progress`), opted
+  into with `definePageMeta({ readingProgress: true })`.
 - **No third-party requests.** Technology logos come from a local sprite,
   `public/icons/tech.svg`, built from Simple Icons by `pnpm icons` — run it
   after adding an `icon: '<slug>'` to any content file; it fails on an

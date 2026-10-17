@@ -34,7 +34,8 @@ node_modules** — run `pnpm install` inside `web/`, never add it to the root wo
 | SEO, PPC, Digital Marketing, Software, UI/UX, Branding (`/services/<slug>`) | ✅ built from `ServicePage.dc.html` + `service-data.js` — one content file each, a bespoke hero drawing each, monthly or scoping plans |
 | Our Work (`/our-work`) | ✅ built — featured study, service + sector filters (`?service=&sector=` deep links), 12 project cards, client quotes, CTA; JSON-LD CollectionPage + ItemList |
 | Case Study (`/our-work/[slug]`) | ✅ built — Hartley & Sons in full (facts card, results band, sticky contents list with scroll highlight, four chapters, monthly chart, quote, services used, CTA, similar projects); the other 12 studies get a `noindex` summary page so no card 404s; JSON-LD Article + BreadcrumbList |
-| Insights, Article, About, Contact, legal | ☐ not built — every link already points at its final URL (`app/data/routes.ts`) |
+| Article (`/insights/[slug]`) | ✅ built — the website cost guide in full (answer-first summary box, sticky contents list with scroll highlight, price table, checklists, costs grid, quote, inline service card, FAQ, method note, author), closing CTA and "Keep reading"; CSS-only reading bar in the header; JSON-LD Article (Person author) + FAQPage + BreadcrumbList |
+| Insights, About, Contact, legal | ☐ not built — every link already points at its final URL (`app/data/routes.ts`) |
 
 **Open items for the homepage:** real client logos, case-study and article
 photography (`MediaFrame` already takes an image), the real phone number,
@@ -143,6 +144,30 @@ is `ceo@digiapex.co.uk` while the domain is `apexdigi.co.uk`; confirm which.
 - The header marks "Our work" `aria-current="true"` on case-study pages
   (`"page"` stays for the section page itself).
 - Article markup has no `datePublished`: no study carries a real date yet.
+
+**Article page decisions (`Article.dc.html`)**
+- One catalogue, `data/articles.ts`. A body is sections of typed blocks, so
+  the next article is a data file. Entries without a body are teasers (the
+  homepage list and the design's "Keep reading"); their URLs 404 until
+  written, and only written articles are prerendered and in the sitemap.
+- The homepage lead teaser now reads the cost guide's title, reading time
+  (9 min) and date from the catalogue; its category is the article's topic
+  ("Websites", was "Pricing"). Published 2026-03-01 (the homepage's date),
+  updated 2026-09-14 (the article's) — both go into the markup.
+- **TODO(content), and more serious than the case-study figures:** the
+  article presents a survey ("120 quotes from 64 agencies and 56
+  freelancers") as research, names an author (James Cole, Head of Web, "200+
+  builds") and says ownership "transfers once the final payment clears",
+  which contradicts the Website Design page ("you own everything"). All
+  design copy, all to confirm before launch.
+- Reading progress is a CSS scroll-driven animation (`animation-timeline:
+  scroll(root)`), hidden where unsupported and under reduced motion — no
+  script, and no style attribute for the CSP to block.
+- Share links are plain LinkedIn/X share URLs (no third-party script); "Copy
+  link" says "Copy failed" when the clipboard refuses (it does in the hidden
+  preview tab).
+- The price table is a real `<table>` with a caption; FAQ is native
+  `<details name>` with the first open, as designed.
 
 **Gotchas**
 - An `sr-only` element inside an `overflow-x-auto` box escapes it unless the

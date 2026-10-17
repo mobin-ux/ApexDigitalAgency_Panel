@@ -21,10 +21,6 @@ const delivered = props.study.services
   .map(slug => ({ service: serviceBySlug(slug), items: props.story.servicesUsed.delivered[slug] ?? [] }))
   .filter(entry => entry.items.length)
 
-function initials(name: string) {
-  return name.split(/\s+/).map(part => part[0]).join('').slice(0, 2)
-}
-
 function numbered(id: StoryChapterId) {
   const i = storyChapters.findIndex(chapter => chapter.id === id)
   return `${String(i + 1).padStart(2, '0')} · ${storyChapters[i]!.label}`

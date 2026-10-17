@@ -1,5 +1,6 @@
 import process from 'node:process'
 import tailwindcss from '@tailwindcss/vite'
+import { publishedArticles } from './app/data/articles'
 import { allCaseStudies } from './app/data/case-studies'
 import { servicePagePaths } from './app/data/service-pages'
 import { company, seoDefaults } from './app/data/site'
@@ -93,6 +94,8 @@ export default defineNuxtConfig({
       study.story ? { prerender: true } : { prerender: true, robots: 'noindex, follow' },
     ])),
     ...Object.fromEntries(servicePagePaths.map(slug => [`/services/${slug}`, { prerender: true }])),
+    // Only written articles have a page; a listed-but-unwritten slug stays a 404.
+    ...Object.fromEntries(publishedArticles.map(article => [`/insights/${article.slug}`, { prerender: true }])),
     '/fonts/**': { headers: { 'cache-control': 'public, max-age=31536000, immutable' } },
     '/brand/**': { headers: { 'cache-control': 'public, max-age=604800' } },
     '/icons/**': { headers: { 'cache-control': 'public, max-age=604800' } },
@@ -145,8 +148,8 @@ export default defineNuxtConfig({
   // native `@mdream/rust-win32-x64-msvc@2.0.3` binding, which the npm mirror in
   // `.npmrc` has not synced yet, so a Windows build fails with it switched on.
   aiReady: { enabled: false },
-  // TODO(seo): per-page OG images (nuxt-og-image) when article pages exist;
-  // until then a single static image is referenced from the homepage.
+  // TODO(seo): per-page OG images (nuxt-og-image) for articles and case
+  // studies; until then pages without artwork reference one static image.
   ogImage: { enabled: false },
 
   image: {

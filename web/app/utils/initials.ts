@@ -1,0 +1,4 @@
+/** "James Cole" → "JC": the monogram drawn where a person has no photograph. */
+export function initials(name: string): string {
+  return name.split(/\s+/).map(part => part[0]).join('').slice(0, 2).toUpperCase()
+}

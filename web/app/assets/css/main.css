@@ -435,4 +435,33 @@
     margin-inline: auto;
     padding-inline: 1.5rem;
   }
+  /*
+   * Article reading progress along the bottom of the header, driven by the
+   * page's scroll position in CSS alone: no script, no style attribute for the
+   * CSP to block. Hidden where scroll-driven animations are unsupported, and
+   * under reduced motion like every other animation.
+   */
+  .reading-progress {
+    display: none;
+    transform-origin: left;
+  }
+
+  @supports (animation-timeline: scroll()) {
+    @media (prefers-reduced-motion: no-preference) {
+      .reading-progress {
+        display: block;
+        animation: reading-progress linear both;
+        animation-timeline: scroll(root block);
+      }
+    }
+  }
+
+  @keyframes reading-progress {
+    from {
+      transform: scaleX(0);
+    }
+    to {
+      transform: scaleX(1);
+    }
+  }
 }
