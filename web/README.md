@@ -12,7 +12,7 @@ repository but nothing at runtime — the only coupling is the panel URL.
 | Styling | Tailwind CSS v4, tokens in `app/assets/css/main.css` | The Apex design-system tokens live in one `@theme` block |
 | Rendering | Marketing routes prerendered (`routeRules`) | Static HTML: fastest TTFB, smallest attack surface |
 | SEO | `@nuxtjs/seo` (sitemap, robots, schema.org, canonical, meta) | One config for every crawler-facing file |
-| Security | `nuxt-security` in `strict` mode | CSP with nonces/hashes, COEP/COOP/CORP, HSTS preload, GET/HEAD only |
+| Security | `nuxt-security` in `strict` mode | CSP with nonces/hashes, COEP/COOP/CORP, HSTS preload, GET/HEAD only (POST on `/api/contact` alone) |
 | Images | `@nuxt/image` | AVIF/WebP + responsive `srcset` once real artwork exists |
 | Accessible UI | `reka-ui` (mobile drawer) | Focus trap, Escape, scroll lock done properly |
 | Fonts | Yellix (self-hosted) + Inter Variable (`@fontsource-variable/inter`) | No third-party font requests, GDPR-friendly |
@@ -43,7 +43,7 @@ app/
   components/
     layout/             Header, ServicesMenu, MobileMenu, Footer
     ui/                 Button, EyebrowChip, SectionHeader, ServiceGlyph, MediaFrame,
-                        Breadcrumbs, FaqList, Tick, TechMark, FilterChip, Stars
+                        Breadcrumbs, FaqList, Tick, TechMark, FilterChip, Stars, Field
     home/               one component per homepage section
     services/           one component per /services section
     service/            the sections of /services/[slug], driven by a content file
@@ -53,12 +53,16 @@ app/
     article/            the sections of /insights/[slug]: hero, share row, body
                         (contents list + typed blocks + FAQ), CTA, keep reading
     about/              one component per /about section
+    contact/            the sections of /contact: hero, message form, side panel,
+                        studio card, FAQ
   data/                 typed content: routes, site, services, services-page, plans,
                         home, content, case-studies, case-study-page, our-work, articles,
-                        article-page, about, and service-pages/ (one file per service page)
-  composables/          usePanelLinks
-  utils/                formatters, initials
+                        article-page, about, contact, and service-pages/ (one file per service page)
+  composables/          usePanelLinks, useServiceLinks, useContactForm
+  utils/                formatters, initials, studio (the studio address and its links)
   pages/                one file per route
+shared/contact.ts       the contact form's ids, limits and validator, used by page AND server
+server/api/contact.post.ts  the site's one write: validates and emails a message
 ```
 
 Components are auto-imported with a path prefix: `components/home/Hero.vue`
@@ -117,3 +121,11 @@ is `<HomeHero>`, `components/ui/Button.vue` is `<UiButton>`.
 See `.env.example`. In production set `NUXT_PUBLIC_SITE_URL`,
 `NUXT_PUBLIC_PANEL_URL` and `NUXT_SITE_ENV=production` — without the last one
 the site serves `noindex` and a disallow-all `robots.txt` on purpose.
+
+The contact form delivers through Resend when `NUXT_CONTACT_RESEND_API_KEY`,
+`NUXT_CONTACT_TO` and `NUXT_CONTACT_FROM` are all set (the sender must be on
+a domain verified in Resend). Until then `POST /api/contact` answers 503 and
+the form says the message was not sent, offering the visitor's own email
+with everything they typed. The endpoint is rate-limited per IP in memory,
+which is right for one Node process; behind several, give nuxt-security's
+rate limiter a shared storage driver.

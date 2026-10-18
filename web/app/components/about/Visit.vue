@@ -7,12 +7,7 @@ import { company } from '~/data/site'
  * The studio card. The address, the phone number and the directions link
  * appear only once they are confirmed in `site.ts`.
  */
-const { street, locality, region, postcode } = company.address
-const addressLines = street ? [street, [`${locality}, ${region}`, postcode].filter(Boolean).join(' ')] : []
-const directions = street
-  ? `https://www.google.com/maps/search/?${new URLSearchParams({ api: '1', query: [street, locality, postcode].filter(Boolean).join(', ') })}`
-  : ''
-const telHref = company.phone ? `tel:${company.phone.replace(/[^\d+]/g, '')}` : ''
+const { addressLines, directionsUrl: directions, telHref } = studio
 </script>
 
 <template>

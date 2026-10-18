@@ -4,7 +4,7 @@
  * Pages are linked by their final URL even before the page exists, so adding
  * a page never means touching the components that point at it.
  * Built so far: `home`, `services`, all seven `service(slug)` pages, `ourWork`,
- * `caseStudy(slug)`, `article(slug)` for written articles, and `about`;
+ * `caseStudy(slug)`, `article(slug)` for written articles, `about` and `contact`;
  * every other URL is a page still to come.
  */
 

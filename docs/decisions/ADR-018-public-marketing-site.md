@@ -33,7 +33,7 @@ Tairo dependency.
 | Rendering | Nuxt SSR with `routeRules` prerender for marketing routes — crawlers get full HTML, the server has nothing dynamic to attack |
 | Styling | Tailwind v4; the Apex tokens are one `@theme` block (`assets/css/main.css`), the default palette is removed so a stray `bg-blue-500` cannot compile |
 | SEO | `@nuxtjs/seo` (canonical, sitemap, robots, schema.org). Structured data is built from the **same data objects** that render the page, so the FAQ markup cannot drift from the visible FAQ |
-| Security | `nuxt-security` in `strict` mode: nonce/hash CSP with `default-src 'none'`, COEP `require-corp`, COOP/CORP same-origin, HSTS preload, GET/HEAD only, no CORS |
+| Security | `nuxt-security` in `strict` mode: nonce/hash CSP with `default-src 'none'`, COEP `require-corp`, COOP/CORP same-origin, HSTS preload, GET/HEAD only (one exception, below), no CORS |
 | Fonts | Yellix self-hosted; Inter via `@fontsource-variable/inter`. No request leaves the origin, which is also the GDPR-clean answer |
 | Interactivity | Only where needed: native `<details name>` FAQ, a no-JS services menu, a reka-ui drawer, and one hydrate-on-visible island |
 
@@ -52,7 +52,20 @@ Tairo dependency.
 - Every animation is behind `motion-safe:`; every control has a visible focus
   ring; the mobile drawer traps focus, closes on Escape and returns focus.
 
-## 4. Known constraints
+## 4. The one write: `POST /api/contact` (2026-10-18)
+
+The Contact page needed somewhere to send a message, so the site gained exactly
+one server route. It stays inside the rules above: POST is allowed on that path
+alone (route rules), the body is capped at 16 KB, each IP gets five messages per
+ten minutes, cross-site requests are refused (`Sec-Fetch-Site`, and a JSON body
+needs a preflight the site never answers), a honeypot catches form bots, and
+the page and the server share one validator (`shared/contact.ts`). It stores
+nothing: it emails the team through Resend's REST API with no SDK, and sends
+nothing to the visitor, because an auto-reply from a public form can be aimed
+at anyone's inbox. Unconfigured, it answers 503 and the page offers a mailto
+with the visitor's text instead of claiming the message arrived.
+
+## 5. Known constraints
 
 - **`nuxt-ai-ready` (llms.txt / markdown-for-agents) is off.** It needs the
   `@mdream/rust-win32-x64-msvc@2.0.3` native binding, which the npm mirror in

@@ -36,7 +36,8 @@ node_modules** — run `pnpm install` inside `web/`, never add it to the root wo
 | Case Study (`/our-work/[slug]`) | ✅ built — Hartley & Sons in full (facts card, results band, sticky contents list with scroll highlight, four chapters, monthly chart, quote, services used, CTA, similar projects); the other 12 studies get a `noindex` summary page so no card 404s; JSON-LD Article + BreadcrumbList |
 | Article (`/insights/[slug]`) | ✅ built — the website cost guide in full (answer-first summary box, sticky contents list with scroll highlight, price table, checklists, costs grid, quote, inline service card, FAQ, method note, author), closing CTA and "Keep reading"; CSS-only reading bar in the header; JSON-LD Article (Person author) + FAQPage + BreadcrumbList |
 | About (`/about`) | ✅ built — hero with three figures, four promises, team with a department filter, company paperwork card, timeline, studio card, CTA; JSON-LD AboutPage + BreadcrumbList. Unconfirmed company facts are hidden, not printed |
-| Insights, Contact, legal | ☐ not built — every link already points at its final URL (`app/data/routes.ts`) |
+| Contact (`/contact`) | ✅ built — hero with three figures, message form (services, budget, fields, reply method) posting to `POST /api/contact`, side panel, studio card, FAQ; `?service=&plan=` from service pages names the plan; JSON-LD ContactPage + FAQPage + BreadcrumbList |
+| Insights, legal | ☐ not built — every link already points at its final URL (`app/data/routes.ts`) |
 
 **Open items for the homepage:** real client logos, case-study and article
 photography (`MediaFrame` already takes an image), the real phone number,
@@ -196,6 +197,40 @@ is `ceo@digiapex.co.uk` while the domain is `apexdigi.co.uk`; confirm which.
   timeline, the two open roles. James Cole, the cost guide's author, is not
   on the team list; promise 04 ("you own it from day one") contradicts the
   cost guide's FAQ (ownership after the final payment).
+
+**Contact page decisions (`Contact.dc.html`)**
+- The form really sends. `POST /api/contact` (the site's one write — ADR-018
+  §4) validates with `shared/contact.ts`, the same validator the page uses,
+  and emails the team through Resend. **It needs `NUXT_CONTACT_RESEND_API_KEY`,
+  `NUXT_CONTACT_TO` and `NUXT_CONTACT_FROM` in production**; without them it
+  answers 503 and the form says "Your message has not been sent" with a
+  mailto carrying everything typed. Nothing claims to have arrived that did not.
+- Defences: POST only on that path, 16 KB body cap, 5 per IP per 10 minutes
+  (in-memory, so per process), `Sec-Fetch-Site` same-origin, JSON only (a
+  cross-site form cannot send it without a preflight), honeypot (`fax`). The
+  message text is never logged.
+- The design's thank-you says "We have sent a copy to …". No copy is sent (an
+  auto-reply from a public form is a spam relay), so it says when and where to
+  expect the reply instead.
+- `?service=<slug>&plan=<id>` preselects the service and shows "You chose
+  the SEO Growth plan" — only when the plan exists in `plans.ts`; unknown
+  values are ignored, never echoed.
+- Method cards show only with a real destination: today **Email** alone. Call
+  waits for `company.phone`, "Book a call" for `bookingUrl` in
+  `data/contact.ts`, LinkedIn for its profile URL. The studio's address, the
+  parking/station line and "Get directions" wait for `address.street`; the
+  map panel is a static image slot (an embedded map is a third-party script
+  that sees every visitor's IP).
+- Shared pieces: `UiField` (labelled input, `aria-invalid` + described error),
+  `utils/studio.ts` (address lines, directions URL, tel link — About's card
+  now uses it too), and `danger` / `danger-ink` / `danger-50` tokens (the DS's
+  coral is 3.2:1, so error text uses the ink step).
+- Required-field errors show after the field is left or a send is tried, and
+  then follow the value live; a failed send focuses the first field to fix,
+  the error box, or the thank-you heading.
+- **TODO(content)**: "4 hrs average first reply" (measured how?), the reply
+  promises, and the hero line "call … or come to the studio" while neither
+  the phone nor the address is published.
 
 **Gotchas**
 - An `sr-only` element inside an `overflow-x-auto` box escapes it unless the

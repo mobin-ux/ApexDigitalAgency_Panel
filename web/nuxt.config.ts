@@ -54,6 +54,16 @@ export default defineNuxtConfig({
   // Runtime configuration (override with NUXT_PUBLIC_* environment variables)
   // ---------------------------------------------------------------------------
   runtimeConfig: {
+    /**
+     * Where contact-form messages go (server-only; NUXT_CONTACT_* variables).
+     * Until all three are set, POST /api/contact answers 503 and the form
+     * offers the visitor's own email instead of claiming it sent anything.
+     */
+    contact: {
+      resendApiKey: '',
+      to: '',
+      from: '',
+    },
     public: {
       /** Customer panel (separate Nuxt app) — target of "Client login" and order links. */
       panelUrl: 'https://panel.apexdigi.co.uk',
@@ -88,6 +98,16 @@ export default defineNuxtConfig({
     '/services': { prerender: true },
     '/our-work': { prerender: true },
     '/about': { prerender: true },
+    '/contact': { prerender: true },
+    // The site's one write. POST is allowed here and nowhere else; the body is
+    // small and each IP gets five messages per ten minutes.
+    '/api/contact': {
+      security: {
+        allowedMethodsRestricter: { methods: ['POST'] },
+        requestSizeLimiter: { maxRequestSizeInBytes: 16_000 },
+        rateLimiter: { tokensPerInterval: 5, interval: 600_000 },
+      },
+    },
     // A study without its written-up story is a short summary page: reachable
     // from its card, but kept out of search and the sitemap until it is written.
     ...Object.fromEntries(allCaseStudies.map(study => [
@@ -177,7 +197,7 @@ export default defineNuxtConfig({
       // browsers log as an unrecognised feature on every page load.
       permissionsPolicy: false,
     },
-    // The site serves pages and static files only.
+    // Pages and static files only; /api/contact opens POST in its route rule.
     allowedMethodsRestricter: { methods: ['GET', 'HEAD'] },
     // No cross-origin API is exposed, so no CORS headers are emitted.
     corsHandler: false,

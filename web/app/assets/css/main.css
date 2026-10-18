@@ -93,6 +93,11 @@
   --color-success: #22b07d;
   --color-success-ink: #167d58; /* 4.6:1 on success-50, 5.0:1 on white */
   --color-success-50: #e9f8f2;
+  /* The design system's --apex-danger is 3.2:1 on white: a border colour only.
+     Error text uses the ink step (5.7:1 on white, 5.0:1 on danger-50). */
+  --color-danger: #ec6453;
+  --color-danger-ink: #b93a2b;
+  --color-danger-50: #fdeeec;
 
   /* Illustration accents (service hero drawings). Text colours are the
      700/800 steps, which clear AA on their own 50 tint. */
