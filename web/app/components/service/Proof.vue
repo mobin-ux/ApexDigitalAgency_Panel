@@ -17,6 +17,7 @@ defineProps<{ page: ServicePageContent }>()
           id="proof-title"
           eyebrow="Proof"
           :title="page.proof.title"
+          size="md"
         />
         <p class="max-w-[52ch] text-body-lg text-body">
           {{ page.proof.body }}

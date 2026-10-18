@@ -73,6 +73,7 @@ export const websiteDesignPage: ServicePageContent = {
   },
 
   offering: {
+    spaced: true,
     eyebrow: 'What we build',
     title: 'Every kind of website, for every kind of business',
     intro: 'Ten build types, fourteen sectors, one process and one monthly plan.',

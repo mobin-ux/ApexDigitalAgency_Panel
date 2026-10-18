@@ -11,9 +11,11 @@ withDefaults(defineProps<{
   intro: string
   aside?: 400 | 420 | 440
   tone?: 'light' | 'dark'
+  size?: 'lg' | 'md'
 }>(), {
   aside: 420,
   tone: 'light',
+  size: 'lg',
 })
 
 const columns = {
@@ -33,6 +35,7 @@ const columns = {
       :eyebrow="eyebrow"
       :title="title"
       :tone="tone"
+      :size="size"
     />
     <p
       class="text-body-lg lg:mb-1.5"

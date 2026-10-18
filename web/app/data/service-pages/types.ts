@@ -161,6 +161,11 @@ export interface ServicePageContent {
     eyebrow: string
     title: string
     intro: string
+    /**
+     * Full top padding. Website Design's own design spaces this section from
+     * the audiences above; `ServicePage.dc.html` runs it straight on from them.
+     */
+    spaced?: boolean
     rows: readonly { title: string, detail: string, time: string }[]
     industries?: {
       title: string

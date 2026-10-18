@@ -16,6 +16,7 @@ defineProps<{ page: ServicePageContent }>()
           id="technology-title"
           :eyebrow="page.technology.eyebrow"
           :title="page.technology.title"
+          size="md"
         >
           {{ page.technology.intro }}
         </UiSectionHeader>

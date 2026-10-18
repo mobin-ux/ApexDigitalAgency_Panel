@@ -11,10 +11,13 @@ withDefaults(defineProps<{
   align?: 'start' | 'center'
   balance?: boolean
   tone?: 'light' | 'dark'
+  /** `md` is the designs' 44px secondary section heading (48px is `lg`). */
+  size?: 'lg' | 'md'
 }>(), {
   align: 'start',
   balance: false,
   tone: 'light',
+  size: 'lg',
 })
 </script>
 
@@ -29,7 +32,7 @@ withDefaults(defineProps<{
     <h2
       :id="id"
       class="font-display text-h2"
-      :class="[tone === 'dark' ? 'text-white' : 'text-heading', balance && 'text-balance']"
+      :class="[tone === 'dark' ? 'text-white' : 'text-heading', balance && 'text-balance', size === 'md' && 'lg:text-[2.75rem]']"
     >
       {{ title }}
     </h2>

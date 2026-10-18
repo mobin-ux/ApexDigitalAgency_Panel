@@ -75,6 +75,14 @@ is `ceo@digiapex.co.uk` while the domain is `apexdigi.co.uk`; confirm which.
 - Testimonials, named clients and case-study figures are the design's —
   `TODO(content)` to confirm each is real and consented (DMCC Act 2024).
 
+- **Fidelity audit (2026-10-18).** Re-checked against `Service - Website
+  Design.dc.html` (unchanged since 2026-10-11): all 340 visible design strings
+  are on the page except the three placeholder footer numbers. Two shared
+  fixes: the offering, technology, proof and FAQ headings are the designs'
+  44px (`UiSectionHeader size="md"`), and the offering block's top padding
+  is per design — `offering.spaced: true` for Website Design, none on the
+  six `ServicePage.dc.html` pages, which run it on from the audiences.
+
 **Generic service pages (`ServicePage.dc.html`)**
 - Every plan catalogue lives in `data/plans.ts` (`seoPlans`, `ppcPlans`,
   `marketingPlans`, `uxPlans`, `brandPlans`), and `services.ts` takes each

@@ -10,13 +10,17 @@ defineProps<{ page: ServicePageContent }>()
     aria-labelledby="offering-title"
     class="border-b border-line"
   >
-    <div class="container-page flex flex-col gap-10 py-20 lg:py-26">
+    <div
+      class="container-page flex flex-col gap-10 pb-20 lg:pb-26"
+      :class="page.offering.spaced && 'pt-20 lg:pt-26'"
+    >
       <ServiceIntro
         id="offering-title"
         :eyebrow="page.offering.eyebrow"
         :title="page.offering.title"
         :intro="page.offering.intro"
         :aside="400"
+        size="md"
       />
 
       <ul class="overflow-hidden rounded-2xl border border-line bg-white shadow-tile">

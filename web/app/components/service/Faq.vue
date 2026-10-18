@@ -16,6 +16,7 @@ defineProps<{ page: ServicePageContent }>()
         id="service-faq-title"
         eyebrow="Questions"
         :title="page.faq.title"
+        size="md"
       >
         Anything else, ask us directly — <a
           :href="`mailto:${company.email}`"
