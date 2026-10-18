@@ -16,7 +16,21 @@ export interface Company {
   companyNumber: string
   vatNumber: string
   registeredIn: string
-  address: { locality: string, region: string, country: string }
+  /** Year of incorporation, as Companies House shows it. */
+  incorporated: string
+  /** ICO data protection registration number ("ZA…"). */
+  icoNumber: string
+  /** Insurance cover as it may be quoted, e.g. "Professional indemnity, £1m cover". */
+  insurance: string
+  openingHours: string
+  address: {
+    /** Street address of the registered office / studio; empty hides it and the directions link. */
+    street: string
+    locality: string
+    region: string
+    postcode: string
+    country: string
+  }
   social: readonly SocialProfile[]
 }
 
@@ -40,9 +54,20 @@ export const company: Company = {
   /** TODO(legal): VAT number. */
   vatNumber: '',
   registeredIn: 'England & Wales',
+  /** TODO(content): confirm against Companies House (the About design says 2024). */
+  incorporated: '2024',
+  /** TODO(legal): ICO registration number — the design used a ZA000000 placeholder. */
+  icoNumber: '',
+  /** TODO(legal): the design claims "Professional indemnity, £1m cover"; state it only once the policy is confirmed. */
+  insurance: '',
+  /** TODO(content): confirm studio hours (from the About design). */
+  openingHours: 'Mon to Fri, 9am to 5:30pm',
   address: {
+    /** TODO(content): studio / registered office address — the design used "Unit 0, Example Business Park, ME00 0AA". */
+    street: '',
     locality: 'Maidstone',
     region: 'Kent',
+    postcode: '',
     country: 'GB',
   },
   /** TODO(content): add the real profile URLs; empty entries are not rendered or put in JSON-LD. */
@@ -56,6 +81,9 @@ export const company: Company = {
 
 /** Track record quoted on more than one page; one figure, one place. */
 export const projectsDelivered = '497+'
+
+/** TODO(content): headcount on our own payroll (the About design says 14). */
+export const teamSize = '14'
 
 /** TODO(content): confirm how this is measured and over which projects before launch. */
 export const averageEnquiryLift = '3.1×'

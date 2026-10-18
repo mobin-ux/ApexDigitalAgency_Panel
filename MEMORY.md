@@ -35,7 +35,8 @@ node_modules** — run `pnpm install` inside `web/`, never add it to the root wo
 | Our Work (`/our-work`) | ✅ built — featured study, service + sector filters (`?service=&sector=` deep links), 12 project cards, client quotes, CTA; JSON-LD CollectionPage + ItemList |
 | Case Study (`/our-work/[slug]`) | ✅ built — Hartley & Sons in full (facts card, results band, sticky contents list with scroll highlight, four chapters, monthly chart, quote, services used, CTA, similar projects); the other 12 studies get a `noindex` summary page so no card 404s; JSON-LD Article + BreadcrumbList |
 | Article (`/insights/[slug]`) | ✅ built — the website cost guide in full (answer-first summary box, sticky contents list with scroll highlight, price table, checklists, costs grid, quote, inline service card, FAQ, method note, author), closing CTA and "Keep reading"; CSS-only reading bar in the header; JSON-LD Article (Person author) + FAQPage + BreadcrumbList |
-| Insights, About, Contact, legal | ☐ not built — every link already points at its final URL (`app/data/routes.ts`) |
+| About (`/about`) | ✅ built — hero with three figures, four promises, team with a department filter, company paperwork card, timeline, studio card, CTA; JSON-LD AboutPage + BreadcrumbList. Unconfirmed company facts are hidden, not printed |
+| Insights, Contact, legal | ☐ not built — every link already points at its final URL (`app/data/routes.ts`) |
 
 **Open items for the homepage:** real client logos, case-study and article
 photography (`MediaFrame` already takes an image), the real phone number,
@@ -168,6 +169,25 @@ is `ceo@digiapex.co.uk` while the domain is `apexdigi.co.uk`; confirm which.
   preview tab).
 - The price table is a real `<table>` with a caption; FAQ is native
   `<details name>` with the first open, as designed.
+
+**About page decisions (`About.dc.html`)**
+- The design's placeholders are not printed. `site.ts` gained `icoNumber`,
+  `insurance`, `address.street`, `address.postcode` (all empty) plus
+  `incorporated` ('2024') and `openingHours`. Paperwork rows, their register
+  links (Companies House, HMRC VAT check, ICO), the three ticks, the studio
+  address, phone and "Get directions" each render only when their fact is
+  filled. Today the paperwork card shows two rows: registered name and
+  incorporation year. Fill `site.ts` and the rest appears.
+- Confirmed street address and postcode flow into the Organization JSON-LD;
+  the unconfirmed founding year deliberately does not.
+- "Request it" is a `mailto:` with a subject, so it works before /contact
+  exists. Team LinkedIn buttons are hidden while their URLs are empty, and
+  the team-photo caption appears only once the photo does.
+- Team size ('14') is `teamSize` in `site.ts`, shared by the hero and CTA.
+- **TODO(content)**: the eight named staff (and consent for photos), the
+  timeline, the two open roles. James Cole, the cost guide's author, is not
+  on the team list; promise 04 ("you own it from day one") contradicts the
+  cost guide's FAQ (ownership after the final payment).
 
 **Gotchas**
 - An `sr-only` element inside an `overflow-x-auto` box escapes it unless the

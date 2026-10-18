@@ -52,9 +52,10 @@ app/
                         (contents list + four chapters + chart), CTA, similar projects
     article/            the sections of /insights/[slug]: hero, share row, body
                         (contents list + typed blocks + FAQ), CTA, keep reading
+    about/              one component per /about section
   data/                 typed content: routes, site, services, services-page, plans,
                         home, content, case-studies, case-study-page, our-work, articles,
-                        article-page, and service-pages/ (one file per service page)
+                        article-page, about, and service-pages/ (one file per service page)
   composables/          usePanelLinks
   utils/                formatters, initials
   pages/                one file per route
@@ -71,8 +72,10 @@ is `<HomeHero>`, `components/ui/Button.vue` is `<UiButton>`.
   markup never changes when its wording does and the same facts (prices,
   service names, FAQ) feed the UI *and* the structured data.
 - **No made-up facts.** Anything unconfirmed (`company.phone`,
-  `companyNumber`, `vatNumber`, social URLs) is an empty string and its UI is
-  hidden until filled. Search the repo for `TODO(content)` / `TODO(legal)`.
+  `companyNumber`, `vatNumber`, `icoNumber`, `insurance`, the street address,
+  social URLs) is an empty string and its UI is hidden until filled — on the
+  About page that includes each paperwork row, its register link and the tick
+  that claims it. Search the repo for `TODO(content)` / `TODO(legal)`.
 - **Internal URLs come from `app/data/routes.ts`.** Pages are linked by their
   final URL before they exist; the link checker is off until they do.
 - **Interactive only when needed.** The FAQ is native `<details>`, the services

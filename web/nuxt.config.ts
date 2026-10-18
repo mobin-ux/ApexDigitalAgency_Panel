@@ -87,6 +87,7 @@ export default defineNuxtConfig({
     '/': { prerender: true },
     '/services': { prerender: true },
     '/our-work': { prerender: true },
+    '/about': { prerender: true },
     // A study without its written-up story is a short summary page: reachable
     // from its card, but kept out of search and the sitemap until it is written.
     ...Object.fromEntries(allCaseStudies.map(study => [
@@ -126,6 +127,8 @@ export default defineNuxtConfig({
       ...(company.phone ? { telephone: company.phone } : {}),
       ...(profiles.length ? { sameAs: profiles } : {}),
       address: {
+        ...(company.address.street ? { streetAddress: company.address.street } : {}),
+        ...(company.address.postcode ? { postalCode: company.address.postcode } : {}),
         addressLocality: company.address.locality,
         addressRegion: company.address.region,
         addressCountry: company.address.country,
