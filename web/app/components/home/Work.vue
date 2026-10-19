@@ -99,11 +99,15 @@ import { routes } from '~/data/routes'
           </p>
           <h3 class="font-display text-xl leading-tight font-semibold tracking-tight text-heading">
             <NuxtLink
+              v-if="item.to"
               :to="item.to"
               class="after:absolute after:inset-0"
             >
               {{ item.title }}
             </NuxtLink>
+            <template v-else>
+              {{ item.title }}
+            </template>
           </h3>
         </li>
       </ul>

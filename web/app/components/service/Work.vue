@@ -1,11 +1,16 @@
 <script setup lang="ts">
 import type { ServicePageContent } from '~/data/service-pages/types'
+import { caseStudyBySlug } from '~/data/case-studies'
 import { routes } from '~/data/routes'
 import { company } from '~/data/site'
 
 const props = defineProps<{ page: ServicePageContent }>()
 
 const { contact } = useServiceLinks(props.page.slug)
+
+// TODO(content): most of these studies are not in the case-study catalogue
+// yet. A card links only when its study has a page, so none leads to a 404.
+const hasPage = (slug: string) => Boolean(caseStudyBySlug(slug))
 </script>
 
 <template>
@@ -35,7 +40,8 @@ const { contact } = useServiceLinks(props.page.slug)
         <li
           v-for="item in page.work.cases"
           :key="item.slug"
-          class="relative grid grid-rows-[auto_1fr_auto] overflow-hidden rounded-[22px] border border-line bg-white shadow-tile transition duration-200 ease-out-soft hover:shadow-tile-hover motion-safe:hover:-translate-y-0.75"
+          class="relative grid grid-rows-[auto_1fr_auto] overflow-hidden rounded-[22px] border border-line bg-white shadow-tile transition duration-200 ease-out-soft"
+          :class="hasPage(item.slug) && 'hover:shadow-tile-hover motion-safe:hover:-translate-y-0.75'"
         >
           <ServiceWorkThumb
             :kind="item.thumb"
@@ -47,11 +53,15 @@ const { contact } = useServiceLinks(props.page.slug)
             </p>
             <h3 class="font-display text-[1.1875rem] leading-[1.24] font-semibold tracking-[-0.018em] text-heading">
               <NuxtLink
+                v-if="hasPage(item.slug)"
                 :to="routes.caseStudy(item.slug)"
                 class="after:absolute after:inset-0 after:rounded-[22px]"
               >
                 {{ item.title }}
               </NuxtLink>
+              <template v-else>
+                {{ item.title }}
+              </template>
             </h3>
           </div>
           <div class="mx-5.5 mt-4 mb-5 flex items-end gap-5.5 border-t border-line-soft pt-4">

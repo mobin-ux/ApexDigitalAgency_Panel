@@ -1,5 +1,6 @@
 import type { Article } from './articles'
 import { articleBySlug, websiteCostGuide } from './articles'
+import { caseStudyBySlug } from './case-studies'
 import { routes } from './routes'
 
 /**
@@ -43,27 +44,36 @@ export const featuredCaseStudy = {
   to: routes.caseStudy('hartley-and-sons'),
 } as const
 
+/**
+ * A study's page, or '' while it has none. TODO(content): these three teasers
+ * are not in the case-study catalogue yet, so they render without a link
+ * rather than leading to a 404.
+ */
+function studyLink(slug: string): string {
+  return caseStudyBySlug(slug) ? routes.caseStudy(slug) : ''
+}
+
 export const caseStudyTeasers: readonly (CaseStudyTeaser & { to: string })[] = [
   {
     slug: 'restaurant-group-bookings',
     sector: 'Hospitality',
     location: 'London',
     title: 'Bookings up 61% for a two-site restaurant group',
-    to: routes.caseStudy('restaurant-group-bookings'),
+    to: studyLink('restaurant-group-bookings'),
   },
   {
     slug: 'client-portal-admin-hours',
     sector: 'Professional services',
     location: 'Kent',
     title: 'A client portal that removed 20 admin hours a week',
-    to: routes.caseStudy('client-portal-admin-hours'),
+    to: studyLink('client-portal-admin-hours'),
   },
   {
     slug: 'retail-rebrand-rebuild',
     sector: 'Retail',
     location: 'Nationwide',
     title: 'Rebrand and store rebuild in eight weeks',
-    to: routes.caseStudy('retail-rebrand-rebuild'),
+    to: studyLink('retail-rebrand-rebuild'),
   },
 ]
 

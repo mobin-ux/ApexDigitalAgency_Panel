@@ -116,6 +116,13 @@ is `<HomeHero>`, `components/ui/Button.vue` is `<UiButton>`.
   after adding an `icon: '<slug>'` to any content file; it fails on an
   unknown slug.
 
+## Deploy
+
+`bash scripts/ship-web.sh` from the repo root (deploy key `~/.ssh/apex_deploy`).
+It builds on the server, so the bundled `sharp` binary is Linux's, and
+restores the previous build if the new one fails its health check. Server
+layout and env are documented at the top of the script.
+
 ## Environment
 
 See `.env.example`. In production set `NUXT_PUBLIC_SITE_URL`,

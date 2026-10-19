@@ -1,8 +1,12 @@
 <script setup lang="ts">
 import type { ServicePageContent } from '~/data/service-pages/types'
+import { caseStudyBySlug } from '~/data/case-studies'
 import { routes } from '~/data/routes'
 
-defineProps<{ page: ServicePageContent }>()
+const props = defineProps<{ page: ServicePageContent }>()
+
+// TODO(content): shown once the study has a page in the case-study catalogue.
+const studyHasPage = Boolean(caseStudyBySlug(props.page.proof.caseStudySlug))
 </script>
 
 <template>
@@ -31,6 +35,7 @@ defineProps<{ page: ServicePageContent }>()
           </figcaption>
         </figure>
         <NuxtLink
+          v-if="studyHasPage"
           :to="routes.caseStudy(page.proof.caseStudySlug)"
           class="w-fit text-[0.90625rem] font-semibold text-violet-600 hover:underline"
         >

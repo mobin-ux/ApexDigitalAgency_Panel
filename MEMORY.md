@@ -39,6 +39,18 @@ node_modules** — run `pnpm install` inside `web/`, never add it to the root wo
 | Contact (`/contact`) | ✅ built — hero with three figures, message form (services, budget, fields, reply method) posting to `POST /api/contact`, side panel, studio card, FAQ; `?service=&plan=` from service pages names the plan; JSON-LD ContactPage + FAQPage + BreadcrumbList |
 | Insights, legal | ☐ not built — every link already points at its final URL (`app/data/routes.ts`) |
 
+**Deployed 2026-10-20** to the same VPS as the panel (146.19.130.11).
+`bash scripts/ship-web.sh` uploads `web/` source, builds ON the server (~30s;
+it must, because `sharp` is bundled per platform), swaps `/opt/apex-web/.output`,
+health-checks and rolls back. `apex-web.service` runs it as user `apex` on
+127.0.0.1:3100; Caddy serves `apexdigi.co.uk` (+ `www` → apex) and the
+preview `site.146-19-130-11.sslip.io`. Runtime env is `/opt/apex-web/.env`
+(the `NUXT_CONTACT_*` keys are still empty, so the form shows its
+"not sent, email us" fallback). **`apexdigi.co.uk` expired on 2026-08-06 and
+is SUSPENDED at names.co.uk (NS: Cloudflare)** — nothing under it resolves,
+the panel subdomain included, until it is renewed; Caddy then issues the
+certificates by itself.
+
 **Open items for the homepage:** real client logos, case-study and article
 photography (`MediaFrame` already takes an image), the real phone number,
 Companies House and VAT numbers (`app/data/site.ts` — empty strings hide their
@@ -1295,6 +1307,29 @@ the other states. Local only — `prisma/dev.db` is never committed.
 `prisma db push` is required (two new tables: `DeliverableRelease`,
 `ProjectNote`). No backfill needed — with the hold setting absent it
 defaults to **off**, which is exactly the behaviour production has today.
+
+## Production deploy — 2026-10-20 (panel: Phases 8 → 9B; website: first deploy)
+
+- **Panel** shipped with `scripts/ship-bundle.sh` (health check 200, Stripe
+  live keys intact). Before it, the Phase 9A/9B schema was applied to the live
+  SQLite DB as the exact additive SQL `prisma migrate diff` printed (4 nullable
+  columns, `StaffInvite`, `DeliverableRelease`, `ProjectNote` + indexes), plus
+  the backfill `staffRole = 'owner'` for the 3 ADMIN accounts. Backup:
+  `/opt/apex/backups/dev.db.20261019-231726.pre-phase9`; the server's
+  `prisma/schema.prisma` now matches the repo (old copy beside it,
+  `.pre-phase9`). The deliverables hold setting is absent, i.e. off.
+- **Website** is a second service on the same box — see the Public website
+  section. `apexdigi.co.uk` is suspended at the registry (expired
+  2026-08-06), so until renewal the two apps answer only at
+  `https://146-19-130-11.sslip.io` (panel) and
+  `https://site.146-19-130-11.sslip.io` (site).
+- The deploy surfaced ~20 links from service pages and the homepage to case
+  studies that are not in the catalogue; those cards now render without a
+  link until their study exists. Remaining dead links are only pages not built
+  yet (Insights index, Careers, unwritten articles, the six legal pages).
+- The panel checkout on this machine had no `node_modules` (moved to D:);
+  `pnpm install --frozen-lockfile --registry=https://registry.npmmirror.com/`
+  took 12 minutes and changed no lockfile.
 
 ## Repo cleanup — 2026-10-15
 
