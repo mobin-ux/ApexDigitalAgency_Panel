@@ -1376,6 +1376,13 @@ The website's one route (`/api/contact`) was re-checked. Found and fixed:
   demo routes `/api/payments/*` and `/api/hello` are gone, and the website's
   Resend retry carries an idempotency key so a timeout cannot send twice.
 
+**Deployed 2026-10-23** (`1340b4b`): panel via `ship-bundle.sh` (local build
+~25 min on Windows, health 200, Stripe keys intact, no schema change), site via
+`ship-web.sh`. Verified live: the six removed routes 404 (deposit answered 401
+before, i.e. open to any account), guarded pages redirect with `?redirect=`,
+`/api/config` serves the public pair when signed out, a bad login is 401, and
+the panel journal shows no `__nuxt_content` errors after page loads.
+
 **Local dev gotcha.** The D: checkout's committed `prisma/dev.db` predates the
 Phase 9 schema, so every login 500'd (`User.status` missing) until
 `pnpm exec prisma db push`. That modifies `dev.db` locally — never commit it.
