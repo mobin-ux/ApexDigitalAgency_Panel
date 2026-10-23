@@ -97,6 +97,7 @@ const { values, handleSubmit, isSubmitting } = useForm({ validationSchema, initi
 
 const { fetchUser } = useUser()
 const router = useRouter()
+const route = useRoute()
 
 const onSubmit = handleSubmit(async (formValues) => {
   errorMessage.value = ''
@@ -112,7 +113,8 @@ const onSubmit = handleSubmit(async (formValues) => {
     })
     // Signup sets the session cookie, so the new customer is already in.
     await fetchUser({ force: true })
-    await router.push('/dashboards/balance')
+    // Back to whatever sent them here — an order started on the website.
+    await router.push(safeRedirect(route.query.redirect))
   }
   catch (error: any) {
     // Beside the form, like sign-in — not a toast that outlives the page.
@@ -289,7 +291,7 @@ const onSubmit = handleSubmit(async (formValues) => {
 
     <p class="text-muted-400 mt-[22px] text-center text-[13.5px]">
       Already have an account?
-      <NuxtLink to="/auth/login-1" class="apex-focus text-primary-400 hover:text-primary-300 rounded font-semibold">
+      <NuxtLink :to="{ path: '/auth/login-1', query: redirectQuery(route.query.redirect) }" class="apex-focus text-primary-400 hover:text-primary-300 rounded font-semibold">
         Sign in
       </NuxtLink>
     </p>

@@ -16,7 +16,7 @@ definePageMeta({
   title: 'Privacy Policy',
 })
 
-const { data: config } = await useFetch<any>('/api/config', { lazy: true })
+const { data: config } = await useApexConfig()
 const supportEmail = computed(() => (config.value as any)?.supportEmail ?? 'support@apexdigi.co.uk')
 
 /** Each entry maps to columns that exist today. */

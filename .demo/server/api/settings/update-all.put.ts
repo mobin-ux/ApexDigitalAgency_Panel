@@ -12,6 +12,16 @@ import { validateBody } from '../../utils/validate'
 
 const optionalTrimmed = (max: number) => z.string().trim().max(max).nullish()
 
+/*
+ * Only what a customer may set about themselves. The company's status, its
+ * account manager, income and headcount are the agency's CRM fields (Phase 7
+ * took them off the page, but this endpoint still accepted them, so any
+ * customer could mark their own account Inactive or name their own manager).
+ * Avatar, cover and logo were free-text URLs that staff screens load as
+ * images — a tracking pixel on every admin view. Unknown keys are dropped by
+ * zod, so an old client that still sends them is ignored, not refused, and
+ * the stored values stay as they are.
+ */
 const bodySchema = z.object({
   user: z
     .object({
@@ -20,8 +30,6 @@ const bodySchema = z.object({
       phone: optionalTrimmed(30),
       bio: optionalTrimmed(1000),
       gender: optionalTrimmed(30),
-      avatar: optionalTrimmed(500),
-      coverImage: optionalTrimmed(500),
       mailingAddress: z
         .object({
           city: optionalTrimmed(100),
@@ -44,12 +52,7 @@ const bodySchema = z.object({
       // no change to any field already handled.
       address: optionalTrimmed(300),
       type: optionalTrimmed(100),
-      income: optionalTrimmed(100),
-      employees: optionalTrimmed(100),
-      manager: optionalTrimmed(200),
-      status: optionalTrimmed(50),
       notes: optionalTrimmed(2000),
-      logo: optionalTrimmed(500),
     })
     /*
      * Optional, not `.default({})`. The mobile Settings page saves one section
@@ -73,8 +76,6 @@ export default defineEventHandler(async (event) => {
       phone: user.phone ?? undefined,
       bio: user.bio ?? undefined,
       gender: user.gender ?? undefined,
-      avatar: user.avatar ?? undefined,
-      coverImage: user.coverImage ?? undefined,
       city: user.mailingAddress?.city ?? undefined,
       country: user.mailingAddress?.country ?? undefined,
     },
@@ -101,12 +102,7 @@ export default defineEventHandler(async (event) => {
       taxId: company.taxId ?? undefined,
       address: company.address ?? undefined,
       type: company.type ?? undefined,
-      income: company.income ?? undefined,
-      employees: company.employees ?? undefined,
-      manager: company.manager ?? undefined,
-      status: company.status ?? undefined,
       notes: company.notes ?? undefined,
-      logo: company.logo ?? undefined,
     },
     /*
      * The create branch has to accept everything the update branch does.
@@ -125,11 +121,7 @@ export default defineEventHandler(async (event) => {
       taxId: company.taxId ?? undefined,
       address: company.address ?? undefined,
       type: company.type ?? undefined,
-      income: company.income ?? undefined,
-      employees: company.employees ?? undefined,
-      manager: company.manager ?? undefined,
       notes: company.notes ?? undefined,
-      logo: company.logo ?? undefined,
       status: 'Active',
     },
   })

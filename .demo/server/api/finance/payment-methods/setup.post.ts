@@ -215,7 +215,7 @@ async function clearOtherDefaults(userId: string, keepId: string) {
 async function createStripeSetupIntent(
   providerName: string,
   userId: string,
-  email: string,
+  email: string | null,
   name: string | undefined,
   idempotencyKey: string,
 ): Promise<{ clientSecret: string, setupIntentId: string, customerId: string }> {

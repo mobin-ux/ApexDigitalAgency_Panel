@@ -30,14 +30,21 @@ export default defineEventHandler(async (event) => {
     prisma.withdrawalRequest.findMany({ where: { userId }, orderBy: { createdAt: 'desc' } }),
   ])
 
-  // Cash = ledger sum of the recent transactions window.
-  const cashBalance = transactions.reduce((acc, tx) => acc + tx.amount, 0)
+  /*
+   * Cash is the wallet balance: the column every charge checks and every
+   * settlement moves. It used to be the sum of the ten newest transactions,
+   * which is a different number for any account with more history than
+   * that — the Wallet page could show £1,000 while an instalment was refused
+   * for an empty wallet.
+   */
+  const cashBalance = user?.walletBalance ?? 0
+  const shortDate = (value: Date) => new Date(value).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
 
   const activities = transactions.map(tx => ({
     id: tx.id,
     title: tx.description || (tx.amount > 0 ? 'Deposit' : 'Payment'),
     sub: tx.type === 'DEPOSIT' ? 'Top-up' : 'Expense',
-    date: new Date(tx.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+    date: shortDate(tx.createdAt),
     amount: tx.amount,
     type: tx.amount > 0 ? 'in' : (tx.type === 'AD_CREDIT' ? 'credit' : 'out'),
     icon: tx.amount > 0 ? 'lucide:arrow-down-left' : 'lucide:arrow-up-right',
@@ -48,7 +55,6 @@ export default defineEventHandler(async (event) => {
       cash: cashBalance,
       credits: user?.adCredits || 0,
       walletBalance: user?.walletBalance ?? 0,
-      monthlyChange: 12.5, // TODO(api): computed properly in Phase 6 (expenses work)
     },
     autoPayInstallments: user?.autoPayInstallments ?? true,
     // Instant Apex credit facility: fixed limit (default £20,000), no
@@ -63,14 +69,14 @@ export default defineEventHandler(async (event) => {
     installments: installments.map(ins => ({
       ...ins,
       nextDueISO: ins.nextDue,
-      nextDue: new Date(ins.nextDue).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+      nextDue: shortDate(ins.nextDue),
     })),
     cards,
     activities,
     requests: requests.map(req => ({
       id: req.id,
       title: `Withdrawal #${req.id.substring(0, 4)}`,
-      date: new Date(req.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+      date: shortDate(req.createdAt),
       amount: req.amount,
       status: req.status,
       icon: 'lucide:banknote',

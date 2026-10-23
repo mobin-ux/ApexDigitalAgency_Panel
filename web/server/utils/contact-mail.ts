@@ -39,7 +39,13 @@ export async function sendContactMail(config: ContactMailConfig, message: Contac
   const name = message.name.replace(/[\r\n]+/g, ' ')
   await $fetch('https://api.resend.com/emails', {
     method: 'POST',
-    headers: { Authorization: `Bearer ${config.resendApiKey}` },
+    headers: {
+      'Authorization': `Bearer ${config.resendApiKey}`,
+      // The retry below re-sends a POST. If the first attempt reached Resend
+      // and only the answer was lost (a timeout), the same key makes Resend
+      // treat the retry as that send instead of emailing the team twice.
+      'Idempotency-Key': crypto.randomUUID(),
+    },
     body: {
       from: config.from,
       to: [config.to],

@@ -8,7 +8,7 @@
  * /api/admin/** endpoint re-verifies the role server-side against the
  * database via `requireAdmin`, so a tampered client cannot gain anything.
  */
-export default defineNuxtRouteMiddleware(async () => {
+export default defineNuxtRouteMiddleware(async (to) => {
   const { user, fetchUser } = useUser()
 
   if (!user.value) {
@@ -16,7 +16,7 @@ export default defineNuxtRouteMiddleware(async () => {
   }
 
   if (!user.value) {
-    return navigateTo('/auth/login-1')
+    return navigateTo(signInFor(to))
   }
 
   if (user.value.role !== 'ADMIN') {

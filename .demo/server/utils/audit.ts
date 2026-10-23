@@ -52,7 +52,9 @@ export async function recordAudit(event: H3Event, actor: AuditActor, entry: Audi
     await prisma.auditLog.create({
       data: {
         actorId: actor.id,
-        actorEmail: actor.email,
+        // The column is required and an account registered by phone has no
+        // email, so writing null here threw and the entry was lost.
+        actorEmail: actor.email ?? actor.id,
         action: entry.action,
         targetType: entry.targetType,
         targetId: entry.targetId ?? null,

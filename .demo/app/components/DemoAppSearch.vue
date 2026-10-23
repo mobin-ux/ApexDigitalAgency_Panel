@@ -16,9 +16,8 @@ const search = ref('')
  * orders — and in production the docs routes 404. `ApexSearch` serves those
  * routes instead, over the same `useSearchOpen()` state.
  *
- * Gating the dialog rather than the component: `DemoAppSearch` has a top-level
- * `await`, so a `v-if` would remount an async setup inside the root Suspense
- * boundary on every navigation in or out of the panel.
+ * Gating the dialog rather than the component, because it is mounted once in
+ * `app.vue` for every route.
  */
 const isApexPanel = computed(() =>
   route.path.startsWith('/dashboards') || route.path.startsWith('/admin'),
@@ -39,7 +38,23 @@ onKeyStroke('k', (event) => {
   }
 })
 
-const { data: contentIndex } = await useAsyncData('search', () => queryCollectionSearchSections('docs'))
+/*
+ * The docs index is fetched when this dialog first opens, not on every page.
+ * It used to be awaited here, and this component is mounted in `app.vue`, so
+ * every panel page carried the whole Tairo documentation index (~220 KB) in
+ * its SSR payload for a dialog that never opens there. In production the
+ * query also fails (the content module's SQLite binding is not built for the
+ * server), so each page render logged an unhandled `__nuxt_content` error.
+ */
+const { data: contentIndex, execute: loadContentIndex } = useAsyncData(
+  'search',
+  () => queryCollectionSearchSections('docs'),
+  { immediate: false, server: false },
+)
+watch(isDialogOpen, (open) => {
+  if (open && !contentIndex.value)
+    loadContentIndex()
+})
 const contentMS = new MiniSearch({
   fields: ['title', 'titles', 'content'],
   storeFields: ['title', 'titles', 'content'],

@@ -1,4 +1,4 @@
-export const useNotifications = () => {
+export function useNotifications() {
   const notifications = useState<any[]>('notifications_list', () => [])
   const unreadCount = useState<number>('notifications_count', () => 0)
 
@@ -7,22 +7,29 @@ export const useNotifications = () => {
       const { notifications: list, unreadCount: count } = await $fetch('/api/notifications')
       notifications.value = list
       unreadCount.value = count
-    } catch (e) {
+    }
+    catch (e) {
       console.error(e)
     }
   }
 
   const markAllAsRead = async () => {
-    if (unreadCount.value === 0) return
-    
-    // Optimistic update (سریع صفرش کن تا کاربر حس خوبی بگیره)
+    if (unreadCount.value === 0)
+      return
+
+    // Optimistic, so the badge clears the moment it is clicked. If the server
+    // refuses, the rows and the count go back to what they were rather than
+    // reading as handled until the next page load brings them back.
+    const before = { count: unreadCount.value, list: notifications.value }
     unreadCount.value = 0
-    notifications.value.forEach(n => n.isRead = true)
+    notifications.value = notifications.value.map(n => ({ ...n, isRead: true }))
 
     try {
       await $fetch('/api/notifications/mark-read', { method: 'POST' })
-    } catch (e) {
-      // اگر خطا داد برگردان (اختیاری)
+    }
+    catch {
+      unreadCount.value = before.count
+      notifications.value = before.list
     }
   }
 
@@ -30,6 +37,6 @@ export const useNotifications = () => {
     notifications,
     unreadCount,
     fetchNotifications,
-    markAllAsRead
+    markAllAsRead,
   }
 }

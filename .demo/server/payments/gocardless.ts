@@ -1,20 +1,9 @@
+import type { ChargeResult, CreateChargeInput, CreateMandateInput, MandateResult, MandateStatus, NormalisedEvent, PaymentProvider, RefundInput, RefundResult } from './types'
 import { Buffer } from 'node:buffer'
 import { createHmac, timingSafeEqual } from 'node:crypto'
 import { createLogger } from '../utils/logger'
 import { providerFetch } from './client'
-import {
-  type ChargeResult,
-  type CreateChargeInput,
-  type CreateMandateInput,
-  type MandateResult,
-  type MandateStatus,
-  type NormalisedEvent,
-  type PaymentProvider,
-  PaymentProviderError,
-  type RefundInput,
-  type RefundResult,
-  WebhookSignatureError,
-} from './types'
+import { PaymentProviderError, WebhookSignatureError } from './types'
 
 /**
  * GoCardless adapter — Bacs Direct Debit, the installment collection rail.
@@ -182,7 +171,9 @@ export function createGoCardlessProvider(config: {
             redirect_uri: input.returnUrl,
             exit_uri: input.returnUrl,
             prefilled_customer: {
-              email: input.customer.email,
+              // JSON keeps a null, unlike Stripe's form encoding; leave the
+              // key out for a phone-only account.
+              email: input.customer.email ?? undefined,
               given_name: input.customer.name?.split(' ')[0],
               family_name: input.customer.name?.split(' ').slice(1).join(' ') || undefined,
             },

@@ -6,7 +6,9 @@
 const props = defineProps<{
   user: {
     id?: string
-    email: string
+    // Null for an account registered with a phone number.
+    email: string | null
+    phone?: string | null
     firstName?: string | null
     lastName?: string | null
     avatar?: string | null
@@ -15,9 +17,12 @@ const props = defineProps<{
   compact?: boolean
 }>()
 
+/** How the account signs in: its email, else the phone it registered with. */
+const contact = computed(() => props.user.email || props.user.phone || '')
+
 const displayName = computed(() => {
   const full = [props.user.firstName, props.user.lastName].filter(Boolean).join(' ').trim()
-  return full || props.user.email
+  return full || contact.value || 'Unnamed account'
 })
 </script>
 
@@ -28,8 +33,8 @@ const displayName = computed(() => {
       <div class="truncate text-[13.5px] font-semibold text-white">
         {{ displayName }}
       </div>
-      <div v-if="!compact && displayName !== user.email" class="truncate text-xs text-muted-500">
-        {{ user.email }}
+      <div v-if="!compact && contact && displayName !== contact" class="truncate text-xs text-muted-500">
+        {{ contact }}
       </div>
     </div>
   </div>

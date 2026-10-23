@@ -49,8 +49,8 @@ const menu: ApexNavItem[] = [
 ]
 
 // Maintenance banner — driven by the admin Setting general.maintenance-mode
-// via /api/config (Nuxt dedupes this useFetch with the per-page calls).
-const { data: appConfig } = useFetch('/api/config', { lazy: true })
+// via /api/config, shared with the page through `useApexConfig`.
+const { data: appConfig } = useApexConfig()
 const maintenanceMode = computed(() => (appConfig.value as any)?.maintenanceMode === true)
 </script>
 

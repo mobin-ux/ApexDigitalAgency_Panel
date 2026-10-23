@@ -36,7 +36,7 @@ export type Purpose = 'wallet_topup' | 'order_deposit' | 'installment' | 'credit
 
 export interface StartPaymentInput {
   userId: string
-  email: string
+  email: string | null
   name?: string
   /** Integer minor units. */
   amount: number

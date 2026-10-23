@@ -34,7 +34,7 @@ const isCompact = useIsCompact()
 // ---- catalogue (served by /api/config — admin-editable Setting rows) ----
 interface Plan { id: string, name: string, base: number, tier: 0 | 1 | 2, popular?: boolean, desc: string, features: string[] }
 
-const { data: appConfig } = await useFetch('/api/config', { lazy: false })
+const { data: appConfig, refresh: refreshConfig } = await useApexConfig({ lazy: false })
 
 const services = computed(() => (appConfig.value as any)?.catalog?.services ?? [])
 const plansByService = computed<Record<string, Plan[]>>(() => (appConfig.value as any)?.catalog?.plans ?? {})
@@ -482,7 +482,10 @@ async function placeOrder() {
       method: 'POST',
       body: {
         title: String(form.title || serviceName.value),
-        category: serviceName.value,
+        // The server prices the order from its catalogue; `budget` is the
+        // figure on screen, so a price change stops the order (409).
+        serviceId: serviceId.value,
+        planId: planId.value,
         budget: base.value,
         termMonths: Number(term.value),
         signature,
@@ -500,6 +503,10 @@ async function placeOrder() {
   }
   catch (e: any) {
     toaster.add({ title: 'Could not place order', description: e?.data?.message || 'Please try again in a moment.', icon: 'lucide:alert-triangle', progress: true })
+    // The catalogue changed under the customer: show them the current prices
+    // rather than leaving the old figure on the contract they are signing.
+    if (e?.statusCode === 409 || e?.statusCode === 400)
+      await refreshConfig()
   }
   finally {
     placing.value = false

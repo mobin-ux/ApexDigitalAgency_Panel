@@ -1,6 +1,6 @@
 import { defineEventHandler } from 'h3'
 import { DEFAULT_REPLY_TARGETS, formatReplyEta, replyTargetKey } from '../../shared/support-eta'
-import { requireAuth } from '../utils/auth'
+import { getAuthSession } from '../utils/auth'
 import { DEFAULT_BANK_DETAILS, DEFAULT_CATALOG, DEFAULT_FAQ, DEFAULT_FROM_PRICES } from '../utils/catalog'
 import { getSettings } from '../utils/settings'
 
@@ -11,7 +11,18 @@ import { getSettings } from '../utils/settings'
  * steers what customers see. NEVER add secrets or admin-only keys here.
  */
 export default defineEventHandler(async (event) => {
-  requireAuth(event)
+  /*
+   * The legal pages are public and read the support address from here, so a
+   * signed-out visitor got a 401 on every view of the Terms. They get the two
+   * public facts; bank details, prices and the rest stay with customers.
+   */
+  if (!getAuthSession(event)) {
+    const pub = await getSettings({
+      'general.site-name': 'Apex Digital Agency',
+      'general.support-email': 'support@apexdigi.co.uk',
+    })
+    return { siteName: pub['general.site-name'], supportEmail: pub['general.support-email'] }
+  }
 
   const s = await getSettings({
     'general.site-name': 'Apex Digital Agency',

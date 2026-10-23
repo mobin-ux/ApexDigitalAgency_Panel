@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { AGREEMENT_VERSION, buildAgreementText, hashAgreement } from '../../utils/agreement'
 import { recordAudit } from '../../utils/audit'
 import { requireAuth } from '../../utils/auth'
+import { DEFAULT_CATALOG } from '../../utils/catalog'
 import { nextContractReference } from '../../utils/contracts'
 import { ensureCredit } from '../../utils/credit'
 import { planFor, planIcon } from '../../utils/finance'
@@ -27,8 +28,16 @@ import { validateBody } from '../../utils/validate'
 
 const bodySchema = z.object({
   title: z.string().trim().min(1).max(200),
-  category: z.string().trim().min(1).max(100),
-  budget: z.coerce.number().min(0).default(0),
+  /*
+   * The client names the plan; the catalogue prices it. This route used to
+   * take `budget` and `category` from the body, so a hand-written request could
+   * sign a £4,800 plan at £1, or at £0, which also skipped the credit check.
+   */
+  serviceId: z.string().trim().min(1).max(40),
+  planId: z.string().trim().min(1).max(60),
+  // The price the customer was shown. If the catalogue has moved since the
+  // page loaded, the order stops rather than signing them up to another figure.
+  budget: z.coerce.number().min(0).optional(),
   termMonths: z.union([z.literal(12), z.literal(24)]).default(12),
   // Drawn signature (data-URL PNG, ~10-100KB) or typed full name.
   signature: z.string().max(300_000).optional(),
@@ -45,7 +54,22 @@ const bodySchema = z.object({
 
 export default defineEventHandler(async (event) => {
   const session = requireAuth(event)
-  const { title, category, budget, termMonths, signature, signatureType, signerName, brief } = await validateBody(event, bodySchema)
+  const { title, serviceId, planId, budget: quoted, termMonths, signature, signatureType, signerName, brief } = await validateBody(event, bodySchema)
+
+  const catalog = await getSetting('catalog.services', DEFAULT_CATALOG)
+  const service = catalog.services?.find(s => s.id === serviceId)
+  const plan = catalog.plans?.[serviceId]?.find(p => p.id === planId)
+  if (!service || !plan) {
+    throw createError({ statusCode: 400, message: 'That plan is no longer on offer. Please choose a plan again.' })
+  }
+  const budget = plan.base
+  const category = service.name
+  if (quoted !== undefined && Math.abs(quoted - budget) >= 0.01) {
+    throw createError({
+      statusCode: 409,
+      message: `The ${plan.name} plan is now £${budget.toLocaleString('en-GB')}. Please check the new price before you sign.`,
+    })
+  }
 
   if (termMonths === 24) {
     const enabled = await getSetting('finance.enable-24mo-plans', true)
@@ -149,7 +173,9 @@ export default defineEventHandler(async (event) => {
         vatRate,
         reference,
         serviceName: category,
-        planName: title,
+        // The plan the wizard's contract step names, so the stored text is
+        // the text the customer read. It used to be the project title.
+        planName: plan.name,
         amount: budget,
         termMonths,
         interestRate: financing.interestRate,
@@ -198,7 +224,8 @@ export default defineEventHandler(async (event) => {
   // Push the signed contract to the admin panel: audit trail + admin inbox.
   if (contract) {
     try {
-      await recordAudit(event, { id: session.id, email: session.email }, {
+      // A phone-only customer has no email; the audit row still needs a name.
+      await recordAudit(event, { id: session.id, email: session.email ?? signerContact }, {
         action: 'contract.created',
         targetType: 'Contract',
         targetId: contract.id,

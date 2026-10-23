@@ -36,7 +36,9 @@ export interface Money {
 
 export interface CustomerRef {
   userId: string
-  email: string
+  // Null for an account registered with a phone number. Providers treat the
+  // email as optional; adapters must omit it rather than send null.
+  email: string | null
   name?: string
   /** Provider-side customer id when we already created one. */
   providerCustomerId?: string

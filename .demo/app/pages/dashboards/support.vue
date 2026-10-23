@@ -334,6 +334,18 @@ onBeforeUnmount(() => {
 })
 
 // ---- thread (full message history, fetched per ticket) ---------------------
+const toaster = useNuiToasts()
+
+/**
+ * The three requests on this page used `try … finally` with no `catch`, so a
+ * failed send cleared the spinner and said nothing: the reply stayed in the
+ * box and the customer had no way to tell it had not gone. Each now names
+ * what did not happen; the draft and the form are kept for another try.
+ */
+function toastFailure(title: string, error: any) {
+  toaster.add({ title, description: error?.data?.message || 'Please check your connection and try again.', icon: 'lucide:alert-triangle', progress: true })
+}
+
 const threadCache = ref<Record<string, { id: string, content: string, isAdmin: boolean, createdAt: string }[]>>({})
 const threadLoading = ref(false)
 const threadRef = ref<HTMLElement | null>(null)
@@ -346,6 +358,9 @@ async function loadThread(id: string) {
     const res = await $fetch<any>(`/api/support/${id}/messages`)
     threadCache.value = { ...threadCache.value, [id]: res.messages ?? [] }
     scrollThread()
+  }
+  catch (error: any) {
+    toastFailure('Could not load this conversation', error)
   }
   finally {
     threadLoading.value = false
@@ -395,6 +410,9 @@ async function sendReply() {
     scrollThread()
     await refreshTickets()
   }
+  catch (error: any) {
+    toastFailure('Your reply was not sent', error)
+  }
   finally {
     sending.value = false
   }
@@ -443,6 +461,9 @@ async function submitNew() {
     submittedId.value = ticket.id
     await refreshTickets()
   }
+  catch (error: any) {
+    toastFailure('Your request was not sent', error)
+  }
   finally {
     submitting.value = false
   }
@@ -469,7 +490,7 @@ function openNew() {
 
 // ---- FAQ (served by /api/config — Setting support.faq, admin-editable) -----------
 interface Faq { id: string, cat: CatKey, q: string, a: string }
-const { data: appConfig } = await useFetch('/api/config', { lazy: true })
+const { data: appConfig } = await useApexConfig()
 const FAQS = computed<Faq[]>(() =>
   (((appConfig.value as any)?.support?.faq ?? []) as { cat: string, q: string, a: string }[])
     .map((f, i) => ({ id: `f${i + 1}`, cat: f.cat as CatKey, q: f.q, a: f.a })),

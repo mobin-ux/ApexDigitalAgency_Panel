@@ -26,7 +26,7 @@ definePageMeta({
    * meant no guard ran at all; this sends them where they were going.
    */
   middleware: [
-    async () => {
+    async (to) => {
       const { user, fetchUser } = useUser()
       if (!user.value) {
         // Cheap on the client (the boot plugin has usually filled it in);
@@ -34,7 +34,7 @@ definePageMeta({
         await fetchUser().catch(() => {})
       }
       if (user.value) {
-        return navigateTo('/dashboards/balance')
+        return navigateTo(safeRedirect(to.query.redirect))
       }
     },
   ],
@@ -42,6 +42,9 @@ definePageMeta({
 
 const { fetchUser } = useUser()
 const router = useRouter()
+const route = useRoute()
+/** Where the guard was sending this visitor before it asked them to sign in. */
+const destination = computed(() => safeRedirect(route.query.redirect))
 
 const errorMessage = ref('')
 const showPassword = ref(false)
@@ -67,7 +70,7 @@ const onSubmit = handleSubmit(
         body: { identifier: values.identifier, password: values.password },
       })
       await fetchUser({ force: true })
-      await router.push('/dashboards/balance')
+      await router.push(destination.value)
     }
     catch (error: any) {
       /*
@@ -205,7 +208,7 @@ onMounted(() => {
 
     <p class="text-muted-400 mt-[22px] text-center text-[13.5px]">
       New to Apex?
-      <NuxtLink to="/auth/signup-2" class="apex-focus text-primary-400 hover:text-primary-300 rounded font-semibold">
+      <NuxtLink :to="{ path: '/auth/signup-2', query: redirectQuery(route.query.redirect) }" class="apex-focus text-primary-400 hover:text-primary-300 rounded font-semibold">
         Create an account
       </NuxtLink>
     </p>

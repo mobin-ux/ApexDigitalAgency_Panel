@@ -76,8 +76,9 @@ function fmtDateTime(iso: string | Date) {
   return new Date(iso).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
 }
 
-function customerName(u: { email: string, firstName?: string | null, lastName?: string | null }) {
-  return [u.firstName, u.lastName].filter(Boolean).join(' ').trim() || u.email
+function customerName(u: { email: string | null, phone?: string | null, firstName?: string | null, lastName?: string | null }) {
+  // A phone-registered customer has no email, which left the row blank.
+  return [u.firstName, u.lastName].filter(Boolean).join(' ').trim() || u.email || u.phone || 'Customer'
 }
 
 // --- Triage actions ---

@@ -9,7 +9,7 @@
  * `fetchUser()` uses `useRequestFetch()` so the incoming cookies are
  * forwarded during SSR; that is what keeps hard reloads signed in.
  */
-export default defineNuxtRouteMiddleware(async () => {
+export default defineNuxtRouteMiddleware(async (to) => {
   const { user, fetchUser } = useUser()
 
   // Already hydrated from a previous navigation — no round trip needed.
@@ -18,6 +18,7 @@ export default defineNuxtRouteMiddleware(async () => {
   }
 
   if (!user.value) {
-    return navigateTo('/auth/login-1')
+    // Remember the destination, so sign-in returns there (utils/authRedirect).
+    return navigateTo(signInFor(to))
   }
 })

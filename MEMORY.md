@@ -2,7 +2,7 @@
 
 > Handoff doc for continuing work in fresh sessions. Update the relevant section
 > whenever a page ships, a decision lands, or a blocker appears.
-> Last updated: **2026-09-01** (V2 Phase 9 Admin — Overview & work, shipped).
+> Last updated: **2026-10-23** (backend and API audit across the panel and the site).
 
 ## Where things stand
 
@@ -1330,6 +1330,59 @@ defaults to **off**, which is exactly the behaviour production has today.
 - The panel checkout on this machine had no `node_modules` (moved to D:);
   `pnpm install --frozen-lockfile --registry=https://registry.npmmirror.com/`
   took 12 minutes and changed no lockfile.
+
+## Backend and API audit — 2026-10-23
+
+Every route in the panel was called as a customer and as an owner, with the
+bodies the pages actually send, and every page's SSR payload was inspected.
+The website's one route (`/api/contact`) was re-checked. Found and fixed:
+
+- **`POST /api/finance/deposit` was a free-money endpoint, live in production.**
+  Any signed-in customer could add up to £1,000,000 to their own wallet with no
+  payment, then spend it on instalments or `/api/orders/pay`. The UI had moved
+  to `/api/finance/topup` (ADR-015) but the route was never removed. Deleted.
+- **`/api/orders` priced orders from the request body.** A hand-written request
+  could sign a £4,800 plan at £1, or at £0 (which also skipped the credit
+  check). It now takes `serviceId` + `planId` and prices from `catalog.services`;
+  the shown `budget` must match or it is a 409 with the current price. The
+  stored agreement also named the project title as the plan; it now names the
+  catalogue plan, which is what the contract step shows.
+- **Wallet showed the wrong balance.** `balanceOverview.cash` was the sum of the
+  ten newest transactions; it is now `User.walletBalance`, the figure every
+  charge is checked against. The hardcoded `monthlyChange: 12.5` is gone.
+- **`/api/finance/credit/repay` kept money for nothing** — `ensureCredit()`
+  recomputes `used` on every load, so the decrement vanished. `credit/apply`
+  was undone the same way. Both deleted.
+- **`/api/settings/profile` changed the login email with no verification.**
+  Unused by any page; deleted. `update-all` stopped accepting the CRM fields
+  Phase 7 took off the page (company status, manager, income, employees) and
+  the avatar/cover/logo URLs.
+- Audit rows for phone-only customers were silently dropped (`actorEmail` is
+  required). `recordAudit` falls back to the actor id; orders pass the phone.
+- Support's reply, new request and thread load had `try/finally` with no
+  `catch` — a failed send said nothing. Each now toasts what did not happen.
+- Signing in forgot where the visitor was going, so the website's "Start your
+  order" link ended on the dashboard. Guards now pass `?redirect=` (same-site
+  paths only — `utils/authRedirect.ts`), and sign-in/sign-up honour it.
+- Every panel page carried Tairo's whole docs search index (~220 KB) because
+  `DemoAppSearch` awaited it in `app.vue`; in production the same query failed
+  and logged an unhandled `__nuxt_content` error. It now loads on first open.
+  Pages went from ~330 KB to 76–103 KB.
+- `/api/config` was fetched twice per page (layout + page each had their own
+  key) — `useApexConfig()` shares one. Signed-out visitors to the legal pages
+  got a 401; they now get the site name and support email.
+- Also: notification mark-read rolls back on failure, phone-only customers show
+  their phone in admin user cells, GoCardless omits a null email, the Tairo
+  demo routes `/api/payments/*` and `/api/hello` are gone, and the website's
+  Resend retry carries an idempotency key so a timeout cannot send twice.
+
+**Local dev gotcha.** The D: checkout's committed `prisma/dev.db` predates the
+Phase 9 schema, so every login 500'd (`User.status` missing) until
+`pnpm exec prisma db push`. That modifies `dev.db` locally — never commit it.
+
+**Dev-only noise.** After signing in, the console can show `Cannot read
+properties of null (reading 'flags')` from Vue's HMR `reload()`. It is the hot
+reload runtime, absent from production builds.
 
 ## Repo cleanup — 2026-10-15
 

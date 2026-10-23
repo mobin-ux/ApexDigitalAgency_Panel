@@ -102,7 +102,8 @@ function signed(n: number) {
 }
 
 // ---- core real data -------------------------------------------------------
-const balance = computed(() => (finance.value as any)?.balanceOverview?.cash ?? 0)
+// The wallet column itself — the figure charges are checked against.
+const balance = computed(() => (finance.value as any)?.balanceOverview?.walletBalance ?? 0)
 const cards = computed(() => ((finance.value as any)?.cards ?? []) as any[])
 const rawTx = computed(() => ((txData.value as any)?.transactions ?? []) as any[])
 
@@ -416,7 +417,7 @@ const receipts = computed(() =>
 )
 
 // ---- banking: bank transfer (agency receiving account from /api/config) ---
-const { data: appConfig } = await useFetch('/api/config', { lazy: true })
+const { data: appConfig } = await useApexConfig()
 const BANK_ROWS = computed<{ key: string, label: string, value: string }[]>(() =>
   (appConfig.value as any)?.bank ?? [],
 )

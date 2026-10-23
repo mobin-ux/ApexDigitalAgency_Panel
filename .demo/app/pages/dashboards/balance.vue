@@ -56,7 +56,7 @@ const credit = computed(() => {
 
 // Service catalogue — "from £X/mo" prices come from /api/config
 // (Setting catalog.from-prices, admin-editable); card chrome stays local.
-const { data: appConfig } = await useFetch('/api/config', { lazy: true })
+const { data: appConfig } = await useApexConfig()
 
 /**
  * One badge, on the one service we actually want to push. Badging all four

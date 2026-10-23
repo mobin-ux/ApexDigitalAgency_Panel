@@ -115,11 +115,12 @@ JWT secret: `runtimeConfig.jwtSecret` (`NUXT_JWT_SECRET` env override).
 | logout, reset-password-* | shared cookie util; reset always answers success (no probing) |
 | GET `/api/dashboard/stats` | raw numbers `{stats:{...}, projects[]}` — no formatting server-side |
 | GET `/api/orders` | projects + milestones + files + manager. **Files are gated (ADR-017)**: while a project's deliverables are held the file names and sizes are returned with a blanked `url`, so the gate is enforced here rather than in the template |
-| POST `/api/orders` | `{ title, category, budget }` → PENDING project + 4 default milestones |
+| POST `/api/orders` | `{ title, serviceId, planId, budget?, termMonths, signature… }` → PENDING project + 4 default milestones (+ plan and contract when financed). **The price and category come from the `catalog.services` Setting**, never the body; `budget` is only the figure the customer saw, and a mismatch is a 409 naming the current price. The stored agreement names the catalogue plan |
 | POST `/api/orders/pay` | pays FULL amount, activates PENDING project — ownership-checked, atomic conditional debit (no double-spend). **Not** an installment charge (ADR-010) |
-| POST `/api/finance/deposit` | writes ledger entry AND increments `User.walletBalance` (transactional — the column used to drift) |
+| GET `/api/finance/dashboard` | wallet overview. `balanceOverview.cash` **is** `User.walletBalance` (it used to be the sum of the ten newest transactions) |
+| GET `/api/config` | the customer-safe Setting slice. Signed out: only `siteName` and `supportEmail` (the public legal pages read it). Client code reads it through `useApexConfig()`, one shared key per page |
 | `/api/support/*` | ticket create/list zod-validated; thread read/reply **ownership-checked** (were fully unauthenticated) |
-| `/api/settings/*` | schema-valid field names; `get-all` no longer returns the password hash |
+| `/api/settings/*` | schema-valid field names; `get-all` no longer returns the password hash. `update-all` accepts only the fields a customer may set — not the company's status, manager, income or headcount, and no image URLs |
 | **`/api/admin/users`** (GET) | ADMIN only — paginated/searchable/role-filterable directory (`?page&pageSize&search&role`) |
 | **`/api/admin/users/:id`** (GET/PATCH) | ADMIN only — detail w/ recent activity; whitelisted PATCH (role/adCredits/profile — not password/walletBalance/email) + audit row; self-demotion blocked |
 | **`/api/admin/stats`** (GET) | `work.view` — the Overview screen: the four count tiles, the oldest-first work queue, the delivery pipeline, and the money card **only** for a role holding `money.view`. Every pre-existing field is still returned |
@@ -141,6 +142,11 @@ JWT secret: `runtimeConfig.jwtSecret` (`NUXT_JWT_SECRET` env override).
 | GET `/api/create-admin`, `/api/seed-*` | **dev-only (404 in production builds)**. All seeds now schema-valid |
 
 Deleted: `/api/users` GET/POST (were unauthenticated user list/create — superseded by `/api/admin/users`).
+Deleted 2026-10-23: `/api/finance/deposit` (credited any amount to the caller's
+wallet with no payment, and was live in production), `/api/finance/credit/repay`
+and `/credit/apply` (both undone by `ensureCredit()` on the next load — repay kept
+the money), `/api/settings/profile` (changed the login email with no
+verification), and the Tairo demo routes `/api/payments/*` and `/api/hello`.
 
 ## 6. Auth flow (ADR-007/008)
 
