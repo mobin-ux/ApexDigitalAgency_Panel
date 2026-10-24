@@ -16,6 +16,7 @@ import type { AddonInputPassword } from '#components'
 import { toTypedSchema } from '@vee-validate/zod'
 import { Field, useForm } from 'vee-validate'
 import { z } from 'zod'
+import { PASSWORD_MIN } from '~~/shared/password'
 
 definePageMeta({
   layout: 'auth',
@@ -27,7 +28,6 @@ definePageMeta({
  * accepts 8 — a stricter client is always compatible, and raising the server
  * minimum would lock out existing accounts.
  */
-const PASSWORD_MIN = 10
 
 const VALIDATION_TEXT = {
   NAME_REQUIRED: 'Tell us what to call you',

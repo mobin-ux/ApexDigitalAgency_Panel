@@ -52,6 +52,11 @@ export default defineEventHandler(async (event) => {
       milestones: { orderBy: { date: { sort: 'asc', nulls: 'last' } } },
       files: { orderBy: { createdAt: 'desc' } },
       installmentPlan: true,
+      // Panel v2: what staff have asked the client for, and the files the
+      // client uploaded (served by /api/attachments/:id, which checks the
+      // reader's role).
+      clientActions: { orderBy: { createdAt: 'desc' }, take: 20 },
+      attachments: { orderBy: { createdAt: 'desc' }, select: { id: true, name: true, size: true, createdAt: true } },
       // The signed financing agreement (legal record + e-signature) so the
       // project detail can surface it and deep-link to the full dossier.
       contract: {

@@ -2,7 +2,7 @@
 
 > Handoff doc for continuing work in fresh sessions. Update the relevant section
 > whenever a page ships, a decision lands, or a blocker appears.
-> Last updated: **2026-10-23** (backend and API audit across the panel and the site).
+> Last updated: **2026-10-24** (Panel v2: new shell, six pages, website plans, uploads).
 
 ## Where things stand
 
@@ -16,7 +16,77 @@
 - Stale branch `refactor/apex-dashboard` (local + origin) is superseded by master;
   deletable, but ask the user first.
 
-## Public website — `web/` (started 2026-10-15)  ⬅ NEW WORKSTREAM
+## Panel v2 — `Panel Breakpoints.dc.html` (2026-10-24)  ⬅ CURRENT
+
+The customer panel was redesigned again as "Panel v2": six pages (Dashboard,
+New order, My orders, Wallet, Support, Settings) in one new shell, light by
+default with a dark toggle, checked at 393 / 768 / 1024 / 1440px. The source is
+the Claude Design project `19ec9d54-…`: `Panel Breakpoints.dc.html` frames the
+six `*.dc.html` pages, which are assembled from `_build/shell.html|js` and each
+`_build/<page>.main.html|js` — read those, they are smaller and unrendered.
+
+**Shell** (`layouts/sidenav.vue`, customer only — admin still uses `DemoToolbar`):
+260px sidebar from 1200px (`desk:` breakpoint), 88px labelled rail from 768px,
+60px bar + five tabs below. No drawer on a phone; Settings lives in the account
+sheet. Theme toggle in the bar, the account menu and Settings › Appearance
+(`useApexTheme`). The document scrolls, not an inner `<main>`.
+
+**Theme tokens** (`main.css`, `@theme inline`): `bg-page/card/raised/chrome/glass`,
+`text-fg-heading/body/muted/accent`, `border-line-subtle/soft/rule/strong`,
+`accent/-ink/-tint`, `st-<tone>-bg/-fg`, `shadow-panel/-pop`. Light values on
+`:root`, dark on `.dark, .apex-dark` — `.apex-dark` makes a navy island (the
+dashboard's pay-monthly band) inside a light page. Three values differ from the
+design system for AA, measured: light success text #137050, dark success
+#2BC48D, dark violet text #AE96F9 (the DS values were 3.7 / 4.5 / 4.2 on their tints).
+
+**Admin, auth and legal stay dark**: `pages:extend` in `nuxt.config.ts` pins
+them with `meta.colorMode`, because they were only ever checked in dark.
+
+**Layouts follow the content width, not the viewport**: each page wrapper is
+`@container` and uses `@min-[720px]:` etc., matching the design's `contentW`.
+
+**Backend behind it (ADR-019 and below):**
+- `shared/catalog.ts` — the website's seven services and plans, and
+  `orderTerms()`; the wizard and `POST /api/orders` both price with it.
+  Setting `catalog.v2`; `/admin/services` edits it (prices and copy only).
+- Orders are signed, not charged: `PENDING` + `kickoffAmount`. Staff press
+  "Kickoff done · collect £X" on the admin project screen
+  (`POST /api/admin/projects/:id/kickoff` → `collectKickoff()`); plans are
+  `pending` until then, so auto-pay cannot take a monthly payment first.
+- `ClientAction` — "Waiting on you". Staff ask from the admin project screen;
+  the client answers on My orders (`/api/orders/:id/actions/:id/complete`).
+  The dashboard also lists support requests awaiting the client's reply and
+  orders whose kickoff call is not yet arranged.
+- **Uploads exist now**: `POST /api/uploads` (20 MB, allow-listed types, no
+  SVG/HTML, stored by UUID under `NUXT_UPLOAD_DIR`, default `.data/uploads`),
+  `GET /api/attachments/:id` (uploader, owner or permitted staff, else 404).
+  Used by the New order brief, My orders › Files and Support.
+- Support: customers resolve/reopen (`PATCH /api/support/:id`), topics
+  project/billing/account/other, an order link, attachments. The ticket list
+  no longer leaks internal notes as the preview line (it did).
+- `Company.companyNumber` + Companies House lookup
+  (`/api/settings/companies-house`, needs `NUXT_COMPANIES_HOUSE_KEY`; the
+  button is hidden without it). `Project.status` gained `IN_REVIEW`.
+- `GET /api/dashboard/overview` feeds the dashboard in one call.
+- One password minimum, now 12: `shared/password.ts`.
+
+**Deliberate deviations (real or absent):** no saved-card "Pay from" option
+(instalments are wallet-only); no auto top-up switch (the real auto-pay
+instalments switch is shown instead); no invoice download per payment (no
+invoice document exists); no 2FA switch, device list or email-notification
+toggles (none exists; the page says so); the sign-in email is read-only (no
+mail provider to confirm a change); nothing claims to have emailed anything;
+no fake "Apex support" auto-reply on a new request; the FAQ tab is gone, as drawn.
+
+**Deploy needs:** `prisma db push` (new columns + `ClientAction`), a writable
+`NUXT_UPLOAD_DIR` outside the bundle (e.g. `/opt/apex/uploads`), optionally
+`NUXT_COMPANIES_HOUSE_KEY`. Not deployed yet.
+
+**Local test data:** order "E2E site" (Website Design Starter) on
+`user@apex.com`, kickoff collected after a £500 admin wallet credit, one
+answered client action, one uploaded file. Local only.
+
+## Public website — `web/` (started 2026-10-15)
 
 The panel phases are done; the current work is the public marketing site,
 designed in the same Claude Design project (`47bcb520-4a3f-437a-b108-9cc02e4acec9`:

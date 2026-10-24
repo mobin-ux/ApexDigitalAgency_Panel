@@ -15,7 +15,7 @@ const bodySchema = z
   .object({
     name: z.string().trim().min(1).max(200).optional(),
     category: z.string().trim().min(1).max(100).optional(),
-    status: z.enum(['PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']).optional(),
+    status: z.enum(['PENDING', 'IN_PROGRESS', 'IN_REVIEW', 'COMPLETED', 'CANCELLED']).optional(),
     amount: z.coerce.number().min(0).max(10_000_000).optional(),
     progress: z.coerce.number().int().min(0).max(100).optional(),
     deadline: z.coerce.date().nullable().optional(),

@@ -1,108 +1,109 @@
 import { createError, defineEventHandler, getRequestHeader, getRequestIP } from 'h3'
 import { z } from 'zod'
-import { AGREEMENT_VERSION, buildAgreementText, hashAgreement } from '../../utils/agreement'
+import { findPlan, findService, firstPaymentDate, orderTerms } from '../../../shared/catalog'
+import { AGREEMENT_VERSION_V2, buildAgreementTextV2, hashAgreement } from '../../utils/agreement'
 import { recordAudit } from '../../utils/audit'
 import { requireAuth } from '../../utils/auth'
-import { DEFAULT_CATALOG } from '../../utils/catalog'
+import { getCatalog } from '../../utils/catalog-v2'
 import { nextContractReference } from '../../utils/contracts'
 import { ensureCredit } from '../../utils/credit'
-import { planFor, planIcon } from '../../utils/finance'
+import { planIcon } from '../../utils/finance'
 import prisma from '../../utils/prisma'
 import { getSetting } from '../../utils/settings'
 import { validateBody } from '../../utils/validate'
 
 /**
- * POST /api/orders — create a PENDING project from the New Order wizard,
- * financed against the customer's instant Apex credit facility.
+ * POST /api/orders — place an order from the Panel v2 New order wizard.
  *
- * Flow (2026 strategy — no credit application, no manager approval):
- *  1. The project amount is checked against available Apex credit (≤ £20,000).
- *  2. Project + real Installment plan (ADR-011 math, computed here — never
- *     trusted from the client) + a signed Contract are created atomically.
- *  3. The contract is pushed to the admin panel (audit trail + admin
- *     notifications) so administrators see every agreement as it is signed.
+ * The client names a service, a plan and (for fixed plans) whether to pay
+ * monthly or in full; the shared catalogue prices it with the same
+ * `orderTerms()` the wizard displayed (ADR-019). Nothing is charged here:
+ * the project is created PENDING ("Awaiting kickoff") and the kickoff amount
+ * — deposit, full price, set-up plus first month, or the discovery fee — is
+ * collected when work starts (`/api/orders/pay`, or staff from the project
+ * screen). Instalment plans are created `pending` for the same reason, so
+ * auto-pay cannot take a monthly payment before the deposit.
  *
- * First installment is due `finance.first-installment-days` after creation
- * (Setting, default 30 — "£0 today").
+ * Every order is signed: the signed agreement text is stored and hashed, as
+ * before, and pushed to the admin panel.
  */
 
 const bodySchema = z.object({
   title: z.string().trim().min(1).max(200),
-  /*
-   * The client names the plan; the catalogue prices it. This route used to
-   * take `budget` and `category` from the body, so a hand-written request could
-   * sign a £4,800 plan at £1, or at £0, which also skipped the credit check.
-   */
   serviceId: z.string().trim().min(1).max(40),
   planId: z.string().trim().min(1).max(60),
-  // The price the customer was shown. If the catalogue has moved since the
-  // page loaded, the order stops rather than signing them up to another figure.
-  budget: z.coerce.number().min(0).optional(),
-  termMonths: z.union([z.literal(12), z.literal(24)]).default(12),
-  // Drawn signature (data-URL PNG, ~10-100KB) or typed full name.
-  signature: z.string().max(300_000).optional(),
-  // How the signature was captured, and the signatory's printed legal name.
-  signatureType: z.enum(['drawn', 'typed']).optional(),
+  pay: z.enum(['monthly', 'full']).default('monthly'),
+  // The total the customer was shown. If the catalogue moved since the page
+  // loaded, the order stops rather than signing them up to another figure.
+  quotedTotal: z.coerce.number().min(0).optional(),
+  // Drawn signature (data-URL PNG) or the typed full name.
+  signature: z.string().trim().min(2).max(300_000),
+  signatureType: z.enum(['drawn', 'typed']),
   signerName: z.string().trim().min(2).max(120).optional(),
-  // Client brief: the wizard's service-specific detail answers, already
-  // resolved to human labels so the admin panel can render them generically.
+  // The brief, already resolved to labels so the admin panel renders it as is.
   brief: z.array(z.object({
     label: z.string().trim().min(1).max(120),
     value: z.string().trim().min(1).max(2000),
   })).max(40).optional(),
+  // Files the customer uploaded with the brief (`POST /api/uploads`).
+  attachmentIds: z.array(z.string().uuid()).max(20).optional(),
 })
+
+const MILESTONES: Record<string, string[]> = {
+  web: ['Kickoff call', 'Sitemap and wireframes', 'Design', 'Build', 'Content and SEO', 'Launch'],
+  brand: ['Kickoff call', 'Directions', 'Refine', 'Roll out', 'Hand over'],
+  uiux: ['Kickoff call', 'Research', 'Flows and prototype', 'Testing', 'Hand over'],
+  retainer: ['Kickoff call', 'Audit', 'Strategy', 'Fix the foundations', 'Report and adjust'],
+  call: ['Scoping call', 'Rough range and fit'],
+  discovery: ['Kickoff call', 'Workshops', 'Clickable prototype', 'Specification and quote'],
+}
 
 export default defineEventHandler(async (event) => {
   const session = requireAuth(event)
-  const { title, serviceId, planId, budget: quoted, termMonths, signature, signatureType, signerName, brief } = await validateBody(event, bodySchema)
+  const body = await validateBody(event, bodySchema)
 
-  const catalog = await getSetting('catalog.services', DEFAULT_CATALOG)
-  const service = catalog.services?.find(s => s.id === serviceId)
-  const plan = catalog.plans?.[serviceId]?.find(p => p.id === planId)
+  const catalog = await getCatalog()
+  const service = findService(catalog, body.serviceId)
+  const plan = findPlan(service, body.planId)
   if (!service || !plan) {
     throw createError({ statusCode: 400, message: 'That plan is no longer on offer. Please choose a plan again.' })
   }
-  const budget = plan.base
-  const category = service.name
-  if (quoted !== undefined && Math.abs(quoted - budget) >= 0.01) {
+  const pay = service.kind === 'fixed' ? body.pay : 'monthly'
+  const terms = orderTerms(service, plan, pay)
+  if (body.quotedTotal !== undefined && Math.abs(body.quotedTotal - terms.total) >= 0.01) {
     throw createError({
       statusCode: 409,
-      message: `The ${plan.name} plan is now £${budget.toLocaleString('en-GB')}. Please check the new price before you sign.`,
+      message: `The ${plan.name} plan now totals £${terms.total.toLocaleString('en-GB')}. Please check the new price before you sign.`,
     })
   }
 
-  if (termMonths === 24) {
-    const enabled = await getSetting('finance.enable-24mo-plans', true)
-    if (!enabled) {
-      throw createError({ statusCode: 400, message: 'The 24-month plan is currently unavailable. Please choose 12 months.' })
-    }
-  }
-
-  // --- Credit gate: financed projects draw on the instant Apex facility ------
-  const financed = budget > 0
-  if (financed) {
+  // Monthly payments on a fixed plan draw on the customer's Apex credit; a
+  // retainer, a payment in full and discovery do not.
+  if (terms.financed > 0) {
     const credit = await ensureCredit(session.id)
     if (credit.status === 'FROZEN') {
-      throw createError({ statusCode: 403, message: 'Your Apex credit is currently on hold. Please contact support.' })
+      throw createError({ statusCode: 403, message: 'Your Apex credit is on hold. Please contact support.' })
     }
-    if (budget > credit.available) {
+    if (terms.financed > credit.available) {
       throw createError({
         statusCode: 400,
-        message: `This project (£${budget.toLocaleString('en-GB')}) exceeds your available Apex credit of £${credit.available.toLocaleString('en-GB')}. Reduce the scope or repay an existing plan first.`,
+        message: `The monthly payments (£${terms.financed.toLocaleString('en-GB')}) are more than your available Apex credit of £${credit.available.toLocaleString('en-GB')}. Choose to pay in full, or finish an existing plan first.`,
       })
     }
   }
 
-  const firstDueDays = await getSetting('finance.first-installment-days', 30)
-  const financing = planFor(budget, termMonths)
-  const signedAt = new Date()
-  const nextDue = new Date(signedAt.getTime() + firstDueDays * 24 * 60 * 60 * 1000)
-  const monthly = Math.round(financing.monthlyAmount * 100) / 100
-  const totalRepayable = Math.round(financing.totalAmount * 100) / 100
-  const briefJson = brief && brief.length > 0 ? JSON.stringify(brief) : null
+  // Uploads must be this customer's and not yet attached to anything.
+  const attachmentIds = [...new Set(body.attachmentIds ?? [])]
+  if (attachmentIds.length > 0) {
+    const owned = await prisma.attachment.count({
+      where: { id: { in: attachmentIds }, uploaderId: session.id, projectId: null, ticketMessageId: null },
+    })
+    if (owned !== attachmentIds.length) {
+      throw createError({ statusCode: 400, message: 'One of the files is no longer available. Please add it again.' })
+    }
+  }
 
-  // --- Electronic-signature evidence (see utils/agreement.ts for the legal
-  // rationale). Captured server-side so it can't be spoofed by the client. ---
+  const signedAt = new Date()
   const signedIp = getRequestIP(event, { xForwardedFor: true }) ?? null
   const signedUserAgent = (getRequestHeader(event, 'user-agent') ?? '').slice(0, 400) || null
   const signer = await prisma.user.findUnique({
@@ -111,152 +112,149 @@ export default defineEventHandler(async (event) => {
   })
   const signerContact = signer?.email || signer?.phone || '—'
   const accountName = [signer?.firstName, signer?.lastName].filter(Boolean).join(' ').trim()
-  // Printed legal name: the value the customer typed, else their account name.
-  const printedName = (signerName || accountName || signerContact).slice(0, 120)
+  const printedName = (body.signerName || (body.signatureType === 'typed' ? body.signature : '') || accountName || signerContact).slice(0, 120)
   const agencyName = await getSetting('general.site-name', 'Apex Digital Agency')
-  const vatRate = await getSetting('business.vat-rate', 20)
 
-  // Project + installment plan + contract commit together (or not at all).
+  const payMode = service.kind === 'fixed' ? `fixed-${pay}` : service.kind
+  const milestoneKey = service.kind === 'retainer' ? 'retainer' : service.kind === 'scope' ? plan.id : service.id
+  const milestones = MILESTONES[milestoneKey] ?? ['Kickoff call', 'Delivery', 'Hand over']
+  const hasPlan = (service.kind === 'fixed' && pay === 'monthly') || service.kind === 'retainer'
+
   const { project, contract } = await prisma.$transaction(async (tx) => {
     const created = await tx.project.create({
       data: {
-        name: title,
-        category,
-        amount: budget,
+        name: body.title,
+        category: service.name,
+        amount: terms.total,
         status: 'PENDING',
         progress: 0,
-        startDate: new Date(),
-        deadline: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+        startDate: signedAt,
         userId: session.id,
-        termMonths,
-        signature: signature ?? null,
-        signedAt: signature ? signedAt : null,
-        brief: briefJson,
+        termMonths: terms.payments || null,
+        signature: body.signature,
+        signedAt,
+        brief: body.brief?.length ? JSON.stringify(body.brief) : null,
+        serviceId: service.id,
+        planId: plan.id,
+        planName: plan.name,
+        payMode,
+        kickoffAmount: terms.kickoff,
         milestones: {
-          create: [
-            { title: 'Order Review', status: 'PENDING' },
-            { title: 'Requirements', status: 'PENDING' },
-            { title: 'Development', status: 'PENDING' },
-            { title: 'Delivery', status: 'PENDING' },
-          ],
+          create: milestones.map((title, i) => ({ title, status: i === 0 ? 'CURRENT' : 'PENDING' })),
         },
-        installmentPlan: financed
+        installmentPlan: hasPlan
           ? {
               create: {
-                project: title,
-                total: totalRepayable,
+                project: body.title,
+                kind: service.kind === 'retainer' ? 'retainer' : 'fixed',
+                total: terms.monthly * terms.payments,
                 paid: 0,
-                amountDue: monthly,
-                monthsTotal: termMonths,
+                amountDue: terms.monthly,
+                monthsTotal: terms.payments,
                 monthsPaid: 0,
-                nextDue,
-                status: 'active',
-                icon: planIcon(category),
-                monthlyAmount: monthly,
-                termMonths,
-                interestRate: financing.interestRate,
+                // An estimate until the kickoff payment fixes the real date.
+                nextDue: firstPaymentDate(signedAt),
+                status: 'pending',
+                icon: planIcon(service.name),
+                monthlyAmount: terms.monthly,
+                termMonths: terms.payments,
+                interestRate: 0,
+                depositAmount: terms.deposit,
                 userId: session.id,
               },
             }
           : undefined,
       },
-      include: { installmentPlan: true },
     })
 
-    let contractRow = null
-    if (financed) {
-      const reference = await nextContractReference(tx)
-      // Build the exact agreed text with the real reference, then hash it —
-      // the immutable, tamper-evident legal record of what was signed.
-      const agreementText = buildAgreementText({
-        agencyName,
-        vatRate,
-        reference,
-        serviceName: category,
-        // The plan the wizard's contract step names, so the stored text is
-        // the text the customer read. It used to be the project title.
-        planName: plan.name,
-        amount: budget,
-        termMonths,
-        interestRate: financing.interestRate,
-        monthlyAmount: monthly,
-        totalRepayable,
-        firstDueDays,
-        signerName: printedName,
-        signerContact,
-        signedAt,
-      })
-      contractRow = await tx.contract.create({
-        data: {
-          reference,
-          status: 'ACTIVE',
-          amount: budget,
-          termMonths,
-          interestRate: financing.interestRate,
-          monthlyAmount: monthly,
-          totalRepayable,
-          signature: signature ?? null,
-          signedAt,
-          // --- Electronic-signature legal record ---
-          signatureType: signatureType ?? (signature ? (signature.startsWith('data:image') ? 'drawn' : 'typed') : null),
-          signerName: printedName,
-          signerEmail: signer?.email ?? null,
-          signerPhone: signer?.phone ?? null,
-          signedIp,
-          signedUserAgent,
-          documentVersion: AGREEMENT_VERSION,
-          documentHash: hashAgreement(agreementText),
-          agreementText,
-          userId: session.id,
-          projectId: created.id,
-        },
-      })
+    if (attachmentIds.length > 0) {
+      await tx.attachment.updateMany({ where: { id: { in: attachmentIds }, uploaderId: session.id }, data: { projectId: created.id } })
     }
+
+    const reference = await nextContractReference(tx)
+    const agreementText = buildAgreementTextV2({
+      agencyName,
+      reference,
+      serviceName: service.name,
+      planName: plan.name,
+      kind: service.kind,
+      payInFull: pay === 'full',
+      kickoff: terms.kickoff,
+      deposit: terms.deposit,
+      setup: terms.setup,
+      monthly: terms.monthly,
+      payments: terms.payments,
+      minimumMonths: terms.minimumMonths,
+      total: terms.total,
+      signerName: printedName,
+      signerContact,
+      signedAt,
+    })
+    const contractRow = await tx.contract.create({
+      data: {
+        reference,
+        status: 'ACTIVE',
+        amount: terms.total,
+        termMonths: terms.payments,
+        interestRate: 0,
+        monthlyAmount: terms.monthly,
+        totalRepayable: terms.total,
+        signature: body.signature,
+        signedAt,
+        signatureType: body.signatureType,
+        signerName: printedName,
+        signerEmail: signer?.email ?? null,
+        signerPhone: signer?.phone ?? null,
+        signedIp,
+        signedUserAgent,
+        documentVersion: AGREEMENT_VERSION_V2,
+        documentHash: hashAgreement(agreementText),
+        agreementText,
+        userId: session.id,
+        projectId: created.id,
+      },
+    })
 
     return { project: created, contract: contractRow }
   })
 
-  // Refresh the derived credit usage now the new plan exists.
-  if (financed) {
+  if (terms.financed > 0) {
     await ensureCredit(session.id)
   }
 
-  // Push the signed contract to the admin panel: audit trail + admin inbox.
-  if (contract) {
-    try {
-      // A phone-only customer has no email; the audit row still needs a name.
-      await recordAudit(event, { id: session.id, email: session.email ?? signerContact }, {
-        action: 'contract.created',
-        targetType: 'Contract',
-        targetId: contract.id,
-        metadata: {
-          reference: contract.reference,
-          projectId: project.id,
-          project: project.name,
-          amount: contract.amount,
-          termMonths: contract.termMonths,
-          monthlyAmount: contract.monthlyAmount,
-        },
+  try {
+    // A phone-only customer has no email; the audit row still needs a name.
+    await recordAudit(event, { id: session.id, email: session.email ?? signerContact }, {
+      action: 'contract.created',
+      targetType: 'Contract',
+      targetId: contract.id,
+      metadata: {
+        reference: contract.reference,
+        projectId: project.id,
+        project: project.name,
+        service: service.name,
+        plan: plan.name,
+        payMode,
+        kickoff: terms.kickoff,
+        total: terms.total,
+      },
+    })
+    const admins = await prisma.user.findMany({ where: { role: 'ADMIN' }, select: { id: true } })
+    if (admins.length > 0) {
+      await prisma.notification.createMany({
+        data: admins.map(a => ({
+          userId: a.id,
+          title: 'New order signed',
+          message: `${contract.reference}: ${project.name} · ${service.name}, ${plan.name}. Book the kickoff call.`,
+          type: 'INFO',
+          link: `/admin/projects/${project.id}`,
+        })),
       })
-
-      const admins = await prisma.user.findMany({ where: { role: 'ADMIN' }, select: { id: true } })
-      if (admins.length > 0) {
-        await prisma.notification.createMany({
-          data: admins.map(a => ({
-            userId: a.id,
-            title: 'New contract signed',
-            message: `${contract.reference}: ${project.name} — £${contract.amount.toLocaleString('en-GB')} over ${contract.termMonths} months.`,
-            type: 'INFO',
-            link: `/admin/contracts/${contract.id}`,
-          })),
-        })
-      }
-    }
-    catch {
-      // Best-effort notification — never fail the order because the admin
-      // fan-out hiccuped. The Contract row itself is the source of truth.
     }
   }
+  catch {
+    // Best effort: the Contract row is the record, not the fan-out.
+  }
 
-  return { status: 'success', project, contract }
+  return { status: 'success', project: { id: project.id, name: project.name }, contract: { id: contract.id, reference: contract.reference } }
 })

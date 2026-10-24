@@ -42,15 +42,19 @@ Detail lives in the docs — read on demand, don't guess:
 
 ## Conventions
 
-- Page skeleton: `definePageMeta({ title, layout: 'sidenav', middleware: 'auth' })`;
-  wrapper `mx-auto max-w-[1180px] flex flex-col gap-8`. Horizontal gutter comes
-  from `sidenav.vue`'s shared `px-4 md:px-6 xl:px-8` wrapper (applied to toolbar +
-  `<slot />` together) — don't add page-level `px-*`, it would double up.
-- **Shell vocabulary (V2 Phase 1) — use these, don't re-roll them:**
-  `<ApexPageHeader>` (30px two-tone H1 + sub-line + one 44px pill action; no eyebrow
-  labels), `<ApexSectionLabel>` (3px violet bar + 12px uppercase), `<ApexSidebarNav>`,
-  `<ApexAccountMenu>`, `<ApexNotificationsMenu>`. Location lives **only** in the
-  toolbar breadcrumb — never print a second one in a page.
+- **Customer pages are Panel v2** (`Panel Breakpoints.dc.html`, ADR-019): light by
+  default with a dark toggle, sidebar ≥1200px (`desk:`), 88px rail ≥768px, 60px
+  bar + five tabs below. Page skeleton: `definePageMeta({ title, layout: 'sidenav',
+  middleware: 'auth' })` and a wrapper `@container mx-auto max-w-[1260px] flex
+  flex-col px-[clamp(16px,3vw,40px)] …` — the page owns its gutter, and layout
+  switches use container queries (`@min-[720px]:`), not viewport breakpoints.
+- **Panel v2 tokens, not light/dark pairs:** `bg-card`, `bg-raised`, `text-fg-heading`,
+  `text-fg-muted`, `border-line-subtle`, `text-accent-ink`, `bg-st-<tone>-bg`…
+  (main.css). Components: `ApexButton`, `ApexStatusChip`, `ApexField`, `ApexGlyph`.
+  Status labels come from `projectStatus()` and schedules from `orderSchedule()`.
+- **Admin keeps the V2 Phase 1 shell vocabulary** (`<ApexPageHeader>`,
+  `<ApexSectionLabel>`, `<ApexSidebarNav>`, `<ApexAccountMenu>`, `DemoToolbar`) and
+  the dark theme — admin, auth and legal routes are pinned dark in `nuxt.config.ts`.
 - Radius scale: surfaces `rounded-2xl`, inner rows/inputs/icon buttons `rounded-xl`,
   pills `rounded-full`. No new arbitrary `rounded-[Npx]` for either.
 - Static assets go in **`.demo/public/`**. `.demo/app/public/` is not served.

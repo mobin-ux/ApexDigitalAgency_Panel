@@ -30,16 +30,25 @@ export function creditLimit(): Promise<number> {
  */
 export async function computeCreditUsed(userId: string): Promise<number> {
   const plans = await prisma.installment.findMany({
-    where: { userId, status: { not: 'settled' } },
+    // Retainers are a subscription, not a balance owed: they never draw credit.
+    where: { userId, status: { not: 'settled' }, kind: { not: 'retainer' } },
     select: {
       monthsTotal: true,
       monthsPaid: true,
-      projectRef: { select: { amount: true } },
+      total: true,
+      paid: true,
+      projectRef: { select: { amount: true, serviceId: true } },
     },
   })
 
   let used = 0
   for (const plan of plans) {
+    // Panel v2 plans are interest-free and exclude the deposit, so what is
+    // still owed is exactly the unpaid part of the plan (ADR-019).
+    if (plan.projectRef?.serviceId) {
+      used += Math.max(0, plan.total - plan.paid)
+      continue
+    }
     const principal = plan.projectRef?.amount ?? 0
     const remaining = plan.monthsTotal > 0
       ? Math.max(0, plan.monthsTotal - plan.monthsPaid) / plan.monthsTotal

@@ -16,7 +16,7 @@ const bodySchema = z.object({
   name: z.string().trim().min(1).max(200),
   category: z.string().trim().min(1).max(100),
   amount: z.coerce.number().min(0).max(10_000_000).default(0),
-  status: z.enum(['PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']).default('PENDING'),
+  status: z.enum(['PENDING', 'IN_PROGRESS', 'IN_REVIEW', 'COMPLETED', 'CANCELLED']).default('PENDING'),
   deadline: z.coerce.date().nullable().optional(),
   managerId: z.string().trim().min(1).nullable().optional(),
 })

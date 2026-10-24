@@ -140,3 +140,115 @@ export function buildAgreementText(input: AgreementInput): string {
 export function hashAgreement(text: string): string {
   return createHash('sha256').update(text, 'utf8').digest('hex')
 }
+
+/**
+ * Panel v2 agreement (ADR-019): the website's payment schedules — a deposit
+ * and monthly payments, a retainer with a minimum term, or fixed-price
+ * discovery. Kept beside the 2026-08 text rather than replacing it, because a
+ * contract signed under that version must stay reproducible word for word.
+ */
+export const AGREEMENT_VERSION_V2 = 'apex-msa-2026-10'
+
+export interface AgreementInputV2 {
+  agencyName: string
+  reference: string
+  serviceName: string
+  planName: string
+  kind: 'fixed' | 'retainer' | 'scope'
+  payInFull: boolean
+  kickoff: number
+  deposit: number
+  setup: number
+  monthly: number
+  payments: number
+  minimumMonths: number
+  total: number
+  signerName: string
+  signerContact: string
+  signedAt: Date
+}
+
+export function buildAgreementTextV2(input: AgreementInputV2): string {
+  const { agencyName, reference, serviceName, planName, kind, payInFull, kickoff, deposit, setup, monthly, payments, minimumMonths, total, signerName, signerContact, signedAt } = input
+
+  let schedule: string[]
+  if (kind === 'fixed' && payInFull) {
+    schedule = [
+      `  One payment of ${gbp(total)}, collected after the kickoff call.`,
+      `  Nothing further is payable for the plan.`,
+    ]
+  }
+  else if (kind === 'fixed') {
+    schedule = [
+      `  A deposit of ${gbp(deposit)}, collected after the kickoff call, then`,
+      `  ${payments} monthly payments of ${gbp(monthly)}, the first on the 1st of a`,
+      `  month at least fourteen days after the deposit.`,
+      `  Total, all in: ${gbp(total)}. No interest is charged.`,
+    ]
+  }
+  else if (kind === 'retainer') {
+    schedule = [
+      `  ${setup > 0 ? `A set-up fee of ${gbp(setup)} and the` : 'The'} first month (${gbp(monthly)}),`,
+      `  collected after the kickoff call, then ${gbp(monthly)} a month.`,
+      `  Minimum term: ${minimumMonths} months (${gbp(total)} in total). After that the`,
+      `  retainer continues monthly until either party gives 30 days' notice.`,
+    ]
+  }
+  else if (kickoff > 0) {
+    schedule = [
+      `  A fixed fee of ${gbp(kickoff)} for discovery, collected when discovery`,
+      `  starts. Any build is quoted separately and agreed in writing.`,
+    ]
+  }
+  else {
+    schedule = [
+      `  Nothing is payable. The scoping call is free and commits neither party`,
+      `  to further work.`,
+    ]
+  }
+
+  return [
+    `SERVICE AGREEMENT`,
+    `Reference: ${reference}`,
+    `Version: ${AGREEMENT_VERSION_V2}`,
+    ``,
+    `This agreement is made between ${agencyName} ("the Agency", a United Kingdom`,
+    `digital agency) and the client identified below ("the Client").`,
+    ``,
+    `PARTIES`,
+    `  Client (signatory): ${signerName}`,
+    `  Client contact: ${signerContact}`,
+    `  Agency: ${agencyName}`,
+    ``,
+    `1. SERVICES`,
+    `  The Agency will provide "${serviceName}" services under the "${planName}"`,
+    `  plan, as described in that plan and in the Client's brief captured at the`,
+    `  time of order. Work starts after a kickoff call to agree scope and dates.`,
+    ``,
+    `2. CHARGES AND PAYMENT SCHEDULE`,
+    ...schedule,
+    `  Figures include VAT. Payments are taken from the Client's Apex wallet;`,
+    `  the Client keeps it topped up by card or bank transfer. This is a payment`,
+    `  schedule for the Agency's own services, not a credit agreement.`,
+    ``,
+    `3. CANCELLATION AND CONSUMER RIGHTS`,
+    `  The Client may cancel at no cost before the kickoff call. A consumer`,
+    `  Client who asks for work to start within the statutory 14-day period`,
+    `  acknowledges that a proportionate charge for completed work is payable.`,
+    ``,
+    `4. INTELLECTUAL PROPERTY`,
+    `  The Client owns the final delivered work. The Agency retains its`,
+    `  pre-existing tools, libraries and know-how used to produce it.`,
+    ``,
+    `5. GOVERNING LAW`,
+    `  This agreement is governed by the laws of England and Wales and is subject`,
+    `  to the exclusive jurisdiction of the courts of England and Wales.`,
+    ``,
+    `6. ELECTRONIC SIGNATURE AND CONSENT`,
+    `  The Client consents to entering into this agreement by electronic means`,
+    `  and agrees that their electronic signature is legally binding and has the`,
+    `  same effect as a handwritten signature (Electronic Communications Act 2000).`,
+    ``,
+    `SIGNED electronically by ${signerName} on ${signedAt.toISOString()} (UTC).`,
+  ].join('\n')
+}

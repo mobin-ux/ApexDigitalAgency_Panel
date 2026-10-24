@@ -73,6 +73,8 @@ const canMoney = computed(() => Boolean(data.value?.canMoney))
 const STAGES = [
   { key: 'PENDING', label: 'Awaiting kickoff', chip: 'bg-[#D9A521]/16 text-[#F2C14E]' },
   { key: 'IN_PROGRESS', label: 'In progress', chip: 'bg-primary-500/14 text-primary-400' },
+  // Panel v2: the client is reviewing work (approvals, a direction to choose).
+  { key: 'IN_REVIEW', label: 'In review', chip: 'bg-[#6EA8FE]/14 text-[#6EA8FE]' },
   { key: 'COMPLETED', label: 'Completed', chip: 'bg-[#22B07D]/14 text-[#22B07D]' },
   { key: 'CANCELLED', label: 'Cancelled', chip: 'bg-[#EC6453]/16 text-[#EC6453]' },
 ] as const

@@ -33,8 +33,20 @@ export default defineEventHandler(async (event) => {
        */
       milestones: { orderBy: { date: { sort: 'asc', nulls: 'last' } } },
       files: true,
-      manager: { select: { firstName: true, lastName: true, avatar: true } },
+      manager: { select: { firstName: true, lastName: true, avatar: true, staffRole: true } },
       installmentPlan: true,
+      // Panel v2: what the team is waiting on, newest first; answered ones stay
+      // so the order can say what was approved.
+      clientActions: {
+        where: { status: { in: ['OPEN', 'DONE'] } },
+        orderBy: { createdAt: 'desc' },
+        select: { id: true, title: true, body: true, ctaLabel: true, doneLine: true, status: true, createdAt: true, resolvedAt: true },
+      },
+      // Files the client uploaded; served through /api/attachments/:id.
+      attachments: {
+        orderBy: { createdAt: 'desc' },
+        select: { id: true, name: true, size: true, mime: true, createdAt: true },
+      },
     },
     orderBy: { createdAt: 'desc' },
   })
@@ -45,8 +57,11 @@ export default defineEventHandler(async (event) => {
     data: projects.map((project) => {
       const state = states.get(project.id)
       const held = Boolean(state?.held)
+      // The drawn signature is a data URL of up to 300 KB per order; the list
+      // never shows it, so it never leaves the server here.
+      const { signature: _signature, ...rest } = project
       return {
-        ...project,
+        ...rest,
         files: held ? project.files.map(file => ({ ...file, url: '' })) : project.files,
         /*
          * Only what the customer's own screen needs to explain the state.

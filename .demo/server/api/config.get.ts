@@ -1,7 +1,8 @@
 import { defineEventHandler } from 'h3'
 import { DEFAULT_REPLY_TARGETS, formatReplyEta, replyTargetKey } from '../../shared/support-eta'
 import { getAuthSession } from '../utils/auth'
-import { DEFAULT_BANK_DETAILS, DEFAULT_CATALOG, DEFAULT_FAQ, DEFAULT_FROM_PRICES } from '../utils/catalog'
+import { DEFAULT_BANK_DETAILS, DEFAULT_FAQ } from '../utils/catalog'
+import { getCatalog } from '../utils/catalog-v2'
 import { getSettings } from '../utils/settings'
 
 /**
@@ -37,9 +38,8 @@ export default defineEventHandler(async (event) => {
     [replyTargetKey('normal')]: DEFAULT_REPLY_TARGETS.normal,
     'support.hours': 'Mon–Fri · 9am–6pm GMT',
     'support.faq': DEFAULT_FAQ,
-    'catalog.services': DEFAULT_CATALOG,
-    'catalog.from-prices': DEFAULT_FROM_PRICES,
   })
+  const runtime = useRuntimeConfig(event)
 
   return {
     siteName: s['general.site-name'],
@@ -60,7 +60,10 @@ export default defineEventHandler(async (event) => {
       hours: s['support.hours'],
       faq: s['support.faq'],
     },
-    catalog: s['catalog.services'],
-    fromPrices: s['catalog.from-prices'],
+    // Panel v2 catalogue (ADR-019): the same object `POST /api/orders` prices
+    // from, so the wizard can only ever show the figure the order is signed at.
+    catalog: await getCatalog(),
+    // Settings offers the Companies House lookup only when it can work.
+    companiesHouseLookup: Boolean(runtime.companiesHouseKey),
   }
 })

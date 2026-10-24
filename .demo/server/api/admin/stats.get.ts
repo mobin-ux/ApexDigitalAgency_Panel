@@ -131,7 +131,8 @@ export default defineEventHandler(async (event) => {
 
   const overdueInstallments = canMoney
     ? await prisma.installment.findMany({
-        where: { nextDue: { lt: now }, status: { not: 'settled' } },
+        // A `pending` plan's date is an estimate until kickoff is collected.
+        where: { nextDue: { lt: now }, status: { notIn: ['settled', 'pending'] } },
         select: {
           id: true,
           project: true,
@@ -204,11 +205,11 @@ export default defineEventHandler(async (event) => {
           prisma.creditLine.aggregate({ _sum: { used: true }, where: { status: 'ACTIVE' } }),
           prisma.installment.aggregate({
             _sum: { amountDue: true },
-            where: { nextDue: { gte: now, lte: inThirtyDays }, status: { not: 'settled' } },
+            where: { nextDue: { gte: now, lte: inThirtyDays }, status: { notIn: ['settled', 'pending'] } },
           }),
           prisma.installment.aggregate({
             _sum: { amountDue: true },
-            where: { nextDue: { lt: now }, status: { not: 'settled' } },
+            where: { nextDue: { lt: now }, status: { notIn: ['settled', 'pending'] } },
           }),
         ])
         return {

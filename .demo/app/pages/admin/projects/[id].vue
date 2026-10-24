@@ -113,6 +113,7 @@ function toastError(error: any, fallback: string) {
 const STAGE_CHIP: Record<string, { label: string, chip: string }> = {
   PENDING: { label: 'Awaiting kickoff', chip: 'bg-[#D9A521]/16 text-[#F2C14E]' },
   IN_PROGRESS: { label: 'In progress', chip: 'bg-primary-500/14 text-primary-400' },
+  IN_REVIEW: { label: 'In review', chip: 'bg-[#6EA8FE]/14 text-[#6EA8FE]' },
   COMPLETED: { label: 'Completed', chip: 'bg-[#22B07D]/14 text-[#22B07D]' },
   CANCELLED: { label: 'Cancelled', chip: 'bg-[#EC6453]/16 text-[#EC6453]' },
 }
@@ -350,6 +351,69 @@ const activity = computed<FeedItem[]>(() => {
 
   return rows.sort((a, b) => b.at - a.at).slice(0, 12)
 })
+
+/* ------------------------------------------- Panel v2: kickoff + asks --- */
+
+const clientActions = computed<any[]>(() => (project.value as any)?.clientActions ?? [])
+const clientFiles = computed<any[]>(() => (project.value as any)?.attachments ?? [])
+const awaitingKickoff = computed(() => Boolean((project.value as any)?.serviceId) && !(project.value as any)?.kickoffPaidAt)
+const KICKOFF_LABEL: Record<string, string> = { 'fixed-monthly': 'Deposit', 'fixed-full': 'Payment in full', 'retainer': 'Set-up and first month', 'scope': 'Discovery fee' }
+const kickoffLabel = computed(() => KICKOFF_LABEL[(project.value as any)?.payMode ?? ''] ?? 'Kickoff payment')
+const gbp = (n: number) => `£${Number(n ?? 0).toLocaleString('en-GB', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`
+
+const collecting = ref(false)
+async function collectKickoff() {
+  collecting.value = true
+  try {
+    const res: any = await $fetch(`/api/admin/projects/${projectId}/kickoff`, { method: 'POST' })
+    toaster.add({ title: 'Work started', description: res.charged > 0 ? `${gbp(res.charged)} was taken from the client's wallet.` : 'Nothing was due at kickoff.', icon: 'lucide:check', progress: true })
+    await refresh()
+  }
+  catch (error: any) {
+    toastError(error, 'The kickoff payment could not be collected.')
+  }
+  finally {
+    collecting.value = false
+  }
+}
+
+const askTitle = ref('')
+const askBody = ref('')
+const askCta = ref('Approve')
+const askDone = ref('')
+const asking = ref(false)
+async function sendAsk() {
+  if (asking.value || askTitle.value.trim().length < 3) {
+    return
+  }
+  asking.value = true
+  try {
+    await $fetch(`/api/admin/projects/${projectId}/actions`, {
+      method: 'POST',
+      body: { title: askTitle.value.trim(), body: askBody.value.trim() || undefined, ctaLabel: askCta.value.trim() || 'Approve', doneLine: askDone.value.trim() || undefined },
+    })
+    askTitle.value = ''
+    askBody.value = ''
+    askCta.value = 'Approve'
+    askDone.value = ''
+    await refresh()
+  }
+  catch (error: any) {
+    toastError(error, 'The request could not be sent.')
+  }
+  finally {
+    asking.value = false
+  }
+}
+async function withdrawAsk(id: string) {
+  try {
+    await $fetch(`/api/admin/projects/${projectId}/actions/${id}`, { method: 'DELETE' })
+    await refresh()
+  }
+  catch (error: any) {
+    toastError(error, 'The request could not be withdrawn.')
+  }
+}
 
 /* -------------------------------------------------------------- notes --- */
 
@@ -784,6 +848,9 @@ const MODAL_SHELL = 'apex-pop relative flex max-h-[calc(100dvh-2rem)] w-full fle
                     <BaseSelectItem value="IN_PROGRESS">
                       In progress
                     </BaseSelectItem>
+                    <BaseSelectItem value="IN_REVIEW">
+                      In review
+                    </BaseSelectItem>
                     <BaseSelectItem value="COMPLETED">
                       Completed
                     </BaseSelectItem>
@@ -953,6 +1020,65 @@ const MODAL_SHELL = 'apex-pop relative flex max-h-[calc(100dvh-2rem)] w-full fle
             <p v-else class="mt-3 text-[13px] text-muted-500">
               Nothing recorded yet.
             </p>
+          </section>
+
+          <!-- Panel v2: kickoff payment (ADR-019) -->
+          <section v-if="awaitingKickoff" :class="CARD" aria-label="Kickoff">
+            <span :class="CARD_TITLE">Kickoff</span>
+            <p class="mb-3 mt-2 text-[13px] leading-[1.55] text-muted-500">
+              After the kickoff call, collect the {{ kickoffLabel.toLowerCase() }} ({{ gbp((project as any).kickoffAmount) }}) from the client's wallet. Work starts and monthly payments are scheduled from today.
+            </p>
+            <BaseButton v-if="canAssign" size="sm" rounded="lg" variant="primary" :loading="collecting" :disabled="collecting" @click="collectKickoff">
+              Kickoff done · collect {{ gbp((project as any).kickoffAmount) }}
+            </BaseButton>
+          </section>
+
+          <!-- Panel v2: what the client is asked to do ("Waiting on you") -->
+          <section :class="CARD" aria-label="Client requests">
+            <span :class="CARD_TITLE">Asked of the client</span>
+            <p class="mb-3 mt-2 text-[12.5px] leading-[1.55] text-muted-500">
+              Shown on the client's dashboard and order until they answer.
+            </p>
+            <div v-if="clientActions.length" class="mb-3 flex flex-col gap-2">
+              <div v-for="a in clientActions" :key="a.id" class="flex items-start gap-2.5 rounded-xl border border-muted-200 bg-muted-50 p-3 dark:border-white/8 dark:bg-white/3">
+                <span class="grow">
+                  <span class="block text-[13px] font-semibold text-muted-900 dark:text-white">{{ a.title }}</span>
+                  <span class="text-[11.5px] text-muted-500">{{ a.status === 'OPEN' ? 'Waiting' : a.status === 'DONE' ? `Done ${fmtDate(a.resolvedAt)}` : 'Withdrawn' }} · asked {{ fmtDate(a.createdAt) }}</span>
+                </span>
+                <button v-if="a.status === 'OPEN' && canAssign" type="button" class="apex-focus rounded-md text-[12px] font-semibold text-[#EC6453]" @click="withdrawAsk(a.id)">
+                  Withdraw
+                </button>
+              </div>
+            </div>
+            <form v-if="canAssign" class="flex flex-col gap-2" @submit.prevent="sendAsk">
+              <label for="ask-title" class="sr-only">What the client needs to do</label>
+              <input id="ask-title" v-model="askTitle" maxlength="120" placeholder="e.g. Approve the homepage design" :class="inputClass">
+              <label for="ask-body" class="sr-only">Detail</label>
+              <input id="ask-body" v-model="askBody" maxlength="400" placeholder="Detail (optional)" :class="inputClass">
+              <div class="flex gap-2">
+                <label for="ask-cta" class="sr-only">Button label</label>
+                <input id="ask-cta" v-model="askCta" maxlength="24" placeholder="Button label" :class="inputClass">
+                <label for="ask-done" class="sr-only">Line shown after</label>
+                <input id="ask-done" v-model="askDone" maxlength="200" placeholder="Shown after (optional)" :class="inputClass">
+              </div>
+              <div class="flex justify-end">
+                <BaseButton type="submit" size="sm" rounded="lg" :loading="asking" :disabled="asking || askTitle.trim().length < 3">
+                  Ask the client
+                </BaseButton>
+              </div>
+            </form>
+          </section>
+
+          <!-- Panel v2: files the client uploaded -->
+          <section v-if="clientFiles.length" :class="CARD" aria-label="Client files">
+            <span :class="CARD_TITLE">From the client</span>
+            <div class="mt-3 flex flex-col gap-2">
+              <a v-for="f in clientFiles" :key="f.id" :href="`/api/attachments/${f.id}`" download class="apex-focus flex items-center gap-2.5 rounded-xl border border-muted-200 px-3 py-2.5 text-[13px] dark:border-white/8">
+                <Icon name="solar:file-download-linear" class="size-4 text-primary-500 dark:text-primary-400" />
+                <span class="grow truncate font-semibold text-muted-900 dark:text-white">{{ f.name }}</span>
+                <span class="text-[11.5px] text-muted-500">{{ fmtDate(f.createdAt) }}</span>
+              </a>
+            </div>
           </section>
 
           <!-- internal notes (badge 8) -->

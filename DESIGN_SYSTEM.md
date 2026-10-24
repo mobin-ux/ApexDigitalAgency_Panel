@@ -1252,6 +1252,56 @@ measure identically on pages this phase did not touch.
 A template whose first node is an HTML comment is multi-root, so the client
 hydrates a Fragment where the server rendered an element. Keep layout commentary
 inside the root node.
+### Panel v2 (`Panel Breakpoints.dc.html`, 2026-10-24)
+
+A third generation of the customer panel, built to match the website v2: the
+six pages and the shell, light by default with a dark toggle, and checked at
+393, 768, 1024 and 1440px in both themes. It replaces the V2 customer pages
+and the V2 Phase 1 customer shell; the admin panel keeps the V2 shell.
+
+- **Three shells, by width, in CSS.** ≥1200px: a 260px sidebar with the
+  Services group. 768–1199px: an 88px rail with labels under the icons.
+  <768px: a 60px bar (mark, page title, theme, bell, avatar) and five tabs.
+  Chosen with the `desk:` (1200px) and `md:` breakpoints, so the server render
+  is already right. No drawer: Settings is in the account sheet.
+- **Semantic tokens, not light/dark pairs.** Pages use `bg-card`,
+  `text-fg-muted`, `border-line-subtle`, `bg-st-warning-bg`… (see main.css).
+  One class per surface means a page cannot be light-correct in one place and
+  dark-only in the next — the reason the old light theme never finished.
+- **`.apex-dark` makes an island.** The dashboard's pay-monthly band is navy
+  in both themes because the tokens are re-declared inside it.
+- **Content width, not viewport width.** Page wrappers are size containers;
+  the design's `contentW >= 720` is `@min-[720px]:`. A rail at 1024px and a
+  sidebar at 1440px get the layouts their content widths call for.
+- **Components:** `ApexButton` (primary/white/soft/light, 46/40px, violet
+  glow), `ApexStatusChip` (tint + hue dot), `ApexGlyph` (the website's service
+  shapes), `ApexField` (label, red asterisk, hint or error, 16px on phones),
+  `ApexThemeSwitch`, `ApexPanelAccountMenu`, `ApexPanelNotifications`,
+  `ApexPayMonthlyIllo`. Helpers: `utils/panel.ts` (one status label and tone
+  per project status, dd/mm/yyyy), `utils/orderSchedule.ts` (one payment
+  schedule per order, old or new), `useApexUploads`.
+- **AA, measured.** Three design-system values fail on their own tints and
+  were adjusted: light success text #137050 (was 3.7:1), dark success #2BC48D
+  (4.5), dark violet text #AE96F9 (4.2). After that the only sub-AA text on
+  the six pages in either theme is decorative (✓ in green discs, `·`).
+- **Real or absent, again.** The mockups draw a card "Pay from" option, auto
+  top-up, invoice downloads, two-step verification, a device list, email
+  notification switches, an editable sign-in email and "we emailed you" copy.
+  None has a feature behind it, so each is either replaced by the real
+  equivalent or stated plainly. What did get built because the design needed
+  it: uploads, client approvals, resolving support requests, the Companies
+  House number and lookup, and the website's plans end to end (ADR-019).
+
+Gotchas:
+- **Heredocs with apostrophes can fail through the shell hook here** — write a
+  script file and run it instead.
+- **A plain CSS class does not take Tailwind variants.** The active nav row is
+  `@utility apex-panel-nav-active` so `@min-[760px]:apex-panel-nav-active` works.
+- **ESLint's auto-fix turned a `\uFEFF` escape into a literal BOM** and then
+  flagged it; build such strings with `String.fromCharCode`.
+- **Removing an auto-imported server export needs a dev-server restart**:
+  Nitro's `#imports` kept the old name and every page 500'd until then.
+
 ## 5. Known issues
 
 Fixed:
@@ -1317,7 +1367,7 @@ To address:
 - [ ] Credit-line, expense-split (balance) and the service "from" prices / order plan
       catalogue (new order) are front-end placeholders — back them with real API/data models.
 - [ ] `orders.vue` formats prices in USD and has a hardcoded "Sarah Connor" project manager.
-- [ ] Settings cannot capture a company number, a trading name or a structured UK
+- [ ] (Company number done in Panel v2, with a Companies House lookup.) Settings cannot capture a trading name or a structured UK
       address (line 1/2, town, county, postcode) — `Company` has one free-text
       `address` column and no CRN field, so Phase 7 rendered one address box rather
       than inputs that could not be stored. Same for avatar / company-logo upload
@@ -1336,9 +1386,7 @@ To address:
       `runtimeConfig.jwtSecret`, so a valid session gets "invalid signature" and
       a raw 500. Dev-only, pre-existing, and untouched by Phase 6 — but it means
       `seed-support` cannot be used to make test data.
-- [ ] File attachments on support tickets: no `TicketMessage` attachment
-      relation and no upload endpoint, so the UI offers no picker at all
-      (Phase 6). Shipping `POST /api/support/:id/attachments` is what unblocks
-      restoring it — see the plan file's uploads phase.
+- [x] File attachments on support tickets — done in Panel v2: `POST /api/uploads`
+      stores the file, the message claims it, `/api/attachments/:id` serves it.
 - [ ] Local dev uses an Iran mirror in `.npmrc` that 403s intermittently; `registry.npmmirror.com`
       worked (`pnpm install --registry=https://registry.npmmirror.com/`).

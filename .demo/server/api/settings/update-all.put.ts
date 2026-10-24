@@ -45,6 +45,9 @@ const bodySchema = z.object({
       website: optionalTrimmed(300),
       phone: optionalTrimmed(30),
       taxId: optionalTrimmed(100),
+      // Companies House number: eight letters or digits ("SC123456" in
+      // Scotland), stored uppercase. An empty string clears it.
+      companyNumber: z.string().trim().toUpperCase().regex(/^(?:[A-Z0-9]{8})?$/, 'Companies House numbers are eight characters').nullish(),
       // `Company.address` has existed in the schema since the beginning but was
       // never written here, so the Settings page had nowhere to put a business
       // address — which is why Wallet's "add your billing address in Settings"
@@ -100,6 +103,7 @@ export default defineEventHandler(async (event) => {
       website: company.website ?? undefined,
       phone: company.phone ?? undefined,
       taxId: company.taxId ?? undefined,
+      companyNumber: company.companyNumber ?? undefined,
       address: company.address ?? undefined,
       type: company.type ?? undefined,
       notes: company.notes ?? undefined,
@@ -119,6 +123,7 @@ export default defineEventHandler(async (event) => {
       website: company.website ?? undefined,
       phone: company.phone ?? undefined,
       taxId: company.taxId ?? undefined,
+      companyNumber: company.companyNumber ?? undefined,
       address: company.address ?? undefined,
       type: company.type ?? undefined,
       notes: company.notes ?? undefined,

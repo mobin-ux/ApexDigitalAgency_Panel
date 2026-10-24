@@ -27,13 +27,19 @@ export default defineNuxtConfig({
   },
 
   /**
-   * Apex Digi defaults to the dark theme (brand direction), while the
-   * BaseThemeToggle in the toolbar still lets customers switch to light.
-   * `classSuffix: ''` keeps the toggled class as `.dark` to match main.css.
+   * Panel v2 follows the website: light by default, dark on the customer's
+   * toggle (top bar, account menu, Settings › Appearance). The choice is
+   * remembered per browser by the module. `classSuffix: ''` keeps the class as
+   * `.dark`, which is what main.css keys both token sets on.
+   *
+   * The admin panel and the auth/legal screens were designed and measured on
+   * the dark theme only, so `pages:extend` below pins them to it — the customer
+   * panel going light must not drag those screens into a theme they have
+   * never been checked in.
    */
   colorMode: {
-    preference: 'dark',
-    fallback: 'dark',
+    preference: 'light',
+    fallback: 'light',
     classSuffix: '',
   },
 
@@ -160,6 +166,14 @@ export default defineNuxtConfig({
      * credentials, so a missing key can never become a real charge.
      * See .env.example for the full set and where to obtain each one.
      */
+    /**
+     * Where client uploads (brief files, project files, support attachments)
+     * are stored. Override with NUXT_UPLOAD_DIR; production points it outside
+     * the deployed bundle so a release never deletes customer files.
+     */
+    uploadDir: '',
+    /** Companies House public data API key (NUXT_COMPANIES_HOUSE_KEY). Empty hides the lookup. */
+    companiesHouseKey: '',
     payments: {
       stripe: {
         secretKey: '', // NUXT_PAYMENTS_STRIPE_SECRET_KEY (sk_test_… / sk_live_…)
@@ -289,6 +303,19 @@ export default defineNuxtConfig({
   },
 
   hooks: {
+    'pages:extend': (pages) => {
+      const pinDark = (list: typeof pages) => {
+        for (const page of list) {
+          if (/^\/(?:admin|auth|legal)(?:\/|$)/.test(page.path)) {
+            page.meta = { ...page.meta, colorMode: 'dark' }
+          }
+          if (page.children?.length) {
+            pinDark(page.children)
+          }
+        }
+      }
+      pinDark(pages)
+    },
     // This is a fully dynamic, authenticated dashboard: nothing needs static
     // prerendering. Some module still queues prerender routes, and merely booting
     // the prerender server loads this heavyweight template's whole dependency graph

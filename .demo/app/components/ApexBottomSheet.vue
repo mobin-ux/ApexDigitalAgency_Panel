@@ -41,7 +41,7 @@ defineProps<{
    * sheet that turned white in light mode would be the only light surface on
    * the screen, and the summary it carries is written for dark ink.
    */
-  surface?: 'default' | 'ink'
+  surface?: 'default' | 'ink' | 'panel'
 }>()
 
 const open = defineModel<boolean>('open', { required: true })
@@ -50,14 +50,17 @@ const open = defineModel<boolean>('open', { required: true })
 <template>
   <DialogRoot v-model:open="open">
     <DialogPortal>
-      <DialogOverlay class="apex-scrim-in fixed inset-0 z-[60] bg-[rgba(3,10,12,.62)]" />
+      <DialogOverlay class="apex-scrim-in fixed inset-0 z-[60]" :class="surface === 'panel' ? 'bg-scrim' : 'bg-[rgba(3,10,12,.62)]'" />
       <DialogContent
         class="apex-sheet-in fixed inset-x-0 bottom-0 z-[61] flex flex-col rounded-t-[20px] border-t focus:outline-none"
         :class="[
           scrollable ? 'max-h-[72%]' : 'max-h-[85%]',
           surface === 'ink'
             ? 'border-muted-700 bg-muted-800'
-            : 'border-muted-200 dark:border-muted-700 bg-white dark:bg-muted-800',
+            // Panel v2: the theme tokens, so the sheet follows the customer's theme.
+            : surface === 'panel'
+              ? 'border-line-subtle bg-card shadow-pop rounded-t-[24px]!'
+              : 'border-muted-200 dark:border-muted-700 bg-white dark:bg-muted-800',
         ]"
       >
         <!--
@@ -67,7 +70,7 @@ const open = defineModel<boolean>('open', { required: true })
           which is what tells a customer the scrim is tappable.
         -->
         <div class="flex shrink-0 justify-center pb-0.5 pt-2">
-          <span aria-hidden="true" class="block h-1 w-[38px] rounded-full" :class="surface === 'ink' ? 'bg-white/[.18]' : 'bg-muted-300 dark:bg-white/[.18]'" />
+          <span aria-hidden="true" class="block h-1 w-[38px] rounded-full" :class="surface === 'ink' ? 'bg-white/[.18]' : surface === 'panel' ? 'bg-line-strong' : 'bg-muted-300 dark:bg-white/[.18]'" />
         </div>
 
         <!-- Named for assistive tech; the visible heading is the caller's own. -->

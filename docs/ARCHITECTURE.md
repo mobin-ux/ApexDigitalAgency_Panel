@@ -115,7 +115,15 @@ JWT secret: `runtimeConfig.jwtSecret` (`NUXT_JWT_SECRET` env override).
 | logout, reset-password-* | shared cookie util; reset always answers success (no probing) |
 | GET `/api/dashboard/stats` | raw numbers `{stats:{...}, projects[]}` — no formatting server-side |
 | GET `/api/orders` | projects + milestones + files + manager. **Files are gated (ADR-017)**: while a project's deliverables are held the file names and sizes are returned with a blanked `url`, so the gate is enforced here rather than in the template |
-| POST `/api/orders` | `{ title, serviceId, planId, budget?, termMonths, signature… }` → PENDING project + 4 default milestones (+ plan and contract when financed). **The price and category come from the `catalog.services` Setting**, never the body; `budget` is only the figure the customer saw, and a mismatch is a 409 naming the current price. The stored agreement names the catalogue plan |
+| POST `/api/orders` | Panel v2 (ADR-019): `{ title, serviceId, planId, pay: monthly\|full, quotedTotal?, signature, signatureType, brief?, attachmentIds? }` → PENDING project, service milestones, a `pending` instalment plan for monthly/retainer, and a signed v2 contract. **Priced by `shared/catalog.ts` `orderTerms()` over Setting `catalog.v2`**, never the body; a moved price is a 409. Nothing is charged: `kickoffAmount` is collected at kickoff |
+| GET `/api/dashboard/overview` | Panel v2 dashboard in one call: waiting-on-you (client actions, tickets awaiting the client, kickoff to arrange), next payment, credit, active work, paid so far split by order (withheld unless fully attributed) |
+| POST `/api/orders/:id/actions/:actionId/complete` | the client answers a `ClientAction`; conditional update, 409 on a repeat |
+| POST `/api/orders/:id/files` | attach the caller's own unattached uploads to their order |
+| POST `/api/uploads` · GET `/api/attachments/:id` | client uploads (≤5 × 20 MB, allow-listed types, stored by UUID under `NUXT_UPLOAD_DIR`); download only for the uploader, the owner of the ticket/project, or staff whose role covers it — else 404 |
+| PATCH `/api/support/:id` | customer resolves or reopens their own request |
+| GET `/api/settings/companies-house` | Companies House lookup by number (`NUXT_COMPANIES_HOUSE_KEY`; 503 without, and `/api/config.companiesHouseLookup` hides the button) |
+| POST `/api/admin/projects/:id/kickoff` | `work.assign` — collect the kickoff payment from the wallet and start the work (`collectKickoff()`); 400 naming the shortfall, 409 if already taken |
+| POST/DELETE `/api/admin/projects/:id/actions[/:actionId]` | `work.assign` — ask the client for something / withdraw it (stamped CANCELLED, never deleted) |
 | POST `/api/orders/pay` | pays FULL amount, activates PENDING project — ownership-checked, atomic conditional debit (no double-spend). **Not** an installment charge (ADR-010) |
 | GET `/api/finance/dashboard` | wallet overview. `balanceOverview.cash` **is** `User.walletBalance` (it used to be the sum of the ten newest transactions) |
 | GET `/api/config` | the customer-safe Setting slice. Signed out: only `siteName` and `supportEmail` (the public legal pages read it). Client code reads it through `useApexConfig()`, one shared key per page |

@@ -16,6 +16,7 @@
 import { toTypedSchema } from '@vee-validate/zod'
 import { Field, useForm } from 'vee-validate'
 import { z } from 'zod'
+import { PASSWORD_MIN } from '~~/shared/password'
 
 definePageMeta({
   layout: 'auth',
@@ -23,7 +24,6 @@ definePageMeta({
 })
 
 /** Same minimum as signup, reset and Settings (Phase 8). */
-const PASSWORD_MIN = 10
 
 const route = useRoute()
 const { fetchUser } = useUser()

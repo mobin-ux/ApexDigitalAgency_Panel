@@ -18,6 +18,7 @@
 import { toTypedSchema } from '@vee-validate/zod'
 import { Field, useForm } from 'vee-validate'
 import { z } from 'zod'
+import { PASSWORD_MIN } from '~~/shared/password'
 
 definePageMeta({
   layout: 'auth',
@@ -25,7 +26,6 @@ definePageMeta({
 })
 
 /** Same minimum as signup and Settings. */
-const PASSWORD_MIN = 10
 
 /** The API sets `expiresAt` to one hour; say so rather than leaving them guessing. */
 const LINK_EXPIRY = '60 minutes'

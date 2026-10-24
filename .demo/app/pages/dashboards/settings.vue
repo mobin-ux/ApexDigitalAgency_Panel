@@ -1,59 +1,27 @@
 <script setup lang="ts">
+import { PASSWORD_MIN } from '~~/shared/password'
+
 /**
- * Settings — Apex Design V2, Phase 7 (mobile pass Phase 7M).
+ * Settings — Panel v2 (`Settings.dc.html`).
  *
- * Four sections: Profile (the person), Company (the business), Security
- * (credentials), Billing (what goes on a receipt). From `lg` up they sit
- * beside a vertical sub-nav; below `lg` there is no room for a 220px rail, so
- * the page becomes a **hub → section drill-down**: a hub screen listing the
- * four sections, each opening as its own screen with the back arrow in the bar
- * and a save footer pinned to the bottom edge.
+ * Five sections — Profile, Business, Security, Notifications, Appearance —
+ * as a sub-nav beside the panel from 760px of content, and as a hub of rows
+ * that each open their own screen below that. `?section=` carries the open
+ * section, as it did in V2 Phase 7 Mobile. The layout switch is a container
+ * query, not a measured width, so the server renders the right one.
  *
- * Which screen is showing lives in the URL (`?section=profile|company|
- * security|billing`), for the reason My Orders, Wallet and Support all put
- * theirs there: the shell's bar and tab bar render *before* this page's
- * `setup()` runs, so anything they need has to be readable from the route.
- * With no `?section=` the desktop panel simply shows Profile, exactly as it
- * did when this was a local ref.
- *
- * The rule this page is built on: **only render a field the API round-trips.**
- * The pre-V2 version collected a preferred name, family status, birthday,
- * gender, a legal address, socials and a bio, but `onMounted` read back only
- * `city` and `country` — so those fields came back blank on reload and the
- * next save overwrote whatever had been stored. Everything rendered here is
- * returned by GET /api/settings/get-all and persisted by PUT
- * /api/settings/update-all; anything else is deliberately absent.
- *
- * Omitting a field is safe, not destructive: `update-all` writes each column
- * with `?? undefined`, which Prisma skips, so the values this page no longer
- * shows (bio, gender, coverImage, city, country, and the CRM fields below)
- * keep whatever they already hold.
- *
- * Not offered here, because the backing data does not exist (TODO(api)):
- *  - Company number, trading name and a structured UK address (line 1/2, town,
- *    county, postcode, country). `Company` has one free-text `address` column,
- *    so the registered office is one field — and therefore no live postcode or
- *    company-number validation, which the mobile spec asks for. Rendering
- *    separate boxes for values we cannot store would recreate the exact
- *    write-then-lose bug above.
- *  - A second, different billing address. The billing summary is derived from
- *    the company record rather than stored again.
- *  - Notification preferences. `User` has no columns for them, so the hub
- *    states what we send instead of offering three switches that would reset
- *    on reload — the same call Phase 6 made about the file picker.
- *  - Avatar and company-logo upload. There is no upload endpoint, and the old
- *    base64 path did not merely bloat the request — `avatar` is capped at 500
- *    characters by the endpoint's schema, so any real photo made the *entire*
- *    settings save fail with a 400. Initials are used until
- *    `POST /api/settings/avatar` exists.
- *  - A device/session list and two-factor auth. Both are stated as pending
- *    rather than mocked; the previous page invented a MacBook in New York and
- *    wired its revoke button to an empty function.
- *
- * Income, employee count, account manager and company status were removed from
- * customer control — they are internal CRM fields, and a customer could set
- * their own account to Inactive or pick who managed them. They belong to the
- * admin customer view.
+ * Every control saves something real, or is not drawn as a control:
+ *  - Profile saves the name and mobile. The sign-in email is shown but not
+ *    editable: changing it needs a confirmation email and there is no mail
+ *    provider, so the page says how to change it instead (the reason
+ *    `/api/settings/profile` was deleted on 2026-10-23).
+ *  - Business saves the name, the Companies House number (new column), the
+ *    registered address and the VAT number; "Look up" is offered only when
+ *    the Companies House key is configured (`/api/config`).
+ *  - Two-step verification, signed-in devices and email notifications are
+ *    described, not switched: none exists yet, and a switch that stores
+ *    nothing is the defect V2 Phase 7 removed.
+ *  - The sticky save bar posts only the section on screen.
  */
 definePageMeta({
   title: 'Settings',
@@ -61,1215 +29,394 @@ definePageMeta({
   middleware: 'auth',
 })
 
-const toaster = useNuiToasts()
+type Section = 'profile' | 'business' | 'security' | 'notify' | 'appearance'
+const SECTIONS: { id: Section, label: string, icon: string, sub: string, intro: string }[] = [
+  { id: 'profile', label: 'Profile', icon: 'solar:user-circle-linear', sub: 'Name, email and mobile', intro: 'How your team sees you, and where we reach you.' },
+  { id: 'business', label: 'Business', icon: 'solar:buildings-2-linear', sub: 'Invoice details and VAT', intro: 'Used on every receipt and agreement.' },
+  { id: 'security', label: 'Security', icon: 'solar:lock-keyhole-minimalistic-linear', sub: 'Password and sign-in', intro: 'Keep your account and payments safe.' },
+  { id: 'notify', label: 'Notifications', icon: 'solar:bell-linear', sub: 'How we tell you about updates', intro: 'Where updates on your orders, payments and requests appear.' },
+  { id: 'appearance', label: 'Appearance', icon: 'solar:pallete-2-linear', sub: 'Light or dark theme', intro: 'Choose how the panel looks on this device.' },
+]
+
 const route = useRoute()
 const router = useRouter()
-const { logout } = useUser()
+const toaster = useNuiToasts()
+const { fetchUser } = useUser()
+const { isDark, setTheme } = useApexTheme()
+const { data: config } = useApexConfig()
+const lookupAvailable = computed(() => Boolean((config.value as any)?.companiesHouseLookup))
 
-// ---- data -------------------------------------------------------------------
-// `useFetch`, like every other page: SSR'd, with a `pending` flag to render a
-// skeleton from. The old page used `onMounted` + `$fetch`, which guaranteed a
-// flash of empty inputs on every visit.
-const { data: settings, pending, refresh } = await useFetch<any>('/api/settings/get-all', { lazy: true })
+const flash = ref('')
+const found = ref<{ name: string, status: string, address: string } | null>(null)
 
-const account = computed(() => (settings.value as any)?.user ?? null)
+const routeSection = computed<Section | null>(() => (SECTIONS.some(s => s.id === route.query.section) ? route.query.section as Section : null))
+// With no section in the URL the two-column layout shows Profile; the hub
+// layout shows the list of sections instead.
+const section = computed<Section>(() => routeSection.value ?? 'profile')
+const current = computed(() => SECTIONS.find(s => s.id === section.value)!)
+function pick(id: Section) {
+  flash.value = ''
+  router.push({ query: { section: id } })
+  window.scrollTo({ top: 0 })
+}
+function backToList() {
+  router.push({ query: {} })
+}
 
-// ---- sections ---------------------------------------------------------------
-type SectionKey = 'profile' | 'company' | 'security' | 'billing'
+/* ------------------------------------------------------------------ data */
+const { data, refresh } = await useFetch<any>('/api/settings/get-all', { key: 'settings' })
+const { data: ordersData } = useFetch<{ data: { status: string }[] }>('/api/orders', { key: 'orders', lazy: true })
+const openOrders = computed(() => (ordersData.value?.data ?? []).filter(o => !['COMPLETED', 'CANCELLED'].includes(o.status)).length)
 
-const SECTIONS: { key: SectionKey, label: string, icon: string, sub: string }[] = [
-  { key: 'profile', label: 'Profile', icon: 'lucide:user', sub: 'Your name, phone and sign-in email' },
-  { key: 'company', label: 'Company', icon: 'lucide:building-2', sub: 'Registered details and address' },
-  { key: 'security', label: 'Security', icon: 'lucide:shield', sub: 'Password and where you are signed in' },
-  { key: 'billing', label: 'Billing', icon: 'lucide:receipt', sub: 'VAT and what goes on your receipts' },
-]
-const SECTION_KEYS = SECTIONS.map(s => s.key)
-
-/** The sections a save footer belongs to. Security's only write is the password action. */
-const SAVEABLE = new Set<SectionKey>(['profile', 'company', 'billing'])
-
-/**
- * `null` means the hub — which only exists below `lg`. Above it the panel is
- * always on screen, so a missing query resolves to Profile: someone opening
- * Settings is looking for their own details first. The labels are explicit
- * rather than `capitalize`d off the keys, which used to render the first tab
- * as "general".
- */
-const openSection = computed<SectionKey | null>(() => {
-  const q = route.query.section
-  return typeof q === 'string' && (SECTION_KEYS as string[]).includes(q) ? q as SectionKey : null
+interface Form { name: string, phone: string, bName: string, bCrn: string, bAddress: string, bVat: string }
+function fromServer(): Form {
+  const u = data.value?.user ?? data.value ?? {}
+  const c = u.company ?? data.value?.company ?? {}
+  return {
+    name: [u.firstName, u.lastName].filter(Boolean).join(' '),
+    phone: u.phone ?? '',
+    bName: c.name ?? '',
+    bCrn: c.companyNumber ?? '',
+    bAddress: c.address ?? '',
+    bVat: c.taxId ?? '',
+  }
+}
+const saved = ref<Form>(fromServer())
+const form = reactive<Form>({ ...saved.value })
+watch(data, () => {
+  saved.value = fromServer()
+  Object.assign(form, saved.value)
 })
-const section = computed<SectionKey>(() => openSection.value ?? 'profile')
+const email = computed(() => (data.value?.user ?? data.value)?.email ?? '')
+const initials = computed(() => (form.name || email.value || 'A').split(/[\s@.]+/).filter(Boolean).slice(0, 2).map((p: string) => p[0]!.toUpperCase()).join(''))
 
-/**
- * Opening pushes so the browser's back button returns to the hub; the bar's
- * back arrow (`useApexSubView`) replaces, so that button never goes *forward*
- * into a section again.
- */
-function goSection(key: SectionKey) {
-  router.push({ path: route.path, query: { ...route.query, section: key } })
+const SECTION_FIELDS: Record<'profile' | 'business', (keyof Form)[]> = {
+  profile: ['name', 'phone'],
+  business: ['bName', 'bCrn', 'bAddress', 'bVat'],
 }
+const editable = computed(() => (section.value === 'profile' || section.value === 'business') ? SECTION_FIELDS[section.value] : [])
+const dirtyN = computed(() => editable.value.filter(f => form[f] !== saved.value[f]).length)
 
-/*
- * The bar names the open section by reading the route directly
- * (`useApexSubView`'s `label` resolver), not by this page publishing it. A
- * section's name is a pure function of `?section=`, and the toolbar renders
- * before this component on the server — pushing it up from here made the
- * server emit "Settings" while the SSR payload already said "Company", which
- * is a hydration mismatch on every deep link.
- */
-
-// ---- business types ---------------------------------------------------------
-/**
- * UK legal forms. The previous list — Solo / Small Company (LLC) / Medium
- * Company (Corp) / Bigger Company — was US-flavoured size bands, and "LLC" is
- * not a thing in UK law. Stored in the existing free-text `Company.type`
- * column, so this needs no migration.
- */
-const BUSINESS_TYPES = [
-  { key: 'ltd', label: 'Private limited company (Ltd)' },
-  { key: 'plc', label: 'Public limited company (PLC)' },
-  { key: 'llp', label: 'Limited liability partnership (LLP)' },
-  { key: 'cic', label: 'Community interest company (CIC)' },
-  { key: 'charity', label: 'Charity' },
-  { key: 'sole', label: 'Sole trader' },
-  { key: 'partnership', label: 'Partnership' },
-] as const
-
-/** Types registered at Companies House — they have a registered office. */
-const INCORPORATED = new Set(['ltd', 'plc', 'llp', 'cic', 'charity'])
-
-/**
- * Below `lg` the listbox becomes a bottom sheet: these labels run to 36
- * characters, and a listbox anchored near the foot of a 393px viewport opens
- * over the field it belongs to. Only one of the two controls is ever mounted.
- */
-const typeSheetOpen = ref(false)
-
-// ---- form -------------------------------------------------------------------
-// One object for everything PUT /api/settings/update-all accepts, so dirty
-// tracking is a single comparison. Email is not here: the endpoint documents
-// that changing the login identity needs verification, so it is shown
-// read-only rather than offered as an input that silently does nothing.
-const form = reactive({
-  firstName: '',
-  lastName: '',
-  phone: '',
-  companyName: '',
-  companyType: '',
-  companyWebsite: '',
-  companyEmail: '',
-  companyPhone: '',
-  companyAddress: '',
-  companyNotes: '',
-  vatNumber: '',
+const errName = computed(() => (!form.name.trim() ? 'Add your name' : ''))
+const errPhone = computed(() => (form.phone.trim() && !/^\+?[\d\s()-]{7,20}$/.test(form.phone.trim()) ? 'Enter a phone number like 07700 900123' : ''))
+const crnOk = computed(() => /^[A-Z0-9]{8}$/i.test(form.bCrn.trim()))
+const errCrn = computed(() => (form.bCrn.trim() && !crnOk.value ? 'Companies House numbers are eight characters' : ''))
+// GB VAT: GB + 9 digits, 12 for a branch, or the GD/HA government forms.
+const errVat = computed(() => {
+  const v = form.bVat.replace(/\s/g, '').toUpperCase()
+  return v && !/^GB(?:\d{9}|\d{12}|GD\d{3}|HA\d{3})$/.test(v) ? 'UK VAT numbers look like GB123456789' : ''
 })
+const saveBlocked = computed(() => section.value === 'profile' ? Boolean(errName.value || errPhone.value) : Boolean(errCrn.value || errVat.value || !form.bName.trim()))
 
-type FormKey = keyof typeof form
-
-/**
- * Which fields each section owns. The mobile footer saves — and reports dirty
- * for — only the section on screen, so a button you can see never writes
- * fields three screens away (§13).
- */
-const SECTION_FIELDS: Record<SectionKey, FormKey[]> = {
-  profile: ['firstName', 'lastName', 'phone'],
-  company: ['companyName', 'companyType', 'companyWebsite', 'companyEmail', 'companyPhone', 'companyAddress', 'companyNotes'],
-  security: [],
-  billing: ['vatNumber'],
-}
-
-/** The last loaded values — the baseline for dirty and discard. */
-const baseline = ref<Record<string, string> | null>(null)
-
-function hydrate() {
-  const u = account.value
-  if (!u)
-    return
-  form.firstName = u.firstName || ''
-  form.lastName = u.lastName || ''
-  form.phone = u.phone || ''
-
-  const c = u.company
-  form.companyName = c?.name || ''
-  // Legacy rows hold the old size bands; an unrecognised value becomes empty
-  // so the control shows its placeholder instead of answering for the customer.
-  form.companyType = BUSINESS_TYPES.some(t => t.key === c?.type) ? c!.type : ''
-  form.companyWebsite = c?.website || ''
-  form.companyEmail = c?.email || ''
-  form.companyPhone = c?.phone || ''
-  form.companyAddress = c?.address || ''
-  form.companyNotes = c?.notes || ''
-  form.vatNumber = c?.taxId || ''
-
-  baseline.value = { ...form }
-}
-
-watch(account, hydrate, { immediate: true })
-
-const isDirty = computed(() => {
-  const base = baseline.value
-  return !!base && (Object.keys(form) as FormKey[]).some(k => form[k] !== base[k])
-})
-
-function dirtyIn(key: SectionKey) {
-  const base = baseline.value
-  return !!base && SECTION_FIELDS[key].some(k => form[k] !== base[k])
-}
-
-/** Desktop's Discard resets the whole form; a section footer resets its own fields. */
-function discard(scope?: SectionKey) {
-  const base = baseline.value
-  if (!base)
-    return
-  const keys = scope ? SECTION_FIELDS[scope] : (Object.keys(form) as FormKey[])
-  keys.forEach((k) => {
-    form[k] = base[k] ?? ''
-  })
-  toaster.add({ title: 'Changes discarded', description: 'The form is back to your saved details.', icon: 'lucide:undo-2', progress: true })
-}
-
-const isIncorporated = computed(() => INCORPORATED.has(form.companyType))
-
-/**
- * The address heading follows the legal form: a sole trader has no registered
- * office, so asking for one asks for something that cannot exist. Same field
- * either way — only the label and hint change.
- */
-const addressLabel = computed(() => (isIncorporated.value ? 'Registered office address' : 'Business address'))
-const addressShort = computed(() => (isIncorporated.value ? 'registered office' : 'business address'))
-const addressHint = computed(() =>
-  isIncorporated.value
-    ? 'The address on your Companies House record. It is often your accountant\'s, and may differ from where you work.'
-    : 'Where your business operates. Used on contracts and receipts.',
-)
-
-// ---- VAT number -------------------------------------------------------------
-/** GB VAT: 9 digits, 12 for a branch, or GD/HA + 3 for government and health bodies. */
-const VAT_RE = /^GB(?:\d{9}|\d{12}|GD\d{3}|HA\d{3})$/
-
-const vatNormalised = computed(() => form.vatNumber.replace(/\s+/g, '').toUpperCase())
-
-/**
- * Format check only — this says the number is *shaped* like a GB VAT number,
- * never that it is registered. Claiming the latter would need HMRC's API.
- */
-const vatState = computed<'empty' | 'valid' | 'invalid'>(() => {
-  if (!form.vatNumber.trim())
-    return 'empty'
-  return VAT_RE.test(vatNormalised.value) ? 'valid' : 'invalid'
-})
-
-const vatMessage = computed(() => {
-  if (vatState.value === 'empty')
-    return 'Leave blank if you\'re not VAT registered.'
-  if (vatState.value === 'valid')
-    return 'Valid format.'
-  if (!vatNormalised.value.startsWith('GB'))
-    return 'A GB VAT number starts with GB — for example GB123456789.'
-  return 'Expected GB followed by 9 digits (12 for a branch).'
-})
-
-function onVatInput() {
-  form.vatNumber = form.vatNumber.toUpperCase()
-}
-
-// ---- save -------------------------------------------------------------------
 const saving = ref(false)
-
-/**
- * `scope` omitted saves everything, which is what the desktop header button
- * has always done — on that layout a customer can edit Profile, switch to
- * Company and edit again before pressing Save, so scoping it there would
- * silently drop the first edit. The mobile footer passes its own section,
- * where only one is reachable at a time.
- */
-async function save(scope?: SectionKey) {
-  const dirty = scope ? dirtyIn(scope) : isDirty.value
-  if (!dirty || saving.value)
+async function save() {
+  if (saveBlocked.value || saving.value) {
     return
+  }
   saving.value = true
-
-  const body: Record<string, any> = {}
-  if (!scope || scope === 'profile') {
-    // `role` is deliberately not sent. A client must never be able to submit
-    // its own role, and the endpoint would ignore it anyway.
-    body.user = {
-      firstName: form.firstName.trim(),
-      lastName: form.lastName.trim(),
-      phone: form.phone.trim(),
-    }
-  }
-  if (!scope || scope === 'company') {
-    body.company = {
-      name: form.companyName.trim(),
-      type: form.companyType,
-      website: form.companyWebsite.trim(),
-      email: form.companyEmail.trim(),
-      phone: form.companyPhone.trim(),
-      address: form.companyAddress.trim(),
-      notes: form.companyNotes.trim(),
-    }
-  }
-  if (!scope || scope === 'billing') {
-    // Merges with the company payload above when saving everything; on its own
-    // it omits `name`, which the endpoint now skips rather than blanking.
-    body.company = { ...(body.company ?? {}), taxId: vatNormalised.value }
-  }
-
   try {
-    await $fetch('/api/settings/update-all', { method: 'PUT', body })
+    if (section.value === 'profile') {
+      const [first, ...rest] = form.name.trim().split(/\s+/)
+      await $fetch('/api/settings/update-all', { method: 'PUT', body: { user: { firstName: first, lastName: rest.join(' '), phone: form.phone.trim() || null } } })
+      await fetchUser()
+    }
+    else {
+      await $fetch('/api/settings/update-all', {
+        method: 'PUT',
+        body: { user: {}, company: { name: form.bName.trim(), companyNumber: form.bCrn.trim().toUpperCase(), address: form.bAddress.trim(), taxId: form.bVat.replace(/\s/g, '').toUpperCase() } },
+      })
+    }
     await refresh()
-    toaster.add({ title: 'Settings saved', description: 'Your details are up to date.', icon: 'lucide:check', progress: true })
+    flash.value = 'Changes saved.'
   }
-  catch (error: any) {
-    toaster.add({
-      title: 'Could not save settings',
-      description: error?.data?.message || error?.statusMessage || 'Please try again.',
-      icon: 'lucide:alert-triangle',
-      progress: true,
-    })
+  catch (e) {
+    toaster.add({ title: 'Not saved', description: errorMessage(e), icon: 'lucide:circle-alert', progress: true })
   }
   finally {
     saving.value = false
   }
 }
+function discard() {
+  for (const f of editable.value) {
+    form[f] = saved.value[f]
+  }
+  found.value = null
+}
 
-// ---- password ---------------------------------------------------------------
-/**
- * Its own form and its own button. The old page posted the profile first and
- * only then compared the two password fields, so a typo in "confirm" produced
- * an error toast on a save that had already partly succeeded. Everything here
- * validates before any request is made — and on a phone it matters more,
- * because the section's Save footer is always visible beneath it (§7).
- */
-const pwForm = reactive({ current: '', next: '', confirm: '' })
-const pwError = ref('')
+/* ------------------------------------------------- Companies House lookup */
+const lookupBusy = ref(false)
+watch(() => form.bCrn, () => {
+  found.value = null
+})
+async function lookup() {
+  if (!crnOk.value) {
+    return
+  }
+  lookupBusy.value = true
+  try {
+    // A plain string URL: the typed-route inference on this one recursed past TS's depth limit.
+    found.value = await $fetch<{ name: string, status: string, address: string }>('/api/settings/companies-house' as string, { query: { number: form.bCrn.trim().toUpperCase() } })
+  }
+  catch (e) {
+    toaster.add({ title: 'Lookup did not work', description: errorMessage(e), icon: 'lucide:circle-alert', progress: true })
+  }
+  finally {
+    lookupBusy.value = false
+  }
+}
+function useFound() {
+  if (found.value) {
+    form.bName = found.value.name
+    form.bAddress = found.value.address
+  }
+}
+
+/* ---------------------------------------------------------------- password */
+const pw0 = ref('')
+const pw1 = ref('')
 const pwSaving = ref(false)
-const pwShow = ref(false)
-
-/**
- * One password policy across signup, reset and here (V2 Phase 8). The APIs
- * still accept 8 (signup/reset) and 6 (this endpoint) — a stricter client is
- * always compatible, and raising a server minimum would lock out accounts
- * that already exist.
- */
-const PW_MIN = 10
-
-const pwScore = computed(() => {
-  const v = pwForm.next
-  if (!v)
-    return 0
-  let score = 0
-  if (v.length >= PW_MIN)
-    score++
-  if (v.length >= 12)
-    score++
-  if (/[a-z]/.test(v) && /[A-Z]/.test(v))
-    score++
-  if (/\d/.test(v) && /[^\w\s]/.test(v))
-    score++
-  return score
-})
-
-const PW_LABELS = ['', 'Weak', 'Fair', 'Good', 'Strong'] as const
-const pwLabel = computed(() => PW_LABELS[pwScore.value] ?? '')
-const pwTone = computed(() => {
-  if (pwScore.value <= 1)
-    return { bar: 'bg-[#EC6453]', text: 'text-[#EC6453]' }
-  if (pwScore.value === 2)
-    return { bar: 'bg-[#F2C14E]', text: 'text-[#F2C14E]' }
-  if (pwScore.value === 3)
-    return { bar: 'bg-primary-400', text: 'text-primary-400' }
-  return { bar: 'bg-[#22B07D]', text: 'text-[#22B07D]' }
-})
-
-/** Shown against the confirm field as you type, not after a request (§7). */
-const pwMismatch = computed(() => pwForm.confirm.length > 0 && pwForm.confirm !== pwForm.next)
-
-async function updatePassword() {
-  pwError.value = ''
-  if (!pwForm.current) {
-    pwError.value = 'Enter your current password.'
+const pwErr = computed(() => (pw1.value.length > 0 && pw1.value.length < PASSWORD_MIN ? `Use at least ${PASSWORD_MIN} characters` : ''))
+const pwDisabled = computed(() => !(pw0.value.length > 0 && pw1.value.length >= PASSWORD_MIN) || pwSaving.value)
+async function savePw() {
+  if (pwDisabled.value) {
     return
   }
-  if (pwForm.next.length < PW_MIN) {
-    pwError.value = `Your new password needs at least ${PW_MIN} characters.`
-    return
-  }
-  if (pwForm.next === pwForm.current) {
-    pwError.value = 'The new password must be different from your current one.'
-    return
-  }
-  if (pwForm.next !== pwForm.confirm) {
-    pwError.value = 'The two new password fields don\'t match.'
-    return
-  }
-
   pwSaving.value = true
   try {
-    await $fetch('/api/settings/password', {
-      method: 'POST',
-      body: { currentPassword: pwForm.current, newPassword: pwForm.next },
-    })
-    pwForm.current = ''
-    pwForm.next = ''
-    pwForm.confirm = ''
-    toaster.add({ title: 'Password updated', description: 'Use your new password next time you sign in.', icon: 'lucide:check', progress: true })
+    await $fetch('/api/settings/password', { method: 'POST', body: { currentPassword: pw0.value, newPassword: pw1.value } })
+    pw0.value = ''
+    pw1.value = ''
+    flash.value = 'Password updated. Your other devices are still signed in.'
   }
-  catch (error: any) {
-    pwError.value = error?.data?.message || error?.statusMessage || 'Could not update your password. Please try again.'
+  catch (e) {
+    toaster.add({ title: 'Password not changed', description: errorMessage(e), icon: 'lucide:circle-alert', progress: true })
   }
   finally {
     pwSaving.value = false
   }
 }
 
-// ---- this device ------------------------------------------------------------
-/**
- * There is no session store, so this describes the browser you are using right
- * now and nothing else. It resolves in `onMounted` because it reads
- * `navigator`: anything derived from the browser during SSR mismatches on
- * hydration (the shell's ⌘/Ctrl hint learned that the hard way).
- */
+/* This browser, read after mount because `navigator` does not exist on the server. */
 const thisDevice = ref('This browser')
-
 onMounted(() => {
   const ua = navigator.userAgent
-  const browser = /Edg\//.test(ua)
-    ? 'Edge'
-    : /Chrome\//.test(ua)
-      ? 'Chrome'
-      : /Safari\//.test(ua)
-        ? 'Safari'
-        : /Firefox\//.test(ua) ? 'Firefox' : 'Your browser'
-  const os = /Windows/.test(ua)
-    ? 'Windows'
-    : /Mac OS X/.test(ua)
-      ? 'macOS'
-      : /Android/.test(ua)
-        ? 'Android'
-        : /iPhone|iPad/.test(ua) ? 'iOS' : 'this device'
-  thisDevice.value = `${browser} on ${os}`
+  const os = /iPhone|iPad/.test(ua) ? 'iPhone' : /Android/.test(ua) ? 'Android' : /Mac/.test(ua) ? 'Mac' : /Windows/.test(ua) ? 'Windows' : 'This device'
+  const browser = /Edg\//.test(ua) ? 'Edge' : /Chrome\//.test(ua) ? 'Chrome' : /Safari\//.test(ua) ? 'Safari' : /Firefox\//.test(ua) ? 'Firefox' : 'Browser'
+  thisDevice.value = `${os} · ${browser}`
 })
 
-// ---- display ----------------------------------------------------------------
-const fullName = computed(() => {
-  const name = `${form.firstName} ${form.lastName}`.trim()
-  return name || account.value?.email || 'Your account'
-})
-
-/**
- * Initials, never a stock photograph. The old fallback was
- * `https://i.pravatar.cc/150?u=101` — a real, random person's face presented
- * as the customer's own account, fetched from a third party on every load.
- */
-const initials = computed(() => {
-  const a = (form.firstName || '').trim()[0] || ''
-  const b = (form.lastName || '').trim()[0] || ''
-  const pair = `${a}${b}`.toUpperCase()
-  return pair || (account.value?.email || '?').slice(0, 2).toUpperCase()
-})
-
-const companyInitials = computed(() => {
-  const words = form.companyName.trim().split(/\s+/).filter(Boolean)
-  if (!words.length)
-    return '—'
-  return words.slice(0, 2).map(w => w[0]!.toUpperCase()).join('')
-})
-
-const accountType = computed(() => (account.value?.role === 'ADMIN' ? 'Admin account' : 'Client account'))
-
-/** The hub's third line: account type, plus the company if there is one. */
-const accountLine = computed(() => [accountType.value, form.companyName.trim()].filter(Boolean).join(' · '))
-
-/** Where receipts are sent — derived, never a second stored copy. */
-const receiptEmail = computed(() => form.companyEmail.trim() || account.value?.email || '')
-
-const LEGAL_ROWS = [
-  { label: 'Terms of service', to: '/legal/terms' },
-  { label: 'Privacy notice', to: '/legal/privacy' },
-  { label: 'Contact Apex', to: '/dashboards/support' },
+const THEMES = [
+  { id: 'light' as const, label: 'Light', page: 'bg-[#F7F8F9]', chrome: 'bg-white', card: 'bg-white', ink: 'bg-[#101828]', muted: 'bg-[#EDEFF1]', line: 'border-[#EDEFF1]' },
+  { id: 'dark' as const, label: 'Dark', page: 'bg-[#0B1517]', chrome: 'bg-[#0C1719]', card: 'bg-[#16252A]', ink: 'bg-white', muted: 'bg-white/[.12]', line: 'border-white/10' },
 ]
 
-const LABEL_CLASS = 'mb-2 block text-[12.5px] font-semibold text-white max-lg:text-[13px]'
-/**
- * 52px at 16px below `lg`: under 16px iOS zooms the page in on focus and the
- * customer has to pinch back out to see the field they are filling. The
- * surface moves from `muted-700` to `muted-800` there because the section
- * cards dissolve and the page itself is the backdrop.
- */
-const INPUT_BASE
-  = 'apex-focus w-full rounded-xl border border-white/8 bg-muted-700 px-3.5 py-3 text-sm text-white outline-none placeholder:text-muted-500 focus:border-primary-400 max-lg:bg-muted-800 max-lg:text-[16px]'
-const INPUT_CLASS = `${INPUT_BASE} max-lg:h-[52px] max-lg:py-0`
-const AREA_CLASS = `${INPUT_BASE} max-lg:p-3.5`
-/** The card treatment a form section keeps on desktop and drops on a phone. */
-const CARD_CLASS = 'apex-rise rounded-2xl border border-white/8 bg-muted-800 p-6 max-lg:rounded-none max-lg:border-0 max-lg:bg-transparent max-lg:p-0'
+const CARD = 'bg-card border-line-subtle shadow-panel rounded-[20px] border'
 </script>
 
 <template>
-  <!--
-    A section is a screen of its own below `lg`: bounded to the viewport so the
-    save footer sits on the bottom edge rather than wherever the content
-    happens to end. `dvh` tracks the mobile URL bar, and the shell's own height
-    comes from `--apex-shell-offset` so this page can never fall out of step
-    with the top bar. Above `lg` the class is inert and the page scrolls
-    normally, exactly as it always has.
-  -->
-  <div
-    class="mx-auto flex max-w-[1180px] flex-col gap-7 md:gap-8"
-    :class="openSection ? 'apex-section-screen max-lg:gap-0' : 'max-lg:gap-4'"
-  >
-    <!-- The bar carries the section name below `lg`, so the visible heading
-         goes with the rest of the page chrome; this keeps the heading order
-         intact for anyone navigating by headings. -->
-    <h1 v-if="openSection" class="sr-only lg:hidden">
-      Account settings
-    </h1>
-
-    <ApexPageHeader
-      title="Account"
-      accent="settings"
-      subtitle="Your details, your company record and how you sign in."
-      :class="openSection ? 'max-lg:hidden' : ''"
-    >
-      <template #actions>
-        <!--
-          Desktop keeps one Save covering the whole form. Below `lg` it moves
-          into a footer pinned to the section being edited (§13), so this pair
-          would be a second, wider-scoped copy of a control already on screen.
-          `contents` rather than `hidden` on the buttons themselves, because
-          `BaseButton` declares its own `display` later in the same layer.
-        -->
-        <span class="hidden lg:contents">
-          <!--
-            A light/dark token pair, not a forced `text-white!`: BaseButton's own
-            background is white in light mode, so white text on it disappears
-            entirely. The rest of this page sits on `muted-800`, which is dark in
-            both themes, but a control with its own surface needs both halves.
-          -->
-          <BaseButton
-            rounded="full"
-            class="apex-focus h-12! flex-1 border-muted-300! dark:border-white/8! bg-muted-100! dark:bg-muted-800! text-muted-700! dark:text-white! border px-5 sm:h-11! sm:flex-none"
-            :disabled="!isDirty || saving"
-            @click="discard()"
-          >
-            Discard
-          </BaseButton>
-          <!--
-            Disabled until something actually changed. The old button was always
-            live, so "Save Changes" on an untouched form fired a PUT and a success
-            toast for nothing.
-          -->
-          <BaseButton
-            rounded="full"
-            variant="primary"
-            class="h-12! flex-1 px-6 shadow-[0_10px_24px_rgba(125,83,242,0.32)] sm:h-11! sm:flex-none"
-            :disabled="!isDirty || saving"
-            @click="save()"
-          >
-            <Icon v-if="saving" name="lucide:loader-2" class="size-4 animate-spin" />
-            <Icon v-else name="lucide:check" class="size-4" />
-            <span>{{ saving ? 'Saving…' : 'Save changes' }}</span>
-          </BaseButton>
-        </span>
-      </template>
-    </ApexPageHeader>
-
-    <!-- ============================================================== HUB -->
-    <!--
-      Below `lg` only. A 220px rail beside a form cannot exist at 393px, and a
-      four-tab strip across the top is the width Wallet and Support already
-      spend on theirs — so the sub-nav becomes a hub of rows that drill into
-      their own screen (§1).
-    -->
-    <div v-if="!openSection" class="apex-rise flex flex-col lg:hidden">
-      <button
-        type="button"
-        class="apex-focus flex w-full items-center gap-3.5 rounded-2xl border border-white/8 bg-muted-800 p-4 text-left"
-        @click="goSection('profile')"
-      >
-        <span aria-hidden="true" class="font-heading inline-flex size-14 shrink-0 items-center justify-center rounded-full text-[19px] font-extrabold text-white" style="background: linear-gradient(135deg, #9B79F6, #6C40E8);">{{ initials }}</span>
-        <span class="min-w-0 flex-1">
-          <span class="font-heading block truncate text-[17px] font-bold tracking-[-0.01em] text-white">{{ fullName }}</span>
-          <span class="mt-1 block truncate text-[13px] text-muted-500">{{ account?.email || '—' }}</span>
-          <span class="mt-[3px] block truncate text-xs text-muted-500">{{ accountLine }}</span>
-        </span>
-        <Icon name="lucide:chevron-right" aria-hidden="true" class="size-[18px] shrink-0 text-muted-500" />
-      </button>
-
-      <h2 class="mt-[22px] text-[11px] font-bold uppercase tracking-[0.05em] text-muted-500">
-        Manage
-      </h2>
-      <div class="mt-2.5 overflow-hidden rounded-2xl border border-white/8 bg-muted-800">
-        <button
-          v-for="(s, i) in SECTIONS" :key="s.key"
-          type="button"
-          class="apex-focus flex min-h-[72px] w-full items-center gap-3.5 px-4 py-[15px] text-left"
-          :class="i < SECTIONS.length - 1 ? 'border-b border-white/8' : ''"
-          @click="goSection(s.key)"
-        >
-          <span aria-hidden="true" class="inline-flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary-500/[0.13] text-primary-400"><Icon :name="s.icon" class="size-5" /></span>
-          <span class="min-w-0 flex-1">
-            <span class="block text-[15.5px] font-semibold text-white">{{ s.label }}</span>
-            <span class="mt-[3px] block text-[12.5px] leading-[1.4] text-muted-500">{{ s.sub }}</span>
-          </span>
-          <Icon name="lucide:chevron-right" aria-hidden="true" class="size-[18px] shrink-0 text-muted-500" />
-        </button>
-      </div>
-
-      <!--
-        The mockup puts three notification switches here. `User` has no columns
-        for them, so they would flip, look saved, and be back on next load —
-        the write-then-lose defect this whole page was rebuilt to remove. This
-        says what we actually send instead, and where to change it.
-      -->
-      <h2 class="mt-[22px] text-[11px] font-bold uppercase tracking-[0.05em] text-muted-500">
-        Notifications
-      </h2>
-      <div class="mt-2.5 flex items-start gap-3 rounded-2xl border border-white/8 bg-muted-800 p-4">
-        <Icon name="lucide:bell" aria-hidden="true" class="mt-px size-[18px] shrink-0 text-primary-400" />
-        <p class="min-w-0 flex-1 text-[13px] leading-[1.55] text-muted-400">
-          We email you about project milestones, approvals and payments due — nothing else. Per-topic preferences are coming; until then,
-          <NuxtLink to="/dashboards/support" class="font-semibold text-primary-400 hover:text-primary-300">
-            ask support
-          </NuxtLink>
-          to change what you receive.
-        </p>
-      </div>
-
-      <div class="mt-[22px] overflow-hidden rounded-2xl border border-white/8 bg-muted-800">
-        <NuxtLink
-          v-for="(r, i) in LEGAL_ROWS" :key="r.to"
-          :to="r.to"
-          class="apex-focus flex min-h-14 items-center gap-3 px-4 text-[15px] text-white"
-          :class="i < LEGAL_ROWS.length - 1 ? 'border-b border-white/8' : ''"
-        >
-          <span class="min-w-0 flex-1">{{ r.label }}</span>
-          <Icon name="lucide:arrow-up-right" aria-hidden="true" class="size-[17px] shrink-0 text-muted-500" />
-        </NuxtLink>
-      </div>
-
-      <button
-        type="button"
-        class="apex-focus mt-3.5 flex min-h-[52px] w-full items-center justify-center gap-2.5 rounded-xl border border-[#EC6453]/35 text-[15px] font-bold text-[#EC6453]"
-        @click="logout()"
-      >
-        <Icon name="lucide:log-out" aria-hidden="true" class="size-[18px]" />Sign out
-      </button>
-      <p class="mt-3.5 text-center text-xs leading-[1.5] text-muted-500">
-        Apex Digital Agency
+  <div class="@container mx-auto flex max-w-[1260px] flex-col gap-[clamp(20px,2.2vw,28px)] px-[clamp(16px,3vw,40px)] pb-[clamp(28px,4vw,56px)] pt-[clamp(20px,3vw,40px)]">
+    <div class="flex-col gap-2.5" :class="routeSection ? 'hidden @min-[760px]:flex' : 'flex'">
+      <h1 class="font-heading text-fg-heading m-0 text-[clamp(28px,1.3vw+18px,38px)] font-extrabold leading-[1.06] tracking-[-0.03em]">
+        Settings
+      </h1>
+      <p class="text-fg-body m-0 max-w-[52ch] text-[clamp(15px,.3vw+14px,17px)] leading-relaxed">
+        Your details, your business and how we contact you.
       </p>
     </div>
 
-    <!-- ============================================================ PANEL -->
-    <!--
-      Above `lg` this is always on screen beside the sub-nav; below, it renders
-      only for the section the customer opened, and it is the part that
-      scrolls under the pinned footer.
-    -->
-    <div
-      class="grid grid-cols-1 gap-5 lg:grid-cols-[220px_1fr]"
-      :class="[openSection ? 'max-lg:min-h-0 max-lg:flex-1 max-lg:overflow-y-auto max-lg:pb-5' : 'max-lg:hidden']"
-    >
-      <!-- ============================================================ SUB-NAV -->
-      <nav aria-label="Settings sections" class="max-lg:hidden lg:sticky lg:top-6 lg:self-start">
-        <ul class="flex gap-1 overflow-x-auto rounded-2xl border border-white/8 bg-muted-800 p-2 lg:flex-col lg:overflow-visible">
-          <li v-for="s in SECTIONS" :key="s.key" class="shrink-0 lg:w-full">
-            <button
-              type="button"
-              :aria-current="section === s.key ? 'page' : undefined"
-              class="apex-focus flex min-h-11 w-full items-center gap-3 whitespace-nowrap rounded-xl px-3.5 text-[14.5px] transition-colors"
-              :class="section === s.key
-                ? 'apex-nav-active font-semibold text-white'
-                : 'font-medium text-muted-400 hover:bg-muted-700/60 hover:text-white'"
-              @click="goSection(s.key)"
-            >
-              <Icon :name="s.icon" class="size-[18px] shrink-0" :class="section === s.key ? 'text-white' : 'text-muted-500'" />
-              <span>{{ s.label }}</span>
-            </button>
-          </li>
-        </ul>
+    <div class="grid items-start gap-[clamp(20px,2.4vw,32px)] @min-[760px]:grid-cols-[250px_minmax(0,1fr)]">
+      <nav
+        aria-label="Settings sections"
+        class="bg-card border-line-subtle shadow-panel flex-col gap-0.5 rounded-[20px] border px-2 py-1 @min-[760px]:sticky @min-[760px]:top-24 @min-[760px]:p-2"
+        :class="routeSection ? 'hidden @min-[760px]:flex' : 'flex'"
+      >
+        <button
+          v-for="s in SECTIONS"
+          :key="s.id"
+          type="button"
+          :aria-current="section === s.id ? 'page' : undefined"
+          class="apex-ring border-line-soft flex min-h-16 w-full cursor-pointer items-center gap-3 rounded-xl border-b px-3 text-left text-[14.5px] last:border-b-0 @min-[760px]:min-h-[46px] @min-[760px]:border-b-0"
+          :class="section === s.id ? '@min-[760px]:apex-panel-nav-active text-fg-heading @min-[760px]:text-nav-fg font-medium @min-[760px]:font-semibold' : 'text-fg-heading hover:bg-hover font-medium'"
+          @click="pick(s.id)"
+        >
+          <Icon :name="s.icon" class="size-5" :class="section === s.id ? 'text-fg-muted @min-[760px]:text-nav-fg' : 'text-fg-muted'" />
+          <span class="flex grow flex-col gap-px">
+            <span>{{ s.label }}</span>
+            <span class="text-fg-muted text-[12.5px] font-medium @min-[760px]:hidden">{{ s.sub }}</span>
+          </span>
+          <Icon name="lucide:chevron-right" class="text-fg-muted size-[17px] @min-[760px]:hidden" />
+        </button>
       </nav>
 
-      <!-- ============================================================ PANELS -->
-      <div class="min-w-0 flex flex-col gap-5">
-        <!-- loading skeleton — the old page rendered empty inputs first -->
-        <div v-if="pending && !account" class="flex flex-col gap-5">
-          <div v-for="n in 2" :key="n" class="rounded-2xl border border-white/8 bg-muted-800 p-6 max-lg:p-4">
-            <div class="h-4 w-32 animate-pulse rounded bg-muted-700" />
-            <div class="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div v-for="i in 4" :key="i" class="h-[70px] animate-pulse rounded-xl bg-muted-700" />
-            </div>
-          </div>
-        </div>
-
-        <!-- ======================================================== PROFILE -->
-        <template v-else-if="section === 'profile'">
-          <section :class="CARD_CLASS">
-            <ApexSectionLabel label="Your profile" class="max-lg:hidden" />
-            <!--
-              One identity row, not a social-network header. The page used to
-              open with a 288px cover photo and a 144px avatar carrying a
-              verified tick and a pulsing status dot — none of it editable, and
-              none of it any help to someone updating a phone number.
-
-              `lg:contents` dissolves this wrapper on desktop, so the row and
-              the note below become direct children of the section with exactly
-              the margins they had; below `lg` the two are a card of their own,
-              because the section around them is not one there.
-            -->
-            <div class="contents max-lg:block max-lg:rounded-2xl max-lg:border max-lg:border-white/8 max-lg:bg-muted-800 max-lg:p-[18px]">
-              <div class="mt-5 flex flex-wrap items-center gap-4 max-lg:mt-0 max-lg:flex-nowrap max-lg:gap-3.5">
-                <span aria-hidden="true" class="inline-flex size-[72px] shrink-0 items-center justify-center rounded-full text-lg font-extrabold text-white max-lg:size-16 max-lg:text-[21px]" style="background: linear-gradient(135deg, #9B79F6, #6C40E8);">
-                  {{ initials }}
-                </span>
-                <div class="min-w-0">
-                  <div class="font-heading truncate text-lg font-bold text-white max-lg:text-[17px]">
-                    {{ fullName }}
-                  </div>
-                  <div class="mt-0.5 text-[13px] text-muted-500 max-lg:mt-1 max-lg:text-[12.5px]">
-                    {{ accountType }}
-                  </div>
-                </div>
-              </div>
-              <!--
-                No upload control and no "Change photo" action sheet: there is no
-                avatar endpoint, and the old base64 path exceeded the field's
-                500-character cap, which failed the whole save. A sheet offering
-                three actions that all do nothing is the dead end Phase 5 removed
-                from the credit card, so this states the position instead.
-              -->
-              <p class="mt-4 rounded-xl border border-white/8 bg-muted-700 px-3.5 py-3 text-[12.5px] leading-relaxed text-muted-400 max-lg:mt-3.5 max-lg:border-0 max-lg:bg-muted-700/50 max-lg:text-[12.5px]">
-                Your initials stand in for a photo. Profile photo uploads arrive alongside file attachments in support.
-              </p>
-            </div>
-
-            <ApexSectionLabel label="Your details" class="mt-5 lg:hidden" />
-            <div class="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 max-lg:mt-3.5 max-lg:gap-4">
-              <div>
-                <label for="set-first" :class="LABEL_CLASS">First name</label>
-                <input id="set-first" v-model="form.firstName" :class="INPUT_CLASS" placeholder="Jane" autocomplete="given-name">
-              </div>
-              <div>
-                <label for="set-last" :class="LABEL_CLASS">Last name</label>
-                <input id="set-last" v-model="form.lastName" :class="INPUT_CLASS" placeholder="Okafor" autocomplete="family-name">
-              </div>
-              <div>
-                <label for="set-phone" :class="LABEL_CLASS">Phone <span class="font-normal text-muted-500">(optional)</span></label>
-                <input id="set-phone" v-model="form.phone" :class="INPUT_CLASS" placeholder="07700 900123" autocomplete="tel" type="tel" inputmode="tel">
-                <span class="mt-1.5 block text-[11.5px] text-muted-500 max-lg:text-xs">So your project manager can reach you quickly.</span>
-              </div>
-              <div>
-                <label for="set-email" :class="LABEL_CLASS">Email</label>
-                <!--
-                  Read-only on purpose: `update-all` documents that changing the
-                  login identity needs verification, so an editable box here
-                  would accept a change it never applies.
-                -->
-                <input id="set-email" :value="account?.email || ''" readonly type="email" inputmode="email" class="cursor-not-allowed text-muted-400" :class="[INPUT_CLASS]">
-                <span class="mt-1.5 block text-[11.5px] text-muted-500 max-lg:text-xs">Your sign-in address. <NuxtLink to="/dashboards/support" class="font-semibold text-primary-400 hover:text-primary-300">Ask support</NuxtLink> to change it — we verify the new address first.</span>
-              </div>
-            </div>
-          </section>
-
-          <!-- Where the rest of the record lives. On the hub these are rows;
-               inside a section the customer needs a route to the neighbours. -->
-          <div class="flex items-start gap-2.5 rounded-2xl border border-white/8 bg-muted-800 p-4 text-[13px] leading-[1.55] text-muted-400 lg:hidden">
-            <Icon name="lucide:info" aria-hidden="true" class="mt-px size-[17px] shrink-0 text-muted-500" />
-            <span>Company registration and addresses live under
-              <button type="button" class="apex-focus rounded font-semibold text-primary-400" @click="goSection('company')">Company</button>
-              and
-              <button type="button" class="apex-focus rounded font-semibold text-primary-400" @click="goSection('billing')">Billing</button>.</span>
-          </div>
-        </template>
-
-        <!-- ======================================================== COMPANY -->
-        <template v-else-if="section === 'company'">
-          <section :class="CARD_CLASS">
-            <ApexSectionLabel label="Company identity" class="max-lg:hidden" />
-            <div class="contents max-lg:block max-lg:rounded-2xl max-lg:border max-lg:border-white/8 max-lg:bg-muted-800 max-lg:p-[18px]">
-              <div class="mt-5 flex flex-wrap items-center gap-4 max-lg:mt-0 max-lg:flex-nowrap max-lg:gap-3.5">
-                <span aria-hidden="true" class="inline-flex size-[52px] shrink-0 items-center justify-center rounded-xl border border-white/8 bg-muted-700 text-sm font-extrabold text-primary-400 max-lg:size-14 max-lg:text-lg">
-                  {{ companyInitials }}
-                </span>
-                <p class="min-w-0 flex-1 text-[12.5px] leading-relaxed text-muted-400">
-                  Used on your contracts and receipts. Enter the name exactly as it is registered, including <span class="text-white">Ltd</span> or <span class="text-white">Limited</span>.
-                </p>
-              </div>
-            </div>
-
-            <ApexSectionLabel label="Company identity" class="mt-5 lg:hidden" />
-            <div class="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 max-lg:mt-3.5">
-              <div class="sm:col-span-2">
-                <label for="set-cname" :class="LABEL_CLASS">Registered company name</label>
-                <input id="set-cname" v-model="form.companyName" :class="INPUT_CLASS" placeholder="Riverside Studios Ltd" autocomplete="organization">
-              </div>
-              <div>
-                <!-- Labels a listbox trigger, not an input, so the control owns
-                     its accessible name. -->
-                <span :class="LABEL_CLASS">Business type</span>
-                <!--
-                  A 52px trigger and a bottom sheet below `lg` (§5): these labels
-                  reach 36 characters, so the trigger wraps to two lines rather
-                  than truncating, and the options are 56px rows. Only one of the
-                  two controls is ever mounted.
-                -->
-                <button
-                  type="button"
-                  aria-haspopup="dialog"
-                  aria-label="Business type"
-                  :aria-expanded="typeSheetOpen"
-                  class="apex-focus flex min-h-[52px] w-full cursor-pointer items-center gap-2.5 rounded-xl border border-white/8 bg-muted-800 px-3.5 py-3 text-start lg:hidden"
-                  @click="typeSheetOpen = true"
-                >
-                  <span class="grow text-[16px] leading-[1.35]" :class="form.companyType ? 'text-white' : 'text-muted-500'">
-                    {{ BUSINESS_TYPES.find(t => t.key === form.companyType)?.label || 'Select a type' }}
-                  </span>
-                  <Icon name="lucide:chevron-down" aria-hidden="true" class="size-[18px] shrink-0 text-muted-500" />
-                </button>
-                <!--
-                  `placeholder`, not a `value=""` item: the underlying listbox
-                  reserves the empty string for "no selection", so an empty
-                  option renders as a blank trigger. Same reason New Order
-                  (Phase 3) uses the prop — and, as there, an untouched control
-                  must not answer for the customer.
-                -->
-                <div class="hidden lg:block">
-                  <BaseSelect
-                    v-model="form.companyType"
-                    aria-label="Business type"
-                    placeholder="Select a type"
-                    rounded="lg"
-                    size="lg"
-                    class="bg-muted-700! h-11! w-full! rounded-xl! border-white/8! text-white!"
-                    :classes="{ text: 'text-sm' }"
-                  >
-                    <BaseSelectItem v-for="t in BUSINESS_TYPES" :key="t.key" :value="t.key">
-                      {{ t.label }}
-                    </BaseSelectItem>
-                  </BaseSelect>
-                </div>
-              </div>
-              <div>
-                <label for="set-cweb" :class="LABEL_CLASS">Website <span class="font-normal text-muted-500">(optional)</span></label>
-                <input id="set-cweb" v-model="form.companyWebsite" :class="INPUT_CLASS" placeholder="riversidestudios.co.uk" type="url" inputmode="url">
-              </div>
-            </div>
-          </section>
-
-          <section :class="CARD_CLASS">
-            <ApexSectionLabel :label="addressLabel" />
-            <p class="mt-3 text-[12.5px] leading-relaxed text-muted-400 max-lg:text-[13px]">
-              {{ addressHint }}
-            </p>
-            <label for="set-caddr" class="sr-only">{{ addressLabel }}</label>
-            <!--
-              One field, because `Company` has one free-text `address` column.
-              The mobile design draws six — line 1, line 2, town, county,
-              postcode, country — with live postcode validation. Separate boxes
-              would look right and store nothing, so they are absent along with
-              the validation that would have to invent a postcode to check.
-              See the TODO(api) at the top.
-            -->
-            <textarea
-              id="set-caddr" v-model="form.companyAddress" rows="3"
-              class="mt-4 resize-y leading-[1.55] max-lg:mt-3.5" :class="[AREA_CLASS]"
-              placeholder="Unit 7, Riverside Park&#10;Maidstone&#10;ME15 6RS"
-            />
-          </section>
-
-          <section :class="CARD_CLASS">
-            <ApexSectionLabel label="Business contact" />
-            <div class="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 max-lg:mt-3.5">
-              <div>
-                <label for="set-cemail" :class="LABEL_CLASS">Company email <span class="font-normal text-muted-500">(optional)</span></label>
-                <input id="set-cemail" v-model="form.companyEmail" :class="INPUT_CLASS" placeholder="hello@riversidestudios.co.uk" type="email" inputmode="email">
-              </div>
-              <div>
-                <label for="set-cphone" :class="LABEL_CLASS">Company phone <span class="font-normal text-muted-500">(optional)</span></label>
-                <input id="set-cphone" v-model="form.companyPhone" :class="INPUT_CLASS" placeholder="020 7946 0100" type="tel" inputmode="tel">
-              </div>
-              <div class="sm:col-span-2">
-                <label for="set-cnotes" :class="LABEL_CLASS">Anything we should know <span class="font-normal text-muted-500">(optional)</span></label>
-                <textarea id="set-cnotes" v-model="form.companyNotes" rows="3" class="resize-y leading-[1.55]" :class="[AREA_CLASS]" placeholder="Brand guidelines, preferred contact hours, accessibility needs…" />
-                <span class="mt-1.5 block text-[11.5px] text-muted-500 max-lg:text-xs">Shared with the team working on your projects.</span>
-              </div>
-            </div>
-          </section>
-        </template>
-
-        <!-- ======================================================= SECURITY -->
-        <template v-else-if="section === 'security'">
-          <section :class="CARD_CLASS">
-            <ApexSectionLabel label="Password" />
-            <p class="mt-3 text-[12.5px] leading-relaxed text-muted-400 max-lg:text-[13px]">
-              Choose something at least {{ PW_MIN }} characters long that you don't use anywhere else.
-            </p>
-
-            <div class="mt-5 flex max-w-[420px] flex-col gap-4 max-lg:mt-3.5 max-lg:max-w-none">
-              <div>
-                <label for="pw-current" :class="LABEL_CLASS">Current password</label>
-                <!--
-                  A show/hide toggle on the current-password field: typing a
-                  password on a phone keyboard without seeing it is the common
-                  failure, and it is why people give up here (§7).
-                -->
-                <div class="relative">
-                  <input id="pw-current" v-model="pwForm.current" :type="pwShow ? 'text' : 'password'" autocomplete="current-password" class="pr-14" :class="INPUT_CLASS" placeholder="••••••••">
-                  <button
-                    type="button"
-                    :aria-label="pwShow ? 'Hide password' : 'Show password'"
-                    :aria-pressed="pwShow"
-                    class="apex-focus absolute right-1 top-1/2 inline-flex size-11 -translate-y-1/2 items-center justify-center rounded-xl text-muted-500 hover:text-white"
-                    @click="pwShow = !pwShow"
-                  >
-                    <Icon :name="pwShow ? 'lucide:eye-off' : 'lucide:eye'" class="size-[19px]" />
-                  </button>
-                </div>
-              </div>
-              <div>
-                <label for="pw-new" :class="LABEL_CLASS">New password</label>
-                <input id="pw-new" v-model="pwForm.next" :type="pwShow ? 'text' : 'password'" autocomplete="new-password" :class="INPUT_CLASS" :placeholder="`At least ${PW_MIN} characters`">
-                <div v-if="pwForm.next" class="mt-2 flex items-center gap-2.5 max-lg:mt-2.5">
-                  <span class="h-1 flex-1 overflow-hidden rounded-full bg-muted-700 max-lg:h-1.5">
-                    <span class="block h-full rounded-full transition-all" :class="pwTone.bar" :style="{ width: `${(pwScore / 4) * 100}%` }" />
-                  </span>
-                  <span class="text-[11.5px] font-semibold max-lg:text-xs" :class="pwTone.text">{{ pwLabel }}</span>
-                </div>
-              </div>
-              <div>
-                <label for="pw-confirm" :class="LABEL_CLASS">Confirm new password</label>
-                <input
-                  id="pw-confirm" v-model="pwForm.confirm" :type="pwShow ? 'text' : 'password'" autocomplete="new-password"
-                  :aria-invalid="pwMismatch" :class="[INPUT_CLASS, pwMismatch ? 'border-[#EC6453]/60!' : '']" placeholder="Re-enter it"
-                >
-                <span v-if="pwMismatch" class="mt-1.5 block text-[11.5px] text-[#EC6453] max-lg:text-xs">Both passwords need to match.</span>
-              </div>
-
-              <p v-if="pwError" role="alert" class="flex items-start gap-2 rounded-xl border border-[#EC6453]/30 bg-[#EC6453]/10 px-3.5 py-2.5 text-[12.5px] leading-relaxed text-[#EC6453]">
-                <Icon name="lucide:alert-triangle" class="mt-px size-4 shrink-0" />
-                <span>{{ pwError }}</span>
-              </p>
-
-              <div>
-                <!--
-                  Its own button, inside the scroll. The section footer's Save
-                  covers preferences; a credential change is not one, and on a
-                  phone the footer is always visible right beneath this form.
-                -->
-                <BaseButton
-                  rounded="full"
-                  variant="primary"
-                  class="h-11! px-6 max-lg:h-[52px]! max-lg:w-full max-lg:text-base"
-                  :disabled="pwSaving"
-                  @click="updatePassword"
-                >
-                  <Icon v-if="pwSaving" name="lucide:loader-2" class="size-4 animate-spin" />
-                  <span>{{ pwSaving ? 'Updating…' : 'Update password' }}</span>
-                </BaseButton>
-              </div>
-            </div>
-          </section>
-
-          <section class="apex-rise rounded-2xl border border-white/8 bg-muted-800 p-6 max-lg:p-[18px]">
-            <div class="flex flex-wrap items-start justify-between gap-4 max-lg:flex-nowrap max-lg:items-center max-lg:gap-3">
-              <div class="min-w-0 max-w-[560px] max-lg:order-1 max-lg:w-full">
-                <div class="font-heading text-base font-bold text-white">
-                  Two-factor authentication
-                </div>
-                <p class="mt-1.5 text-[12.5px] leading-relaxed text-muted-400 max-lg:text-[13px]">
-                  A one-time code from your authenticator app when you sign in. Strongly recommended once you have a payment method on file.
-                </p>
-              </div>
-              <!--
-                A statement, not a switch. `securityForm.twoFactor` used to be
-                posted on every save and read by nothing.
-              -->
-              <span class="inline-flex shrink-0 items-center rounded-full bg-muted-700 px-3 py-1.5 text-[10.5px] font-extrabold uppercase tracking-[0.05em] text-muted-400">
-                Coming soon
-              </span>
-            </div>
-          </section>
-
-          <section :class="CARD_CLASS">
-            <ApexSectionLabel label="Where you're signed in" />
-            <!--
-              The current browser and nothing else. This list used to be one
-              hardcoded MacBook in New York on a private-range IP, with a revoke
-              button wired to an empty function — fabricated security data is
-              worse than none.
-            -->
-            <div class="mt-5 flex flex-wrap items-center gap-3 max-lg:min-h-[72px] rounded-xl border border-white/8 bg-muted-700 px-4 py-3.5 max-lg:mt-3.5 max-lg:flex-nowrap max-lg:gap-3 max-lg:rounded-2xl max-lg:bg-muted-800 max-lg:p-3.5">
-              <span aria-hidden="true" class="inline-flex size-[18px] shrink-0 items-center justify-center text-primary-400 max-lg:size-[42px] max-lg:rounded-xl max-lg:bg-[#22B07D]/14 max-lg:text-[#22B07D]"><Icon name="lucide:monitor" class="size-[18px] max-lg:size-5" /></span>
-              <span class="min-w-0 flex-1">
-                <span class="block text-[13.5px] font-semibold text-white max-lg:text-[14.5px]">This device</span>
-                <span class="block text-[11.5px] text-muted-500 max-lg:mt-[3px] max-lg:text-[12.5px]">{{ thisDevice }} · active now</span>
-              </span>
-              <span class="inline-flex shrink-0 items-center rounded-full bg-[#22B07D]/14 px-2.5 py-1 text-[10.5px] font-extrabold uppercase tracking-[0.04em] text-[#22B07D]">Current</span>
-            </div>
-            <p class="mt-3.5 text-[12.5px] leading-relaxed text-muted-400 max-lg:mt-3 max-lg:text-[12.5px]">
-              We don't keep a device history yet, so we can't list your other sessions or sign them out from here. If you think someone else has your password, change it above and tell us in a support request.
-            </p>
-          </section>
-        </template>
-
-        <!-- ======================================================== BILLING -->
-        <template v-else>
-          <section :class="CARD_CLASS">
-            <ApexSectionLabel label="Tax details" />
-            <div class="mt-5 max-w-[420px] max-lg:mt-3.5 max-lg:max-w-none">
-              <label for="set-vat" :class="LABEL_CLASS">VAT number <span class="font-normal text-muted-500">(optional)</span></label>
-              <input
-                id="set-vat"
-                v-model="form.vatNumber"
-                :class="[
-                  INPUT_CLASS,
-                  vatState === 'valid' ? 'border-[#22B07D]/50!' : '',
-                  vatState === 'invalid' ? 'border-[#EC6453]/50!' : '',
-                ]"
-                placeholder="GB123456789"
-                autocapitalize="characters"
-                :aria-invalid="vatState === 'invalid'"
-                aria-describedby="set-vat-hint"
-                @input="onVatInput"
-              >
-              <span
-                id="set-vat-hint"
-                class="mt-1.5 block text-[11.5px] max-lg:text-xs"
-                :class="vatState === 'valid' ? 'text-[#22B07D]' : vatState === 'invalid' ? 'text-[#EC6453]' : 'text-muted-500'"
-              >{{ vatMessage }}</span>
-            </div>
-          </section>
-
-          <section class="apex-rise rounded-2xl border border-white/8 bg-muted-800 p-6 max-lg:p-[18px]">
-            <ApexSectionLabel label="What goes on your receipts" />
-            <!--
-              Both facts are derived from the Company record rather than stored
-              again here — which is also why there is no "same as our registered
-              office" switch: with nowhere to keep a *different* billing
-              address, a switch would only ever have one position. A second copy
-              is how a total and its parts end up disagreeing, the problem
-              Phases 2 and 5 were mostly about.
-            -->
-            <dl class="mt-5 flex flex-col gap-4 max-lg:mt-3.5">
-              <div>
-                <dt class="text-[12.5px] font-semibold text-white max-lg:text-[13px]">
-                  Receipts are sent to
-                </dt>
-                <dd v-if="receiptEmail" class="mt-1 text-sm text-muted-400 max-lg:text-[14px]">
-                  {{ receiptEmail }}
-                </dd>
-                <dd v-else class="mt-1 text-sm text-muted-400 max-lg:text-[14px]">
-                  Your sign-in address.
-                </dd>
-              </div>
-              <div>
-                <dt class="text-[12.5px] font-semibold text-white max-lg:text-[13px]">
-                  Billing address
-                </dt>
-                <dd v-if="form.companyAddress.trim()" class="mt-1 whitespace-pre-line text-sm leading-[1.55] text-muted-400 max-lg:text-[14px]">
-                  {{ form.companyAddress }}
-                </dd>
-                <dd v-else class="mt-1 text-sm text-muted-400 max-lg:text-[14px]">
-                  No {{ addressShort }} on file yet.
-                </dd>
-              </div>
-            </dl>
-            <p class="mt-4 rounded-xl border border-white/8 bg-muted-700 px-3.5 py-3 text-[12.5px] leading-relaxed text-muted-400 max-lg:mt-3.5 max-lg:text-[13px]">
-              Both come from your company record.
-              <button type="button" class="apex-focus rounded font-semibold text-primary-400 hover:text-primary-300" @click="goSection('company')">
-                Edit them under Company
-              </button>.
-            </p>
-          </section>
-
-          <section class="apex-rise flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-white/8 bg-muted-800 p-6 max-lg:flex-nowrap max-lg:items-center max-lg:gap-3.5 max-lg:p-4">
-            <span aria-hidden="true" class="hidden shrink-0 items-center justify-center rounded-xl bg-primary-500/14 text-primary-400 max-lg:inline-flex max-lg:size-11"><Icon name="lucide:wallet" class="size-5" /></span>
-            <div class="min-w-0">
-              <div class="font-heading text-base font-bold text-white max-lg:text-[15.5px]">
-                Payments, methods and receipts
-              </div>
-              <p class="mt-1 text-[13px] text-muted-400 max-lg:mt-1 max-lg:text-[12.5px] max-lg:leading-[1.45]">
-                Your balance, installment plans and every receipt live in one place.
-              </p>
-            </div>
-            <!--
-              One source of financial truth. This tab used to carry a single
-              hardcoded `INV-001 · $29.00` row — dollars on a GBP product —
-              duplicating the receipts list Phase 5 corrected on Wallet.
-            -->
-            <BaseButton to="/dashboards/wallet" rounded="full" variant="primary" class="h-11! px-6 max-lg:hidden">
-              <Icon name="lucide:wallet" class="size-4" />
-              <span>Open Wallet &amp; credit</span>
-            </BaseButton>
-            <NuxtLink to="/dashboards/wallet" aria-label="Open Wallet and credit" class="apex-focus shrink-0 rounded max-lg:inline-flex lg:hidden">
-              <Icon name="lucide:chevron-right" aria-hidden="true" class="size-[18px] text-primary-400" />
-            </NuxtLink>
-          </section>
-        </template>
-      </div>
-    </div>
-
-    <!-- ====================================================== SAVE FOOTER -->
-    <!--
-      Below `lg` only, and only on a section that has something to save (§13).
-      It posts **that section**, so a button you can see never writes fields
-      three screens away, and it is disabled until that section is dirty.
-      Security has no footer: its only write is the password action above.
-    -->
-    <div
-      v-if="openSection && SAVEABLE.has(openSection)"
-      class="apex-edge shrink-0 border-t border-white/8 bg-white/95 px-4 pb-[max(12px,env(safe-area-inset-bottom))] pt-3 backdrop-blur-[10px] lg:hidden dark:bg-muted-950/95"
-    >
-      <div class="flex items-center gap-2.5">
-        <BaseButton
-          v-if="dirtyIn(openSection)"
-          rounded="full"
-          class="apex-focus h-[52px]! shrink-0 border-muted-300! dark:border-white/8! bg-muted-100! dark:bg-muted-800! text-muted-700! dark:text-white! border px-5"
-          :disabled="saving"
-          @click="discard(openSection)"
-        >
-          Discard
-        </BaseButton>
-        <BaseButton
-          rounded="full"
-          variant="primary"
-          class="h-[52px]! grow text-base shadow-[0_8px_20px_rgba(125,83,242,0.28)]"
-          :disabled="!dirtyIn(openSection) || saving"
-          @click="save(openSection)"
-        >
-          <Icon v-if="saving" name="lucide:loader-2" class="size-4 animate-spin" />
-          <span>{{ saving ? 'Saving…' : 'Save changes' }}</span>
-        </BaseButton>
-      </div>
-    </div>
-
-    <!--
-      `ink` because this page is navy in both themes until Phase 9 gives it a
-      light treatment; a white sheet would be the only light surface on screen.
-    -->
-    <ApexBottomSheet
-      v-model:open="typeSheetOpen"
-      surface="ink"
-      title="Business type"
-      description="Choose the UK legal form your business is registered under."
-      scrollable
-    >
-      <template #header>
-        <div class="shrink-0 border-b border-white/10 px-[18px] pb-2.5 pt-1.5">
-          <div class="font-heading text-base font-bold text-white">
-            Business type
-          </div>
-          <div class="mt-[3px] text-[12.5px] text-muted-500">
-            UK legal forms. This decides whether we ask for a registered office.
-          </div>
-        </div>
-      </template>
-      <div class="flex flex-col gap-0.5 p-2.5">
-        <button
-          v-for="t in BUSINESS_TYPES" :key="t.key"
-          type="button"
-          :aria-pressed="form.companyType === t.key"
-          class="apex-focus flex min-h-14 w-full cursor-pointer items-center gap-2.5 rounded-xl px-3.5 py-3 text-start text-[15px] leading-[1.35] transition-colors"
-          :class="form.companyType === t.key ? 'bg-primary-500/12 font-semibold text-white' : 'text-muted-300 hover:bg-white/5'"
-          @click="form.companyType = t.key; typeSheetOpen = false"
-        >
-          <span class="grow">{{ t.label }}</span>
-          <Icon v-if="form.companyType === t.key" name="lucide:check" aria-hidden="true" class="size-[18px] shrink-0 text-primary-400" />
+      <div class="min-w-0 flex-col gap-5" :class="routeSection ? 'flex' : 'hidden @min-[760px]:flex'">
+        <button type="button" class="apex-ring text-fg-body -mb-1.5 inline-flex min-h-10 cursor-pointer items-center gap-2 self-start rounded-lg px-1 text-sm font-semibold @min-[760px]:hidden" @click="backToList">
+          <Icon name="lucide:arrow-left" class="size-4" />Settings
         </button>
+        <div class="flex flex-col gap-1.5">
+          <h2 class="font-heading text-fg-heading m-0 text-2xl font-bold tracking-[-0.02em]">
+            {{ current.label }}
+          </h2>
+          <p class="text-fg-body m-0 text-[14.5px] leading-relaxed">
+            {{ current.intro }}
+          </p>
+        </div>
+
+        <!-- Profile -->
+        <template v-if="section === 'profile'">
+          <div :class="CARD" class="flex flex-col gap-[22px] p-[clamp(18px,2vw,26px)]">
+            <div class="flex flex-wrap items-center gap-4">
+              <span aria-hidden="true" class="font-heading inline-flex size-16 shrink-0 items-center justify-center rounded-full bg-[#7D53F2] text-xl font-semibold text-white shadow-[0_0_0_4px_var(--accent-tint)]">{{ initials }}</span>
+              <span class="flex flex-[1_1_200px] flex-col gap-[3px]">
+                <span class="text-fg-heading text-[15px] font-semibold">Your initials</span>
+                <span class="text-fg-muted text-[13px]">Shown to your Apex team beside your messages. Profile photos are not supported yet.</span>
+              </span>
+            </div>
+            <div class="grid grid-cols-[repeat(auto-fit,minmax(min(100%,260px),1fr))] gap-5">
+              <ApexField v-model="form.name" label="Full name" required autocomplete="name" :error="errName" />
+              <ApexField :model-value="email" label="Email" readonly hint="This is how you sign in. To change it, ask in Support and we will confirm the new address with you." />
+              <ApexField v-model="form.phone" label="Mobile" type="tel" inputmode="tel" autocomplete="tel" hint="Optional · Used to arrange calls" :error="errPhone" />
+            </div>
+          </div>
+          <div :class="CARD" class="flex flex-wrap items-center gap-x-5 gap-y-3.5 p-[clamp(18px,2vw,26px)]">
+            <span class="flex flex-[1_1_280px] flex-col gap-1">
+              <span class="text-fg-heading text-[15px] font-semibold">Close account</span>
+              <span class="text-fg-body text-[13.5px] leading-[1.55]">
+                <template v-if="openOrders">You have {{ openOrders }} open {{ openOrders === 1 ? 'order' : 'orders' }}. Closing becomes available once they are complete or cancelled, so no payment or file is left behind.</template>
+                <template v-else>We close accounts by request, so we can hand over every file and receipt first.</template>
+              </span>
+            </span>
+            <ApexButton variant="light" :disabled="openOrders > 0" to="/dashboards/support?tab=new">
+              Close account
+            </ApexButton>
+          </div>
+        </template>
+
+        <!-- Business -->
+        <div v-if="section === 'business'" :class="CARD" class="flex flex-col gap-5 p-[clamp(18px,2vw,26px)]">
+          <ApexField v-model="form.bName" label="Business name" required hint="As it should appear on receipts and agreements" :error="!form.bName.trim() && dirtyN ? 'Add your business name' : ''" />
+          <div class="flex flex-wrap items-start gap-3">
+            <div class="min-w-0 flex-[1_1_220px]">
+              <ApexField v-model="form.bCrn" label="Companies House number" hint="Eight characters, for limited companies" :error="errCrn" />
+            </div>
+            <button
+              v-if="lookupAvailable"
+              type="button"
+              :disabled="lookupBusy || !crnOk"
+              class="apex-ring border-line-rule bg-card text-fg-heading mt-[30px] inline-flex h-12 cursor-pointer items-center gap-2 rounded-xl border px-4 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+              @click="lookup"
+            >
+              <Icon name="lucide:search" class="size-4" />{{ lookupBusy ? 'Looking up…' : 'Look up' }}
+            </button>
+          </div>
+          <div v-if="found" class="bg-raised border-line-subtle flex flex-col gap-2 rounded-[14px] border px-[18px] py-4">
+            <span class="text-st-success-fg flex items-center gap-2 text-[13px] font-bold">
+              <span aria-hidden="true" class="inline-flex size-[18px] items-center justify-center rounded-full bg-[#22B07D] text-[9.5px] text-white">✓</span>Found on Companies House{{ found.status ? ` · ${found.status.charAt(0).toUpperCase()}${found.status.slice(1)}` : '' }}
+            </span>
+            <span class="text-fg-heading text-[15px] font-semibold">{{ found.name }}</span>
+            <span class="text-fg-body text-[13.5px] leading-[1.55]">{{ found.address }}</span>
+            <button type="button" class="apex-ring text-accent-ink self-start rounded-md text-[13.5px] font-semibold hover:underline" @click="useFound">
+              Use this name and address
+            </button>
+          </div>
+          <ApexField v-model="form.bAddress" label="Registered or business address" multiline :rows="2" hint="Printed on receipts and agreements" />
+          <ApexField v-model="form.bVat" label="VAT number" hint="Optional · Added to receipts once saved" :error="errVat" />
+        </div>
+
+        <!-- Security -->
+        <template v-if="section === 'security'">
+          <div :class="CARD" class="flex flex-col gap-[18px] p-[clamp(18px,2vw,26px)]">
+            <span class="text-fg-heading text-[15px] font-semibold">Change password</span>
+            <div class="grid grid-cols-[repeat(auto-fit,minmax(min(100%,240px),1fr))] gap-[18px]">
+              <ApexField v-model="pw0" label="Current password" type="password" autocomplete="current-password" />
+              <ApexField v-model="pw1" label="New password" type="password" autocomplete="new-password" :hint="`At least ${PASSWORD_MIN} characters`" :error="pwErr" />
+            </div>
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <span class="text-fg-muted max-w-[52ch] text-[13px] leading-[1.55]">Changing your password does not sign out your other devices.</span>
+              <ApexButton size="sm" :disabled="pwDisabled" @click="savePw">
+                {{ pwSaving ? 'Updating…' : 'Update password' }}
+              </ApexButton>
+            </div>
+          </div>
+          <div :class="CARD" class="flex items-center gap-3.5 px-[clamp(18px,2vw,26px)] py-[18px]">
+            <span class="bg-accent-tint text-accent-ink inline-flex size-[42px] shrink-0 items-center justify-center rounded-xl"><Icon name="solar:shield-check-linear" class="size-[21px]" /></span>
+            <span class="flex min-w-0 grow flex-col gap-[3px]">
+              <span class="text-fg-heading text-[15px] font-semibold">Two-step verification</span>
+              <span class="text-fg-muted text-[13px]">Not available yet. Your password is the only sign-in step for now.</span>
+            </span>
+          </div>
+          <div :class="CARD" class="overflow-hidden">
+            <span class="border-line-soft text-fg-heading block border-b px-[clamp(18px,2vw,26px)] py-4 text-[15px] font-semibold">Signed-in devices</span>
+            <div class="border-line-soft flex flex-wrap items-center gap-3.5 border-b px-[clamp(18px,2vw,26px)] py-3.5">
+              <Icon name="solar:laptop-minimalistic-linear" class="text-fg-muted size-[22px]" />
+              <span class="flex min-w-0 flex-[1_1_200px] flex-col gap-0.5"><span class="text-fg-heading text-[14.5px] font-semibold">{{ thisDevice }}</span><span class="text-fg-muted text-[12.5px]">Active now</span></span>
+              <span class="text-st-success-fg text-[12.5px] font-bold">This device</span>
+            </div>
+            <p class="text-fg-muted m-0 px-[clamp(18px,2vw,26px)] py-3.5 text-[12.5px] leading-relaxed">
+              We do not keep a list of your other devices yet, so they cannot be signed out from here. Each sign-in lasts seven days.
+            </p>
+          </div>
+        </template>
+
+        <!-- Notifications -->
+        <div v-if="section === 'notify'" :class="CARD" class="flex flex-col gap-3 p-[clamp(18px,2vw,26px)]">
+          <div class="flex items-start gap-3.5">
+            <span class="bg-accent-tint text-accent-ink inline-flex size-[42px] shrink-0 items-center justify-center rounded-xl"><Icon name="solar:bell-linear" class="size-[21px]" /></span>
+            <span class="flex flex-col gap-1">
+              <span class="text-fg-heading text-[15px] font-semibold">In the panel</span>
+              <span class="text-fg-body text-[13.5px] leading-[1.55]">Milestones, files, replies to your requests, payments taken and anything your team needs from you appear under the bell in the top bar.</span>
+            </span>
+          </div>
+          <p class="bg-raised text-fg-muted m-0 rounded-xl px-3.5 py-3 text-[12.5px] leading-relaxed">
+            We do not send notification emails yet, so there is nothing to switch on or off here. When we do, you will choose which ones on this page.
+          </p>
+        </div>
+
+        <!-- Appearance -->
+        <template v-if="section === 'appearance'">
+          <div role="radiogroup" aria-label="Theme" class="grid grid-cols-[repeat(auto-fit,minmax(min(100%,220px),1fr))] gap-4">
+            <button
+              v-for="t in THEMES"
+              :key="t.id"
+              type="button"
+              role="radio"
+              :aria-checked="(t.id === 'dark') === isDark"
+              class="apex-ring bg-card flex cursor-pointer flex-col gap-3.5 rounded-[20px] border p-3.5 text-left"
+              :class="(t.id === 'dark') === isDark ? 'border-accent shadow-[0_0_0_3px_var(--accent-tint)]' : 'border-line-subtle shadow-panel'"
+              @click="setTheme(t.id)"
+            >
+              <span aria-hidden="true" class="flex h-[120px] overflow-hidden rounded-[14px] border" :class="[t.page, t.line]">
+                <span class="flex w-[30%] flex-col gap-1.5 border-r px-2 py-2.5" :class="[t.chrome, t.line]">
+                  <span class="block h-1.5 w-3/5 rounded-[3px] bg-[#7D53F2]" /><span class="block h-[5px] rounded-[3px]" :class="t.muted" /><span class="block h-[5px] rounded-[3px]" :class="t.muted" />
+                </span>
+                <span class="flex grow flex-col gap-2 p-3">
+                  <span class="block h-2 w-[55%] rounded-[3px]" :class="t.ink" />
+                  <span class="flex grow gap-1.5"><span class="block grow rounded-[7px] bg-[#6C40E8]" /><span class="block grow rounded-[7px] border" :class="[t.card, t.line]" /></span>
+                </span>
+              </span>
+              <span class="flex items-center justify-between gap-2.5">
+                <span class="text-fg-heading text-[15px] font-semibold">{{ t.label }}</span>
+                <span aria-hidden="true" class="inline-flex size-[22px] items-center justify-center rounded-full border-2 text-[11px] text-white" :class="(t.id === 'dark') === isDark ? 'bg-accent border-accent' : 'border-line-rule'">{{ (t.id === 'dark') === isDark ? '✓' : '' }}</span>
+              </span>
+            </button>
+          </div>
+          <p class="text-fg-muted m-0 text-[13px] leading-relaxed">
+            Saved on this device. You can also switch from the moon and sun button in the top bar.
+          </p>
+        </template>
+
+        <div v-if="dirtyN > 0" class="bg-card border-line-subtle shadow-pop sticky bottom-[calc(78px+env(safe-area-inset-bottom))] z-[6] flex flex-wrap items-center gap-3 rounded-2xl border py-3 pl-[18px] pr-3 md:bottom-3">
+          <span class="text-fg-heading flex-[1_1_160px] text-sm font-semibold">{{ dirtyN === 1 ? '1 unsaved change' : `${dirtyN} unsaved changes` }}</span>
+          <button type="button" class="apex-ring text-fg-body min-h-[42px] cursor-pointer rounded-xl px-3.5 text-sm font-semibold" @click="discard">
+            Discard
+          </button>
+          <ApexButton size="sm" :disabled="saveBlocked || saving" @click="save">
+            {{ saving ? 'Saving…' : 'Save changes' }}
+          </ApexButton>
+        </div>
+        <div v-else-if="flash" role="status" class="bg-st-success-bg text-st-success-fg flex items-center gap-2.5 rounded-[14px] px-[18px] py-3.5 text-sm font-semibold">
+          <span aria-hidden="true" class="inline-flex size-5 items-center justify-center rounded-full bg-[#22B07D] text-[10px] text-white">✓</span>{{ flash }}
+        </div>
       </div>
-    </ApexBottomSheet>
+    </div>
   </div>
 </template>
-
-<style scoped>
-/*
- * The pre-V2 version redefined Tailwind's `.hidden` utility here as a
- * visually-hidden clip, which broke every `hidden md:block` on the page — the
- * elements stayed in the layout as 1px boxes. It also duplicated main.css's
- * scrollbar rules and set its own indigo focus shadow. All of that is gone;
- * `sr-only` covers the one visually-hidden label, and focus comes from the
- * shell's `.apex-focus`.
- */
-
-/*
- * A section is its own screen below `lg`, bounded so the save footer lands on
- * the bottom edge rather than wherever the content happens to end — Billing is
- * short enough that a `sticky` footer would sit mid-screen. The shell's height
- * comes from `--apex-shell-offset` (main.css), so this page can never fall out
- * of step with the top bar the way it did before that token existed.
- *
- * The ink is load-bearing, not decoration. Those `bg-muted-800` section cards
- * were the only thing putting this page's `text-white` field labels on a dark
- * surface; the design dissolves them at 393px, and doing that alone rendered
- * every label white-on-white for anyone whose OS prefers light — measured at
- * 1.06, which would have been this phase's doing rather than the backlog's. The
- * page wrapper carries the surface instead: invisible in dark mode because it
- * *is* the page colour, load-bearing in light. Same fix as the New Order wizard
- * (V2 Phase 3 mobile).
- *
- * Bleeding it is what lets that surface reach the viewport edges from inside
- * the layout's shared gutter, which is re-applied here as padding so nothing
- * inside moves. Written as CSS rather than arbitrary utilities because the
- * figure has to track the layout's own `max(<gutter>, env(inset))` pattern, and
- * `env()` inside an arbitrary utility has 500'd this project's build before.
- */
-@media (max-width: 1023.98px) {
-  .apex-section-screen {
-    height: calc(100dvh - var(--apex-shell-offset) - env(safe-area-inset-top) - env(safe-area-inset-bottom));
-    background: var(--color-muted-950);
-    margin-left: calc(-1 * max(1rem, env(safe-area-inset-left)));
-    margin-right: calc(-1 * max(1rem, env(safe-area-inset-right)));
-    padding-left: max(1rem, env(safe-area-inset-left));
-    padding-right: max(1rem, env(safe-area-inset-right));
-  }
-}
-@media (min-width: 768px) and (max-width: 1023.98px) {
-  .apex-section-screen {
-    margin-left: calc(-1 * max(1.5rem, env(safe-area-inset-left)));
-    margin-right: calc(-1 * max(1.5rem, env(safe-area-inset-right)));
-    padding-left: max(1.5rem, env(safe-area-inset-left));
-    padding-right: max(1.5rem, env(safe-area-inset-right));
-  }
-}
-
-/*
- * Cancels the layout's shared page gutter so the footer can span the viewport
- * and carry its own padding. Not a Tailwind arbitrary value: the figure has to
- * track the layout's own `max(<gutter>, env(inset))` pattern rather than a bare
- * 16px, and `env()` inside an arbitrary utility has 500'd this project's build
- * before.
- */
-@media (max-width: 1023.98px) {
-  .apex-edge {
-    margin-left: calc(-1 * max(1rem, env(safe-area-inset-left)));
-    margin-right: calc(-1 * max(1rem, env(safe-area-inset-right)));
-  }
-}
-@media (min-width: 768px) and (max-width: 1023.98px) {
-  .apex-edge {
-    margin-left: calc(-1 * max(1.5rem, env(safe-area-inset-left)));
-    margin-right: calc(-1 * max(1.5rem, env(safe-area-inset-right)));
-  }
-}
-
-.apex-rise {
-  animation: apexRise 0.3s cubic-bezier(0.22, 0.61, 0.36, 1) both;
-}
-@keyframes apexRise {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .apex-rise {
-    animation: none;
-  }
-}
-</style>

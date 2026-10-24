@@ -1,1418 +1,941 @@
 <script setup lang="ts">
+import type { Catalog, CatalogPlan, CatalogService, PayMode, ServiceId } from '~~/shared/catalog'
+import { DEFAULT_CATALOG, featuredPlan, findService, firstPaymentDate, fromMonthly, orderTerms, paymentCount, SERVICE_ORDER } from '~~/shared/catalog'
+import { orderRef } from '~~/shared/refs'
+
 /**
- * New Order — Apex Design redesign (5-step order + financing wizard).
- * Service → Plan → Payment (0% / 12-mo vs 1%·24-mo) → Details → Review & sign.
- * Live order-summary rail with the financing breakdown. "Sign & start" creates a
- * real PENDING order via /api/orders.
+ * New order — Panel v2 (`New Order.dc.html`).
  *
- * Below `lg` the same five steps are a task rather than a page (V2 Phase 3
- * mobile): the shell's hamburger becomes a close button that asks before
- * discarding, the labelled stepper collapses to a name plus five segments, the
- * selection grids become rows, selects open bottom sheets instead of an OS menu,
- * and the sticky rail becomes a footer strip that opens the summary as a sheet.
- * Pricing, validation, the contract and the submitted payload are unchanged.
+ * Three steps instead of five: Plan (service + plan), Brief, Pay and sign.
+ * The plans are the website's v2 plans, read from `/api/config`'s catalogue,
+ * and every figure on this page — card, schedule, summary rail, phone footer
+ * and the signed agreement — comes from the shared `orderTerms()` that
+ * `POST /api/orders` prices with (ADR-019). Nothing is charged here: the
+ * kickoff payment is taken after the kickoff call.
+ *
+ * Deliberate differences from the mockup, each because the mockup promises
+ * something the product does not do:
+ *  - "Pay from" shows the wallet only. Payments are taken from the wallet
+ *    balance (`chargeInstallment`, `collectKickoff`); offering a saved card as
+ *    a payment source would be a choice nothing reads.
+ *  - Nothing says a copy was emailed: there is no mail provider. The signed
+ *    agreement is kept with the order, and the page says that.
+ *  - The terms checkbox and its link are siblings, so a click on the link
+ *    opens the terms instead of toggling consent (V2 Phase 8).
  */
 definePageMeta({
-  title: 'New Order',
+  title: 'New order',
   layout: 'sidenav',
   middleware: 'auth',
+  bottomNav: false,
 })
 
 const route = useRoute()
 const router = useRouter()
-const { formatCurrency } = useCurrency()
 const toaster = useNuiToasts()
-
-/**
- * Below `lg` a handful of controls change container rather than styling: a
- * select becomes a sheet, the rail becomes a sheet. `useIsCompact()` resolves in
- * `onMounted`, so the server and the hydration render agree on `false` and only
- * closed overlays can be affected by the swap.
- */
-const isCompact = useIsCompact()
-
-// ---- catalogue (served by /api/config — admin-editable Setting rows) ----
-interface Plan { id: string, name: string, base: number, tier: 0 | 1 | 2, popular?: boolean, desc: string, features: string[] }
-
-const { data: appConfig, refresh: refreshConfig } = await useApexConfig({ lazy: false })
-
-const services = computed(() => (appConfig.value as any)?.catalog?.services ?? [])
-const plansByService = computed<Record<string, Plan[]>>(() => (appConfig.value as any)?.catalog?.plans ?? {})
-const enable24mo = computed(() => (appConfig.value as any)?.finance?.enable24moPlans !== false)
-const firstDueDays = computed(() => (appConfig.value as any)?.finance?.firstInstallmentDays ?? 30)
-
-const tierIcon = ['lucide:zap', 'lucide:trending-up', 'lucide:award']
-
-// Service-specific detail forms (data-driven so it stays DRY + reusable).
-// `required` drives both the red marker and validation. The asterisk used to be
-// baked into the label string, so it rendered in the same muted grey as the
-// label and read as decoration rather than a requirement.
-interface Field { key: string, label: string, type: 'text' | 'url' | 'date' | 'select' | 'textarea' | 'checkboxes', placeholder?: string, options?: string[], boxes?: { key: string, label: string }[], full?: boolean, required?: boolean }
-const formSchemas: Record<string, Field[]> = {
-  web: [
-    { key: 'title', label: 'Project name', type: 'text', placeholder: 'e.g. Gold Store storefront', full: true, required: true },
-    { key: 'url', label: 'Current website', type: 'url', placeholder: 'https:// (optional)' },
-    { key: 'pages', label: 'Pages needed', type: 'select', options: ['1–3 pages', '4–8 pages', '9+ pages'] },
-    { key: 'tech', label: 'Tech preference', type: 'select', options: ['No preference', 'WordPress', 'React / Next.js'] },
-    { key: 'launch', label: 'Target launch', type: 'date' },
-    { key: 'notes', label: 'Anything else we should know?', type: 'textarea', placeholder: 'Goals, references, must-have features…', full: true },
-  ],
-  mkt: [
-    { key: 'title', label: 'Business name', type: 'text', placeholder: 'e.g. Nitro LLC', required: true },
-    { key: 'url', label: 'Landing / site URL', type: 'url', placeholder: 'https://' },
-    { key: 'budget', label: 'Monthly ad budget', type: 'select', options: ['Under £1,000', '£1,000 – £5,000', '£5,000+'] },
-    { key: 'channel', label: 'Primary channel', type: 'select', options: ['Google Ads', 'Meta (FB/IG)', 'TikTok', 'LinkedIn'] },
-    { key: 'goal', label: 'Main goal', type: 'select', options: ['More leads', 'More sales', 'Brand awareness'] },
-    { key: 'audience', label: 'Target audience', type: 'text', placeholder: 'Who are we reaching?' },
-  ],
-  uiux: [
-    { key: 'title', label: 'Product name', type: 'text', placeholder: 'e.g. Apex Vision app', required: true },
-    { key: 'platform', label: 'Platform', type: 'select', options: ['Web app', 'iOS', 'Android', 'Web + mobile'] },
-    { key: 'screens', label: 'Approx. screens', type: 'select', options: ['Up to 6', '7–20', '20+'] },
-    { key: 'files', label: 'Existing design files?', type: 'select', options: ['No, starting fresh', 'Yes, in Figma', 'Yes, other format'] },
-    { key: 'research', label: 'UX research needed?', type: 'select', options: ['Yes, please', 'No, we have insights'] },
-    { key: 'url', label: 'Reference / inspo link', type: 'url', placeholder: 'https:// (optional)' },
-  ],
-  brand: [
-    { key: 'title', label: 'Company name', type: 'text', placeholder: 'e.g. Okano', required: true },
-    { key: 'industry', label: 'Industry', type: 'text', placeholder: 'e.g. Fintech, retail…' },
-    { key: 'logo', label: 'Have a logo already?', type: 'select', options: ['No, starting fresh', 'Yes, needs a refresh'] },
-    { key: 'adjectives', label: 'Brand in 3 words', type: 'text', placeholder: 'e.g. bold, warm, premium' },
-    { key: 'deliverables', label: 'Deliverables needed', type: 'checkboxes', full: true, boxes: [{ key: 'd_logo', label: 'Logo suite' }, { key: 'd_guide', label: 'Brand guidelines' }, { key: 'd_cards', label: 'Business cards' }, { key: 'd_social', label: 'Social-media kit' }] },
-  ],
-}
-
-// ---- state --------------------------------------------------------------
-const STEP_LABELS = ['Service', 'Plan', 'Payment', 'Details', 'Contract']
-const step = ref(1)
-const maxStep = ref(1)
-const serviceId = ref<string | null>(null)
-const planId = ref<string | null>(null)
-const term = ref<'12' | '24'>('24')
-// If the admin disables 24-month plans (Setting finance.enable-24mo-plans),
-// the option disappears and any selection falls back to 12 months.
-watch(enable24mo, (on) => {
-  if (!on && term.value === '24')
-    term.value = '12'
-}, { immediate: true })
-const form = reactive<Record<string, any>>({})
-const agreed = ref(false)
-// Electronic-signature consent (Electronic Communications Act 2000) — a
-// distinct, explicit act from agreeing to the service terms.
-const esignConsent = ref(false)
-const signName = ref('')
-// Printed full legal name — always captured as part of the signing evidence,
-// even when the customer draws their signature.
-const legalName = ref('')
-const hasDrawn = ref(false)
-// Draw and type used to be live at the same time, so it was unclear which one
-// would be submitted. One method is active at a time, and it is the one signed.
-const sigMode = ref<'draw' | 'type'>('draw')
-const touched = reactive<Record<string, boolean>>({})
-const placing = ref(false)
-const orderId = ref('')
-const statusStarted = ref(false)
-
 const { user } = useUser()
+const { formatCurrency } = useCurrency()
+const { data: config, refresh: refreshConfig } = useApexConfig({ lazy: false })
+const { data: overview } = useFetch<{ walletBalance: number }>('/api/dashboard/overview', { key: 'dashboard-overview', lazy: true, server: false })
 
-// Preselect service from ?service= (links from the home page).
-const QUERY_MAP: Record<string, string> = { web: 'web', development: 'web', dev: 'web', marketing: 'mkt', mkt: 'mkt', seo: 'mkt', uiux: 'uiux', design: 'uiux', branding: 'brand', brand: 'brand' }
+const catalog = computed<Catalog>(() => ((config.value as any)?.catalog as Catalog | undefined) ?? DEFAULT_CATALOG)
+const services = computed(() => SERVICE_ORDER.map(id => catalog.value.services.find(s => s.id === id)).filter((s): s is CatalogService => Boolean(s)))
+
+/* ------------------------------------------------------------------ state */
+const step = ref<1 | 2 | 3>(1)
+const svcId = ref<ServiceId | null>(null)
+const planId = ref<string | null>(null)
+const pay = ref<PayMode>('monthly')
+const showAll = ref(false)
+const sumOpen = ref(false)
+const pages = ref('')
+
+const service = computed(() => (svcId.value ? catalog.value.services.find(s => s.id === svcId.value) : undefined))
+const plan = computed<CatalogPlan | undefined>(() => service.value?.plans.find(p => p.id === planId.value))
+const kind = computed(() => service.value?.kind ?? null)
+const terms = computed(() => (service.value && plan.value ? orderTerms(service.value, plan.value, pay.value) : null))
+const scopeCall = computed(() => kind.value === 'scope' && planId.value === 'call')
+
+const plansHeading = ref<HTMLElement | null>(null)
+function scrollToPlans() {
+  nextTick(() => setTimeout(() => plansHeading.value?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60))
+}
+
+function pickService(id: ServiceId) {
+  const s = catalog.value.services.find(x => x.id === id)
+  if (!s) {
+    return
+  }
+  if (svcId.value !== id) {
+    planId.value = featuredPlan(s).id
+  }
+  svcId.value = id
+  pay.value = 'monthly'
+  pages.value = ''
+  scrollToPlans()
+}
+
+// `?service=website-design&plan=growth` from the website or the dashboard.
 onMounted(() => {
-  const q = String(route.query.service || '').toLowerCase()
-  if (QUERY_MAP[q])
-    serviceId.value = QUERY_MAP[q]
-  // Pre-fill the printed legal name from the account (editable).
-  const accountName = [user.value?.firstName, user.value?.lastName].filter(Boolean).join(' ').trim()
-  if (accountName && !legalName.value)
-    legalName.value = accountName
+  const s = findService(catalog.value, String(route.query.service ?? ''))
+  if (s) {
+    svcId.value = s.id
+    planId.value = (s.plans.find(p => p.id === route.query.plan) ?? featuredPlan(s)).id
+    scrollToPlans()
+  }
 })
 
-// ---- pricing ------------------------------------------------------------
-function amort(b: number) {
-  const r = 0.01
-  const n = 24
-  return b * r / (1 - (1 + r) ** -n)
-}
+/* ------------------------------------------------------------------ brief */
+const fName = ref('')
+const fGoal = ref('')
+const fSite = ref('')
+const fDate = ref('')
+const moreOpen = ref(false)
+const touched = reactive({ name: false, goal: false, date: false })
+const PAGE_OPTIONS = ['1 to 5 pages', '6 to 12 pages', '13 to 25 pages', 'Not sure yet']
 
-const service = computed(() => services.value.find((s: any) => s.id === serviceId.value) || null)
-const serviceName = computed(() => service.value?.name ?? '')
-const plans = computed(() => plansByService.value[serviceId.value ?? ''] ?? [])
-const plan = computed(() => plans.value.find(p => p.id === planId.value) || null)
-const base = computed(() => plan.value?.base ?? 0)
-const m12 = computed(() => base.value / 12)
-const m24 = computed(() => amort(base.value))
-const total24 = computed(() => m24.value * 24)
-const interest24 = computed(() => total24.value - base.value)
-const monthly = computed(() => (term.value === '12' ? m12.value : m24.value))
-const total = computed(() => (term.value === '12' ? base.value : total24.value))
-const termLabel = computed(() => (term.value === '12' ? '12 months · 0%' : '24 months · 1%/mo'))
-const monthsText = computed(() => (term.value === '12' ? '12 monthly payments' : '24 monthly payments'))
-const money = (n: number) => formatCurrency(n)
-
-/**
- * "From" pricing — the lowest monthly the customer can actually be offered.
- *
- * The plan cards used to price every plan with `amort(base)`, the 24-month
- * monthly, regardless of configuration. With `finance.enable-24mo-plans` off,
- * `term` is forced to 12, so the Launch card advertised £113/mo while the rail
- * beside it and the contract two steps later both said £200/mo — two prices for
- * the same plan, on screen at once, before anything had been chosen.
- *
- * Cards now lead with total project value (which no term can change) and quote
- * the monthly as a floor derived from the cheapest term on offer, so the card
- * and the rail agree in either configuration.
- */
-const cheapestTerm = computed(() => (enable24mo.value ? 24 : 12))
-function fromMonthly(b: number) {
-  return cheapestTerm.value === 24 ? amort(b) : b / 12
-}
-
-// Until a term is chosen (step 3) the rail quotes the same floor as the cards.
-const termChosen = computed(() => step.value >= 3)
-const railLabel = computed(() => (termChosen.value ? 'Your monthly' : 'From'))
-const railAmount = computed(() => (termChosen.value ? monthly.value : fromMonthly(base.value)))
-
-const fields = computed(() => formSchemas[serviceId.value ?? ''] ?? [])
-
-// ---- details validation -------------------------------------------------
-/**
- * `next()` used to validate only `form.title`, only on the way out of step 4.
- * Everything else — including fields typed as `url` — went through unchecked.
- *
- * Errors are computed per field and surfaced once the field has been blurred
- * (or once Continue has been pressed), and they clear the moment the value
- * becomes valid.
- */
-const submitted = ref(false)
-
-const UK_DATE_RE = /^(\d{2})\s*\/\s*(\d{2})\s*\/\s*(\d{4})$/
-function isValidUkDate(value: string) {
-  const match = UK_DATE_RE.exec(value)
-  if (!match)
+function validDate(v: string) {
+  if (!v) {
+    return true
+  }
+  const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(v)
+  if (!m) {
     return false
-  const [, dd, mm, yyyy] = match
-  const day = Number(dd)
-  const month = Number(mm)
-  const year = Number(yyyy)
-  if (month < 1 || month > 12 || day < 1 || year < 2000 || year > 2100)
-    return false
-  // Rejects 31/02 and friends by round-tripping through Date.
-  const probe = new Date(year, month - 1, day)
-  return probe.getMonth() === month - 1 && probe.getDate() === day
-}
-
-function fieldError(field: Field): string | null {
-  const value = String(form[field.key] ?? '').trim()
-  if (field.required && !value)
-    return `${field.label} is required.`
-  if (!value)
-    return null
-  if (field.type === 'url' && !/^https?:\/\/\S+\.\S+/i.test(value))
-    return 'Enter a full address, starting with http:// or https://'
-  if (field.type === 'date' && !isValidUkDate(value))
-    return 'Use the format dd/mm/yyyy.'
-  return null
-}
-
-function visibleError(field: Field) {
-  return (touched[field.key] || submitted.value) ? fieldError(field) : null
-}
-
-const detailErrors = computed(() => fields.value.map(fieldError).filter(Boolean) as string[])
-
-// ---- step flow ----------------------------------------------------------
-const canContinue = computed(() => {
-  if (step.value === 1)
-    return !!serviceId.value
-  if (step.value === 2)
-    return !!planId.value
-  return true
-})
-const continueLabel = computed(() => (step.value === 4 ? 'Review contract' : 'Continue'))
-
-function selectService(id: string) {
-  if (serviceId.value !== id)
-    planId.value = null
-  serviceId.value = id
-}
-function goStep(n: number) {
-  if (n <= maxStep.value)
-    step.value = n
-}
-function next() {
-  if (step.value === 1 && !serviceId.value)
-    return
-  if (step.value === 2 && !planId.value)
-    return
-  if (step.value === 4 && detailErrors.value.length) {
-    submitted.value = true
-    return
   }
-  submitted.value = false
-  step.value = Math.min(step.value + 1, 5)
-  maxStep.value = Math.max(maxStep.value, step.value)
+  const d = new Date(+m[3]!, +m[2]! - 1, +m[1]!)
+  return d.getDate() === +m[1]! && d.getMonth() === +m[2]! - 1
 }
-function back() {
-  step.value = Math.max(1, step.value - 1)
-}
+const errName = computed(() => (touched.name && !fName.value.trim() ? 'Add a project name' : ''))
+const errGoal = computed(() => (touched.goal && !fGoal.value.trim() ? 'Tell us what success looks like, in a sentence or two' : ''))
+const errDate = computed(() => (touched.date && !validDate(fDate.value.trim()) ? 'Use dd/mm/yyyy, for example 15/01/2027' : ''))
+const briefOk = computed(() => Boolean(fName.value.trim() && fGoal.value.trim() && validDate(fDate.value.trim())))
 
-// ---- mobile sheets ------------------------------------------------------
-/**
- * One sheet serves every select on step 4: the field whose key is held here is
- * the one being answered. Rendering a sheet per field would mount four dialogs
- * to show one.
- */
-const openSelectKey = ref<string | null>(null)
-const openSelectField = computed(() => fields.value.find(f => f.key === openSelectKey.value) ?? null)
-const selectSheetOpen = computed({
-  get: () => openSelectKey.value !== null,
-  set: (value: boolean) => {
-    if (!value) {
-      openSelectKey.value = null
-    }
-  },
-})
-const openSelectValue = computed(() => (openSelectKey.value ? form[openSelectKey.value] : null))
-function pickOption(option: string) {
-  const field = openSelectField.value
-  if (!field) {
-    return
-  }
-  form[field.key] = option
-  touched[field.key] = true
-  openSelectKey.value = null
+const uploads = useApexUploads()
+function onFiles(e: Event) {
+  const input = e.target as HTMLInputElement
+  uploads.add(input.files)
+  input.value = ''
 }
 
-const summaryOpen = ref(false)
+/* ------------------------------------------------------------ pay & sign */
+const sigMode = ref<'type' | 'draw'>('type')
+const sigName = ref('')
+const sigDrawn = ref(false)
+const agreeTerms = ref(false)
+const agreeSchedule = ref(false)
+const accountName = computed(() => [(user.value as any)?.firstName, (user.value as any)?.lastName].filter(Boolean).join(' ').trim())
+const sigOk = computed(() => (sigMode.value === 'type' ? sigName.value.trim().length > 2 : sigDrawn.value) && agreeTerms.value && agreeSchedule.value)
 
-/**
- * The exit guard (§1). It only asks when there is something to lose — a
- * confirmation on an untouched step 1 is a dialog that teaches people to dismiss
- * dialogs.
- *
- * The copy says the choices are cleared, not that a draft is kept: nothing here
- * is persisted anywhere, and the order only exists once `/api/orders` has
- * accepted it. Promising a 30-day draft would be the "attaches a file and throws
- * it away" defect from Phase 6, told in advance.
- */
-const exitOpen = ref(false)
-const hasProgress = computed(() =>
-  step.value > 1
-  || !!serviceId.value
-  || Object.values(form).some(v => (typeof v === 'string' ? v.trim() !== '' : !!v)))
-
-function requestExit() {
-  if (!hasProgress.value) {
-    leaveOrder()
-    return
-  }
-  summaryOpen.value = false
-  openSelectKey.value = null
-  exitOpen.value = true
-}
-function leaveOrder() {
-  exitOpen.value = false
-  router.push('/dashboards/balance')
-}
-
-// The shell's close button asks the page, because only the page knows whether
-// there is a half-filled order behind it.
-const { closeRequests } = useApexTaskBar()
-watch(closeRequests, () => {
-  // Past step 5 the order exists; there is nothing left to lose and nothing to ask.
-  if (step.value > 5) {
-    router.push('/dashboards/balance')
-    return
-  }
-  requestExit()
-})
-
-/** Contract text is capped so the consent controls stay reachable; this opens it out. */
-const contractExpanded = ref(false)
-
-// ---- signature ----------------------------------------------------------
-const sigCanvas = ref<HTMLCanvasElement | null>(null)
+const canvas = ref<HTMLCanvasElement | null>(null)
 let drawing = false
-let lastPt: [number, number] | null = null
-/**
- * Per-axis scaling. Both axes used to be scaled by the *width* ratio, which is
- * only correct while the element and the backing store share an aspect ratio —
- * and the element's width is fluid while the store is a fixed 640, so a stroke
- * drifted vertically as the column narrowed. The canvas is taller on a phone
- * (150px against 130px) than the store, which would have made it worse.
- */
-function sigPos(e: PointerEvent): [number, number] {
-  const c = sigCanvas.value!
-  const r = c.getBoundingClientRect()
-  return [(e.clientX - r.left) * (c.width / r.width), (e.clientY - r.top) * (c.height / r.height)]
-}
-function sigDown(e: PointerEvent) {
-  const c = sigCanvas.value
-  if (!c)
+let last: [number, number] | null = null
+function sizeCanvas() {
+  const el = canvas.value
+  if (!el) {
     return
-  c.setPointerCapture?.(e.pointerId)
-  drawing = true
-  lastPt = sigPos(e)
-  hasDrawn.value = true
-}
-function sigMove(e: PointerEvent) {
-  if (!drawing || !sigCanvas.value || !lastPt)
-    return
-  const ctx = sigCanvas.value.getContext('2d')!
-  const p = sigPos(e)
-  ctx.strokeStyle = '#fff'
-  ctx.lineWidth = 2.6
+  }
+  const dpr = window.devicePixelRatio || 1
+  const r = el.getBoundingClientRect()
+  el.width = r.width * dpr
+  el.height = r.height * dpr
+  const ctx = el.getContext('2d')!
+  ctx.scale(dpr, dpr)
+  ctx.lineWidth = 2.2
   ctx.lineCap = 'round'
   ctx.lineJoin = 'round'
+}
+watch(canvas, el => el && nextTick(sizeCanvas))
+function pos(e: PointerEvent): [number, number] {
+  const r = canvas.value!.getBoundingClientRect()
+  return [e.clientX - r.left, e.clientY - r.top]
+}
+function sigDown(e: PointerEvent) {
+  drawing = true
+  last = pos(e)
+  canvas.value?.setPointerCapture(e.pointerId)
+}
+function sigMove(e: PointerEvent) {
+  if (!drawing || !canvas.value || !last) {
+    return
+  }
+  const ctx = canvas.value.getContext('2d')!
+  ctx.strokeStyle = getComputedStyle(canvas.value).color
+  const p = pos(e)
   ctx.beginPath()
-  ctx.moveTo(lastPt[0], lastPt[1])
+  ctx.moveTo(last[0], last[1])
   ctx.lineTo(p[0], p[1])
   ctx.stroke()
-  lastPt = p
+  last = p
+  sigDrawn.value = true
 }
 function sigUp() {
   drawing = false
 }
 function clearSig() {
-  const c = sigCanvas.value
-  if (c)
-    c.getContext('2d')!.clearRect(0, 0, c.width, c.height)
-  hasDrawn.value = false
+  const el = canvas.value
+  el?.getContext('2d')?.clearRect(0, 0, el.width, el.height)
+  sigDrawn.value = false
 }
 
-/**
- * Flatten the drawn signature to dark-ink-on-white PNG. The on-screen canvas
- * draws white strokes on a transparent/dark background (for contrast in the
- * dark wizard); exported as-is it is invisible on the light admin contract
- * card. Here we recolour the strokes to ink and composite onto white "paper".
- */
-function exportSignature(): string | undefined {
-  const c = sigCanvas.value
-  if (!c)
-    return undefined
-  const src = c.getContext('2d')!.getImageData(0, 0, c.width, c.height)
-  const d = src.data
-  for (let i = 0; i < d.length; i += 4) {
-    if (d[i + 3] > 0) {
-      d[i] = 20
-      d[i + 1] = 24
-      d[i + 2] = 33 // ink ≈ #141821
+/* -------------------------------------------------------------- derived */
+function monthDate(from: Date, i: number) {
+  const first = firstPaymentDate(from)
+  return ukDate(new Date(first.getFullYear(), first.getMonth() + i, 1))
+}
+
+const schedule = computed(() => {
+  const s = service.value
+  const p = plan.value
+  const t = terms.value
+  if (!s || !p || !t) {
+    return [] as { label: string, date: string, amt: string, dot: string }[]
+  }
+  // Instalment dates are worked out from a kickoff today; the real ones are
+  // fixed when the kickoff payment is taken, and My orders shows them then.
+  const now = new Date()
+  const rows: { label: string, date: string, amt: string, dot: string }[] = []
+  if (t.kind === 'fixed' && pay.value === 'full') {
+    rows.push({ label: 'Full payment', date: 'At kickoff', amt: formatCurrency(t.total), dot: 'bg-accent' })
+  }
+  else if (t.kind === 'fixed') {
+    rows.push({ label: 'Deposit', date: 'At kickoff', amt: formatCurrency(t.deposit), dot: 'bg-accent' })
+    for (let i = 0; i < t.payments; i++) {
+      rows.push({ label: `Payment ${i + 1} of ${t.payments}`, date: monthDate(now, i), amt: formatCurrency(t.monthly), dot: 'bg-dot-unpaid' })
     }
   }
-  const ink = document.createElement('canvas')
-  ink.width = c.width
-  ink.height = c.height
-  ink.getContext('2d')!.putImageData(src, 0, 0)
-  const out = document.createElement('canvas')
-  out.width = c.width
-  out.height = c.height
-  const octx = out.getContext('2d')!
-  octx.fillStyle = '#ffffff'
-  octx.fillRect(0, 0, out.width, out.height)
-  octx.drawImage(ink, 0, 0)
-  return out.toDataURL('image/png')
-}
-
-// Collect the service-specific detail answers into label/value pairs the admin
-// panel can render generically (see /api/orders + admin project detail).
-function buildBrief(): { label: string, value: string }[] {
-  const out: { label: string, value: string }[] = []
-  for (const f of fields.value) {
-    if (f.key === 'title')
-      continue
-    if (f.type === 'checkboxes') {
-      const picked = (f.boxes ?? []).filter(b => form[b.key]).map(b => b.label)
-      if (picked.length)
-        out.push({ label: f.label, value: picked.join(', ') })
-      continue
+  else if (t.kind === 'retainer') {
+    if (t.setup) {
+      rows.push({ label: 'Set-up fee', date: 'At kickoff', amt: formatCurrency(t.setup), dot: 'bg-accent' })
     }
-    // No `?? options[0]` fallback: a native <select> showed its first option
-    // from the start and that default was written into the brief, so a customer
-    // who never touched "Pages needed" still had "1–3 pages" sent to the team.
-    // Unanswered fields are simply omitted.
-    const raw = form[f.key]
-    const value = raw == null ? '' : String(raw).trim()
-    if (value)
-      out.push({ label: f.label, value })
+    rows.push({ label: 'First month', date: 'At kickoff', amt: formatCurrency(t.monthly), dot: 'bg-accent' })
+    for (let i = 1; i < t.minimumMonths; i++) {
+      rows.push({ label: `Month ${i + 1} of ${t.minimumMonths} minimum`, date: monthDate(now, i - 1), amt: formatCurrency(t.monthly), dot: 'bg-dot-unpaid' })
+    }
+    rows.push({ label: 'Then rolling monthly', date: '30 days’ notice', amt: formatCurrency(t.monthly), dot: 'bg-line-rule' })
   }
-  return out
-}
-
-const canSign = computed(() =>
-  agreed.value
-  && esignConsent.value
-  && legalName.value.trim().length > 1
-  && (sigMode.value === 'draw' ? hasDrawn.value : signName.value.trim().length > 1))
-
-/**
- * Why the sign button is disabled, in the customer's words.
- *
- * On a phone the primary action sits in a fixed footer, a screen away from the
- * checkbox it is waiting on, so a greyed-out button with no explanation is the
- * dead end Phase 5 removed from the credit card. Stated once, next to the
- * consent controls, where the answer is.
- */
-const signBlocker = computed(() => {
-  if (canSign.value) {
-    return null
+  else {
+    rows.push(scopeCall.value
+      ? { label: 'Scoping call', date: 'Booked after you sign', amt: 'Free', dot: 'bg-accent' }
+      : { label: 'Discovery, fixed price', date: 'When discovery starts', amt: formatCurrency(t.total), dot: 'bg-accent' })
   }
-  if (legalName.value.trim().length <= 1) {
-    return 'Enter your full legal name to sign.'
+  return rows
+})
+const visibleSchedule = computed(() => (showAll.value ? schedule.value : schedule.value.slice(0, 4)))
+const totalRow = computed(() => {
+  const t = terms.value
+  if (!t) {
+    return { label: 'Total', amt: '' }
   }
-  if (!agreed.value || !esignConsent.value) {
-    return 'Tick both boxes to confirm you agree.'
+  if (t.kind === 'fixed') {
+    return { label: 'Total, all in', amt: formatCurrency(t.total) }
   }
-  return sigMode.value === 'draw'
-    ? 'Draw your signature above to continue.'
-    : 'Type your full name above to sign.'
+  if (t.kind === 'retainer') {
+    return { label: 'Minimum term total', amt: formatCurrency(t.total) }
+  }
+  return { label: 'Total today', amt: scopeCall.value ? '£0' : `£0 · ${formatCurrency(t.total)} at start` }
 })
 
-async function placeOrder() {
-  if (!canSign.value || placing.value)
+function planPrice(s: CatalogService, p: CatalogPlan) {
+  if (s.kind === 'scope') {
+    return { price: p.price ? formatCurrency(p.price) : 'Free', unit: '', note: p.note ?? '' }
+  }
+  if (s.kind === 'fixed') {
+    return { price: formatCurrency(p.monthly ?? 0), unit: ' /mo', note: `${formatCurrency(p.deposit ?? 0)} deposit, then ${paymentCount(s, p)} × ${formatCurrency(p.monthly ?? 0)}` }
+  }
+  return { price: formatCurrency(p.monthly ?? 0), unit: ' /mo', note: `${p.setup ? `${formatCurrency(p.setup)} set-up` : 'No set-up fee'} · ${s.minimumMonths}-month minimum` }
+}
+
+function serviceFrom(s: CatalogService) {
+  const m = fromMonthly(s)
+  return m ? `From ${formatCurrency(m)}/mo` : 'Scoped on a call'
+}
+
+const summary = computed(() => {
+  const s = service.value
+  const p = plan.value
+  const t = terms.value
+  if (!s || !p || !t) {
+    return null
+  }
+  if (t.kind === 'fixed') {
+    const full = pay.value === 'full'
+    return {
+      big: full ? formatCurrency(t.total) : formatCurrency(t.monthly),
+      unit: full ? '' : ' /mo',
+      dots: full ? 0 : t.payments,
+      caption: full ? 'One payment at kickoff · no interest' : `${t.payments} payments after the deposit · no interest`,
+      bar: full ? formatCurrency(t.total) : `${formatCurrency(t.monthly)} /mo`,
+      rows: [
+        { k: 'Deposit at kickoff', v: full ? '—' : formatCurrency(t.deposit) },
+        { k: 'Monthly payments', v: full ? '—' : `${t.payments} × ${formatCurrency(t.monthly)}` },
+        { k: 'Total, all in', v: formatCurrency(t.total) },
+        { k: 'Interest', v: 'None', green: true },
+      ],
+    }
+  }
+  if (t.kind === 'retainer') {
+    return {
+      big: formatCurrency(t.monthly),
+      unit: ' /mo',
+      dots: 0,
+      caption: `${t.minimumMonths}-month minimum, then rolling monthly`,
+      bar: `${formatCurrency(t.monthly)} /mo`,
+      rows: [
+        { k: 'Set-up fee', v: t.setup ? formatCurrency(t.setup) : 'None' },
+        { k: 'Minimum term', v: `${t.minimumMonths} months` },
+        { k: 'Notice after that', v: '30 days' },
+        { k: 'Interest', v: 'None', green: true },
+      ],
+    }
+  }
+  const big = scopeCall.value ? 'Free' : formatCurrency(t.total)
+  return {
+    big,
+    unit: '',
+    dots: 0,
+    caption: scopeCall.value ? 'A 45-minute call with a developer' : 'Fixed price · two weeks',
+    bar: big,
+    rows: [{ k: 'Due today', v: '£0' }, { k: 'Build', v: 'Quoted after discovery' }],
+  }
+})
+
+const payLine = computed(() => {
+  const t = terms.value
+  if (!t) {
+    return ''
+  }
+  if (t.kind === 'fixed') {
+    return pay.value === 'full' ? `${formatCurrency(t.total)} at kickoff` : `${formatCurrency(t.deposit)} deposit, then ${t.payments} × ${formatCurrency(t.monthly)}`
+  }
+  if (t.kind === 'retainer') {
+    return `${formatCurrency(t.monthly)}/mo · ${t.minimumMonths}-month minimum`
+  }
+  return scopeCall.value ? 'Free' : `${formatCurrency(t.total)} when discovery starts`
+})
+
+/* ----------------------------------------------------------- navigation */
+const STEP_LABELS = ['Plan', 'Brief', 'Pay and sign'] as const
+const NEXT = ['Continue to brief', 'Continue to payment', 'Sign and place order']
+const NEXT_SHORT = ['Continue', 'Continue', 'Sign and order']
+const canNext = computed(() => (step.value === 1 ? Boolean(plan.value) : step.value === 2 ? true : sigOk.value))
+const nextReason = computed(() => {
+  if (step.value === 1 && !plan.value) {
+    return 'Choose a service and a plan to continue.'
+  }
+  if (step.value === 3 && !sigOk.value) {
+    return 'Sign and tick both boxes to place the order.'
+  }
+  return ''
+})
+
+function go(n: 1 | 2 | 3) {
+  step.value = n
+  window.scrollTo({ top: 0, behavior: 'smooth' })
+}
+
+const submitting = ref(false)
+const placed = ref<{ id: string, ref: string, signedAt: string } | null>(null)
+async function next() {
+  if (step.value === 2 && !briefOk.value) {
+    touched.name = true
+    touched.goal = true
+    touched.date = true
     return
-  placing.value = true
+  }
+  if (step.value < 3) {
+    if (canNext.value) {
+      go((step.value + 1) as 2 | 3)
+    }
+    return
+  }
+  if (!sigOk.value || submitting.value || !service.value || !plan.value || !terms.value) {
+    return
+  }
+  submitting.value = true
   try {
-    // Signature: whichever method is active — the drawn canvas flattened to a
-    // PNG data-URL, or the typed name.
-    const drawn = sigMode.value === 'draw'
-    const signature = drawn
-      ? exportSignature()
-      : (signName.value.trim() || undefined)
-    const res: any = await $fetch('/api/orders', {
+    const brief = [
+      { label: 'What should this project achieve?', value: fGoal.value.trim() },
+      { label: 'Current website', value: fSite.value.trim() },
+      { label: 'Number of pages', value: pages.value },
+      { label: 'Target launch date', value: fDate.value.trim() },
+    ].filter(b => b.value)
+    const signature = sigMode.value === 'type' ? sigName.value.trim() : canvas.value!.toDataURL('image/png')
+    const res = await $fetch<{ project: { id: string } }>('/api/orders', {
       method: 'POST',
       body: {
-        title: String(form.title || serviceName.value),
-        // The server prices the order from its catalogue; `budget` is the
-        // figure on screen, so a price change stops the order (409).
-        serviceId: serviceId.value,
-        planId: planId.value,
-        budget: base.value,
-        termMonths: Number(term.value),
+        title: fName.value.trim(),
+        serviceId: service.value.id,
+        planId: plan.value.id,
+        pay: pay.value,
+        quotedTotal: terms.value.total,
         signature,
-        signatureType: drawn ? 'drawn' : 'typed',
-        signerName: legalName.value.trim(),
-        brief: buildBrief(),
+        signatureType: sigMode.value === 'type' ? 'typed' : 'drawn',
+        signerName: sigMode.value === 'type' ? sigName.value.trim() : (accountName.value || undefined),
+        brief,
+        attachmentIds: uploads.ids.value,
       },
     })
-    const id = res?.project?.id
-    orderId.value = id ? `APX-${String(id).replace(/-/g, '').slice(0, 4).toUpperCase()}` : `APX-${Math.floor(1000 + Math.random() * 9000)}`
-    step.value = 6
-    setTimeout(() => {
-      statusStarted.value = true
-    }, 1500)
+    placed.value = { id: res.project.id, ref: orderRef(res.project.id), signedAt: ukDate(new Date()) }
+    window.scrollTo({ top: 0 })
   }
   catch (e: any) {
-    toaster.add({ title: 'Could not place order', description: e?.data?.message || 'Please try again in a moment.', icon: 'lucide:alert-triangle', progress: true })
-    // The catalogue changed under the customer: show them the current prices
-    // rather than leaving the old figure on the contract they are signing.
-    if (e?.statusCode === 409 || e?.statusCode === 400)
+    // A moved price is a 409 and a withdrawn plan a 400: reload the catalogue
+    // so the page shows the figures the server will actually sign.
+    if (e?.statusCode === 409 || e?.statusCode === 400) {
       await refreshConfig()
+    }
+    toaster.add({ title: 'Your order was not placed', description: errorMessage(e), icon: 'lucide:circle-alert', progress: true })
   }
   finally {
-    placing.value = false
+    submitting.value = false
   }
 }
-/**
- * The summary's figures, bound once and rendered twice — the desktop rail and
- * the mobile sheet (§8). Phase 3 §2 spent a fix on making the plan card, the
- * rail and the contract agree; two hand-maintained copies of these bindings is
- * how they would start disagreeing again.
- */
-const summaryProps = computed(() => ({
-  serviceName: serviceName.value,
-  planName: plan.value?.name ?? null,
-  base: base.value,
-  termChosen: termChosen.value,
-  termLabel: termLabel.value,
-  showInterest: term.value === '24',
-  interest: interest24.value,
-  railLabel: railLabel.value,
-  railAmount: railAmount.value,
-  monthsText: monthsText.value,
-  total: total.value,
-  firstDueDays: firstDueDays.value,
-}))
 
-const radioBase = 'flex size-[22px] shrink-0 items-center justify-center rounded-full transition'
+function restart() {
+  placed.value = null
+  step.value = 1
+  svcId.value = null
+  planId.value = null
+  pay.value = 'monthly'
+  fName.value = ''
+  fGoal.value = ''
+  fSite.value = ''
+  fDate.value = ''
+  pages.value = ''
+  Object.assign(touched, { name: false, goal: false, date: false })
+  sigName.value = ''
+  sigDrawn.value = false
+  agreeTerms.value = false
+  agreeSchedule.value = false
+  uploads.reset()
+  router.replace({ query: {} })
+}
+
+const doneKick = computed(() => (kind.value === 'scope'
+  ? `Choose a time for your ${scopeCall.value ? 'scoping call' : 'first discovery workshop'}. Forty-five minutes on video.`
+  : 'Thirty minutes on video to agree scope, dates and who does what. The kickoff payment is taken after this call.'))
+
+const ringed = (on: boolean) => on ? 'border-accent shadow-[0_0_0_3px_var(--accent-tint)]' : 'border-line-subtle shadow-panel'
+const H2 = 'font-heading text-fg-heading m-0 text-[22px] font-bold tracking-[-0.02em]'
+const SUB = 'text-fg-body m-0 max-w-[60ch] text-[15px] leading-relaxed'
+const CARD = 'bg-card border-line-subtle shadow-panel rounded-[20px] border'
 </script>
 
 <template>
-  <!-- Location lives in the toolbar breadcrumb; this page no longer prints its own. -->
-  <!--
-    Below `lg` the step cards are gone, as drawn — so the ink they were
-    providing has to come from the page instead. Without this the wizard's
-    `text-white` lands on the shell's near-white page in light mode and the
-    whole form reads white-on-white; it is the card, not the theme, that was
-    holding it up. Desktop already treats this page as ink (every step is a
-    `bg-muted-800` card), and the sheets take the same `surface="ink"`, so this
-    makes one rule of what was three.
-
-    `-mt-5` cancels the top bar's bottom margin so the ink starts flush under
-    it, and `apex-bleed` spans the shared gutter the way the bar does.
-  -->
-  <div class="apex-bleed -mt-5 mx-auto flex max-w-[1180px] flex-col bg-muted-950 pb-12 font-sans text-muted-400 lg:mt-0 lg:gap-8 lg:bg-transparent gap-[18px]">
-    <!--
-      Below `lg` the top bar carries the title and the Secured chip, so printing
-      a page header underneath it says the same thing twice on the screen that
-      has the least room for it. The heading itself stays for assistive tech —
-      the step headings below are h2s, and a document that starts at h2 has a
-      level missing.
-    -->
-    <h1 class="sr-only lg:hidden">
-      New order
-    </h1>
-    <ApexPageHeader
-      class="hidden lg:flex"
-      title="Start your"
-      accent="project"
-      subtitle="Pick a service and plan, choose how to pay, then sign. Nothing is charged today."
-    >
-      <template #actions>
-        <span class="inline-flex h-11 items-center gap-1.5 rounded-full bg-[#22B07D]/12 px-4 text-[12.5px] font-semibold text-[#22B07D]"><Icon name="lucide:shield-check" class="size-3.5" />Secured checkout</span>
-      </template>
-    </ApexPageHeader>
-
-    <!--
-      Mobile progress (§2). Five labelled nodes with connecting rules need about
-      620px, so below `lg` they become the current step's name, a counter and
-      five segments. Sticky directly under the 56px bar — `-mt-5` cancels the
-      bar's own bottom margin so nothing scrolls through the gap between them —
-      and `apex-bleed` cancels the shared page gutter so the divider spans the
-      viewport like the bar's does.
-
-      The row is a `group`, not a `progressbar`: a progressbar announces a value
-      and its children here are five buttons, so the two would talk over each
-      other. The counter beside the step name states the progress in words.
-    -->
-    <div class="apex-bleed sticky top-[calc(56px+env(safe-area-inset-top))] z-20 border-b border-white/10 bg-muted-950 pb-3.5 pt-3 lg:hidden">
-      <div class="flex items-baseline gap-2">
-        <span class="font-heading text-[15px] font-bold text-white">{{ STEP_LABELS[Math.min(step, 5) - 1] }}</span>
-        <span class="grow" />
-        <span class="text-xs font-semibold text-muted-500 tabular-nums">Step {{ Math.min(step, 5) }} of 5</span>
-      </div>
-      <div role="group" aria-label="Order steps" class="mt-2.5 flex gap-1">
-        <button
-          v-for="(label, i) in STEP_LABELS" :key="label"
-          type="button"
-          :disabled="(i + 1) > maxStep"
-          :aria-label="`Step ${i + 1}: ${label}`"
-          :aria-current="(i + 1) === step ? 'step' : undefined"
-          class="apex-focus h-1.5 flex-1 rounded-full transition-colors enabled:cursor-pointer"
-          :class="(i + 1) <= step ? 'bg-primary-500' : 'bg-white/10'"
-          @click="goStep(i + 1)"
-        />
-      </div>
-    </div>
-
-    <!-- stepper -->
-    <div role="list" aria-label="Progress" class="hidden flex-nowrap items-center gap-1 overflow-x-auto py-1.5 lg:flex">
-      <template v-for="(label, i) in STEP_LABELS" :key="label">
-        <div v-if="i > 0" class="h-0.5 w-[30px] shrink-0 rounded" :class="(i + 1) <= step ? 'bg-primary-500' : 'bg-white/10'" />
-        <button
-          type="button" role="listitem" :disabled="(i + 1) > maxStep"
-          class="inline-flex shrink-0 items-center gap-2.5 rounded-xl px-1.5 py-2.5 enabled:cursor-pointer sm:py-1"
-          @click="goStep(i + 1)"
-        >
-          <span
-            class="flex size-[26px] shrink-0 items-center justify-center rounded-full font-heading text-[12.5px] font-bold transition"
-            :class="[
-              (i + 1) <= step ? 'bg-primary-500 text-white' : 'border border-white/10 bg-white/5 text-muted-500',
-              (i + 1) === step ? 'ring-4 ring-primary-500/20' : '',
-            ]"
-          >
-            <Icon v-if="(i + 1) < step" name="lucide:check" class="size-3.5" />
-            <span v-else>{{ i + 1 }}</span>
-          </span>
-          <span class="text-[13.5px]" :class="(i + 1) === step ? 'font-bold text-white' : (i + 1) < step ? 'font-medium text-muted-400' : 'font-medium text-muted-500'">{{ label }}</span>
-        </button>
-      </template>
-    </div>
-
-    <!-- content + rail -->
-    <div class="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_344px]">
-      <!-- ===================== LEFT: STEP CONTENT ===================== -->
-      <div>
-        <!-- STEP 1 — SERVICE -->
-        <!--
-          The card chrome is a `lg:` treatment on every step from here down. At
-          393px a bordered panel inset inside the page gutter spends another
-          2 x 24px on a column that has 361px to give, so the step content sits
-          directly on the page the way the mockup draws it.
-        -->
-        <section v-if="step === 1" class="lg:rounded-2xl lg:border lg:border-white/10 lg:bg-muted-800 lg:p-7">
-          <h2 class="font-heading text-[21px] font-bold tracking-[-0.01em] text-white lg:text-[22px]">
-            What can we build for you?
-          </h2>
-          <p class="mb-[18px] mt-2 text-[14px] text-muted-400 lg:mb-6 lg:mt-1.5 lg:text-[14.5px]">
-            Choose the service you need. You'll pick a plan and a payment schedule next.
+  <div class="@container mx-auto flex max-w-[1260px] flex-col gap-[clamp(22px,2.4vw,32px)] px-[clamp(16px,3vw,40px)] pb-[clamp(28px,4vw,56px)] pt-[clamp(20px,3vw,40px)]">
+    <template v-if="!placed">
+      <div class="flex flex-wrap items-end justify-between gap-x-6 gap-y-3.5">
+        <div class="flex min-w-0 flex-[1_1_320px] flex-col gap-2.5">
+          <h1 class="font-heading text-fg-heading m-0 text-[clamp(28px,1.3vw+18px,38px)] font-extrabold leading-[1.06] tracking-[-0.03em]">
+            New <span class="text-fg-accent">order</span>
+          </h1>
+          <p class="text-fg-body m-0 max-w-[56ch] text-pretty text-[clamp(15px,.3vw+14px,17px)] leading-relaxed">
+            Choose a service and plan, check every payment date, then sign. Nothing is charged until kickoff.
           </p>
-          <!--
-            Four 158px tiles stacked is 640px of scrolling to compare four
-            names, so below `sm` — the width at which the grid is a single
-            column anyway — each becomes a 72px row (§3). `sm:contents`
-            dissolves the two mobile wrappers so their children become direct
-            children of the tile again and the desktop composition is
-            reproduced rather than re-specified.
-          -->
-          <div class="grid grid-cols-1 gap-2.5 sm:grid-cols-2 sm:gap-4">
-            <button
-              v-for="svc in services" :key="svc.id"
-              type="button" :aria-pressed="serviceId === svc.id"
-              class="relative flex min-h-[72px] items-center gap-[13px] rounded-2xl border bg-white/[0.02] p-3.5 text-left transition sm:min-h-[158px] sm:flex-col sm:items-stretch sm:gap-0 sm:p-[22px]"
-              :class="serviceId === svc.id ? 'border-primary-500 sm:ring-4 sm:ring-primary-500/15' : 'border-white/10 hover:border-white/15'"
-              @click="selectService(svc.id)"
-            >
-              <span class="contents sm:mb-auto sm:flex sm:items-center sm:justify-between">
-                <span class="flex size-11 shrink-0 items-center justify-center rounded-xl sm:size-12" :class="svc.tone"><Icon :name="svc.icon" class="size-[21px] sm:size-[23px]" /></span>
-                <!--
-                  The ring is a mobile affordance: a border tint alone is not a
-                  reliable selected state on a phone in daylight. From `sm` the
-                  unselected state has no border and no fill, so the tile is
-                  exactly as it was — a check appears only once chosen.
-                -->
-                <span
-                  class="order-3 flex size-6 shrink-0 items-center justify-center rounded-full text-white transition sm:order-none sm:size-[26px]"
-                  :class="serviceId === svc.id ? 'bg-primary-500' : 'border-2 border-white/15 sm:border-0'"
-                >
-                  <Icon v-if="serviceId === svc.id" name="lucide:check" class="size-3.5 sm:size-[15px]" />
-                </span>
-              </span>
-              <span class="order-2 min-w-0 flex-1 sm:order-none sm:contents">
-                <span class="block font-heading text-base font-bold text-white sm:mt-[18px] sm:text-[19px]">
-                  {{ svc.name }}
-                </span>
-                <span class="mt-[3px] block text-[12.5px] text-muted-500 sm:mt-1 sm:text-[13.5px]">
-                  {{ svc.desc }}
-                </span>
-              </span>
-            </button>
-          </div>
-        </section>
+        </div>
+        <span class="bg-card border-line-subtle text-fg-body inline-flex items-center gap-[7px] whitespace-nowrap rounded-full border px-[13px] py-[7px] text-[12.5px] font-semibold">
+          <Icon name="lucide:lock" class="size-3.5 text-[#22B07D]" />Secured checkout
+        </span>
+      </div>
 
-        <!-- STEP 2 — PLAN -->
-        <section v-else-if="step === 2" class="lg:rounded-2xl lg:border lg:border-white/10 lg:bg-muted-800 lg:p-7">
-          <div class="mb-1.5 flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <h2 class="font-heading text-[21px] font-bold tracking-[-0.01em] text-white lg:text-[22px]">
-                Choose your plan
-              </h2>
-              <p class="mt-2 text-[14px] text-muted-400 lg:mt-1.5 lg:text-[14.5px]">
-                For <strong class="font-semibold text-primary-400">{{ serviceName }}</strong> · you'll choose how to spread the cost next.
-              </p>
-            </div>
-            <button type="button" class="apex-focus inline-flex min-h-11 shrink-0 cursor-pointer items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3.5 py-2 text-[13px] font-semibold text-white transition hover:border-white/15 lg:min-h-0" @click="goStep(1)">
-              <Icon name="lucide:arrow-left" class="size-3.5" />Change service
-            </button>
-          </div>
-          <div class="mt-4 grid grid-cols-1 gap-3 md:mt-5 md:grid-cols-3 md:gap-4">
-            <button
-              v-for="p in plans" :key="p.id"
-              type="button" :aria-pressed="planId === p.id"
-              class="relative flex flex-col rounded-2xl border p-4 text-left transition md:p-5"
-              :class="planId === p.id ? 'border-primary-500 bg-primary-500/[0.06] md:ring-4 md:ring-primary-500/15' : p.popular ? 'border-primary-500/30 bg-white/[0.02]' : 'border-white/10 bg-white/[0.02] hover:border-white/15'"
-              @click="planId = p.id"
-            >
-              <!--
-                Below `md` the card is a header row (icon, name, badge, radio)
-                over the price and the features, as drawn. `md:block` on the two
-                wrappers hands their children back to the card's own column, and
-                the radio and the badge take the absolute positions the tile
-                gives them — so the desktop card is reproduced, not restated.
-              -->
-              <div class="flex items-center gap-3 md:block">
-                <span class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary-500/14 text-primary-400 md:size-[42px]"><Icon :name="tierIcon[p.tier]" class="size-[21px]" /></span>
-                <span class="order-2 min-w-0 flex-1 md:block">
-                  <span class="flex items-center gap-2 md:mt-4 md:block">
-                    <span class="font-heading text-[17px] font-bold tracking-[-0.01em] text-white md:text-[20px]">{{ p.name }}</span>
-                    <span v-if="p.popular" class="shrink-0 whitespace-nowrap rounded-full bg-gradient-to-r from-primary-400 to-primary-600 px-2 py-[3px] text-[9.5px] font-extrabold tracking-[0.04em] text-white md:absolute md:-top-[11px] md:left-1/2 md:-translate-x-1/2 md:px-3 md:py-[5px] md:text-[10.5px] md:tracking-[0.05em] md:shadow-[0_6px_16px_rgba(125,83,242,.4)]">MOST POPULAR</span>
-                  </span>
-                  <span class="mt-[3px] block text-[12.5px] leading-[1.45] text-muted-400 md:mt-1.5 md:min-h-[54px] md:text-[13px] md:leading-[1.5]">
-                    {{ p.desc }}
-                  </span>
-                </span>
-                <span class="order-3 md:absolute md:right-5 md:top-[30px]" :class="[radioBase, planId === p.id ? 'bg-primary-500' : 'border-2 border-white/15']"><span v-if="planId === p.id" class="size-2.5 rounded-full bg-white" /></span>
-              </div>
-              <!--
-                Total project value leads: it is the one figure no payment term
-                can change, so it cannot contradict the rail or the contract.
-              -->
-              <div class="mt-3.5 flex flex-wrap items-baseline gap-x-2 md:mt-1.5 md:block">
-                <span class="font-heading text-[26px] font-extrabold tracking-[-0.02em] text-white tabular-nums md:block md:text-[28px]">
-                  {{ money(p.base) }}
-                </span>
-                <span class="text-xs text-muted-500 md:mt-1 md:block">
-                  total project · from {{ money(fromMonthly(p.base)) }}/mo
-                </span>
-              </div>
-              <div class="my-3.5 h-px bg-white/10 md:my-4" />
-              <div class="flex flex-col gap-2.5">
-                <div v-for="f in p.features" :key="f" class="flex items-start gap-2.5 text-[13px] text-muted-400">
-                  <Icon name="lucide:check" class="mt-0.5 size-[15px] shrink-0 text-[#22B07D]" />{{ f }}
-                </div>
-              </div>
-            </button>
-          </div>
-        </section>
-
-        <!-- STEP 3 — PAYMENT -->
-        <section v-else-if="step === 3" class="flex flex-col gap-[18px]">
-          <!--
-            Below `lg` this is the promises band and nothing else (§5): the
-            headline and its glow are the argument for financing, and the
-            customer has already accepted it by reaching step 3. `order-2` puts
-            it under the step heading, which the payment card hands over via
-            `contents` below.
-          -->
-          <div class="relative order-2 overflow-hidden rounded-2xl border border-primary-500/30 p-4 lg:order-none lg:p-6" style="background: linear-gradient(135deg, #241846, #16252A 75%);">
-            <div class="pointer-events-none absolute -top-12 right-10 hidden size-52 rounded-full opacity-45 blur-[60px] lg:block" style="background: radial-gradient(circle at 50% 38%, #9b79f6 0%, #7d53f2 55%, #6c40e8 100%);" />
-            <div class="relative flex flex-wrap items-center gap-6">
-              <div class="hidden min-w-[240px] flex-1 lg:block">
-                <div class="mb-2 text-xs font-bold tracking-[0.05em] text-primary-200">
-                  PAY FROM PROFITS
-                </div>
-                <!--
-                  Copy matches reality: placeOrder() creates the project as
-                  PENDING and My Orders shows "Awaiting kickoff", so promising a
-                  same-day start contradicted the very next screen.
-                -->
-                <h2 class="font-heading text-[26px] font-extrabold leading-[1.12] tracking-[-0.02em] text-white">
-                  £0 today. Your project is scheduled the moment you sign.
-                </h2>
-              </div>
-              <div class="flex w-full flex-col gap-3 lg:w-auto lg:flex-row lg:flex-wrap lg:gap-6">
-                <div v-for="b in [{ t: 'No deposit', s: '£0 down payment' }, { t: 'Fast kickoff', s: 'Scheduled on signature' }, { t: 'Cancel anytime', s: 'Before work starts' }]" :key="b.t" class="flex items-center gap-2.5">
-                  <span class="flex size-[30px] shrink-0 items-center justify-center rounded-full bg-[#22B07D]/18 text-[#22B07D] lg:size-[34px]"><Icon name="lucide:check" class="size-[17px]" /></span>
-                  <span class="text-[13.5px] font-medium text-white">{{ b.t }}<br><span class="text-xs text-primary-200">{{ b.s }}</span></span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!--
-            `contents` below `lg` dissolves the card so its children become
-            children of the step's own column, which is the only way the
-            heading can lead while the promises band sits between it and the
-            terms — as drawn — without either duplicating the heading or moving
-            the desktop layout. From `lg` the card is a card again and the
-            orders below become inert.
-          -->
-          <div class="contents lg:block lg:rounded-2xl lg:border lg:border-white/10 lg:bg-muted-800 lg:p-7">
-            <div class="order-1">
-              <h3 class="font-heading text-[21px] font-bold tracking-[-0.01em] text-white lg:text-[20px]">
-                Choose how you'd like to pay
-              </h3>
-              <p class="mb-0 mt-2 text-sm text-muted-400 lg:mb-5 lg:mt-0">
-                Spread the cost of your <strong class="font-semibold text-white">{{ plan?.name }}</strong> plan. Switch anytime before signing.
-              </p>
-            </div>
-            <div class="order-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <!-- 12 months -->
-              <button type="button" :aria-pressed="term === '12'" class="relative flex flex-col rounded-2xl border p-[18px] text-left transition sm:p-[22px]" :class="term === '12' ? 'border-primary-500 bg-primary-500/[0.06] ring-4 ring-primary-500/15' : 'border-white/10 bg-white/[0.02] hover:border-white/15'" @click="term = '12'">
-                <div class="flex items-center justify-between">
-                  <span class="rounded-full bg-[#22B07D]/16 px-2.5 py-[5px] text-[11px] font-extrabold tracking-[0.05em] text-[#22B07D]">0% INTEREST</span>
-                  <span :class="[radioBase, term === '12' ? 'bg-primary-500' : 'border-2 border-white/15']"><span v-if="term === '12'" class="size-2.5 rounded-full bg-white" /></span>
-                </div>
-                <div class="mt-4 font-heading text-[18px] font-bold text-white">
-                  12 monthly payments
-                </div>
-                <div class="mt-2.5 flex items-baseline gap-1.5">
-                  <span class="font-heading text-[28px] font-extrabold tracking-[-0.02em] text-white tabular-nums sm:text-[36px]">{{ money(m12) }}</span><span class="text-sm text-muted-500">/mo</span>
-                </div>
-                <div class="mt-4 flex flex-col gap-2 text-[13px]">
-                  <div class="flex justify-between text-muted-400">
-                    <span>Interest</span><span class="font-semibold text-[#22B07D]">£0 · 0%</span>
-                  </div>
-                  <div class="flex justify-between text-muted-400">
-                    <span>Total to pay</span><span class="font-bold text-white">{{ money(base) }}</span>
-                  </div>
-                </div>
-                <div class="mt-3.5 flex items-center gap-1.5 rounded-xl border border-primary-500/20 bg-primary-500/10 px-2.5 py-2 text-xs text-primary-200">
-                  <Icon name="lucide:info" class="size-3.5" />Pay the least overall
-                </div>
-              </button>
-              <!-- 24 months (hidden when the admin disables the plan) -->
-              <button v-if="enable24mo" type="button" :aria-pressed="term === '24'" class="relative flex flex-col rounded-2xl border p-[18px] text-left transition sm:p-[22px]" :class="term === '24' ? 'border-primary-500 bg-primary-500/[0.06] ring-4 ring-primary-500/15' : 'border-white/10 bg-white/[0.02] hover:border-white/15'" @click="term = '24'">
-                <div class="flex items-center justify-between">
-                  <span class="rounded-full bg-primary-500/18 px-2.5 py-[5px] text-[11px] font-extrabold tracking-[0.05em] text-primary-200">LOWEST MONTHLY</span>
-                  <span :class="[radioBase, term === '24' ? 'bg-primary-500' : 'border-2 border-white/15']"><span v-if="term === '24'" class="size-2.5 rounded-full bg-white" /></span>
-                </div>
-                <div class="mt-4 font-heading text-[18px] font-bold text-white">
-                  24 monthly payments
-                </div>
-                <div class="mt-2.5 flex items-baseline gap-1.5">
-                  <span class="font-heading text-[28px] font-extrabold tracking-[-0.02em] text-white tabular-nums sm:text-[36px]">{{ money(m24) }}</span><span class="text-sm text-muted-500">/mo</span>
-                </div>
-                <div class="mt-4 flex flex-col gap-2 text-[13px]">
-                  <div class="flex justify-between text-muted-400">
-                    <span>Interest</span><span class="font-semibold text-white">{{ money(interest24) }} · 1%/mo</span>
-                  </div>
-                  <div class="flex justify-between text-muted-400">
-                    <span>Total to pay</span><span class="font-bold text-white">{{ money(total24) }}</span>
-                  </div>
-                </div>
-                <div class="mt-3.5 flex items-center gap-1.5 rounded-xl border border-primary-500/20 bg-primary-500/10 px-2.5 py-2 text-xs text-primary-200">
-                  <Icon name="lucide:sprout" class="size-3.5" />Keep cash free to grow
-                </div>
-              </button>
-            </div>
-            <div class="order-4 flex items-start gap-2 text-[12.5px] text-muted-500 lg:mt-[18px] lg:items-center">
-              <Icon name="lucide:lock" class="mt-0.5 size-3.5 shrink-0 lg:mt-0" />The 24-month plan adds 1% monthly interest (≈12% per year) on the reducing balance. No early-repayment fees.
-            </div>
-          </div>
-        </section>
-
-        <!-- STEP 4 — DETAILS -->
-        <!--
-          No plan-recap banner: service, plan, monthly and total are all in the
-          sticky rail immediately to the right and have not changed since step 3,
-          so the fold showed a restatement instead of the fields.
-        -->
-        <section v-else-if="step === 4" class="flex flex-col gap-[18px]">
-          <div class="lg:rounded-2xl lg:border lg:border-white/10 lg:bg-muted-800 lg:p-7">
-            <h3 class="font-heading text-[21px] font-bold tracking-[-0.01em] text-white lg:text-[20px]">
-              Tell us about your project
-            </h3>
-            <p class="mb-[18px] mt-2 text-sm text-muted-400 lg:mb-5 lg:mt-0">
-              A few details so the right team is ready the moment you sign. <span class="text-muted-500">Tailored to your {{ serviceName }} order.</span>
-            </p>
-            <div class="grid grid-cols-1 gap-[18px] sm:grid-cols-2">
-              <div v-for="field in fields" :key="field.key" :class="field.full ? 'sm:col-span-2' : ''">
-                <label :for="`f-${field.key}`" class="mb-2 block text-xs font-semibold uppercase tracking-[0.04em] text-muted-500">
-                  {{ field.label }}<span v-if="field.required" class="ms-0.5 text-[#EC6453]" aria-hidden="true">*</span>
-                  <span v-if="field.type === 'date'" class="ms-1 font-normal normal-case tracking-normal text-muted-600">(optional)</span>
-                </label>
-
-                <!--
-                  The date field is a plain text input, not `type="date"`: the
-                  native control renders in the *browser's* locale, which showed
-                  mm/dd/yyyy for a UK product invoicing in GBP, and no attribute
-                  can override that. The value is validated as dd/mm/yyyy.
-                -->
-                <!--
-                  `text-base` below `lg` is not a size preference: iOS zooms the
-                  whole page in when a focused input's type is under 16px, and
-                  the customer then has to pinch back out to see the field they
-                  are filling. 16px with the existing padding is also the 48px
-                  control the spec asks for.
-                -->
-                <div v-if="['text', 'url', 'date'].includes(field.type)" class="relative">
-                  <input
-                    :id="`f-${field.key}`"
-                    v-model="form[field.key]"
-                    :type="field.type === 'url' ? 'url' : 'text'"
-                    :inputmode="field.type === 'date' ? 'numeric' : undefined"
-                    :placeholder="field.type === 'date' ? 'dd / mm / yyyy' : field.placeholder"
-                    :aria-invalid="visibleError(field) ? 'true' : undefined"
-                    :aria-describedby="visibleError(field) ? `e-${field.key}` : undefined"
-                    class="w-full rounded-xl border bg-white/5 px-3.5 py-3 text-base text-white outline-none transition focus:border-primary-400 lg:text-sm"
-                    :class="[
-                      visibleError(field) ? 'border-[#EC6453]/60' : 'border-white/10',
-                      field.type === 'date' ? 'pe-11' : '',
-                    ]"
-                    @blur="touched[field.key] = true"
-                  >
-                  <Icon v-if="field.type === 'date'" name="lucide:calendar" aria-hidden="true" class="pointer-events-none absolute end-3.5 top-1/2 size-[17px] -translate-y-1/2 text-muted-500" />
-                </div>
-
-                <!--
-                  Never a native <select>: its popup is an OS menu — white with
-                  black text on this dark form — and CSS cannot reach it.
-                  A themed listbox from `lg`, and below it a bottom sheet (§6),
-                  because a listbox anchored near the bottom of a 393px viewport
-                  opens over the field it belongs to.
-
-                  Only one of the two is ever mounted (`isCompact` resolves
-                  after hydration), so the `for` on the label always points at
-                  exactly one control.
-                -->
-                <template v-else-if="field.type === 'select'">
-                  <button
-                    v-if="isCompact"
-                    :id="`f-${field.key}`"
-                    type="button"
-                    aria-haspopup="dialog"
-                    :aria-expanded="openSelectKey === field.key"
-                    :aria-invalid="visibleError(field) ? 'true' : undefined"
-                    :aria-describedby="visibleError(field) ? `e-${field.key}` : undefined"
-                    class="apex-focus flex min-h-12 w-full cursor-pointer items-center gap-2.5 rounded-xl border bg-white/5 px-3.5 text-base transition"
-                    :class="[
-                      visibleError(field) ? 'border-[#EC6453]/60' : 'border-white/10',
-                      form[field.key] ? 'text-white' : 'text-muted-500',
-                    ]"
-                    @click="openSelectKey = field.key"
-                  >
-                    <span class="grow truncate text-start">{{ form[field.key] || 'Select an option' }}</span>
-                    <Icon name="lucide:chevron-down" class="size-[18px] shrink-0 text-muted-500" />
-                  </button>
-                  <BaseSelect
-                    v-else
-                    :id="`f-${field.key}`"
-                    v-model="form[field.key]"
-                    placeholder="Select an option"
-                    rounded="lg"
-                    size="lg"
-                    :aria-invalid="visibleError(field) ? 'true' : undefined"
-                    class="bg-white/5! text-white! py-3! h-auto! rounded-xl! border-white/10!"
-                    :classes="{ text: 'text-sm', content: 'z-[60]' }"
-                    @update:model-value="touched[field.key] = true"
-                  >
-                    <BaseSelectItem v-for="o in field.options" :key="o" :value="o">
-                      {{ o }}
-                    </BaseSelectItem>
-                  </BaseSelect>
-                </template>
-
-                <textarea
-                  v-else-if="field.type === 'textarea'" :id="`f-${field.key}`" v-model="form[field.key]" rows="3" :placeholder="field.placeholder"
-                  class="w-full resize-y rounded-xl border border-white/10 bg-white/5 px-3.5 py-3 text-base text-white outline-none transition focus:border-primary-400 lg:text-sm"
-                />
-                <div v-else-if="field.type === 'checkboxes'" class="flex flex-wrap gap-2.5">
-                  <label v-for="box in field.boxes" :key="box.key" class="inline-flex min-h-11 cursor-pointer items-center gap-2.5 rounded-xl border border-white/10 bg-white/5 px-3.5 py-2.5 text-[13.5px] text-white lg:min-h-0">
-                    <input v-model="form[box.key]" type="checkbox" class="size-[22px] accent-primary-500 lg:size-4">{{ box.label }}
-                  </label>
-                </div>
-
-                <p v-if="visibleError(field)" :id="`e-${field.key}`" class="mt-1.5 flex items-center gap-1.5 text-[12.5px] text-[#EC6453]">
-                  <Icon name="lucide:alert-circle" class="size-3.5 shrink-0" />{{ visibleError(field) }}
-                </p>
-              </div>
-            </div>
-            <!--
-              The mockup offers to take a brief here. `Project` has a files
-              relation but no customer-facing upload endpoint, so a picker on
-              this form would collect a file and drop it — the defect Phase 6
-              removed from the support composer. It says what actually works
-              instead.
-            -->
-            <div class="mt-[18px] flex items-start gap-3 rounded-xl border border-white/10 bg-white/[0.02] p-3.5">
-              <Icon name="lucide:paperclip" class="mt-0.5 size-[17px] shrink-0 text-primary-400" />
-              <p class="text-[13px] leading-[1.5] text-muted-400">
-                Have a brief or brand assets? There is no upload on this form yet — once your project exists, ask <NuxtLink to="/dashboards/support" class="font-semibold text-primary-400">
-                  Support
-                </NuxtLink> for a secure upload link and we will attach them to it.
-              </p>
-            </div>
-            <div v-if="submitted && detailErrors.length" class="mt-4 flex items-center gap-2 rounded-xl border border-[#EC6453]/30 bg-[#EC6453]/10 px-3.5 py-2.5 text-[13px] text-[#EC6453]">
-              <Icon name="lucide:alert-circle" class="size-[15px] shrink-0" />Please fix the highlighted {{ detailErrors.length === 1 ? 'field' : 'fields' }} to continue.
-            </div>
-          </div>
-        </section>
-
-        <!-- STEP 5 — CONTRACT -->
-        <section v-else-if="step === 5" class="lg:rounded-2xl lg:border lg:border-white/10 lg:bg-muted-800 lg:p-7">
-          <h2 class="font-heading text-[21px] font-bold tracking-[-0.01em] text-white lg:text-[22px]">
-            Review &amp; sign
-          </h2>
-          <p class="mb-4 mt-2 text-[14px] text-muted-400 lg:mb-5 lg:mt-1.5 lg:text-[14.5px]">
-            Your service agreement. Signing confirms the order and schedules your <strong class="font-semibold text-[#22B07D]">kickoff</strong>.
-          </p>
-
-          <!--
-            Capped so the consent controls stay within reach of the fold; the
-            toggle below opens it out in place. There is no separate document to
-            link to — this text *is* the agreement — so a button promising to
-            open one would lead nowhere.
-          -->
-          <div
-            class="overflow-y-auto rounded-xl border border-white/10 bg-white/[0.02] px-4 py-4 text-[13.5px] leading-[1.65] text-muted-400 [-webkit-overflow-scrolling:touch] lg:max-h-[264px] lg:px-6 lg:py-[22px]"
-            :class="contractExpanded ? 'max-h-none' : 'max-h-[240px]'"
-          >
-            <div class="mb-3 font-heading text-base font-bold text-white">
-              Service agreement — Apex Digital Agency
-            </div>
-            <p class="mb-3.5">
-              This agreement is between <strong class="font-semibold text-white">Apex Digital Agency</strong> ("Apex") and the Client for the supply of <strong class="font-semibold text-white">{{ serviceName }}</strong> services under the <strong class="font-semibold text-white">{{ plan?.name }}</strong> plan.
-            </p>
-            <p class="mb-2 font-semibold text-white">
-              1. Scope &amp; deliverables
-            </p>
-            <p class="mb-3.5">
-              Apex will deliver the features listed in the selected plan. Work is scheduled on signature and begins at kickoff, with no down payment required.
-            </p>
-            <p class="mb-2 font-semibold text-white">
-              2. Fees &amp; payment schedule
-            </p>
-            <p class="mb-3.5">
-              Project value of <strong class="font-semibold text-white">{{ money(base) }}</strong>, payable as <strong class="font-semibold text-white">{{ monthsText }}</strong> of <strong class="font-semibold text-white">{{ money(monthly) }}</strong>. Total payable <strong class="font-semibold text-white">{{ money(total) }}</strong> ({{ term === '12' ? '0% interest' : `includes ${money(interest24)} interest` }}). The first instalment is collected {{ firstDueDays }} days after the project start date.
-            </p>
-            <p class="mb-2 font-semibold text-white">
-              3. Revisions &amp; support
-            </p>
-            <p class="mb-3.5">
-              Revisions and support are provided as specified in the plan. Additional scope may be quoted separately.
-            </p>
-            <p class="mb-2 font-semibold text-white">
-              4. Cancellation
-            </p>
-            <p>The Client may cancel at no cost before work begins. Once started, completed milestones are payable. There are no early-repayment fees on instalments.</p>
-          </div>
+      <!-- Stepper: three labelled steps from 640px of content, a name and three bars below -->
+      <ol aria-label="Order steps" class="bg-card border-line-subtle shadow-panel m-0 hidden list-none items-center gap-1.5 rounded-[18px] border p-1.5 @min-[640px]:flex">
+        <li v-for="(label, i) in STEP_LABELS" :key="label" class="flex min-w-0 flex-1">
           <button
             type="button"
-            class="apex-focus mt-2.5 flex min-h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-white/10 text-[13.5px] font-semibold text-muted-400 transition hover:text-white lg:hidden"
-            :aria-expanded="contractExpanded"
-            @click="contractExpanded = !contractExpanded"
+            :disabled="step <= i + 1"
+            :aria-current="step === i + 1 ? 'step' : undefined"
+            class="apex-ring flex min-h-12 min-w-0 flex-1 items-center gap-2.5 rounded-[13px] px-3 text-left disabled:cursor-default"
+            :class="step === i + 1 ? 'bg-accent-tint' : 'bg-transparent'"
+            @click="go((i + 1) as 1 | 2 | 3)"
           >
-            <Icon name="lucide:file-text" class="size-4" />{{ contractExpanded ? 'Collapse agreement' : 'Read the full agreement' }}
+            <span
+              class="font-heading inline-flex size-7 shrink-0 items-center justify-center rounded-full text-[13px] font-extrabold"
+              :class="step > i + 1 ? 'bg-[#22B07D] text-white' : step === i + 1 ? 'bg-accent text-white' : 'border-line-rule text-fg-muted border-2'"
+            >{{ step > i + 1 ? '✓' : i + 1 }}</span>
+            <span class="truncate text-sm" :class="step === i + 1 ? 'text-accent-ink font-bold' : step > i + 1 ? 'text-fg-heading font-semibold' : 'text-fg-muted font-semibold'">{{ label }}</span>
           </button>
+        </li>
+      </ol>
+      <div class="flex flex-col gap-2.5 @min-[640px]:hidden">
+        <div class="flex items-baseline justify-between gap-3">
+          <span class="font-heading text-fg-heading text-lg font-bold tracking-[-0.02em]">{{ STEP_LABELS[step - 1] }}</span>
+          <span class="text-fg-muted text-[13px] font-semibold">Step {{ step }} of 3</span>
+        </div>
+        <div aria-hidden="true" class="flex gap-1">
+          <span v-for="i in 3" :key="i" class="block h-1 flex-1 rounded-full" :class="i <= step ? 'bg-accent' : 'bg-track'" />
+        </div>
+      </div>
 
-          <!-- Printed legal name — part of the signing evidence. -->
-          <div class="mt-5">
-            <label for="legal-name" class="mb-2 block text-xs font-semibold uppercase tracking-[0.04em] text-muted-500">Full legal name *</label>
-            <input
-              id="legal-name" v-model="legalName" autocomplete="name" placeholder="Your full legal name"
-              class="w-full rounded-xl border border-white/10 bg-white/5 px-3.5 py-3 text-base text-white outline-none transition focus:border-primary-400 lg:text-sm"
-            >
-          </div>
-
-          <!--
-            The terms link was `href="#"` — a control that looked like a
-            document and went nowhere. It resolves now, and opens in a new tab:
-            navigating away mid-wizard discards a half-filled order, so reading
-            the terms must not cost the customer their answers.
-          -->
-          <label class="mt-4 flex min-h-11 cursor-pointer items-start gap-3 lg:min-h-0">
-            <input v-model="agreed" type="checkbox" class="mt-0.5 size-[22px] shrink-0 accent-primary-500 lg:size-[18px]">
-            <span class="text-sm leading-[1.5] text-muted-400">I have read and agree to the service agreement, the payment schedule, and Apex's <a href="/legal/terms" target="_blank" rel="noopener" class="text-primary-400 no-underline">terms of service</a>.</span>
-          </label>
-          <label class="mt-3 flex min-h-11 cursor-pointer items-start gap-3 lg:min-h-0">
-            <input v-model="esignConsent" type="checkbox" class="mt-0.5 size-[22px] shrink-0 accent-primary-500 lg:size-[18px]">
-            <span class="text-sm leading-[1.5] text-muted-400">I consent to signing this agreement electronically and agree that my electronic signature is legally binding and has the same effect as a handwritten signature (Electronic Communications Act 2000).</span>
-          </label>
-
-          <!--
-            One method at a time. Draw and type used to be live simultaneously
-            and `canSign` accepted either, so which one would be submitted as
-            the signature was ambiguous to the person signing.
-          -->
-          <div class="mt-5">
-            <div class="mb-2.5 flex flex-wrap items-center gap-3">
-              <span class="text-xs font-semibold uppercase tracking-[0.04em] text-muted-500">Signature</span>
-              <div role="radiogroup" aria-label="Signature method" class="inline-flex gap-[3px] rounded-full border border-white/10 bg-white/5 p-[3px]">
+      <div class="grid items-start gap-[clamp(20px,2vw,28px)] @min-[860px]:grid-cols-[minmax(0,1fr)_300px] @min-[1060px]:grid-cols-[minmax(0,1fr)_340px]">
+        <div class="@container flex min-w-0 flex-col gap-5">
+          <!-- Step 1: service, then plan -->
+          <template v-if="step === 1">
+            <section aria-labelledby="h-s1" class="flex flex-col gap-4">
+              <div class="flex flex-col gap-1.5">
+                <h2 id="h-s1" :class="H2">
+                  Choose a service and plan
+                </h2>
+                <p :class="SUB">
+                  Start with what is costing you money today. Plans appear below as soon as you pick.
+                </p>
+              </div>
+              <div role="radiogroup" aria-label="Service" class="grid gap-3.5 @min-[480px]:grid-cols-2 @min-[700px]:grid-cols-3">
                 <button
-                  v-for="mode in ([{ key: 'draw', label: 'Draw' }, { key: 'type', label: 'Type' }] as const)" :key="mode.key"
-                  type="button" role="radio" :aria-checked="sigMode === mode.key"
-                  class="apex-focus min-h-[34px] cursor-pointer rounded-full px-4 py-1.5 text-[12.5px] transition lg:min-h-0 lg:px-3.5"
-                  :class="sigMode === mode.key ? 'bg-primary-500 font-bold text-white' : 'font-semibold text-muted-400 hover:text-white'"
-                  @click="sigMode = mode.key"
+                  v-for="s in services"
+                  :key="s.id"
+                  type="button"
+                  role="radio"
+                  :aria-checked="svcId === s.id"
+                  class="apex-ring bg-card relative flex min-w-0 cursor-pointer flex-col items-start gap-2.5 rounded-[20px] border p-5 text-left transition-[box-shadow,border-color] duration-200"
+                  :class="ringed(svcId === s.id)"
+                  @click="pickService(s.id)"
                 >
-                  {{ mode.label }}
+                  <span class="flex h-[30px] items-center"><ApexGlyph :kind="s.id" :size="28" /></span>
+                  <span class="font-heading text-fg-heading text-lg font-semibold leading-[1.2] tracking-[-0.02em]">{{ s.name }}</span>
+                  <span class="text-fg-body text-[13.5px] leading-normal">{{ s.line }}</span>
+                  <span class="text-fg-heading mt-auto pt-2.5 text-[13px] font-semibold">{{ serviceFrom(s) }}</span>
+                  <span aria-hidden="true" class="absolute right-4 top-4 inline-flex size-[22px] items-center justify-center rounded-full border-2 text-[11px] text-white" :class="svcId === s.id ? 'bg-accent border-accent' : 'border-line-rule'">{{ svcId === s.id ? '✓' : '' }}</span>
                 </button>
               </div>
-              <div class="flex-1" />
-              <button v-if="sigMode === 'draw'" type="button" class="apex-focus cursor-pointer rounded-md border-none bg-transparent text-xs font-semibold text-primary-400 transition hover:text-white" @click="clearSig">
-                Clear
+            </section>
+
+            <section v-if="service" aria-labelledby="h-s2" class="flex scroll-mt-24 flex-col gap-4">
+              <div class="flex flex-col gap-1.5">
+                <h2 id="h-s2" ref="plansHeading" :class="H2" class="scroll-mt-24">
+                  {{ service.heading }}
+                </h2>
+                <p :class="SUB">
+                  {{ service.sub }}
+                </p>
+              </div>
+              <div role="radiogroup" aria-label="Plan" class="grid gap-3.5" :class="service.plans.length === 2 ? '@min-[480px]:grid-cols-2' : '@min-[700px]:grid-cols-3'">
+                <button
+                  v-for="p in service.plans"
+                  :key="p.id"
+                  type="button"
+                  role="radio"
+                  :aria-checked="planId === p.id"
+                  class="apex-ring bg-card relative flex min-w-0 cursor-pointer flex-col items-stretch gap-3.5 rounded-[22px] border p-[22px] text-left"
+                  :class="ringed(planId === p.id)"
+                  @click="planId = p.id"
+                >
+                  <span class="flex min-h-6 items-center justify-between gap-2.5">
+                    <span class="font-heading text-fg-heading text-[19px] font-bold tracking-[-0.02em]">{{ p.name }}</span>
+                    <span v-if="p.featured" class="bg-accent-tint text-accent-ink whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-bold">{{ p.flag ?? 'Most chosen' }}</span>
+                  </span>
+                  <span class="text-fg-body min-h-10 text-[13.5px] leading-normal">{{ p.summary }}</span>
+                  <span class="border-line-soft flex flex-col gap-1.5 border-y py-3.5">
+                    <span class="font-heading text-fg-heading text-[34px] font-extrabold leading-none tracking-[-0.03em] tabular-nums">{{ planPrice(service, p).price }}<span class="text-fg-muted text-sm font-semibold">{{ planPrice(service, p).unit }}</span></span>
+                    <span class="text-fg-muted text-[12.5px]">{{ planPrice(service, p).note }}</span>
+                  </span>
+                  <span class="flex flex-col gap-[9px]">
+                    <span v-for="f in p.features" :key="f" class="text-fg-body flex items-start gap-[9px] text-[13.5px] leading-[1.45]">
+                      <span aria-hidden="true" class="mt-px inline-flex size-[18px] shrink-0 items-center justify-center rounded-full bg-[#22B07D] text-[9.5px] text-white">✓</span>{{ f }}
+                    </span>
+                  </span>
+                  <span class="mt-auto flex min-h-[42px] items-center justify-center gap-2 rounded-xl text-sm font-semibold" :class="planId === p.id ? 'bg-accent text-white' : 'bg-raised text-fg-heading'">
+                    {{ planId === p.id ? 'Selected' : `Choose ${p.name}` }}
+                  </span>
+                </button>
+              </div>
+              <p class="text-fg-muted m-0 max-w-[72ch] text-[13px] leading-relaxed">
+                {{ service.foot }}
+              </p>
+            </section>
+          </template>
+
+          <!-- Step 2: brief -->
+          <section v-if="step === 2" aria-labelledby="h-s4" class="flex flex-col gap-4">
+            <div class="flex flex-col gap-1.5">
+              <h2 id="h-s4" :class="H2">
+                Tell us about the project
+              </h2>
+              <p :class="SUB">
+                Two fields are required. Everything else helps the kickoff call go faster.
+              </p>
+            </div>
+            <div :class="CARD" class="grid grid-cols-[repeat(auto-fit,minmax(min(100%,260px),1fr))] gap-5 p-[clamp(18px,2vw,26px)]">
+              <div class="col-span-full">
+                <ApexField v-model="fName" label="Project name" required placeholder="e.g. Business website" hint="Shown in My orders and on your receipts" :error="errName" @blur="touched.name = true" />
+              </div>
+              <div class="col-span-full">
+                <ApexField v-model="fGoal" label="What should this project achieve?" required multiline :rows="4" placeholder="e.g. More quote requests from homeowners in Maidstone and Tonbridge" hint="A sentence or two is enough" :error="errGoal" @blur="touched.goal = true" />
+              </div>
+              <button type="button" :aria-expanded="moreOpen" class="apex-ring text-accent-ink col-span-full inline-flex min-h-10 cursor-pointer items-center gap-2 justify-self-start rounded-lg px-1 text-sm font-semibold" @click="moreOpen = !moreOpen">
+                <Icon :name="moreOpen ? 'lucide:chevron-up' : 'lucide:chevron-down'" class="size-4" />{{ moreOpen ? 'Hide optional details' : 'Add more detail (optional)' }}
               </button>
+              <template v-if="moreOpen">
+                <ApexField v-model="fSite" label="Current website" placeholder="yourbusiness.co.uk" hint="Optional" inputmode="url" />
+                <div v-if="svcId === 'web'" class="flex flex-col gap-2">
+                  <span id="lbl-pages" class="text-fg-heading text-sm font-semibold">Number of pages</span>
+                  <div role="radiogroup" aria-labelledby="lbl-pages" class="grid grid-cols-2 gap-2">
+                    <button
+                      v-for="o in PAGE_OPTIONS"
+                      :key="o"
+                      type="button"
+                      role="radio"
+                      :aria-checked="pages === o"
+                      class="apex-ring min-h-12 cursor-pointer rounded-xl border px-3 text-left text-sm font-medium"
+                      :class="pages === o ? 'border-accent bg-accent-tint text-accent-ink' : 'border-line-rule bg-card text-fg-heading'"
+                      @click="pages = pages === o ? '' : o"
+                    >
+                      {{ o }}
+                    </button>
+                  </div>
+                  <span class="text-fg-muted text-[12.5px]">Optional · Leave blank if you are not sure</span>
+                </div>
+                <ApexField v-model="fDate" label="Target launch date" placeholder="dd/mm/yyyy" hint="Optional" inputmode="numeric" :error="errDate" @blur="touched.date = true" />
+                <div class="col-span-full flex flex-col gap-2.5">
+                  <label class="apex-ring border-line-rule bg-raised relative flex cursor-pointer flex-wrap items-center gap-3.5 rounded-2xl border-[1.5px] border-dashed p-[18px] focus-within:outline-2 focus-within:outline-[var(--accent)]">
+                    <span class="bg-card border-line-subtle text-accent-ink inline-flex size-[42px] shrink-0 items-center justify-center rounded-xl border">
+                      <Icon :name="uploads.uploading.value ? 'lucide:loader-circle' : 'solar:upload-linear'" class="size-5" :class="uploads.uploading.value ? 'motion-safe:animate-spin' : ''" />
+                    </span>
+                    <span class="flex flex-[1_1_200px] flex-col gap-0.5">
+                      <span class="text-fg-heading text-sm font-semibold">Add files</span>
+                      <span class="text-fg-muted text-[12.5px]">Logos, copy, photos or an existing brief. Up to 20 MB each.</span>
+                    </span>
+                    <span class="text-accent-ink text-[13.5px] font-semibold">Browse</span>
+                    <input type="file" multiple class="absolute size-px opacity-0" @change="onFiles">
+                  </label>
+                  <p v-if="uploads.error.value" role="alert" class="text-st-danger-fg m-0 text-[13px]">
+                    {{ uploads.error.value }}
+                  </p>
+                  <ul v-if="uploads.files.value.length" class="m-0 flex list-none flex-col gap-2 p-0">
+                    <li v-for="f in uploads.files.value" :key="f.id" class="bg-card border-line-subtle flex items-center gap-3 rounded-xl border px-3.5 py-2.5 text-sm">
+                      <Icon name="solar:file-check-linear" class="size-[18px] shrink-0 text-[#22B07D]" />
+                      <span class="text-fg-heading min-w-0 grow truncate font-medium">{{ f.name }}</span>
+                      <span class="text-fg-muted text-[12.5px]">{{ fileSize(f.size) }}</span>
+                      <button type="button" :aria-label="`Remove ${f.name}`" class="apex-ring text-fg-muted hover:text-fg-heading inline-flex size-9 cursor-pointer items-center justify-center rounded-lg" @click="uploads.remove(f.id)">
+                        <Icon name="lucide:x" class="size-4" />
+                      </button>
+                    </li>
+                  </ul>
+                </div>
+              </template>
             </div>
+          </section>
 
-            <!-- 150px on a phone: enough box to sign in with a thumb, without pushing the action bar off the screen. -->
-            <div v-show="sigMode === 'draw'" class="relative h-[150px] overflow-hidden rounded-xl border border-dashed border-white/15 bg-white/[0.02] lg:h-[130px]">
-              <canvas ref="sigCanvas" width="640" height="130" class="absolute inset-0 size-full cursor-crosshair touch-none" @pointerdown="sigDown" @pointermove="sigMove" @pointerup="sigUp" @pointerleave="sigUp" />
-              <!-- A signing rule and its caption, in place of the stray ✕ glyph that read as a broken character. -->
-              <div class="pointer-events-none absolute inset-x-5 bottom-[26px] border-t border-white/10" />
-              <span class="pointer-events-none absolute bottom-2 left-5 text-[11.5px] text-muted-500">Sign above this line<span class="lg:hidden"> with your finger</span></span>
-            </div>
-
-            <div v-show="sigMode === 'type'">
-              <input v-model="signName" placeholder="Type your full name" class="w-full rounded-xl border border-white/10 bg-white/5 px-3.5 py-3 font-heading text-lg font-semibold text-white outline-none transition focus:border-primary-400 lg:text-base">
-              <div class="mt-2.5 flex items-center gap-1.5 text-xs text-muted-500">
-                <Icon name="lucide:lock" class="size-3.5" />Legally binding e-signature
+          <!-- Step 3: how you will pay, then check and sign -->
+          <template v-if="step === 3">
+            <section aria-labelledby="h-s3" class="flex flex-col gap-4">
+              <div class="flex flex-col gap-1.5">
+                <h2 id="h-s3" :class="H2">
+                  How you will pay
+                </h2>
+                <p :class="SUB">
+                  Every date and amount is shown here before you sign. Figures include VAT.
+                </p>
               </div>
+              <div v-if="kind === 'fixed' && plan && terms" role="radiogroup" aria-label="Payment option" class="grid grid-cols-[repeat(auto-fit,minmax(min(100%,240px),1fr))] gap-3.5">
+                <button
+                  v-for="o in (['monthly', 'full'] as const)"
+                  :key="o"
+                  type="button"
+                  role="radio"
+                  :aria-checked="pay === o"
+                  class="apex-ring bg-card flex cursor-pointer items-start gap-3.5 rounded-[20px] border p-5 text-left"
+                  :class="ringed(pay === o)"
+                  @click="pay = o"
+                >
+                  <span aria-hidden="true" class="mt-0.5 inline-flex size-[22px] shrink-0 items-center justify-center rounded-full border-2 text-[11px] text-white" :class="pay === o ? 'bg-accent border-accent' : 'border-line-rule'">{{ pay === o ? '✓' : '' }}</span>
+                  <span class="flex min-w-0 flex-col gap-[5px]">
+                    <span class="text-fg-heading text-[15px] font-semibold">{{ o === 'monthly' ? 'Monthly instalments' : 'Pay in full' }}</span>
+                    <span class="font-heading text-fg-heading text-[26px] font-extrabold tracking-[-0.025em] tabular-nums">
+                      {{ o === 'monthly' ? formatCurrency(plan.monthly ?? 0) : formatCurrency(orderTerms(service!, plan).total) }}<span v-if="o === 'monthly'" class="text-fg-muted text-[13px] font-semibold"> /mo</span>
+                    </span>
+                    <span class="text-fg-muted text-[13px] leading-normal">{{ o === 'monthly' ? `${formatCurrency(plan.deposit ?? 0)} deposit at kickoff, then ${paymentCount(service!, plan)} monthly payments` : 'One payment at kickoff. Same total, nothing later.' }}</span>
+                  </span>
+                </button>
+              </div>
+
+              <div :class="CARD" class="overflow-hidden">
+                <div class="border-line-soft flex flex-wrap items-center justify-between gap-3 border-b px-5 py-4">
+                  <span class="text-fg-heading text-sm font-semibold">Payment schedule</span>
+                  <ApexStatusChip tone="success">
+                    No interest
+                  </ApexStatusChip>
+                </div>
+                <div v-for="r in visibleSchedule" :key="r.label" class="border-line-soft flex items-center gap-3.5 border-b px-5 py-[13px] text-sm">
+                  <span class="block size-[9px] shrink-0 rounded-full" :class="r.dot" />
+                  <span class="text-fg-heading min-w-0 grow font-medium">{{ r.label }}</span>
+                  <span class="text-fg-muted whitespace-nowrap tabular-nums">{{ r.date }}</span>
+                  <span class="text-fg-heading min-w-16 text-right font-semibold tabular-nums">{{ r.amt }}</span>
+                </div>
+                <button v-if="schedule.length > 4" type="button" class="apex-ring text-accent-ink hover:bg-hover min-h-[46px] w-full cursor-pointer text-sm font-semibold" @click="showAll = !showAll">
+                  {{ showAll ? 'Show fewer' : `Show all ${schedule.length} payments` }}
+                </button>
+                <div class="bg-raised flex items-center justify-between gap-3 px-5 py-4 text-sm">
+                  <span class="text-fg-heading font-semibold">{{ totalRow.label }}</span>
+                  <span class="font-heading text-fg-heading text-xl font-extrabold tabular-nums">{{ totalRow.amt }}</span>
+                </div>
+              </div>
+              <p class="text-fg-muted m-0 text-[13px]">
+                Instalment dates are shown from a kickoff today. The real dates are set when your kickoff payment is taken.
+              </p>
+
+              <div class="flex flex-col gap-2.5">
+                <span class="text-fg-heading text-sm font-semibold">Pay from</span>
+                <div class="bg-card border-accent flex min-h-[60px] items-center gap-3 rounded-2xl border px-4 py-3 shadow-[0_0_0_3px_var(--accent-tint)]">
+                  <span class="bg-raised text-fg-heading inline-flex size-[38px] shrink-0 items-center justify-center rounded-[11px]"><Icon name="solar:wallet-2-linear" class="size-[19px]" /></span>
+                  <span class="flex min-w-0 grow flex-col gap-0.5">
+                    <span class="text-fg-heading text-sm font-semibold">Wallet balance</span>
+                    <span class="text-fg-muted text-[12.5px]">{{ overview ? `${formatCurrency(overview.walletBalance)} available` : 'Payments are taken from your wallet' }}</span>
+                  </span>
+                  <NuxtLink to="/dashboards/wallet?add=1" target="_blank" class="apex-ring text-accent-ink shrink-0 rounded-md text-[13px] font-semibold hover:underline">
+                    Add funds
+                  </NuxtLink>
+                </div>
+                <p class="text-fg-muted m-0 text-[12.5px] leading-normal">
+                  Top up by card or bank transfer at any time. The kickoff payment and every instalment are taken from the wallet.
+                </p>
+              </div>
+              <p class="text-fg-muted m-0 max-w-[72ch] text-[13px] leading-relaxed">
+                Instalment plans are payment schedules for our own services, agreed directly with Apex. They are not credit agreements, no interest is charged and no credit check is carried out.
+              </p>
+            </section>
+
+            <section aria-labelledby="h-s5" class="flex flex-col gap-4">
+              <div class="flex flex-col gap-1.5">
+                <h2 id="h-s5" :class="H2">
+                  Check and sign
+                </h2>
+                <p :class="SUB">
+                  Check the details, then sign the agreement. The signed copy is kept with the order in My orders.
+                </p>
+              </div>
+              <div :class="CARD" class="overflow-hidden">
+                <div v-for="rv in [{ k: 'Service and plan', v: `${service?.name ?? ''}${plan ? ` · ${plan.name}` : ''}`, to: 1 }, { k: 'Project', v: fName, to: 2 }, { k: 'Payments', v: payLine, to: 3 }]" :key="rv.k" class="border-line-soft flex flex-wrap items-center gap-3.5 border-b px-5 py-3.5 last:border-b-0">
+                  <span class="text-fg-muted flex-[0_0_150px] text-[13.5px]">{{ rv.k }}</span>
+                  <span class="text-fg-heading min-w-0 flex-[1_1_180px] text-[14.5px] font-semibold">{{ rv.v }}</span>
+                  <button v-if="rv.to < 3" type="button" class="apex-ring text-accent-ink hover:bg-accent-tint min-h-9 cursor-pointer rounded-[9px] px-2.5 text-[13.5px] font-semibold" @click="go(rv.to as 1 | 2)">
+                    Edit
+                  </button>
+                </div>
+              </div>
+
+              <div :class="CARD" class="flex flex-col gap-4 p-[clamp(18px,2vw,24px)]">
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                  <span class="text-fg-heading text-[15px] font-semibold">Your signature</span>
+                  <span role="group" aria-label="Signature method" class="bg-raised border-line-subtle inline-flex rounded-[11px] border p-[3px]">
+                    <button
+                      v-for="m in (['type', 'draw'] as const)"
+                      :key="m"
+                      type="button"
+                      :aria-pressed="sigMode === m"
+                      class="apex-ring h-[34px] cursor-pointer rounded-lg px-3.5 text-[13px] font-semibold capitalize"
+                      :class="sigMode === m ? 'bg-card text-fg-heading shadow-[0_1px_3px_rgba(17,31,34,.12)]' : 'text-fg-body'"
+                      @click="sigMode = m; sigDrawn = false"
+                    >
+                      {{ m }}
+                    </button>
+                  </span>
+                </div>
+                <template v-if="sigMode === 'type'">
+                  <ApexField v-model="sigName" label="Type your full name" placeholder="Full legal name" autocomplete="name" />
+                  <button v-if="!sigName && accountName" type="button" class="apex-ring border-line-subtle bg-card text-fg-heading -mt-1.5 min-h-9 cursor-pointer self-start rounded-full border px-2.5 text-[13px] font-semibold" @click="sigName = accountName">
+                    Use “{{ accountName }}”
+                  </button>
+                  <div aria-hidden="true" class="bg-raised relative flex h-[110px] items-end rounded-[14px] px-[22px] pb-[30px]">
+                    <span class="font-heading text-fg-heading truncate text-[30px] font-semibold italic tracking-[-0.02em]">{{ sigName }}</span>
+                    <span class="bg-line-strong absolute inset-x-[22px] bottom-6 block h-px" />
+                    <span class="text-fg-muted absolute bottom-1.5 left-[22px] text-[11.5px]">Sign above this line</span>
+                  </div>
+                </template>
+                <div v-else class="bg-raised relative h-40 overflow-hidden rounded-[14px]">
+                  <canvas
+                    ref="canvas"
+                    aria-label="Signature pad"
+                    class="text-fg-heading absolute inset-0 size-full cursor-crosshair touch-none"
+                    @pointerdown="sigDown"
+                    @pointermove="sigMove"
+                    @pointerup="sigUp"
+                    @pointercancel="sigUp"
+                  />
+                  <span class="bg-line-strong pointer-events-none absolute inset-x-[22px] bottom-[30px] block h-px" />
+                  <span class="text-fg-muted pointer-events-none absolute bottom-2.5 left-[22px] text-[11.5px]">Sign above this line</span>
+                  <button type="button" class="apex-ring border-line-subtle bg-card text-fg-heading absolute right-2.5 top-2.5 min-h-[34px] cursor-pointer rounded-[9px] border px-3 text-[12.5px] font-semibold" @click="clearSig">
+                    Clear
+                  </button>
+                </div>
+                <div class="flex flex-col gap-3 pt-1">
+                  <div class="text-fg-body flex items-start gap-3 text-sm leading-[1.55]">
+                    <button type="button" role="checkbox" :aria-checked="agreeTerms" aria-labelledby="c1-text" class="apex-ring inline-flex size-[22px] shrink-0 cursor-pointer items-center justify-center rounded-[7px] border-2 text-[11px] text-white" :class="agreeTerms ? 'bg-accent border-accent' : 'border-line-rule'" @click="agreeTerms = !agreeTerms">
+                      {{ agreeTerms ? '✓' : '' }}
+                    </button>
+                    <span id="c1-text">I agree to the <NuxtLink to="/legal/terms" target="_blank" class="text-accent-ink font-semibold hover:underline">terms of service</NuxtLink> and the payment schedule above.</span>
+                  </div>
+                  <div class="text-fg-body flex items-start gap-3 text-sm leading-[1.55]">
+                    <button type="button" role="checkbox" :aria-checked="agreeSchedule" aria-labelledby="c2-text" class="apex-ring inline-flex size-[22px] shrink-0 cursor-pointer items-center justify-center rounded-[7px] border-2 text-[11px] text-white" :class="agreeSchedule ? 'bg-accent border-accent' : 'border-line-rule'" @click="agreeSchedule = !agreeSchedule">
+                      {{ agreeSchedule ? '✓' : '' }}
+                    </button>
+                    <span id="c2-text">I understand this is a payment schedule for Apex services, not a credit agreement.</span>
+                  </div>
+                </div>
+                <p class="bg-raised text-fg-muted m-0 rounded-xl px-3.5 py-3 text-[12.5px] leading-relaxed">
+                  When you sign we record your name, the time and your IP address with the agreement as evidence of signature.
+                </p>
+              </div>
+            </section>
+          </template>
+
+          <!-- Footer, inline from 860px of content -->
+          <div class="hidden flex-col gap-2 pt-1 @min-[860px]:flex">
+            <div class="flex items-center justify-between gap-3">
+              <button v-if="step > 1" type="button" class="apex-ring bg-card border-line-rule text-fg-heading inline-flex h-[46px] cursor-pointer items-center gap-2 rounded-[14px] border px-[18px] text-[15px] font-semibold" @click="go((step - 1) as 1 | 2)">
+                <Icon name="lucide:arrow-left" class="size-[17px]" />Back
+              </button>
+              <NuxtLink v-else to="/dashboards/balance" class="apex-ring text-fg-body rounded-md text-[14.5px] font-semibold">
+                Cancel
+              </NuxtLink>
+              <ApexButton :disabled="!canNext || submitting" @click="next">
+                {{ submitting ? 'Placing your order…' : NEXT[step - 1] }}
+              </ApexButton>
             </div>
-          </div>
-
-          <!-- Evidence notice — transparency about what is recorded as proof. -->
-          <p class="mt-4 flex items-start gap-2 rounded-xl border border-white/10 bg-white/[0.02] px-3.5 py-2.5 text-[12.5px] leading-[1.55] text-muted-500">
-            <Icon name="lucide:shield-check" class="mt-0.5 size-4 shrink-0 text-[#22B07D]" />
-            For your protection and ours, we record your name, the date and time, your IP address and device as tamper-evident proof that you signed this agreement.
-          </p>
-
-          <!--
-            A disabled button must say why. On a phone the primary action is in
-            a fixed footer, a screen away from the checkbox it is waiting on, so
-            the reason is stated here — beside the controls that answer it.
-          -->
-          <p v-if="signBlocker" class="mt-4 flex items-center gap-2 rounded-xl border border-[#F2C14E]/25 bg-[#F2C14E]/10 px-3.5 py-2.5 text-[13px] text-[#F2C14E]">
-            <Icon name="lucide:info" class="size-[15px] shrink-0" />{{ signBlocker }}
-          </p>
-
-          <div class="mt-6 flex flex-wrap items-center justify-between gap-4">
-            <div class="flex items-center gap-2 text-[13px] text-muted-500">
-              <Icon name="lucide:check" class="size-4 shrink-0 text-[#22B07D]" />£0 charged today · cancel free before work begins
-            </div>
-            <!--
-              Below `lg` this action lives in the sticky footer with Back, per
-              §8. The wrapper carries the visibility rather than the button:
-              `BaseButton` sets its own `display`, which beats a `hidden`
-              utility of the same specificity declared earlier in the layer.
-            -->
-            <div class="hidden lg:block">
-              <BaseButton rounded="full" variant="primary" size="lg" :disabled="!canSign || placing" :loading="placing" @click="placeOrder">
-                <Icon name="lucide:box" class="size-[17px]" />Sign &amp; start project
-              </BaseButton>
-            </div>
-          </div>
-        </section>
-
-        <!-- FOOTER NAV -->
-        <div v-if="step <= 5" class="mt-[22px] hidden items-center justify-between gap-3.5 lg:flex">
-          <BaseButton v-if="step > 1" rounded="full" class="border border-white/10 bg-muted-800 !text-white hover:bg-muted-700" @click="back">
-            <Icon name="lucide:arrow-left" class="size-4" />Back
-          </BaseButton>
-          <div class="flex-1" />
-          <!--
-            Continue is hidden on step 5. It used to render there beside
-            "Sign & start project" as a primary-styled button, but next() caps
-            at 5 so pressing it did nothing at all.
-          -->
-          <BaseButton v-if="step <= 4" rounded="full" variant="primary" size="lg" :disabled="!canContinue" @click="next">
-            {{ continueLabel }}<Icon name="lucide:arrow-right" class="size-4" />
-          </BaseButton>
-        </div>
-      </div>
-
-      <!-- ===================== RIGHT: ORDER SUMMARY RAIL ===================== -->
-      <aside aria-label="Order summary" class="hidden overflow-hidden rounded-2xl border border-white/10 lg:sticky lg:top-4 lg:block" style="background: linear-gradient(160deg, #16252A, #101D21);">
-        <div class="flex items-center gap-3 border-b border-white/10 px-[22px] py-5">
-          <span class="flex size-[34px] items-center justify-center rounded-xl bg-primary-500/16 text-primary-400"><Icon name="lucide:file-text" class="size-[17px]" /></span>
-          <div class="flex-1">
-            <div class="font-heading text-[15px] font-bold tracking-[0.02em] text-white">
-              Order summary
-            </div>
-            <div class="text-[11.5px] text-muted-500">
-              Step {{ Math.min(step, 5) }} of 5
-            </div>
-          </div>
-        </div>
-
-        <ApexOrderSummary v-bind="summaryProps" />
-      </aside>
-    </div>
-
-    <!-- ===================== MOBILE: FOOTER STRIP + ACTIONS ===================== -->
-    <!--
-      The 340px sticky rail cannot exist at 393px, and putting it above the form
-      buries the fields, so it becomes a 52px strip carrying the one thing the
-      customer is deciding about — the monthly — with the full summary a tap
-      away (§8). Fixed rather than sticky, so it never has to be threaded
-      through the page's own flow; the spacer below keeps content from ending
-      underneath it, the same arrangement `ApexBottomNav` uses.
-    -->
-    <div v-if="step <= 5" aria-hidden="true" class="h-[calc(130px+env(safe-area-inset-bottom))] lg:hidden" />
-    <div
-      v-if="step <= 5"
-      class="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-muted-950/94 backdrop-blur-md lg:hidden"
-    >
-      <button
-        type="button"
-        aria-haspopup="dialog"
-        :aria-expanded="summaryOpen"
-        class="apex-focus flex min-h-[52px] w-full cursor-pointer items-center gap-2.5 border-b border-white/10 px-4 text-start"
-        @click="summaryOpen = true"
-      >
-        <Icon name="lucide:receipt-text" class="size-[18px] shrink-0 text-primary-400" />
-        <span class="min-w-0 grow">
-          <span class="block text-[11px] font-bold uppercase tracking-[0.05em] text-muted-500">{{ plan ? railLabel : 'Order summary' }}</span>
-          <span v-if="plan" class="mt-px block truncate text-sm font-bold text-white tabular-nums">
-            {{ money(railAmount) }}/mo <span class="font-medium text-muted-500">· {{ termChosen ? `${term} months · total ${money(total)}` : 'choose a payment plan in step 3' }}</span>
-          </span>
-          <!-- No plan, no monthly: `base` is 0 until one is chosen, and "£0/mo" is not a price. -->
-          <span v-else class="mt-px block truncate text-sm font-semibold text-muted-500">Pick a plan to see your monthly</span>
-        </span>
-        <Icon name="lucide:chevron-up" class="size-[18px] shrink-0 text-muted-500" />
-      </button>
-
-      <div class="flex items-center gap-2.5 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3">
-        <button
-          v-if="step > 1"
-          type="button"
-          aria-label="Back"
-          class="apex-focus flex size-[52px] shrink-0 cursor-pointer items-center justify-center rounded-full border border-white/15 text-white transition-colors hover:bg-white/5"
-          @click="back"
-        >
-          <Icon name="lucide:arrow-left" class="size-[18px]" />
-        </button>
-        <BaseButton v-if="step <= 4" rounded="full" variant="primary" size="lg" class="h-[52px]! grow" :disabled="!canContinue" @click="next">
-          {{ continueLabel }}<Icon name="lucide:arrow-right" class="size-4" />
-        </BaseButton>
-        <BaseButton v-else rounded="full" variant="primary" size="lg" class="h-[52px]! grow" :disabled="!canSign || placing" :loading="placing" @click="placeOrder">
-          <Icon name="lucide:pen-line" class="size-[17px]" />Sign &amp; start
-        </BaseButton>
-      </div>
-    </div>
-
-    <!--
-      The wizard's sheets take the `ink` surface: this page is navy in both
-      themes (its light treatment is Phase 9's), and a white sheet rising over
-      it would be the only light surface on the screen.
-    -->
-    <ApexBottomSheet
-      v-model:open="summaryOpen"
-      surface="ink"
-      scrollable
-      title="Order summary"
-      description="Your service, plan, payment terms and what is due today."
-    >
-      <template #header>
-        <div class="flex shrink-0 items-center gap-2.5 border-b border-white/10 px-[22px] pb-3 pt-1.5">
-          <span class="flex size-[30px] shrink-0 items-center justify-center rounded-xl bg-primary-500/16 text-primary-400"><Icon name="lucide:file-text" class="size-4" /></span>
-          <span class="font-heading grow text-[15px] font-bold text-white">Order summary</span>
-          <span class="text-[11.5px] text-muted-500">Step {{ Math.min(step, 5) }} of 5</span>
-        </div>
-      </template>
-      <ApexOrderSummary v-bind="summaryProps" />
-    </ApexBottomSheet>
-
-    <!--
-      One sheet for every select on step 4 (§6). Options are 52px, nothing is
-      preselected, and closing without choosing leaves the field unanswered —
-      which `buildBrief()` then omits entirely.
-    -->
-    <ApexBottomSheet
-      v-model:open="selectSheetOpen"
-      surface="ink"
-      scrollable
-      :title="openSelectField?.label ?? 'Choose an option'"
-      description="Choose one option for this field."
-    >
-      <template #header>
-        <div class="font-heading shrink-0 border-b border-white/10 px-[18px] pb-3 pt-1.5 text-base font-bold text-white">
-          {{ openSelectField?.label }}
-        </div>
-      </template>
-      <div class="flex flex-col gap-0.5 p-2.5">
-        <button
-          v-for="o in openSelectField?.options ?? []" :key="o"
-          type="button"
-          :aria-pressed="openSelectValue === o"
-          class="apex-focus flex min-h-[52px] w-full cursor-pointer items-center gap-2.5 rounded-xl px-3.5 text-[15px] transition-colors"
-          :class="openSelectValue === o ? 'bg-primary-500/12 font-semibold text-white' : 'text-muted-300 hover:bg-white/5'"
-          @click="pickOption(o)"
-        >
-          <span class="grow text-start">{{ o }}</span>
-          <Icon v-if="openSelectValue === o" name="lucide:check" class="size-[18px] shrink-0 text-primary-400" />
-        </button>
-      </div>
-    </ApexBottomSheet>
-
-    <!--
-      The exit guard (§1). The mockup offers to keep the order as a draft for 30
-      days; nothing here is persisted anywhere — the order does not exist until
-      `/api/orders` has accepted it — so the sheet says what actually happens.
-      Promising a draft we do not store is the "takes your file and discards it"
-      defect from Phase 6, told in advance.
-    -->
-    <ApexBottomSheet
-      v-model:open="exitOpen"
-      surface="ink"
-      title="Leave this order?"
-      description="Confirm whether to leave this order or carry on filling it in."
-    >
-      <div class="flex flex-col gap-2.5 px-4 pb-4 pt-2.5">
-        <div class="font-heading text-[18px] font-bold text-white">
-          Leave this order?
-        </div>
-        <p class="mb-2 text-sm leading-[1.55] text-muted-400">
-          Nothing has been saved yet, so your service, plan and details are cleared when you leave. Nothing is charged either way.
-        </p>
-        <BaseButton rounded="full" variant="primary" size="lg" class="h-12! w-full" @click="exitOpen = false">
-          Keep going
-        </BaseButton>
-        <button
-          type="button"
-          class="apex-focus min-h-12 w-full cursor-pointer rounded-full border border-white/15 text-[14.5px] font-semibold text-[#EC6453] transition-colors hover:bg-[#EC6453]/10"
-          @click="leaveOrder"
-        >
-          Leave without saving
-        </button>
-      </div>
-    </ApexBottomSheet>
-
-    <!-- ===================== SUCCESS OVERLAY ===================== -->
-    <Teleport to="body">
-      <Transition enter-active-class="transition-opacity duration-300" enter-from-class="opacity-0" leave-active-class="transition-opacity duration-200" leave-to-class="opacity-0">
-        <!--
-          A dialog with a scrim is a desktop shape. At 393px the card fills the
-          screen anyway, so below `lg` it *is* the screen (§9): no scrim to peer
-          through, no rounded card floating on a 12px margin, and the two
-          actions pinned to the bottom where a thumb is.
-        -->
-        <div v-if="step === 6" class="fixed inset-0 z-50 flex items-center justify-center lg:p-6" style="background: rgba(9,18,20,.82); backdrop-filter: blur(8px);">
-          <div class="apex-pop relative flex h-full w-full flex-col overflow-y-auto border-primary-500/30 px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-[calc(1.75rem+env(safe-area-inset-top))] text-center lg:block lg:h-auto lg:max-h-[calc(100dvh_-_3rem_-_env(safe-area-inset-top)_-_env(safe-area-inset-bottom))] lg:max-w-[520px] lg:rounded-2xl lg:border lg:p-9" style="background: linear-gradient(160deg, #1B2B31, #101D21);">
-            <div class="pointer-events-none absolute -top-16 left-1/2 size-60 -translate-x-1/2 rounded-full opacity-40 blur-[70px]" style="background: radial-gradient(circle at 50% 38%, #9b79f6 0%, #7d53f2 55%, #6c40e8 100%);" />
-            <div class="relative mx-auto flex size-[74px] items-center justify-center rounded-full shadow-[0_16px_40px_rgba(34,176,125,.45)]" style="background: linear-gradient(150deg, #22B07D, #0f6e4d);">
-              <Icon name="lucide:check" class="size-9 text-white" />
-            </div>
-            <h2 class="relative mt-5 font-heading text-[25px] font-extrabold tracking-[-0.02em] text-white lg:text-[28px]">
-              You're all set!
-            </h2>
-            <p class="relative mt-2.5 text-[14.5px] leading-[1.55] text-muted-400 lg:text-[15px]">
-              Your <strong class="font-semibold text-white">{{ plan?.name }}</strong> order is confirmed and signed. The team has been notified and will schedule your kickoff.
+            <p v-if="nextReason" class="text-fg-muted m-0 self-end text-[12.5px]">
+              {{ nextReason }}
             </p>
-
-            <div class="relative my-6 flex items-center justify-center gap-3">
-              <span class="inline-flex items-center gap-2 rounded-full bg-[#22B07D]/14 px-3.5 py-2 text-[13px] font-bold text-[#22B07D]"><Icon name="lucide:check" class="size-3.5" />Order placed</span>
-              <Icon name="lucide:arrow-right" class="size-[22px] text-muted-500" />
-              <span class="inline-flex items-center gap-2 rounded-full px-3.5 py-2 text-[13px] font-bold transition" :class="statusStarted ? 'bg-gradient-to-r from-primary-400 to-primary-600 text-white shadow-[0_8px_20px_rgba(125,83,242,.4)]' : 'border border-white/10 bg-white/5 text-muted-500'">
-                <!-- "Awaiting kickoff" is the state My Orders will show; the order is created PENDING. -->
-                <Icon v-if="statusStarted" name="lucide:calendar-clock" class="size-3.5" />{{ statusStarted ? 'Awaiting kickoff' : 'Confirming…' }}
-              </span>
-            </div>
-
-            <div class="relative mb-6 flex items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] px-[18px] py-3.5">
-              <div class="text-left">
-                <div class="text-[11.5px] text-muted-500">
-                  Order reference
-                </div><div class="font-heading text-[15px] font-bold tracking-[0.04em] text-white">
-                  {{ orderId }}
-                </div>
-              </div>
-              <div class="text-right">
-                <div class="text-[11.5px] text-muted-500">
-                  First payment
-                </div><div class="text-sm font-semibold text-white">
-                  {{ money(monthly) }} · in {{ firstDueDays }} days
-                </div>
-              </div>
-            </div>
-
-            <!--
-              Pinned to the bottom below `lg`. The second action is "Back to
-              dashboard", not "New order": the customer has just committed to a
-              project, and offering to start another one as the equal-weight
-              alternative to seeing it is not the choice they are making.
-            -->
-            <div class="relative mt-auto flex flex-col gap-3 pt-4 sm:flex-row lg:mt-0 lg:pt-0">
-              <BaseButton rounded="full" variant="primary" size="lg" class="h-[50px]! w-full sm:flex-1 lg:h-12!" @click="router.push('/dashboards/orders')">
-                View project<Icon name="lucide:arrow-right" class="size-4" />
-              </BaseButton>
-              <BaseButton rounded="full" class="h-12! w-full border border-white/10 bg-muted-800 !text-white hover:bg-muted-700 sm:w-auto" @click="router.push('/dashboards/balance')">
-                Back to dashboard
-              </BaseButton>
-            </div>
           </div>
         </div>
-      </Transition>
-    </Teleport>
+
+        <!-- Summary rail from 860px of content -->
+        <aside aria-label="Order summary" class="sticky top-24 hidden flex-col gap-3 @min-[860px]:flex">
+          <div class="bg-card border-line-subtle flex flex-col gap-4 rounded-[22px] border p-[22px] shadow-[0_20px_48px_rgba(17,31,34,.07)] dark:shadow-none">
+            <span class="text-fg-muted text-xs font-bold uppercase tracking-[.06em]">Your order</span>
+            <template v-if="service">
+              <div class="flex flex-col gap-1">
+                <span class="font-heading text-fg-heading text-[19px] font-semibold tracking-[-0.02em]">{{ service.name }}</span>
+                <span class="text-fg-muted text-[13.5px]">{{ plan ? plan.name + (kind === 'scope' ? '' : ' plan') : 'Choose a plan' }}</span>
+              </div>
+              <template v-if="summary">
+                <div class="border-line-soft flex flex-col gap-2.5 border-y py-4">
+                  <span class="font-heading text-fg-heading text-[40px] font-extrabold leading-none tracking-[-0.03em] tabular-nums">{{ summary.big }}<span class="text-fg-muted text-sm font-semibold">{{ summary.unit }}</span></span>
+                  <div v-if="summary.dots && summary.dots <= 24" aria-hidden="true" class="flex flex-wrap gap-[5px]">
+                    <span v-for="i in summary.dots" :key="i" class="bg-dot-unpaid block size-[9px] rounded-full" />
+                  </div>
+                  <span class="text-fg-muted text-[12.5px]">{{ summary.caption }}</span>
+                </div>
+                <div class="flex flex-col gap-2.5">
+                  <div v-for="r in summary.rows" :key="r.k" class="flex items-baseline justify-between gap-3 text-sm">
+                    <span class="text-fg-body">{{ r.k }}</span><span class="font-semibold tabular-nums" :class="'green' in r ? 'text-st-success-fg' : 'text-fg-heading'">{{ r.v }}</span>
+                  </div>
+                </div>
+              </template>
+            </template>
+            <p v-else class="text-fg-body m-0 text-sm leading-relaxed">
+              Choose a service to see the monthly figure, the deposit and every payment date.
+            </p>
+            <span class="border-line-soft text-fg-muted flex items-center gap-2 border-t pt-3.5 text-[12.5px]"><Icon name="lucide:lock" class="size-3.5 text-[#22B07D]" />Figures include VAT · Nothing is charged today</span>
+          </div>
+          <NuxtLink to="/dashboards/support?tab=new" class="apex-ring border-line-subtle bg-card hover:border-line-strong flex items-center gap-3 rounded-2xl border px-4 py-3.5">
+            <Icon name="solar:chat-round-dots-linear" class="text-accent-ink size-5" />
+            <span class="flex grow flex-col gap-0.5"><span class="text-fg-heading text-sm font-semibold">Not sure which plan?</span><span class="text-fg-muted text-[12.5px]">Ask us. We reply within one working day.</span></span>
+          </NuxtLink>
+        </aside>
+      </div>
+
+      <!-- Footer strip below 860px of content: the figure, the summary, next -->
+      <div class="bg-glass border-line-subtle sticky bottom-0 z-[6] -mx-[clamp(16px,3vw,40px)] -mb-[clamp(28px,4vw,56px)] flex flex-col gap-1.5 border-t px-[clamp(16px,3vw,40px)] pb-[calc(12px+env(safe-area-inset-bottom))] pt-3 backdrop-blur-[16px] @min-[860px]:hidden">
+        <p v-if="nextReason" class="text-fg-muted m-0 text-[12px]">
+          {{ nextReason }}
+        </p>
+        <div class="flex items-center gap-2.5">
+          <button v-if="step > 1" type="button" aria-label="Back" class="apex-ring bg-card border-line-rule text-fg-heading inline-flex size-[46px] shrink-0 cursor-pointer items-center justify-center rounded-[14px] border" @click="go((step - 1) as 1 | 2)">
+            <Icon name="lucide:arrow-left" class="size-[18px]" />
+          </button>
+          <button type="button" aria-label="View order summary" class="apex-ring flex min-w-0 grow cursor-pointer flex-col items-start gap-px rounded-lg px-1 text-left" @click="sumOpen = true">
+            <span class="font-heading text-fg-heading whitespace-nowrap text-lg font-extrabold tracking-[-0.02em] tabular-nums">{{ summary?.bar ?? 'Your order' }}</span>
+            <span class="text-accent-ink inline-flex items-center gap-1 text-xs font-semibold">Summary <Icon name="lucide:chevron-up" class="size-[13px]" /></span>
+          </button>
+          <ApexButton :disabled="!canNext || submitting" @click="next">
+            {{ submitting ? 'Placing…' : NEXT_SHORT[step - 1] }}
+          </ApexButton>
+        </div>
+      </div>
+
+      <ApexBottomSheet v-model:open="sumOpen" surface="panel" title="Your order" description="The plan, the monthly figure and the total.">
+        <div class="grid content-start gap-4 px-5 pb-6">
+          <div class="flex items-center justify-between gap-3">
+            <span class="font-heading text-fg-heading text-[19px] font-bold tracking-[-0.02em]">Your order</span>
+            <button type="button" aria-label="Close" class="apex-ring text-fg-heading inline-flex size-11 cursor-pointer items-center justify-center rounded-xl" @click="sumOpen = false">
+              <Icon name="lucide:x" class="size-5" />
+            </button>
+          </div>
+          <div v-if="service" class="flex flex-col gap-1">
+            <span class="text-fg-heading text-base font-semibold">{{ service.name }}</span>
+            <span class="text-fg-muted text-[13.5px]">{{ plan ? plan.name : 'Choose a plan' }}</span>
+          </div>
+          <template v-if="summary">
+            <span class="font-heading text-fg-heading text-4xl font-extrabold leading-none tracking-[-0.03em] tabular-nums">{{ summary.big }}<span class="text-fg-muted text-sm font-semibold">{{ summary.unit }}</span></span>
+            <span class="text-fg-muted text-[12.5px]">{{ summary.caption }}</span>
+            <div class="border-line-soft flex flex-col gap-2.5 border-t pt-3.5">
+              <div v-for="r in summary.rows" :key="r.k" class="flex items-baseline justify-between gap-3 text-[14.5px]">
+                <span class="text-fg-body">{{ r.k }}</span><span class="font-semibold tabular-nums" :class="'green' in r ? 'text-st-success-fg' : 'text-fg-heading'">{{ r.v }}</span>
+              </div>
+            </div>
+          </template>
+          <p v-else class="text-fg-body m-0 text-sm leading-relaxed">
+            Choose a service to see the monthly figure, the deposit and every payment date.
+          </p>
+          <span class="text-fg-muted text-[12.5px]">Figures include VAT · Nothing is charged today</span>
+        </div>
+      </ApexBottomSheet>
+    </template>
+
+    <!-- Placed -->
+    <section v-else aria-labelledby="h-done" class="mx-auto mt-[clamp(0px,2vw,24px)] flex w-full max-w-[760px] flex-col gap-6">
+      <div class="bg-card border-line-subtle flex flex-col items-start gap-5 rounded-[28px] border p-[clamp(24px,3.4vw,44px)] shadow-[0_20px_48px_rgba(17,31,34,.07)] dark:shadow-none">
+        <span aria-hidden="true" class="inline-flex size-14 items-center justify-center rounded-full bg-[#22B07D] text-2xl text-white">✓</span>
+        <div class="flex flex-col gap-2.5">
+          <h1 id="h-done" class="font-heading text-fg-heading m-0 text-[clamp(28px,1.3vw+18px,38px)] font-extrabold leading-[1.06] tracking-[-0.03em]">
+            Order placed
+          </h1>
+          <p class="text-fg-body m-0 max-w-[52ch] text-base leading-relaxed">
+            {{ fName || 'Your project' }} · {{ service?.name }}{{ plan ? `, ${plan.name}` : '' }}. Your signed agreement is saved with the order in My orders.
+          </p>
+        </div>
+        <div class="flex flex-wrap items-center gap-2.5">
+          <ApexStatusChip tone="warning">
+            Awaiting kickoff
+          </ApexStatusChip>
+          <span class="text-fg-muted text-[13.5px]">Order {{ placed.ref }} · signed {{ placed.signedAt }}</span>
+        </div>
+        <ol class="border-line-soft m-0 flex w-full list-none flex-col border-t p-0 pt-5">
+          <li class="flex gap-4 pb-5">
+            <div class="flex flex-col items-center gap-1.5">
+              <span class="font-heading inline-flex size-[30px] shrink-0 items-center justify-center rounded-full bg-[#7D53F2] text-[13px] font-extrabold text-white">1</span><span class="bg-line-subtle w-0.5 grow" />
+            </div>
+            <div class="flex flex-col gap-1 pt-1">
+              <span class="font-heading text-fg-heading text-[17px] font-semibold">We read your brief</span><span class="text-fg-body text-sm leading-[1.55]">Your project lead replies within one working day with any questions.</span>
+            </div>
+          </li>
+          <li class="flex gap-4 pb-5">
+            <div class="flex flex-col items-center gap-1.5">
+              <span class="font-heading inline-flex size-[30px] shrink-0 items-center justify-center rounded-full bg-[#7D53F2] text-[13px] font-extrabold text-white">2</span><span class="bg-line-subtle w-0.5 grow" />
+            </div>
+            <div class="flex flex-col gap-1 pt-1">
+              <span class="font-heading text-fg-heading text-[17px] font-semibold">Book your kickoff call</span><span class="text-fg-body text-sm leading-[1.55]">{{ doneKick }}</span>
+            </div>
+          </li>
+          <li class="flex gap-4">
+            <span aria-hidden="true" class="inline-flex size-[30px] shrink-0 items-center justify-center rounded-full bg-[#22B07D] text-xs text-white">✓</span>
+            <div class="flex flex-col gap-1 pt-1">
+              <span class="font-heading text-fg-heading text-[17px] font-semibold">Work starts after the call</span><span class="text-fg-body text-sm leading-[1.55]">Progress, files and payments appear in My orders as they happen.</span>
+            </div>
+          </li>
+        </ol>
+        <div class="flex flex-wrap items-center gap-3 pt-1">
+          <ApexButton :to="`/dashboards/support?new=kickoff&order=${placed.id}`">
+            Book kickoff call
+          </ApexButton>
+          <ApexButton variant="light" :to="`/dashboards/orders?project=${placed.id}`">
+            View in My orders
+          </ApexButton>
+        </div>
+      </div>
+      <button type="button" class="apex-ring text-accent-ink min-h-11 cursor-pointer self-center rounded-lg px-3 text-sm font-semibold" @click="restart">
+        Start another order
+      </button>
+    </section>
   </div>
 </template>
-
-<style scoped>
-@keyframes apex-pop {
-  0% {
-    transform: scale(0.94);
-    opacity: 0;
-  }
-  100% {
-    transform: scale(1);
-    opacity: 1;
-  }
-}
-.apex-pop {
-  animation: apex-pop 0.4s cubic-bezier(0.22, 0.61, 0.36, 1) both;
-}
-@media (prefers-reduced-motion: reduce) {
-  .apex-pop {
-    animation: none;
-  }
-}
-</style>

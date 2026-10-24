@@ -29,7 +29,7 @@ import { validateQuery } from '../../../utils/validate'
 
 const querySchema = paginationQuerySchema.extend({
   search: z.string().trim().max(200).optional(),
-  status: z.enum(['PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']).optional(),
+  status: z.enum(['PENDING', 'IN_PROGRESS', 'IN_REVIEW', 'COMPLETED', 'CANCELLED']).optional(),
   category: z.string().trim().max(100).optional(),
   userId: z.string().trim().max(64).optional(),
 })
@@ -84,7 +84,7 @@ export default defineEventHandler(async (event) => {
     prisma.project.count({ where }),
     // Distinct categories power the filter dropdown without a second request.
     prisma.project.findMany({ select: { category: true }, distinct: ['category'], orderBy: { category: 'asc' } }),
-    prisma.project.count({ where: { ...baseWhere, managerId: null, status: { in: ['PENDING', 'IN_PROGRESS'] } } }),
+    prisma.project.count({ where: { ...baseWhere, managerId: null, status: { in: ['PENDING', 'IN_PROGRESS', 'IN_REVIEW'] } } }),
   ])
 
   const statusCounts = Object.fromEntries(byStatus.map(row => [row.status, row._count]))
