@@ -19,10 +19,11 @@ import { validateBody } from '../../utils/validate'
  * monthly or in full; the shared catalogue prices it with the same
  * `orderTerms()` the wizard displayed (ADR-019). Nothing is charged here:
  * the project is created PENDING ("Awaiting kickoff") and the kickoff amount
- * — deposit, full price, set-up plus first month, or the discovery fee — is
- * collected when work starts (`/api/orders/pay`, or staff from the project
- * screen). Instalment plans are created `pending` for the same reason, so
- * auto-pay cannot take a monthly payment before the deposit.
+ * — payment 1 of a fixed plan (or its deposit, where the catalogue sets one),
+ * full price, set-up plus first month, or the discovery fee — is collected
+ * when work starts (`/api/orders/pay`, or staff from the project screen).
+ * Instalment plans are created `pending` for the same reason, so auto-pay
+ * cannot take a monthly payment before the kickoff payment.
  *
  * Every order is signed: the signed agreement text is stored and hashed, as
  * before, and pushed to the admin panel.

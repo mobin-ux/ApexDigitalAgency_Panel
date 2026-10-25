@@ -59,3 +59,25 @@ it. The Panel v2 design makes the panel's checkout the website's plans.
 - ADR-011's 24-month 1% product is no longer sold. `finance.enable-24mo-plans`
   is now read by nothing new; it stays in `/api/config` for the older pages
   that may cache it.
+
+## Amendment — 2026-10-25: no deposit on fixed plans
+
+`New Order.dc.html` (and the dashboard promo) now sell fixed plans with no
+deposit: n equal monthly payments, the first collected at kickoff, or the same
+total in one payment. Website Growth is therefore 12 × £299 = £3,588, where it
+was £499 + 12 × £299 = £4,087.
+
+- `DEFAULT_CATALOG` carries no deposits. `deposit` stays an optional catalogue
+  field: a plan the admin gives one prices the old way, and every label reads
+  the terms rather than assuming either.
+- `orderTerms()` returns `firstPaymentAtKickoff`. Then `kickoff` is the monthly
+  payment and the plan holds all n payments (`payments: n`), so
+  `collectKickoff()` records the kickoff as payment 1 on the plan
+  (`monthsPaid: 1`, `paid`) in the same transaction. Every counter downstream
+  ("1 of 12 paid", credit use, "Installment 2/12") is right without special
+  cases.
+- The agreement gains a no-deposit schedule paragraph as a new branch, so text
+  signed with a deposit still reproduces word for word.
+- Orders already placed keep their deposit; `orderSchedule()` reads both.
+- The public website (`web/app/data/plans.ts`) still quotes deposits. Until it
+  changes, the site and the panel disagree on fixed-plan prices.

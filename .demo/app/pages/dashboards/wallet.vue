@@ -60,7 +60,7 @@ const upcoming = computed(() => {
   const rows: { key: string, date: Date | null, name: string, meta: string, amount: number }[] = []
   for (const { o, s } of plans.value) {
     if (!s.started && o.kickoffAmount > 0) {
-      rows.push({ key: `${o.id}-k`, date: null, name: o.name, meta: `${s.kind === 'retainer' ? 'First month' : s.kind === 'full' ? 'Payment in full' : s.kind === 'scope' ? 'Discovery fee' : 'Deposit'} · after your kickoff call`, amount: o.kickoffAmount })
+      rows.push({ key: `${o.id}-k`, date: null, name: o.name, meta: `${s.kind === 'retainer' ? 'First month' : s.kind === 'full' ? 'Payment in full' : s.kind === 'scope' ? 'Discovery fee' : s.deposit ? 'Deposit' : `Payment 1 of ${s.payments}`} · after your kickoff call`, amount: o.kickoffAmount })
       continue
     }
     const next = s.rows.find(r => r.state === 'Next')
@@ -442,7 +442,7 @@ const PILL = 'apex-ring h-[38px] shrink-0 cursor-pointer whitespace-nowrap round
             </template>
           </div>
           <span class="text-fg-muted text-[13px]">
-            {{ s.retainer ? `${s.payments}-month minimum, then rolling monthly` : s.kind === 'fixed' ? `${s.paidCount} of ${s.payments} paid after a ${formatCurrency(s.rows[0]?.amount ?? 0)} deposit` : s.kind === 'legacy' ? `${s.paidCount} of ${s.payments} paid` : 'Paid at kickoff' }}
+            {{ s.retainer ? `${s.payments}-month minimum, then rolling monthly` : s.kind === 'fixed' ? (s.deposit ? `${s.paidCount} of ${s.payments} paid after a ${formatCurrency(s.deposit)} deposit` : `${s.paidCount} of ${s.payments} paid · no deposit`) : s.kind === 'legacy' ? `${s.paidCount} of ${s.payments} paid` : 'Paid at kickoff' }}
           </span>
           <div class="border-line-soft flex flex-col gap-[9px] border-t pt-3.5">
             <div class="flex justify-between gap-3 text-[13.5px] leading-[1.4]">

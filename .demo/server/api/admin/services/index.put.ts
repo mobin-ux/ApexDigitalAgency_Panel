@@ -12,7 +12,8 @@ import { validateBody } from '../../../utils/validate'
  * the plan ids are not, because orders, glyphs and the payment rules are keyed
  * on them — a renamed id would orphan every order placed under it. The figures
  * each kind needs are required here, so a fixed plan cannot be saved without a
- * deposit and the wizard can never price one at nothing by accident.
+ * monthly payment and the wizard can never price one at nothing by accident.
+ * A deposit is optional: without one, payment 1 is taken at kickoff.
  */
 const money = z.coerce.number().min(0).max(1_000_000)
 
@@ -59,8 +60,9 @@ export default defineEventHandler(async (event) => {
       if (!p) {
         throw createError({ statusCode: 400, message: `${base.name}: the ${bp.name} plan is missing.` })
       }
-      if (base.kind === 'fixed' && (!p.monthly || p.deposit === undefined)) {
-        throw createError({ statusCode: 400, message: `${base.name} · ${p.name}: a monthly payment and a deposit are required.` })
+      // A deposit is optional: none (or 0) means payment 1 is taken at kickoff.
+      if (base.kind === 'fixed' && !p.monthly) {
+        throw createError({ statusCode: 400, message: `${base.name} · ${p.name}: a monthly payment is required.` })
       }
       if (base.kind === 'retainer' && !p.monthly) {
         throw createError({ statusCode: 400, message: `${base.name} · ${p.name}: a monthly fee is required.` })

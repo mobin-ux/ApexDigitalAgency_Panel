@@ -43,7 +43,7 @@ export async function computeCreditUsed(userId: string): Promise<number> {
 
   let used = 0
   for (const plan of plans) {
-    // Panel v2 plans are interest-free and exclude the deposit, so what is
+    // Panel v2 plans are interest-free and exclude any deposit, so what is
     // still owed is exactly the unpaid part of the plan (ADR-019).
     if (plan.projectRef?.serviceId) {
       used += Math.max(0, plan.total - plan.paid)

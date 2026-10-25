@@ -33,7 +33,7 @@ watch(data, (d) => {
 }, { immediate: true })
 const dirty = computed(() => JSON.stringify(state.value) !== JSON.stringify(data.value?.catalog))
 
-const KIND_LABEL = { fixed: 'Deposit + monthly', retainer: 'Retainer', scope: 'Scoped' }
+const KIND_LABEL = { fixed: 'Equal monthly', retainer: 'Retainer', scope: 'Scoped' }
 
 function featuresText(p: CatalogPlan) {
   return p.features.join('\n')
@@ -49,7 +49,9 @@ function setFeatured(s: CatalogService, p: CatalogPlan) {
 function preview(s: CatalogService, p: CatalogPlan) {
   const t = orderTerms(s, p, 'monthly')
   if (s.kind === 'fixed') {
-    return `${formatCurrency(t.deposit)} + ${paymentCount(s, p)} × ${formatCurrency(t.monthly)} = ${formatCurrency(t.total)}`
+    return t.deposit > 0
+      ? `${formatCurrency(t.deposit)} + ${paymentCount(s, p)} × ${formatCurrency(t.monthly)} = ${formatCurrency(t.total)}`
+      : `${paymentCount(s, p)} × ${formatCurrency(t.monthly)} = ${formatCurrency(t.total)}, the first at kickoff`
   }
   if (s.kind === 'retainer') {
     return `${formatCurrency(t.kickoff)} at kickoff · ${s.minimumMonths}-month minimum ${formatCurrency(t.total)}`
@@ -112,7 +114,7 @@ const CARD = 'rounded-2xl border border-muted-200 bg-white p-[18px] dark:border-
           <input :id="`${s.id}-heading`" v-model="s.heading" :disabled="!canEdit" :class="inputClass">
         </div>
         <div v-if="s.kind === 'fixed'">
-          <label :for="`${s.id}-payments`" :class="labelClass">Monthly payments after the deposit</label>
+          <label :for="`${s.id}-payments`" :class="labelClass">Monthly payments</label>
           <input :id="`${s.id}-payments`" v-model.number="s.payments" type="number" min="1" max="36" :disabled="!canEdit" :class="inputClass">
         </div>
         <div v-else-if="s.kind === 'retainer'">
@@ -151,7 +153,7 @@ const CARD = 'rounded-2xl border border-muted-200 bg-white p-[18px] dark:border-
                 <input :id="`${s.id}-${p.id}-m`" v-model.number="p.monthly" type="number" min="0" :disabled="!canEdit" :class="inputClass">
               </div>
               <div v-if="s.kind === 'fixed'">
-                <label :for="`${s.id}-${p.id}-d`" :class="labelClass">Deposit £</label>
+                <label :for="`${s.id}-${p.id}-d`" :class="labelClass">Deposit £ (optional)</label>
                 <input :id="`${s.id}-${p.id}-d`" v-model.number="p.deposit" type="number" min="0" :disabled="!canEdit" :class="inputClass">
               </div>
               <div v-else>

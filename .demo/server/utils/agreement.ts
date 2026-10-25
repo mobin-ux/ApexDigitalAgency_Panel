@@ -142,9 +142,9 @@ export function hashAgreement(text: string): string {
 }
 
 /**
- * Panel v2 agreement (ADR-019): the website's payment schedules — a deposit
- * and monthly payments, a retainer with a minimum term, or fixed-price
- * discovery. Kept beside the 2026-08 text rather than replacing it, because a
+ * Panel v2 agreement (ADR-019): the website's payment schedules — equal
+ * monthly payments (with a deposit only where the catalogue sets one), a
+ * retainer with a minimum term, or fixed-price discovery. Kept beside the 2026-08 text rather than replacing it, because a
  * contract signed under that version must stay reproducible word for word.
  */
 export const AGREEMENT_VERSION_V2 = 'apex-msa-2026-10'
@@ -176,6 +176,16 @@ export function buildAgreementTextV2(input: AgreementInputV2): string {
     schedule = [
       `  One payment of ${gbp(total)}, collected after the kickoff call.`,
       `  Nothing further is payable for the plan.`,
+    ]
+  }
+  else if (kind === 'fixed' && deposit <= 0) {
+    // No deposit (New Order.dc.html, 2026-10-25). A separate branch so text
+    // signed with a deposit stays reproducible word for word.
+    schedule = [
+      `  ${payments} monthly payments of ${gbp(monthly)}, with no deposit. The first`,
+      `  is collected after the kickoff call and the rest on the 1st of each`,
+      `  month, starting at least fourteen days after the first.`,
+      `  Total, all in: ${gbp(total)}. No interest is charged.`,
     ]
   }
   else if (kind === 'fixed') {

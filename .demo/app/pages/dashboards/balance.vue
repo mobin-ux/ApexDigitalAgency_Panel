@@ -90,8 +90,7 @@ const calc = computed(() => {
     planName: plan.name,
     href: `/dashboards/services?service=${svc.slug}&plan=${plan.id}`,
     cta: `Start ${plan.name} plan`,
-    // The design reads "No deposit." — the catalogue's website plans do take
-    // one at kickoff, so the line names it rather than promising none.
+    // "No deposit." as drawn, unless the admin catalogue has given the plan one.
     fine: deposit > 0
       ? `${formatCurrency(deposit)} deposit, then ${n} × ${formatCurrency(monthly)}. Figures include VAT.`
       : `No deposit. ${n} × ${formatCurrency(monthly)}. Figures include VAT.`,

@@ -6,7 +6,9 @@ import { orderRef } from '~~/shared/refs'
 /**
  * New order — Panel v2 (`New Order.dc.html`).
  *
- * Three steps instead of five: Plan (service + plan), Brief, Pay and sign.
+ * Three steps instead of five: Plan (service, then its plans on a screen of
+ * their own with "Change service"), Brief, Pay and sign. Fixed plans take no
+ * deposit: payment 1 of n is the kickoff payment.
  * The plans are the website's v2 plans, read from `/api/config`'s catalogue,
  * and every figure on this page — card, schedule, summary rail, phone footer
  * and the signed agreement — comes from the shared `orderTerms()` that
@@ -43,6 +45,9 @@ const services = computed(() => SERVICE_ORDER.map(id => catalog.value.services.f
 
 /* ------------------------------------------------------------------ state */
 const step = ref<1 | 2 | 3>(1)
+// Step 1 is two screens (New Order.dc.html, 2026-10-25): the service grid,
+// then that service's plans with "Change service" above them.
+const planView = ref(false)
 const svcId = ref<ServiceId | null>(null)
 const planId = ref<string | null>(null)
 const pay = ref<PayMode>('monthly')
@@ -56,11 +61,6 @@ const kind = computed(() => service.value?.kind ?? null)
 const terms = computed(() => (service.value && plan.value ? orderTerms(service.value, plan.value, pay.value) : null))
 const scopeCall = computed(() => kind.value === 'scope' && planId.value === 'call')
 
-const plansHeading = ref<HTMLElement | null>(null)
-function scrollToPlans() {
-  nextTick(() => setTimeout(() => plansHeading.value?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60))
-}
-
 function pickService(id: ServiceId) {
   const s = catalog.value.services.find(x => x.id === id)
   if (!s) {
@@ -72,7 +72,12 @@ function pickService(id: ServiceId) {
   svcId.value = id
   pay.value = 'monthly'
   pages.value = ''
-  scrollToPlans()
+  planView.value = true
+  window.scrollTo({ top: 0 })
+}
+function changeService() {
+  planView.value = false
+  window.scrollTo({ top: 0 })
 }
 
 // `?service=website-design&plan=growth` from the website or the dashboard.
@@ -81,7 +86,7 @@ onMounted(() => {
   if (s) {
     svcId.value = s.id
     planId.value = (s.plans.find(p => p.id === route.query.plan) ?? featuredPlan(s)).id
-    scrollToPlans()
+    planView.value = true
   }
 })
 
@@ -197,6 +202,12 @@ const schedule = computed(() => {
   if (t.kind === 'fixed' && pay.value === 'full') {
     rows.push({ label: 'Full payment', date: 'At kickoff', amt: formatCurrency(t.total), dot: 'bg-accent' })
   }
+  else if (t.kind === 'fixed' && t.firstPaymentAtKickoff) {
+    rows.push({ label: `Payment 1 of ${t.payments}`, date: 'At kickoff', amt: formatCurrency(t.monthly), dot: 'bg-accent' })
+    for (let i = 1; i < t.payments; i++) {
+      rows.push({ label: `Payment ${i + 1} of ${t.payments}`, date: monthDate(now, i - 1), amt: formatCurrency(t.monthly), dot: 'bg-dot-unpaid' })
+    }
+  }
   else if (t.kind === 'fixed') {
     rows.push({ label: 'Deposit', date: 'At kickoff', amt: formatCurrency(t.deposit), dot: 'bg-accent' })
     for (let i = 0; i < t.payments; i++) {
@@ -240,7 +251,8 @@ function planPrice(s: CatalogService, p: CatalogPlan) {
     return { price: p.price ? formatCurrency(p.price) : 'Free', unit: '', note: p.note ?? '' }
   }
   if (s.kind === 'fixed') {
-    return { price: formatCurrency(p.monthly ?? 0), unit: ' /mo', note: `${formatCurrency(p.deposit ?? 0)} deposit, then ${paymentCount(s, p)} × ${formatCurrency(p.monthly ?? 0)}` }
+    const n = paymentCount(s, p)
+    return { price: formatCurrency(p.monthly ?? 0), unit: ' /mo', note: p.deposit ? `${formatCurrency(p.deposit)} deposit, then ${n} × ${formatCurrency(p.monthly ?? 0)}` : `No deposit · ${n} × ${formatCurrency(p.monthly ?? 0)}` }
   }
   return { price: formatCurrency(p.monthly ?? 0), unit: ' /mo', note: `${p.setup ? `${formatCurrency(p.setup)} set-up` : 'No set-up fee'} · ${s.minimumMonths}-month minimum` }
 }
@@ -263,10 +275,10 @@ const summary = computed(() => {
       big: full ? formatCurrency(t.total) : formatCurrency(t.monthly),
       unit: full ? '' : ' /mo',
       dots: full ? 0 : t.payments,
-      caption: full ? 'One payment at kickoff · no interest' : `${t.payments} payments after the deposit · no interest`,
+      caption: full ? 'One payment at kickoff · no interest' : t.firstPaymentAtKickoff ? `${t.payments} payments · no deposit · no interest` : `${t.payments} payments after the deposit · no interest`,
       bar: full ? formatCurrency(t.total) : `${formatCurrency(t.monthly)} /mo`,
       rows: [
-        { k: 'Deposit at kickoff', v: full ? '—' : formatCurrency(t.deposit) },
+        t.deposit > 0 && !full ? { k: 'Deposit at kickoff', v: formatCurrency(t.deposit) } : { k: 'Deposit', v: 'None' },
         { k: 'Monthly payments', v: full ? '—' : `${t.payments} × ${formatCurrency(t.monthly)}` },
         { k: 'Total, all in', v: formatCurrency(t.total) },
         { k: 'Interest', v: 'None', green: true },
@@ -305,7 +317,10 @@ const payLine = computed(() => {
     return ''
   }
   if (t.kind === 'fixed') {
-    return pay.value === 'full' ? `${formatCurrency(t.total)} at kickoff` : `${formatCurrency(t.deposit)} deposit, then ${t.payments} × ${formatCurrency(t.monthly)}`
+    if (pay.value === 'full') {
+      return `${formatCurrency(t.total)} at kickoff`
+    }
+    return t.firstPaymentAtKickoff ? `${t.payments} × ${formatCurrency(t.monthly)}, no deposit` : `${formatCurrency(t.deposit)} deposit, then ${t.payments} × ${formatCurrency(t.monthly)}`
   }
   if (t.kind === 'retainer') {
     return `${formatCurrency(t.monthly)}/mo · ${t.minimumMonths}-month minimum`
@@ -317,10 +332,13 @@ const payLine = computed(() => {
 const STEP_LABELS = ['Plan', 'Brief', 'Pay and sign'] as const
 const NEXT = ['Continue to brief', 'Continue to payment', 'Sign and place order']
 const NEXT_SHORT = ['Continue', 'Continue', 'Sign and order']
-const canNext = computed(() => (step.value === 1 ? Boolean(plan.value) : step.value === 2 ? true : sigOk.value))
+const canNext = computed(() => (step.value === 1 ? planView.value && Boolean(plan.value) : step.value === 2 ? true : sigOk.value))
 const nextReason = computed(() => {
+  if (step.value === 1 && !planView.value) {
+    return 'Choose a service to see its plans.'
+  }
   if (step.value === 1 && !plan.value) {
-    return 'Choose a service and a plan to continue.'
+    return 'Choose a plan to continue.'
   }
   if (step.value === 3 && !sigOk.value) {
     return 'Sign and tick both boxes to place the order.'
@@ -331,6 +349,15 @@ const nextReason = computed(() => {
 function go(n: 1 | 2 | 3) {
   step.value = n
   window.scrollTo({ top: 0, behavior: 'smooth' })
+}
+// Back walks out of the plans to the service grid before it leaves step 1.
+const canBack = computed(() => step.value > 1 || planView.value)
+function back() {
+  if (step.value === 1) {
+    changeService()
+    return
+  }
+  go((step.value - 1) as 1 | 2)
 }
 
 const submitting = ref(false)
@@ -394,6 +421,7 @@ async function next() {
 function restart() {
   placed.value = null
   step.value = 1
+  planView.value = false
   svcId.value = null
   planId.value = null
   pay.value = 'monthly'
@@ -422,7 +450,7 @@ const CARD = 'bg-card border-line-subtle shadow-panel rounded-[20px] border'
 </script>
 
 <template>
-  <div class="@container mx-auto flex max-w-[1260px] flex-col gap-[clamp(22px,2.4vw,32px)] px-[clamp(16px,3vw,40px)] pb-[clamp(28px,4vw,56px)] pt-[clamp(20px,3vw,40px)]">
+  <div class="@container/page mx-auto flex max-w-[1260px] flex-col gap-[clamp(22px,2.4vw,32px)] px-[clamp(16px,3vw,40px)] pb-[clamp(28px,4vw,56px)] pt-[clamp(20px,3vw,40px)]">
     <template v-if="!placed">
       <div class="flex flex-wrap items-end justify-between gap-x-6 gap-y-3.5">
         <div class="flex min-w-0 flex-[1_1_320px] flex-col gap-2.5">
@@ -471,13 +499,13 @@ const CARD = 'bg-card border-line-subtle shadow-panel rounded-[20px] border'
         <div class="@container flex min-w-0 flex-col gap-5">
           <!-- Step 1: service, then plan -->
           <template v-if="step === 1">
-            <section aria-labelledby="h-s1" class="flex flex-col gap-4">
+            <section v-if="!planView" aria-labelledby="h-s1" class="flex flex-col gap-4">
               <div class="flex flex-col gap-1.5">
                 <h2 id="h-s1" :class="H2">
-                  Choose a service and plan
+                  Choose a service
                 </h2>
                 <p :class="SUB">
-                  Start with what is costing you money today. Plans appear below as soon as you pick.
+                  Start with what is costing you money today. You will pick a plan next.
                 </p>
               </div>
               <div role="radiogroup" aria-label="Service" class="grid gap-3.5 @min-[480px]:grid-cols-2 @min-[700px]:grid-cols-3">
@@ -500,9 +528,12 @@ const CARD = 'bg-card border-line-subtle shadow-panel rounded-[20px] border'
               </div>
             </section>
 
-            <section v-if="service" aria-labelledby="h-s2" class="flex scroll-mt-24 flex-col gap-4">
-              <div class="flex flex-col gap-1.5">
-                <h2 id="h-s2" ref="plansHeading" :class="H2" class="scroll-mt-24">
+            <section v-else-if="service" aria-labelledby="h-s2" class="flex flex-col gap-4">
+              <div class="flex flex-col items-start gap-1.5">
+                <button type="button" class="apex-ring text-accent-ink mb-1 inline-flex cursor-pointer items-center gap-1.5 rounded-md text-sm font-semibold" @click="changeService">
+                  <Icon name="lucide:arrow-left" class="size-4" />Change service
+                </button>
+                <h2 id="h-s2" :class="H2">
                   {{ service.heading }}
                 </h2>
                 <p :class="SUB">
@@ -644,7 +675,7 @@ const CARD = 'bg-card border-line-subtle shadow-panel rounded-[20px] border'
                     <span class="font-heading text-fg-heading text-[26px] font-extrabold tracking-[-0.025em] tabular-nums">
                       {{ o === 'monthly' ? formatCurrency(plan.monthly ?? 0) : formatCurrency(orderTerms(service!, plan).total) }}<span v-if="o === 'monthly'" class="text-fg-muted text-[13px] font-semibold"> /mo</span>
                     </span>
-                    <span class="text-fg-muted text-[13px] leading-normal">{{ o === 'monthly' ? `${formatCurrency(plan.deposit ?? 0)} deposit at kickoff, then ${paymentCount(service!, plan)} monthly payments` : 'One payment at kickoff. Same total, nothing later.' }}</span>
+                    <span class="text-fg-muted text-[13px] leading-normal">{{ o === 'monthly' ? (plan.deposit ? `${formatCurrency(plan.deposit)} deposit at kickoff, then ${paymentCount(service!, plan)} monthly payments` : `No deposit. ${paymentCount(service!, plan)} equal monthly payments, the first at kickoff`) : 'One payment at kickoff. Same total, nothing later.' }}</span>
                   </span>
                 </button>
               </div>
@@ -779,10 +810,12 @@ const CARD = 'bg-card border-line-subtle shadow-panel rounded-[20px] border'
             </section>
           </template>
 
-          <!-- Footer, inline from 860px of content -->
-          <div class="hidden flex-col gap-2 pt-1 @min-[860px]:flex">
+          <!-- Footer, inline from 860px of content. Named container: this sits
+               inside the left column's own container, which is never 860px wide
+               beside the rail, so an unnamed query hid it on every desktop. -->
+          <div class="hidden flex-col gap-2 pt-1 @min-[860px]/page:flex">
             <div class="flex items-center justify-between gap-3">
-              <button v-if="step > 1" type="button" class="apex-ring bg-card border-line-rule text-fg-heading inline-flex h-[46px] cursor-pointer items-center gap-2 rounded-[14px] border px-[18px] text-[15px] font-semibold" @click="go((step - 1) as 1 | 2)">
+              <button v-if="canBack" type="button" class="apex-ring bg-card border-line-rule text-fg-heading inline-flex h-[46px] cursor-pointer items-center gap-2 rounded-[14px] border px-[18px] text-[15px] font-semibold" @click="back">
                 <Icon name="lucide:arrow-left" class="size-[17px]" />Back
               </button>
               <NuxtLink v-else to="/dashboards/balance" class="apex-ring text-fg-body rounded-md text-[14.5px] font-semibold">
@@ -823,7 +856,7 @@ const CARD = 'bg-card border-line-subtle shadow-panel rounded-[20px] border'
               </template>
             </template>
             <p v-else class="text-fg-body m-0 text-sm leading-relaxed">
-              Choose a service to see the monthly figure, the deposit and every payment date.
+              Choose a service to see the monthly figure and every payment date.
             </p>
             <span class="border-line-soft text-fg-muted flex items-center gap-2 border-t pt-3.5 text-[12.5px]"><Icon name="lucide:lock" class="size-3.5 text-[#22B07D]" />Figures include VAT · Nothing is charged today</span>
           </div>
@@ -840,7 +873,7 @@ const CARD = 'bg-card border-line-subtle shadow-panel rounded-[20px] border'
           {{ nextReason }}
         </p>
         <div class="flex items-center gap-2.5">
-          <button v-if="step > 1" type="button" aria-label="Back" class="apex-ring bg-card border-line-rule text-fg-heading inline-flex size-[46px] shrink-0 cursor-pointer items-center justify-center rounded-[14px] border" @click="go((step - 1) as 1 | 2)">
+          <button v-if="canBack" type="button" aria-label="Back" class="apex-ring bg-card border-line-rule text-fg-heading inline-flex size-[46px] shrink-0 cursor-pointer items-center justify-center rounded-[14px] border" @click="back">
             <Icon name="lucide:arrow-left" class="size-[18px]" />
           </button>
           <button type="button" aria-label="View order summary" class="apex-ring flex min-w-0 grow cursor-pointer flex-col items-start gap-px rounded-lg px-1 text-left" @click="sumOpen = true">
@@ -875,7 +908,7 @@ const CARD = 'bg-card border-line-subtle shadow-panel rounded-[20px] border'
             </div>
           </template>
           <p v-else class="text-fg-body m-0 text-sm leading-relaxed">
-            Choose a service to see the monthly figure, the deposit and every payment date.
+            Choose a service to see the monthly figure and every payment date.
           </p>
           <span class="text-fg-muted text-[12.5px]">Figures include VAT · Nothing is charged today</span>
         </div>

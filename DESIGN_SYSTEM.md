@@ -1313,6 +1313,23 @@ on after the Panel Breakpoints build, and three things changed:
   "See all notifications" footer is left out until `Notifications.dc.html`
   has a page to send it to.
 
+**New order revision (`New Order.dc.html`, 2026-10-25).**
+- Step 1 is two screens: "Choose a service" (copy: "You will pick a plan
+  next."), then that service's plans with "Change service" above the heading.
+  Back on the plans screen returns to the grid; Cancel shows only on the grid.
+  A `?service=` deep link opens the plans screen.
+- Fixed plans take no deposit (ADR-019 amendment): "No deposit · 12 × £299" on
+  the cards, "No deposit. 12 equal monthly payments, the first at kickoff" on
+  the pay option, payment 1 of 12 at kickoff in the schedule, "Deposit: None"
+  in the summary.
+- Fixed in passing: the inline Back / Continue footer used `@min-[860px]:`
+  inside the left column's own `@container`, which is never 860px wide beside
+  the rail, so on every desktop the wizard had no visible way forward. The
+  page container is now `@container/page` and the footer queries it.
+- Kept against the design: the done screen says the kickoff payment (not "the
+  deposit") is taken after the call, and still does not claim to have emailed
+  the agreement.
+
 Gotchas:
 - **Heredocs with apostrophes can fail through the shell hook here** — write a
   script file and run it instead.
@@ -1320,6 +1337,9 @@ Gotchas:
   `@utility apex-panel-nav-active` so `@min-[760px]:apex-panel-nav-active` works.
 - **ESLint's auto-fix turned a `\uFEFF` escape into a literal BOM** and then
   flagged it; build such strings with `String.fromCharCode`.
+- **Nested size containers capture unnamed queries.** `@min-[860px]:` matches
+  the nearest `@container`; a page-width rule inside a column container needs
+  a named one (`@container/page` + `@min-[860px]/page:`).
 - **Removing an auto-imported server export needs a dev-server restart**:
   Nitro's `#imports` kept the old name and every page 500'd until then.
 

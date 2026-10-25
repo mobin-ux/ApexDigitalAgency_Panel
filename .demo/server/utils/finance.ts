@@ -74,7 +74,7 @@ export async function chargeInstallment(planId: string, opts?: { actorNote?: str
       return { ok: false, reason: 'not_found' as const }
     }
     // A v2 plan is `pending` until its project's kickoff payment is collected
-    // (ADR-019): no monthly payment may be taken before the deposit.
+    // (ADR-019): no monthly payment may be taken before the kickoff payment.
     if (plan.status === 'pending') {
       return { ok: false, reason: 'not_started' as const }
     }
@@ -208,8 +208,8 @@ class KickoffShortfall extends Error {
 
 /**
  * Collect a Panel v2 project's kickoff payment from the wallet and start the
- * work (ADR-019): deposit, payment in full, set-up plus first month, or the
- * discovery fee — whatever `orderTerms()` priced at order time and stored on
+ * work (ADR-019): payment 1 of a fixed plan (or its deposit), payment in
+ * full, set-up plus first month, or the discovery fee — whatever `orderTerms()` priced at order time and stored on
  * `Project.kickoffAmount`. The debit, the ledger row, the project status and
  * the plan's first real due date commit together or not at all, and a
  * conditional update on `kickoffPaidAt` means two clicks charge once.
@@ -232,6 +232,10 @@ export async function collectKickoff(projectId: string, opts?: { actorNote?: str
     }
 
     const amount = Math.round(project.kickoffAmount * 100) / 100
+    // A fixed plan with no deposit takes payment 1 of n at kickoff (ADR-019,
+    // revised): the plan holds all n payments and this collection is its first.
+    const plan = project.installmentPlan
+    const firstOfPlan = project.payMode === 'fixed-monthly' && plan !== null && !(plan.depositAmount && plan.depositAmount > 0)
     if (amount > 0) {
       const debited = await tx.user.updateMany({
         where: { id: project.userId, walletBalance: { gte: amount } },
@@ -248,7 +252,9 @@ export async function collectKickoff(projectId: string, opts?: { actorNote?: str
           ? 'Set-up and first month'
           : project.payMode === 'scope'
             ? 'Discovery fee'
-            : 'Deposit'
+            : firstOfPlan
+              ? `Installment 1/${plan!.monthsTotal}`
+              : 'Deposit'
       await tx.transaction.create({
         data: {
           userId: project.userId,
@@ -277,10 +283,13 @@ export async function collectKickoff(projectId: string, opts?: { actorNote?: str
         await tx.milestone.update({ where: { id: next.id }, data: { status: 'CURRENT' } })
       }
     }
-    if (project.installmentPlan && project.installmentPlan.status === 'pending') {
+    if (plan && plan.status === 'pending') {
+      const settled = firstOfPlan && plan.monthsTotal <= 1
       await tx.installment.update({
-        where: { id: project.installmentPlan.id },
-        data: { status: 'active', nextDue: firstPaymentDate(now) },
+        where: { id: plan.id },
+        data: firstOfPlan
+          ? { status: settled ? 'settled' : 'active', nextDue: firstPaymentDate(now), monthsPaid: 1, paid: amount, amountDue: plan.monthlyAmount }
+          : { status: 'active', nextDue: firstPaymentDate(now) },
       })
     }
     await tx.notification.create({

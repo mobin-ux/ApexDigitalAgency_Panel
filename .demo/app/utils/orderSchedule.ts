@@ -50,6 +50,8 @@ export interface Schedule {
   retainer: boolean
   started: boolean
   nextDue: Date | null
+  /** fixed: the deposit taken at kickoff; 0 when payment 1 was the kickoff. */
+  deposit?: number
   kind: 'fixed' | 'full' | 'retainer' | 'scope' | 'legacy' | 'none'
 }
 
@@ -89,19 +91,24 @@ export function orderSchedule(p: ScheduleInput): Schedule {
     case 'fixed-monthly': {
       const n = plan?.monthsTotal ?? 0
       const deposit = plan?.depositAmount ?? kickoff
-      const rows = [row('Deposit', kickoffDate, deposit, kickoffState), ...instalments(n, i => `Payment ${i + 1} of ${n}`)]
-      return {
-        rows,
-        paid: (started ? deposit : 0) + (plan?.paid ?? 0),
-        total: deposit + n * (plan?.monthlyAmount ?? 0),
-        monthly: plan?.monthlyAmount ?? 0,
-        payments: n,
-        paidCount: plan?.monthsPaid ?? 0,
-        retainer: false,
-        started,
-        nextDue: started ? next : null,
-        kind: 'fixed',
+      const monthly = plan?.monthlyAmount ?? 0
+      const base = { monthly, payments: n, paidCount: plan?.monthsPaid ?? 0, retainer: false, started, nextDue: started ? next : null, deposit, kind: 'fixed' as const }
+      if (deposit > 0) {
+        return {
+          ...base,
+          rows: [row('Deposit', kickoffDate, deposit, kickoffState), ...instalments(n, i => `Payment ${i + 1} of ${n}`)],
+          paid: (started ? deposit : 0) + (plan?.paid ?? 0),
+          total: deposit + n * monthly,
+        }
       }
+      // No deposit: payment 1 of n is the kickoff payment, and the plan counts
+      // it, so after kickoff `instalments()` already marks it paid. Before
+      // kickoff it is "At kickoff", and the plan's estimated first due date
+      // belongs to payment 2.
+      const rows = started
+        ? instalments(n, i => `Payment ${i + 1} of ${n}`)
+        : [row(`Payment 1 of ${n}`, kickoffDate, monthly, kickoffState), ...(next ? Array.from({ length: Math.max(0, n - 1) }, (_, i) => row(`Payment ${i + 2} of ${n}`, ukDate(monthAfter(next, i)), monthly, 'Upcoming')) : [])]
+      return { ...base, rows, paid: plan?.paid ?? 0, total: n * monthly }
     }
     case 'fixed-full':
       return { rows: [row('Full payment', kickoffDate, kickoff, kickoffState)], paid: started ? kickoff : 0, total: kickoff, monthly: 0, payments: 0, paidCount: 0, retainer: false, started, nextDue: null, kind: 'full' }

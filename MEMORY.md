@@ -2,7 +2,7 @@
 
 > Handoff doc for continuing work in fresh sessions. Update the relevant section
 > whenever a page ships, a decision lands, or a blocker appears.
-> Last updated: **2026-10-25** (Panel v2 dashboard revision: promo band, credit states, notifications panel).
+> Last updated: **2026-10-25** (Panel v2: dashboard revision, then New order revision — no deposit, plan view).
 
 ## Where things stand
 
@@ -49,6 +49,10 @@ them with `meta.colorMode`, because they were only ever checked in dark.
 - `shared/catalog.ts` — the website's seven services and plans, and
   `orderTerms()`; the wizard and `POST /api/orders` both price with it.
   Setting `catalog.v2`; `/admin/services` edits it (prices and copy only).
+- **No deposits since 2026-10-25** (New Order revision, ADR-019 amendment):
+  fixed plans are n equal payments, payment 1 at kickoff, counted on the plan.
+  A deposit is now an optional admin catalogue field. The website still
+  quotes deposits — open.
 - Orders are signed, not charged: `PENDING` + `kickoffAmount`. Staff press
   "Kickoff done · collect £X" on the admin project screen
   (`POST /api/admin/projects/:id/kickoff` → `collectKickoff()`); plans are

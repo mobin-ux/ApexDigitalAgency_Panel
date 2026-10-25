@@ -8,8 +8,10 @@
  * Phase 3 bug that put £113 on a card beside £200 in the rail.
  *
  * Three ways to pay, matching the website's v2 plans:
- *   fixed     a deposit at kickoff, then N equal monthly payments (or the same
- *             total in one payment at kickoff). No interest.
+ *   fixed     N equal monthly payments, the first at kickoff, with no deposit
+ *             (or the same total in one payment at kickoff). No interest.
+ *             A plan given a deposit in the admin catalogue takes it at
+ *             kickoff instead, then N payments after it.
  *   retainer  set-up fee (if any) and the first month at kickoff, then monthly
  *             for a minimum term, then rolling with 30 days' notice.
  *   scope     software: a free scoping call, or fixed-price discovery that is
@@ -33,7 +35,10 @@ export interface CatalogPlan {
   flag?: string
   /** fixed + retainer: the monthly payment. */
   monthly?: number
-  /** fixed: paid at kickoff, before the monthly payments. */
+  /**
+   * fixed: optional, paid at kickoff before the N monthly payments. The
+   * default catalogue has none: payment 1 of N is taken at kickoff instead.
+   */
   deposit?: number
   /** fixed: overrides the service's payment count (Brand + Web runs twelve). */
   payments?: number
@@ -52,7 +57,7 @@ export interface CatalogService {
   name: string
   line: string
   kind: PlanKind
-  /** fixed: number of monthly payments after the deposit. */
+  /** fixed: number of equal monthly payments. */
   payments?: number
   /** retainer: minimum term in months. */
   minimumMonths?: number
@@ -79,11 +84,11 @@ export const DEFAULT_CATALOG: Catalog = {
       payments: 12,
       heading: 'Choose a website plan',
       sub: 'Design, build and hosting included. You own the code from day one.',
-      foot: 'Twelve monthly payments after a deposit. Pay in full at kickoff if you prefer, for the same total.',
+      foot: 'Twelve equal monthly payments with no deposit. Pay in full at kickoff if you prefer, for the same total.',
       plans: [
-        { id: 'starter', name: 'Starter', summary: 'A professional site to start winning enquiries.', monthly: 149, deposit: 299, features: ['Up to 12 pages', 'Mobile-first build', 'Hosting and SSL included', 'Search Engine Optimisation (SEO) foundations'] },
-        { id: 'growth', name: 'Growth', summary: 'A larger site built to turn visitors into enquiries.', monthly: 299, deposit: 499, featured: true, features: ['Everything in Starter', 'Custom design for every page', 'Lead-capture forms and call tracking', 'Blog and case-study templates'] },
-        { id: 'complete', name: 'Complete', summary: 'Site, copy and integrations in one build.', monthly: 499, deposit: 799, features: ['Everything in Growth', 'Copywriting included', 'Booking or shop integration', 'CRM integration'] },
+        { id: 'starter', name: 'Starter', summary: 'A professional site to start winning enquiries.', monthly: 149, features: ['Up to 12 pages', 'Mobile-first build', 'Hosting and SSL included', 'Search Engine Optimisation (SEO) foundations'] },
+        { id: 'growth', name: 'Growth', summary: 'A larger site built to turn visitors into enquiries.', monthly: 299, featured: true, features: ['Everything in Starter', 'Custom design for every page', 'Lead-capture forms and call tracking', 'Blog and case-study templates'] },
+        { id: 'complete', name: 'Complete', summary: 'Site, copy and integrations in one build.', monthly: 499, features: ['Everything in Growth', 'Copywriting included', 'Booking or shop integration', 'CRM integration'] },
       ],
     },
     {
@@ -159,9 +164,9 @@ export const DEFAULT_CATALOG: Catalog = {
       sub: 'Priced per project and spread over six monthly payments.',
       foot: 'Credited in full if we go on to build it for you.',
       plans: [
-        { id: 'review', name: 'Review', summary: 'A UX audit and fix list for an existing site.', monthly: 249, deposit: 199, features: ['Analytics and recording review', 'Ranked problem list', 'Wireframes for top three fixes', 'One round of user testing'] },
-        { id: 'redesign', name: 'Redesign', summary: 'One key journey redesigned and tested.', monthly: 499, deposit: 399, featured: true, features: ['Everything in Review', 'User interviews', 'Clickable prototype', 'Developer handover'] },
-        { id: 'product', name: 'Product', summary: 'A new product designed end to end.', monthly: 899, deposit: 699, features: ['Everything in Redesign', 'Up to 30 screens', 'Two rounds of testing', 'Starter design system'] },
+        { id: 'review', name: 'Review', summary: 'A UX audit and fix list for an existing site.', monthly: 249, features: ['Analytics and recording review', 'Ranked problem list', 'Wireframes for top three fixes', 'One round of user testing'] },
+        { id: 'redesign', name: 'Redesign', summary: 'One key journey redesigned and tested.', monthly: 499, featured: true, features: ['Everything in Review', 'User interviews', 'Clickable prototype', 'Developer handover'] },
+        { id: 'product', name: 'Product', summary: 'A new product designed end to end.', monthly: 899, features: ['Everything in Redesign', 'Up to 30 screens', 'Two rounds of testing', 'Starter design system'] },
       ],
     },
     {
@@ -172,12 +177,12 @@ export const DEFAULT_CATALOG: Catalog = {
       kind: 'fixed',
       payments: 6,
       heading: 'Choose a branding plan',
-      sub: 'A small deposit, then equal monthly payments. Full copyright and source files on every plan.',
+      sub: 'No deposit, just equal monthly payments. Full copyright and source files on every plan.',
       foot: 'Your branding fee is credited against a Website Design plan if you add one within six months.',
       plans: [
-        { id: 'starter', name: 'Starter', summary: 'A logo and essentials to start trading.', monthly: 129, deposit: 149, features: ['Two logo directions', 'Colour and type palette', 'Business card design', 'All file formats'] },
-        { id: 'identity', name: 'Identity', summary: 'A complete brand for established businesses.', monthly: 249, deposit: 249, featured: true, features: ['Three logo directions', 'Brand guidelines', 'Full stationery set', 'Social media templates'] },
-        { id: 'brandweb', name: 'Brand + Web', summary: 'Identity and a website built on it.', monthly: 239, deposit: 399, payments: 12, features: ['Everything in Identity', 'Five-page website', 'Hosting and maintenance', 'Launch in about 6 weeks'] },
+        { id: 'starter', name: 'Starter', summary: 'A logo and essentials to start trading.', monthly: 129, features: ['Two logo directions', 'Colour and type palette', 'Business card design', 'All file formats'] },
+        { id: 'identity', name: 'Identity', summary: 'A complete brand for established businesses.', monthly: 249, featured: true, features: ['Three logo directions', 'Brand guidelines', 'Full stationery set', 'Social media templates'] },
+        { id: 'brandweb', name: 'Brand + Web', summary: 'Identity and a website built on it.', monthly: 239, payments: 12, features: ['Everything in Identity', 'Five-page website', 'Hosting and maintenance', 'Launch in about 6 weeks'] },
       ],
     },
   ],
@@ -211,8 +216,14 @@ export interface OrderTerms {
   kickoff: number
   /** The recurring monthly payment after kickoff; 0 when there is none. */
   monthly: number
-  /** Monthly payments after kickoff that the plan commits to. */
+  /**
+   * The instalment plan's length. Normally the monthly payments after
+   * kickoff; when `firstPaymentAtKickoff`, the kickoff amount is payment 1 of
+   * these and is counted on the plan.
+   */
   payments: number
+  /** fixed, no deposit: the kickoff amount is the plan's first payment. */
+  firstPaymentAtKickoff: boolean
   /** fixed: total, all in. retainer: the minimum-term total. scope: the fixed price. */
   total: number
   deposit: number
@@ -250,18 +261,20 @@ export function orderTerms(service: CatalogService, plan: CatalogPlan, pay: PayM
     const monthly = plan.monthly ?? 0
     const total = deposit + n * monthly
     if (pay === 'full') {
-      return { kind: 'fixed', kickoff: total, monthly: 0, payments: 0, total, deposit: 0, setup: 0, minimumMonths: 0, financed: 0 }
+      return { kind: 'fixed', kickoff: total, monthly: 0, payments: 0, firstPaymentAtKickoff: false, total, deposit: 0, setup: 0, minimumMonths: 0, financed: 0 }
     }
-    return { kind: 'fixed', kickoff: deposit, monthly, payments: n, total, deposit, setup: 0, minimumMonths: 0, financed: n * monthly }
+    // No deposit: payment 1 of n is what kickoff collects.
+    const first = deposit <= 0
+    return { kind: 'fixed', kickoff: first ? monthly : deposit, monthly, payments: n, firstPaymentAtKickoff: first, total, deposit, setup: 0, minimumMonths: 0, financed: n * monthly }
   }
   if (service.kind === 'retainer') {
     const min = service.minimumMonths ?? 1
     const monthly = plan.monthly ?? 0
     const setup = plan.setup ?? 0
-    return { kind: 'retainer', kickoff: setup + monthly, monthly, payments: Math.max(0, min - 1), total: setup + monthly * min, deposit: 0, setup, minimumMonths: min, financed: 0 }
+    return { kind: 'retainer', kickoff: setup + monthly, monthly, payments: Math.max(0, min - 1), firstPaymentAtKickoff: false, total: setup + monthly * min, deposit: 0, setup, minimumMonths: min, financed: 0 }
   }
   const price = plan.price ?? 0
-  return { kind: 'scope', kickoff: price, monthly: 0, payments: 0, total: price, deposit: 0, setup: 0, minimumMonths: 0, financed: 0 }
+  return { kind: 'scope', kickoff: price, monthly: 0, payments: 0, firstPaymentAtKickoff: false, total: price, deposit: 0, setup: 0, minimumMonths: 0, financed: 0 }
 }
 
 /** The cheapest monthly figure a service is sold from (dashboard and wizard cards). */
@@ -273,7 +286,7 @@ export function fromMonthly(service: CatalogService): number | null {
 /**
  * First instalment date for a plan whose kickoff is collected on `from`: the
  * 1st of the next month, or of the month after when that is under two weeks
- * away, so nobody pays a deposit and an instalment a few days apart.
+ * away, so nobody makes two payments a few days apart.
  */
 export function firstPaymentDate(from: Date): Date {
   const d = new Date(from.getFullYear(), from.getMonth() + 1, 1)
