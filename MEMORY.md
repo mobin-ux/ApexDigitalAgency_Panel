@@ -2,7 +2,7 @@
 
 > Handoff doc for continuing work in fresh sessions. Update the relevant section
 > whenever a page ships, a decision lands, or a blocker appears.
-> Last updated: **2026-10-25** (Panel v2: dashboard revision, New order revision — no deposit, plan view — and a My orders re-check).
+> Last updated: **2026-10-25** (Panel v2: dashboard, New order and My orders revisions; Wallet revision — credit by application, ADR-020).
 
 ## Where things stand
 
@@ -53,6 +53,11 @@ them with `meta.colorMode`, because they were only ever checked in dark.
   fixed plans are n equal payments, payment 1 at kickoff, counted on the plan.
   A deposit is now an optional admin catalogue field. The website still
   quotes deposits — open.
+- **Credit by application since 2026-10-25** (Wallet revision, ADR-020):
+  `CreditApplication`, the form at `/dashboards/wallet?credit=apply`, staff
+  decide at `/admin/credit`. Lines that existed were kept. No line = one fixed
+  monthly plan at a time (`creditAllows`). Open: document retention after a
+  decision, and a legal check on lending to sole traders.
 - Orders are signed, not charged: `PENDING` + `kickoffAmount`. Staff press
   "Kickoff done · collect £X" on the admin project screen
   (`POST /api/admin/projects/:id/kickoff` → `collectKickoff()`); plans are
@@ -82,15 +87,16 @@ toggles (none exists; the page says so); the sign-in email is read-only (no
 mail provider to confirm a change); nothing claims to have emailed anything;
 no fake "Apex support" auto-reply on a new request; the FAQ tab is gone, as drawn.
 
-**Deploy needs:** `prisma db push` (new columns + `ClientAction`), a writable
+**Deploy needs:** `prisma db push` (new columns + `ClientAction`, and
+`CreditApplication` + `Attachment.creditApplicationId` from ADR-020), a writable
 `NUXT_UPLOAD_DIR` outside the bundle (e.g. `/opt/apex/uploads`), optionally
 `NUXT_COMPANIES_HOUSE_KEY`. Not deployed yet.
 
 **Dashboard revision (2026-10-25).** `Dashboard.dc.html` changed after the
 Breakpoints build: new promo copy with no pickers, three credit states, and a
 redesigned notifications panel (filter, per-row read). Details and deviations
-in DESIGN_SYSTEM.md. Open: the design's credit *application* flow (Wallet) and
-the `Notifications.dc.html` page are not built.
+in DESIGN_SYSTEM.md. Open: the `Notifications.dc.html` page is not built (the
+credit application flow was built in the Wallet revision).
 
 **Local test data:** order "E2E site" (Website Design Starter) on
 `user@apex.com`, kickoff collected after a £500 admin wallet credit, one
@@ -519,12 +525,9 @@ on a fresh tab. ESLint clean; all six customer routes still SSR 200.
 
 ### Phase 5 gotcha — `ensureCredit()` overwrites admin limit changes
 
-`server/utils/credit.ts` recreates/normalises every customer's `CreditLine`
-on each dashboard load from Setting `credit.max-limit` (default £20,000), and
-derives `used` from outstanding principal rather than maintaining it
-incrementally. An admin "adjust limit to 0" therefore does not stick. To
-exercise the no-credit UI, set `credit.max-limit` to 0, verify, then restore
-it — that is how the empty state was tested here.
+Superseded 2026-10-25 by ADR-020: credit is applied for and approved by
+staff, and `ensureCredit()` no longer creates or resizes lines. A new signup
+has no line, which is the easy way to see the "Not set up" state.
 
 ### Phase 5 note — wallet is dark-only, and that is Phase 9's problem
 

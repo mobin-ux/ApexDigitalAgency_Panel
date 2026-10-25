@@ -13,7 +13,7 @@ import { DEFAULT_REPLY_TARGETS, onlinePillText, REPLY_PRIORITIES, replyTargetKey
  *   6 §6 found a hardcoded "15 min" in three components beside a
  *   config-driven pill; `shared/support-eta.ts` is now the single source
  *   both this preview and `/api/config` read, so they cannot disagree.
- * - Credit rules — the credit ceiling `ensureCredit()` applies, the
+ * - Credit rules — the credit ceiling (the most staff can approve), the
  *   24-month gate the New Order wizard and `/api/orders` check, and the
  *   first-instalment offset every new plan is built from.
  * - Sign-in & security (badge 29) — stated as real numbers read out of
@@ -352,7 +352,7 @@ const GHOST_BTN = 'apex-focus inline-flex min-h-11 cursor-pointer items-center r
             <div class="flex items-center gap-3.5">
               <span class="min-w-0 flex-1">
                 <label for="credit-limit" class="text-muted-900 block text-[13.5px] font-semibold dark:text-white">Credit ceiling per client</label>
-                <span class="text-muted-500 mt-[3px] block text-xs">Live: the limit <code class="font-mono">ensureCredit()</code> applies to every credit line.</span>
+                <span class="text-muted-500 mt-[3px] block text-xs">The most staff can approve for one client, and the top of what a client can ask for. Lines already approved keep their limit.</span>
               </span>
               <span class="flex shrink-0 items-center gap-1.5">
                 <span class="font-heading text-muted-500 text-[15px] font-bold">£</span>

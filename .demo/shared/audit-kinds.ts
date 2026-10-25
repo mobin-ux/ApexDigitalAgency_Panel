@@ -48,6 +48,7 @@ export const AUDIT_KIND_DEFS: Record<AuditKind, AuditKindDef> = {
       'admin.installment.',
       'admin.user.wallet-adjust',
       'contract.',
+      'credit.',
     ],
   },
   /*

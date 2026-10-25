@@ -225,11 +225,9 @@ below apply to every page from here on:
   are visually indistinguishable and a single bar reads better.
 
 **Phase 5 gotcha — `ensureCredit()` normalises the line on every load.**
-`server/utils/credit.ts` recreates/normalises each customer's `CreditLine` from
-Setting `credit.max-limit` (default £20,000) whenever the dashboard loads, and
-derives `used` from outstanding principal. An admin "adjust limit to 0" will
-therefore not stick. To test the no-credit state, set `credit.max-limit` to 0,
-verify, then restore it.
+Superseded on 2026-10-25 (ADR-020): lines are approved by staff now, and
+`ensureCredit()` only recomputes `used`. To see the no-credit state, use an
+account with no line (a new signup).
 
 #### Phase 6 — Support (don't accept what you can't deliver)
 
@@ -1302,7 +1300,7 @@ on after the Panel Breakpoints build, and three things changed:
   today", because work starts at kickoff.
 - The credit card has the design's states. "Under review" is not drawn,
   because credit is granted to every account without an application
-  (`ensureCredit`); a line with a limit is "Approved" (or "On hold" when
+  (`ensureCredit`, until ADR-020); a line with a limit is "Approved" (or "On hold" when
   frozen), and a zero limit is "Not set up" with "Ask about credit" in place
   of "Apply now". The approved footer keeps "never carry interest" rather than
   the design's "for the next 30 days".
@@ -1341,6 +1339,30 @@ the Dashboard revision's. Two gaps closed:
   payment" for a no-deposit plan, otherwise "The kickoff payment".
 - The design's mock orders still show a deposit row; real orders follow the
   ADR-019 amendment.
+
+**Wallet revision (`Wallet.dc.html`, 2026-10-25) — credit by application (ADR-020).**
+- The credit card has the design's states: "Not set up" with "Apply for a
+  credit line", "Under review" with the requested amount and "View
+  application", "Approved" (or "On hold"). The dashboard card follows, with
+  "Apply now" in place of "Ask about credit".
+- `?credit=apply` opens the application (`WalletCreditApply`): intro and two
+  checks, then Business · About you · Banking · Limit and review.
+  `?credit=status` is the progress screen with "Withdraw application".
+- Staff decide in `/admin/credit` (Money › Credit lines).
+- Saved cards are confirmed in the row ("Remove Visa ending 4242? It will no
+  longer be used for payments."), not in a sheet, with brand-coloured badges.
+- Kept against the design, real or absent:
+  - No card-number form: cards are added through the provider's hosted page
+    (PCI SAQ-A).
+  - No "Connect your bank": statements are uploaded.
+  - No postcode address finder: the home address is typed.
+  - No fraud-agency claim.
+  - No "we email you".
+  - The example limit counts only fixed plans, because retainers never draw
+    credit.
+  - The auto-pay switch stays in place of "Auto top-up".
+  - Receipts carry no invoice downloads.
+  - A default card can still be removed.
 
 Gotchas:
 - **Heredocs with apostrophes can fail through the shell hook here** — write a

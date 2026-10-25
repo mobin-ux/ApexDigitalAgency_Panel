@@ -6,7 +6,7 @@ import { recordAudit } from '../../utils/audit'
 import { requireAuth } from '../../utils/auth'
 import { getCatalog } from '../../utils/catalog-v2'
 import { nextContractReference } from '../../utils/contracts'
-import { ensureCredit } from '../../utils/credit'
+import { creditAllows, ensureCredit } from '../../utils/credit'
 import { planIcon } from '../../utils/finance'
 import prisma from '../../utils/prisma'
 import { getSetting } from '../../utils/settings'
@@ -79,17 +79,16 @@ export default defineEventHandler(async (event) => {
   }
 
   // Monthly payments on a fixed plan draw on the customer's Apex credit; a
-  // retainer, a payment in full and discovery do not.
+  // retainer, a payment in full and discovery do not. One plan is allowed
+  // without a credit line; more need one (`creditAllows`).
   if (terms.financed > 0) {
     const credit = await ensureCredit(session.id)
-    if (credit.status === 'FROZEN') {
+    if (credit.state === 'frozen') {
       throw createError({ statusCode: 403, message: 'Your Apex credit is on hold. Please contact support.' })
     }
-    if (terms.financed > credit.available) {
-      throw createError({
-        statusCode: 400,
-        message: `The monthly payments (£${terms.financed.toLocaleString('en-GB')}) are more than your available Apex credit of £${credit.available.toLocaleString('en-GB')}. Choose to pay in full, or finish an existing plan first.`,
-      })
+    const refusal = creditAllows(credit, terms.financed)
+    if (refusal) {
+      throw createError({ statusCode: 400, message: refusal })
     }
   }
 

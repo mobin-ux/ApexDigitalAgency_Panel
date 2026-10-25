@@ -99,8 +99,9 @@ model User {
   autoPayInstallments Boolean @default(true)
 
   // --- Relations (Connecting all modules) ---
-  company    Company? // One-to-One
-  creditLine CreditLine? // One-to-One (Apex credit product)
+  company            Company? // One-to-One
+  creditLine         CreditLine? // One-to-One (Apex credit product)
+  creditApplications CreditApplication[]
 
   // Project Management
   // 1. Projects the user owns (as the customer)
@@ -146,22 +147,22 @@ model User {
 }
 
 model Company {
-  id        String  @id @default(uuid())
-  name      String
-  email     String?
-  website   String?
-  phone     String?
-  taxId     String?
+  id            String  @id @default(uuid())
+  name          String
+  email         String?
+  website       String?
+  phone         String?
+  taxId         String?
   // Companies House registration number (8 characters). Panel v2 Settings.
   companyNumber String?
-  address   String?
-  type      String?
-  income    String?
-  employees String?
-  manager   String?
-  status    String  @default("Active")
-  notes     String?
-  logo      String?
+  address       String?
+  type          String?
+  income        String?
+  employees     String?
+  manager       String?
+  status        String  @default("Active")
+  notes         String?
+  logo          String?
 
   userId String @unique
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -327,9 +328,9 @@ model Installment {
   icon        String
 
   // --- Real plan terms (ADR-011 math, computed server-side) ---
-  monthlyAmount Float @default(0)
-  termMonths    Int   @default(12)
-  interestRate  Float @default(0) // monthly rate: 0 for 12-mo, 0.01 for 24-mo
+  monthlyAmount Float  @default(0)
+  termMonths    Int    @default(12)
+  interestRate  Float  @default(0) // monthly rate: 0 for 12-mo, 0.01 for 24-mo
   // Panel v2 (ADR-019): `fixed` plans end when the last payment is taken;
   // `retainer` plans run past their minimum term until cancelled. A plan is
   // `status: pending` until the project's kickoff payment is collected.
@@ -521,8 +522,49 @@ model Attachment {
   projectId String?
   project   Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
+  // Photo ID or a bank statement sent with a credit application. Readable only
+  // by the applicant and staff who decide credit; deleted on withdrawal.
+  creditApplicationId String?
+  creditApplication   CreditApplication? @relation(fields: [creditApplicationId], references: [id], onDelete: Cascade)
+
   @@index([ticketMessageId])
   @@index([projectId])
+  @@index([creditApplicationId])
+}
+
+// An application for an Apex credit line (Wallet.dc.html, 2026-10-25). Credit
+// used to be granted to every account; now staff decide each application in
+// /admin/credit, and approving one creates or raises the customer's
+// CreditLine. Lines that existed before applications were kept as they were.
+model CreditApplication {
+  id               String    @id @default(uuid())
+  status           String    @default("SUBMITTED") // SUBMITTED, APPROVED, DECLINED, WITHDRAWN
+  businessType     String // ltd, llp, sole
+  companyNumber    String?
+  companyName      String?
+  tradingName      String?
+  businessPostcode String?
+  turnover         String
+  firstName        String
+  lastName         String
+  dateOfBirth      String // dd/mm/yyyy, as entered
+  role             String // Director, Owner, Partner
+  homeAddress      String
+  requestedLimit   Float
+  idAttachmentId   String?
+  approvedLimit    Float?
+  decisionNote     String?
+  decidedById      String?
+  submittedAt      DateTime  @default(now())
+  decidedAt        DateTime?
+  withdrawnAt      DateTime?
+
+  userId      String
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  attachments Attachment[]
+
+  @@index([userId])
+  @@index([status])
 }
 
 // Panel v2: something the agency needs from the client before work moves on

@@ -9,7 +9,8 @@ import { sendAttachment } from '../../utils/uploads'
  *
  * Who may read it: the uploader; the customer who owns the ticket or project
  * it is attached to (never a staff-internal message); and staff whose role
- * can see that kind of record. Everyone else gets the same 404 as a missing
+ * can see that kind of record. A credit application's photo ID and bank
+ * statements are for the applicant and staff who decide credit only. Everyone else gets the same 404 as a missing
  * file, so ids cannot be probed.
  */
 export default defineEventHandler(async (event) => {
@@ -34,7 +35,9 @@ export default defineEventHandler(async (event) => {
     const staff = await prisma.user.findUnique({ where: { id: session.id }, select: { role: true, status: true, staffRole: true } })
     if (staff?.role === 'ADMIN' && staff.status !== 'SUSPENDED') {
       const role = (staff.staffRole ?? 'owner') as Parameters<typeof can>[0]
-      allowed = row.ticketMessage ? can(role, 'support.answer') : can(role, 'work.view')
+      allowed = row.creditApplicationId
+        ? can(role, 'credit.approve')
+        : row.ticketMessage ? can(role, 'support.answer') : can(role, 'work.view')
     }
   }
   if (!allowed) {

@@ -2,7 +2,7 @@ import type { H3Event } from 'h3'
 import type { Buffer } from 'node:buffer'
 import { randomUUID } from 'node:crypto'
 import { createReadStream } from 'node:fs'
-import { mkdir, stat, writeFile } from 'node:fs/promises'
+import { mkdir, rm, stat, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import process from 'node:process'
 import { createError, sendStream, setResponseHeaders } from 'h3'
@@ -124,6 +124,22 @@ export async function sendAttachment(event: H3Event, row: { path: string, name: 
     'Cache-Control': 'private, no-store',
   })
   return sendStream(event, createReadStream(file))
+}
+
+/**
+ * Delete stored files and their rows — the bytes first, so a failure leaves a
+ * row pointing at nothing rather than an unlisted file on disk. Used when a
+ * credit application is withdrawn: its ID and statements are not kept.
+ */
+export async function deleteAttachments(rows: { id: string, path: string }[]) {
+  for (const row of rows) {
+    if (/^[0-9a-f-]{36}$/i.test(row.path)) {
+      await rm(join(uploadDir(), row.path), { force: true })
+    }
+  }
+  if (rows.length) {
+    await prisma.attachment.deleteMany({ where: { id: { in: rows.map(r => r.id) } } })
+  }
 }
 
 /** "4.2 MB", "120 KB" — the size line under a file name. */

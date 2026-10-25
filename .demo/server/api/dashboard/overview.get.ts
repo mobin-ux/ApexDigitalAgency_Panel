@@ -135,7 +135,7 @@ export default defineEventHandler(async (event) => {
     nextPayment: next
       ? { amount: next.monthlyAmount || next.amountDue, due: next.nextDue, plans: nextPlans }
       : null,
-    credit: { status: credit.status, limit: credit.limit, used: credit.used, available: credit.available },
+    credit: { state: credit.state, status: credit.status, limit: credit.limit, used: credit.used, available: credit.available, requestedLimit: credit.application?.status === 'SUBMITTED' ? credit.application.requestedLimit : null },
     projects: projects.map(p => ({
       id: p.id,
       ref: orderRef(p.id),

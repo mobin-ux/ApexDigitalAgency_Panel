@@ -119,9 +119,14 @@ JWT secret: `runtimeConfig.jwtSecret` (`NUXT_JWT_SECRET` env override).
 | GET `/api/dashboard/overview` | Panel v2 dashboard in one call: waiting-on-you (client actions, tickets awaiting the client, kickoff to arrange), next payment, credit, active work, paid so far split by order (withheld unless fully attributed) |
 | POST `/api/orders/:id/actions/:actionId/complete` | the client answers a `ClientAction`; conditional update, 409 on a repeat |
 | POST `/api/orders/:id/files` | attach the caller's own unattached uploads to their order |
-| POST `/api/uploads` · GET `/api/attachments/:id` | client uploads (≤5 × 20 MB, allow-listed types, stored by UUID under `NUXT_UPLOAD_DIR`); download only for the uploader, the owner of the ticket/project, or staff whose role covers it — else 404 |
+| POST `/api/uploads` · GET `/api/attachments/:id` | client uploads (≤5 × 20 MB, allow-listed types, stored by UUID under `NUXT_UPLOAD_DIR`); download only for the uploader, the owner of the ticket/project, or staff whose role covers it (`credit.approve` for credit application documents) — else 404 |
 | PATCH `/api/support/:id` | customer resolves or reopens their own request |
 | POST `/api/notifications/:id/read` | mark one of the caller's notifications read (owner-scoped update; 404 otherwise) |
+| GET/POST/DELETE `/api/credit/application` | ADR-020: the caller's credit application (status screen + ceiling), submit one (claims their own photo ID and statement uploads; one at a time, none with a line in place), withdraw it (stamped WITHDRAWN, files deleted from disk) |
+| GET `/api/credit/companies?q=` | Companies House search by name or number for the application; 503 without `NUXT_COMPANIES_HOUSE_KEY` |
+| DELETE `/api/uploads/:id` | discard one of the caller's own unattached uploads (a replaced ID or a removed statement) |
+| GET `/api/admin/credit/applications` | `money.view` — waiting applications (oldest first) with their files, recent decisions, lines in place, the ceiling and whether this role may decide |
+| POST `/api/admin/credit/applications/:id/decide` | `credit.approve` — approve with a limit (at most `credit.max-limit`; creates the CreditLine) or decline; claimed conditionally, internal note to the audit log, customer notified |
 | GET `/api/settings/companies-house` | Companies House lookup by number (`NUXT_COMPANIES_HOUSE_KEY`; 503 without, and `/api/config.companiesHouseLookup` hides the button) |
 | POST `/api/admin/projects/:id/kickoff` | `work.assign` — collect the kickoff payment from the wallet and start the work (`collectKickoff()`); 400 naming the shortfall, 409 if already taken |
 | POST/DELETE `/api/admin/projects/:id/actions[/:actionId]` | `work.assign` — ask the client for something / withdraw it (stamped CANCELLED, never deleted) |

@@ -29,7 +29,7 @@ interface Overview {
   walletBalance: number
   needs: { kind: string, title: string, context: string, cta: string, to: string }[]
   nextPayment: null | { amount: number, due: string, plans: { name: string, amount: number, paid: number, total: number, retainer: boolean }[] }
-  credit: { status: string, limit: number, used: number, available: number }
+  credit: { state: 'none' | 'review' | 'approved' | 'frozen', status: string, limit: number, used: number, available: number, requestedLimit: number | null }
   projects: { id: string, ref: string, name: string, service: string, plan: string | null, serviceId: string | null, status: string, progress: number, deadline: string | null, awaitingKickoff: boolean }[]
   paid: { total: number, count: number, projects: number, split: { id: string, name: string, amount: number }[] | null }
 }
@@ -48,14 +48,15 @@ const creditPct = computed(() => {
   const c = credit.value
   return c && c.limit > 0 ? Math.min(100, Math.round(c.used / c.limit * 100)) : 0
 })
-// The design draws three states: not set up, under review and approved. Credit
-// here is granted to every account without an application (`ensureCredit`),
-// so there is no "under review" to show: a line with a limit is approved (or
-// on hold, when staff freeze it) and a zero limit is "not set up".
-const creditState = computed<'none' | 'approved'>(() => (credit.value && credit.value.limit > 0 ? 'approved' : 'none'))
-const creditChip = computed(() => credit.value?.status === 'FROZEN'
+// The design's three states — not set up, under review, approved — plus on
+// hold, when staff freeze a line. Credit is applied for from the Wallet
+// (`?credit=apply`) and decided in /admin/credit.
+const creditState = computed(() => credit.value?.state ?? 'none')
+const creditChip = computed(() => creditState.value === 'frozen'
   ? { label: 'On hold', tone: 'warning' as const }
-  : { label: 'Approved', tone: 'success' as const })
+  : creditState.value === 'review'
+    ? { label: 'Under review', tone: 'warning' as const }
+    : { label: 'Approved', tone: 'success' as const })
 
 /* ---------------------------------------------------------- active work */
 const projects = computed(() => (data.value?.projects ?? []).map((p) => {
@@ -251,16 +252,26 @@ const LINK = 'apex-ring text-accent-ink rounded-md text-sm font-semibold hover:u
         <template v-if="credit && creditState === 'none'">
           <span class="font-heading text-fg-heading text-xl font-bold leading-tight tracking-[-0.02em]">Run more than one project at once</span>
           <div class="flex flex-col gap-[7px]">
-            <span v-for="t in ['No credit check', 'Never any interest']" :key="t" class="text-fg-body flex items-center gap-[9px] text-[13px] leading-normal">
+            <span v-for="t in ['No credit check', 'Never any interest', 'Decision within one working day']" :key="t" class="text-fg-body flex items-center gap-[9px] text-[13px] leading-normal">
               <span aria-hidden="true" class="inline-flex size-[18px] shrink-0 items-center justify-center rounded-full bg-[#22B07D] text-[9.5px] text-white">✓</span>{{ t }}
             </span>
           </div>
-          <!-- The design's "Apply now" opens an application this platform does
-               not have (credit is granted, not applied for); asking the team
-               is the route that exists. -->
-          <ApexButton to="/dashboards/support?tab=new" size="sm" class="mt-auto self-start">
-            Ask about credit
+          <ApexButton to="/dashboards/wallet?credit=apply" size="sm" class="mt-auto self-start">
+            Apply now
           </ApexButton>
+        </template>
+        <template v-else-if="credit && creditState === 'review'">
+          <div class="flex flex-wrap items-baseline gap-2.5">
+            <span class="font-heading text-fg-heading text-4xl font-extrabold leading-none tracking-[-0.03em] tabular-nums">{{ formatCurrency(credit.requestedLimit ?? 0) }}</span>
+            <span class="text-fg-muted text-[13.5px]">requested</span>
+          </div>
+          <div aria-hidden="true" class="flex gap-1.5">
+            <span class="bg-accent block h-1.5 grow rounded-full" /><span class="bg-accent block h-1.5 grow rounded-full opacity-45" /><span class="bg-track block h-1.5 grow rounded-full" />
+          </div>
+          <span class="text-fg-body text-[13.5px] leading-[1.55]">We are checking your business. Decision usually within one working day.</span>
+          <NuxtLink to="/dashboards/wallet?credit=status" class="apex-ring text-accent-ink mt-auto self-start rounded-md text-[13.5px] font-semibold hover:underline">
+            View application →
+          </NuxtLink>
         </template>
         <template v-else-if="credit">
           <div class="flex flex-wrap items-baseline gap-2.5">

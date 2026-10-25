@@ -57,10 +57,13 @@ export default defineEventHandler(async (event) => {
       walletBalance: user?.walletBalance ?? 0,
     },
     autoPayInstallments: user?.autoPayInstallments ?? true,
-    // Instant Apex credit facility: fixed limit (default £20,000), no
-    // application. `used` = outstanding principal across active financed
-    // projects; `available` = limit − used.
+    // Apex credit: a line staff approved (or one that predates applications).
+    // `used` = what is still owed on financed plans; `available` = limit − used.
+    // `state` is none / review / approved / frozen; `application` feeds the
+    // Wallet's "Under review" card and status screen.
     credit: {
+      state: creditSummary.state,
+      application: creditSummary.application,
       status: creditSummary.status,
       limit: creditSummary.limit,
       used: creditSummary.used,

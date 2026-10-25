@@ -39,6 +39,7 @@ const groups: { heading: string, items: AdminNavDef[] }[] = [
     heading: 'Money',
     items: [
       { label: 'Payments', icon: 'solar:wallet-2-linear', to: '/admin/payments', needs: 'money.view' },
+      { label: 'Credit lines', icon: 'solar:card-transfer-linear', to: '/admin/credit', needs: 'money.view' },
       { label: 'Contracts', icon: 'solar:document-text-linear', to: '/admin/contracts', needs: 'money.view' },
     ],
   },
