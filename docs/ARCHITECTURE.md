@@ -121,6 +121,7 @@ JWT secret: `runtimeConfig.jwtSecret` (`NUXT_JWT_SECRET` env override).
 | POST `/api/orders/:id/files` | attach the caller's own unattached uploads to their order |
 | POST `/api/uploads` · GET `/api/attachments/:id` | client uploads (≤5 × 20 MB, allow-listed types, stored by UUID under `NUXT_UPLOAD_DIR`); download only for the uploader, the owner of the ticket/project, or staff whose role covers it — else 404 |
 | PATCH `/api/support/:id` | customer resolves or reopens their own request |
+| POST `/api/notifications/:id/read` | mark one of the caller's notifications read (owner-scoped update; 404 otherwise) |
 | GET `/api/settings/companies-house` | Companies House lookup by number (`NUXT_COMPANIES_HOUSE_KEY`; 503 without, and `/api/config.companiesHouseLookup` hides the button) |
 | POST `/api/admin/projects/:id/kickoff` | `work.assign` — collect the kickoff payment from the wallet and start the work (`collectKickoff()`); 400 naming the shortfall, 409 if already taken |
 | POST/DELETE `/api/admin/projects/:id/actions[/:actionId]` | `work.assign` — ask the client for something / withdraw it (stamped CANCELLED, never deleted) |

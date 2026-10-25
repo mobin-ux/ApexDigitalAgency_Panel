@@ -42,6 +42,47 @@ export function inDays(value: string | Date): string {
   return `In ${n} days`
 }
 
+/**
+ * A notification's timestamp as the bell's panel shows it: the time today,
+ * "Yesterday", a weekday and date within the week, then dd/mm.
+ */
+export function notifWhen(value: string | Date): string {
+  const d = new Date(value)
+  const ago = -daysUntil(d)
+  const dm = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`
+  if (ago <= 0) {
+    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+  }
+  if (ago === 1) {
+    return 'Yesterday'
+  }
+  if (ago < 7) {
+    return `${d.toLocaleDateString('en-GB', { weekday: 'short' })} ${dm}`
+  }
+  return dm
+}
+
+export type ApexNotifKind = 'project' | 'payment' | 'support' | 'account'
+
+/**
+ * What a notification is about, read from where it links — the one field every
+ * writer of a `Notification` row already sets — so rows need no new column and
+ * old rows are classified the same way as new ones.
+ */
+export function notifKind(link: string | null | undefined): { kind: ApexNotifKind, icon: string, tile: string, cta: string } {
+  const to = link ?? ''
+  if (to.startsWith('/dashboards/wallet')) {
+    return { kind: 'payment', icon: 'solar:wallet-2-linear', tile: 'bg-st-success-bg text-st-success-fg', cta: 'View payments' }
+  }
+  if (to.startsWith('/dashboards/support')) {
+    return { kind: 'support', icon: 'solar:headphones-round-linear', tile: 'bg-st-info-bg text-st-info-fg', cta: 'Open request' }
+  }
+  if (to.startsWith('/dashboards/settings') || to.startsWith('/auth')) {
+    return { kind: 'account', icon: 'solar:shield-user-linear', tile: 'bg-st-warning-bg text-st-warning-fg', cta: 'Review account' }
+  }
+  return { kind: 'project', icon: 'solar:suitcase-linear', tile: 'bg-accent-tint text-accent-ink', cta: to.startsWith('/dashboards/orders') ? 'View order' : 'Open' }
+}
+
 /** One label and one tone per project status, everywhere. */
 export function projectStatus(status: string | null | undefined): { label: string, tone: ApexTone, group: 'kickoff' | 'progress' | 'review' | 'done' | 'cancelled' } {
   switch ((status ?? '').toUpperCase()) {

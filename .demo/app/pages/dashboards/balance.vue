@@ -1,13 +1,13 @@
 <script setup lang="ts">
-import type { Catalog, CatalogService, ServiceId } from '~~/shared/catalog'
-import { DEFAULT_CATALOG, fromMonthly, paymentCount } from '~~/shared/catalog'
+import type { Catalog, ServiceId } from '~~/shared/catalog'
+import { DEFAULT_CATALOG, featuredPlan, fromMonthly, paymentCount } from '~~/shared/catalog'
 
 /**
  * Dashboard — Panel v2 (`Dashboard.dc.html` inside `Panel Breakpoints.dc.html`).
  *
  * Order of business, as drawn: what is waiting on the customer, then money
- * (wallet, next payment, credit), active work, the pay-monthly calculator,
- * services to order, and what has been paid so far.
+ * (wallet, next payment, credit), active work, the pay-monthly band, services
+ * to order, and what has been paid so far.
  *
  * Every figure comes from `/api/dashboard/overview` or the catalogue in
  * `/api/config` — the honesty rules from V2 Phase 2 still hold: the paid-so-far
@@ -48,9 +48,14 @@ const creditPct = computed(() => {
   const c = credit.value
   return c && c.limit > 0 ? Math.min(100, Math.round(c.used / c.limit * 100)) : 0
 })
+// The design draws three states: not set up, under review and approved. Credit
+// here is granted to every account without an application (`ensureCredit`),
+// so there is no "under review" to show: a line with a limit is approved (or
+// on hold, when staff freeze it) and a zero limit is "not set up".
+const creditState = computed<'none' | 'approved'>(() => (credit.value && credit.value.limit > 0 ? 'approved' : 'none'))
 const creditChip = computed(() => credit.value?.status === 'FROZEN'
   ? { label: 'On hold', tone: 'warning' as const }
-  : { label: 'Available', tone: 'success' as const })
+  : { label: 'Approved', tone: 'success' as const })
 
 /* ---------------------------------------------------------- active work */
 const projects = computed(() => (data.value?.projects ?? []).map((p) => {
@@ -65,41 +70,32 @@ const projects = computed(() => (data.value?.projects ?? []).map((p) => {
   }
 }))
 
-/* ------------------------------------------------ pay-monthly calculator */
-const CALC_IDS: ServiceId[] = ['web', 'seo', 'mkt', 'brand']
-const CALC_LABEL: Partial<Record<ServiceId, string>> = { web: 'Website Design', seo: 'SEO', mkt: 'Digital Marketing', brand: 'Branding' }
-const calcServices = computed(() => CALC_IDS.map(id => catalog.value.services.find(s => s.id === id)).filter((s): s is CatalogService => Boolean(s)))
-const calcSvc = ref<ServiceId>('web')
-const calcPlan = ref(1)
-const calcService = computed(() => calcServices.value.find(s => s.id === calcSvc.value) ?? calcServices.value[0])
-const calcPlanRow = computed(() => calcService.value?.plans[Math.min(calcPlan.value, (calcService.value?.plans.length ?? 1) - 1)])
-function pickCalcService(id: ServiceId) {
-  calcSvc.value = id
-  calcPlan.value = 1
-}
+/* ------------------------------------------------- pay-monthly promo band */
+// The band sells one plan, as drawn: Website Design on its featured plan. The
+// figures are the catalogue's, so the card in the illustration, the fine print
+// and the New order wizard it opens all quote the same plan.
 const calc = computed(() => {
-  const svc = calcService.value
-  const plan = calcPlanRow.value
-  if (!svc || !plan) {
+  const svc = catalog.value.services.find(s => s.id === 'web')
+  if (!svc) {
     return null
   }
-  const fixed = svc.kind === 'fixed'
-  const n = fixed ? paymentCount(svc, plan) : (svc.minimumMonths ?? 3)
+  const plan = featuredPlan(svc)
+  const n = paymentCount(svc, plan)
   const monthly = plan.monthly ?? 0
+  const deposit = plan.deposit ?? 0
   return {
-    fixed,
     n,
     monthly,
-    deposit: plan.deposit ?? 0,
-    label: CALC_LABEL[svc.id] ?? svc.name,
+    deposit,
     planName: plan.name,
     href: `/dashboards/services?service=${svc.slug}&plan=${plan.id}`,
     cta: `Start ${plan.name} plan`,
-    fine: fixed
-      ? `${formatCurrency(plan.deposit ?? 0)} deposit, then ${n} × ${formatCurrency(monthly)}. Figures include VAT.`
-      : `${n}-month minimum, then rolling monthly. Figures include VAT.`,
-    illoLabel: `Illustration: ${CALC_LABEL[svc.id] ?? svc.name} ${plan.name} plan at ${formatCurrency(monthly)} a month, paid off in ${n} monthly payments with no interest`,
-    liveText: svc.id === 'web' ? 'Live in 4–6 weeks' : svc.id === 'brand' ? 'Ready in 2–3 weeks' : 'Starts within days',
+    // The design reads "No deposit." — the catalogue's website plans do take
+    // one at kickoff, so the line names it rather than promising none.
+    fine: deposit > 0
+      ? `${formatCurrency(deposit)} deposit, then ${n} × ${formatCurrency(monthly)}. Figures include VAT.`
+      : `No deposit. ${n} × ${formatCurrency(monthly)}. Figures include VAT.`,
+    illoLabel: `Illustration: Website Design ${plan.name} plan at ${formatCurrency(monthly)} a month, paid off in ${n} monthly payments with no interest`,
   }
 })
 
@@ -246,11 +242,28 @@ const LINK = 'apex-ring text-accent-ink rounded-md text-sm font-semibold hover:u
       <div :class="CARD" class="flex min-w-0 flex-[1_1_280px] flex-col gap-4 p-[clamp(20px,2vw,24px)]">
         <div class="flex items-center justify-between gap-3">
           <span class="text-fg-heading text-sm font-semibold">Credit line</span>
-          <ApexStatusChip v-if="credit" :tone="creditChip.tone">
+          <ApexStatusChip v-if="credit && creditState === 'none'" tone="neutral" :dot="false">
+            Not set up
+          </ApexStatusChip>
+          <ApexStatusChip v-else-if="credit" :tone="creditChip.tone">
             {{ creditChip.label }}
           </ApexStatusChip>
         </div>
-        <template v-if="credit">
+        <template v-if="credit && creditState === 'none'">
+          <span class="font-heading text-fg-heading text-xl font-bold leading-tight tracking-[-0.02em]">Run more than one project at once</span>
+          <div class="flex flex-col gap-[7px]">
+            <span v-for="t in ['No credit check', 'Never any interest']" :key="t" class="text-fg-body flex items-center gap-[9px] text-[13px] leading-normal">
+              <span aria-hidden="true" class="inline-flex size-[18px] shrink-0 items-center justify-center rounded-full bg-[#22B07D] text-[9.5px] text-white">✓</span>{{ t }}
+            </span>
+          </div>
+          <!-- The design's "Apply now" opens an application this platform does
+               not have (credit is granted, not applied for); asking the team
+               is the route that exists. -->
+          <ApexButton to="/dashboards/support?tab=new" size="sm" class="mt-auto self-start">
+            Ask about credit
+          </ApexButton>
+        </template>
+        <template v-else-if="credit">
           <div class="flex flex-wrap items-baseline gap-2.5">
             <span class="font-heading text-fg-heading text-4xl font-extrabold leading-none tracking-[-0.03em] tabular-nums">{{ formatCurrency(credit.available) }}</span>
             <span class="text-fg-muted text-[13.5px]">available of {{ formatCurrency(credit.limit) }}</span>
@@ -324,47 +337,15 @@ const LINK = 'apex-ring text-accent-ink rounded-md text-sm font-semibold hover:u
     <section v-if="calc" aria-labelledby="h-calc" class="apex-dark relative flex flex-wrap items-center gap-x-10 gap-y-8 overflow-hidden rounded-[28px] bg-[#0C1719] p-[clamp(22px,3.4vw,48px)]">
       <div aria-hidden="true" class="pointer-events-none absolute inset-0 bg-[radial-gradient(85%_120%_at_88%_26%,rgba(125,83,242,.30),transparent_60%)]" />
       <div class="relative flex min-w-0 flex-[1_1_320px] flex-col items-start gap-[18px]">
-        <span class="inline-flex items-center whitespace-nowrap rounded-full border border-white/[.12] bg-white/[.08] px-4 py-2 text-[13px] font-semibold text-white">Pay monthly</span>
+        <span class="inline-flex items-center whitespace-nowrap rounded-full border border-white/[.12] bg-white/[.08] px-4 py-2 text-[13px] font-semibold text-white">Grow now, pay monthly</span>
         <h2 id="h-calc" class="font-heading m-0 text-balance text-[clamp(28px,1.6vw+16px,42px)] font-bold leading-[1.06] tracking-[-0.03em] text-white">
-          Add your next service. <span class="text-[#9B79F6]">Pay monthly.</span>
+          Build your business. <span class="text-[#9B79F6]">Let it pay its own way.</span>
         </h2>
+        <!-- "Order today", not the design's "Launch today": work starts at the
+             kickoff call, not on signing (ADR-019). -->
         <p class="m-0 max-w-[44ch] text-pretty text-base leading-[1.62] text-[#A9B2B8]">
-          One big invoice becomes small monthly payments. No interest, no credit check, and every date is shown before you sign.
+          Order today and spread the cost into small monthly payments. As your new website and marketing bring in customers, the revenue covers each payment. No interest, no credit check.
         </p>
-        <div class="flex w-full flex-col gap-2.5">
-          <span class="text-xs font-bold uppercase tracking-[.06em] text-[#89959E]">Service</span>
-          <div role="radiogroup" aria-label="Service" class="flex flex-wrap gap-2">
-            <button
-              v-for="s in calcServices"
-              :key="s.id"
-              type="button"
-              role="radio"
-              :aria-checked="calcSvc === s.id"
-              class="apex-ring h-10 cursor-pointer whitespace-nowrap rounded-full border px-4 text-sm font-semibold"
-              :class="calcSvc === s.id ? 'border-white bg-white text-[#101828]' : 'border-white/[.14] bg-white/[.06] text-white'"
-              @click="pickCalcService(s.id)"
-            >
-              {{ CALC_LABEL[s.id] ?? s.name }}
-            </button>
-          </div>
-        </div>
-        <div class="flex w-full max-w-[420px] flex-col gap-2.5">
-          <span class="text-xs font-bold uppercase tracking-[.06em] text-[#89959E]">Plan</span>
-          <div role="radiogroup" aria-label="Plan" class="flex gap-1 rounded-[14px] border border-white/10 bg-white/[.06] p-1">
-            <button
-              v-for="(pl, i) in calcService?.plans ?? []"
-              :key="pl.id"
-              type="button"
-              role="radio"
-              :aria-checked="calcPlan === i"
-              class="apex-ring h-10 min-w-0 flex-1 cursor-pointer truncate whitespace-nowrap rounded-[10px] px-2 text-sm font-semibold text-white"
-              :class="calcPlan === i ? 'bg-[#7D53F2]' : 'bg-transparent'"
-              @click="calcPlan = i"
-            >
-              {{ pl.name }}
-            </button>
-          </div>
-        </div>
         <div class="mt-1.5 flex flex-wrap items-center gap-x-[18px] gap-y-3.5">
           <ApexButton :to="calc.href">
             {{ calc.cta }}
@@ -374,14 +355,14 @@ const LINK = 'apex-ring text-accent-ink rounded-md text-sm font-semibold hover:u
       </div>
       <div ref="illoBox" role="img" :aria-label="calc.illoLabel" class="relative h-[380px] min-w-0 flex-[1.05_1_340px] @min-[900px]:h-[440px]">
         <ApexPayMonthlyIllo
-          :kind="calcSvc"
-          :service="calc.label"
+          kind="web"
+          service="Website Design"
           :plan="calc.planName"
           :monthly="calc.monthly"
           :payments="calc.n"
           :deposit="calc.deposit"
-          :fixed="calc.fixed"
-          :live-text="calc.liveText"
+          :fixed="true"
+          live-text="Live in 4–6 weeks"
           :wide="illoWide"
         />
       </div>

@@ -1292,6 +1292,27 @@ and the V2 Phase 1 customer shell; the admin panel keeps the V2 shell.
   it: uploads, client approvals, resolving support requests, the Companies
   House number and lookup, and the website's plans end to end (ADR-019).
 
+**Dashboard revision (`Dashboard.dc.html`, 2026-10-25).** The design moved
+on after the Panel Breakpoints build, and three things changed:
+- The pay-monthly band sells one plan, as drawn: "Grow now, pay monthly",
+  "Build your business. Let it pay its own way.", no service or plan pickers,
+  and the CTA opens Website Design on its featured plan. The fine print keeps
+  the catalogue's deposit ("£499 deposit, then 12 × £299") where the design
+  says "No deposit", and the body says "Order today" rather than "Launch
+  today", because work starts at kickoff.
+- The credit card has the design's states. "Under review" is not drawn,
+  because credit is granted to every account without an application
+  (`ensureCredit`); a line with a limit is "Approved" (or "On hold" when
+  frozen), and a zero limit is "Not set up" with "Ask about credit" in place
+  of "Apply now". The approved footer keeps "never carry interest" rather than
+  the design's "for the next 30 days".
+- The bell's panel is the design's: 400px at 84px, All / Unread filter,
+  "Mark all as read", a settings shortcut, rows typed by where they link
+  (`notifKind()`), a row marks itself read when opened
+  (`POST /api/notifications/:id/read`), and "You are all caught up". The
+  "See all notifications" footer is left out until `Notifications.dc.html`
+  has a page to send it to.
+
 Gotchas:
 - **Heredocs with apostrophes can fail through the shell hook here** — write a
   script file and run it instead.

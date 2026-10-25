@@ -2,7 +2,7 @@
 
 > Handoff doc for continuing work in fresh sessions. Update the relevant section
 > whenever a page ships, a decision lands, or a blocker appears.
-> Last updated: **2026-10-24** (Panel v2: new shell, six pages, website plans, uploads).
+> Last updated: **2026-10-25** (Panel v2 dashboard revision: promo band, credit states, notifications panel).
 
 ## Where things stand
 
@@ -81,6 +81,12 @@ no fake "Apex support" auto-reply on a new request; the FAQ tab is gone, as draw
 **Deploy needs:** `prisma db push` (new columns + `ClientAction`), a writable
 `NUXT_UPLOAD_DIR` outside the bundle (e.g. `/opt/apex/uploads`), optionally
 `NUXT_COMPANIES_HOUSE_KEY`. Not deployed yet.
+
+**Dashboard revision (2026-10-25).** `Dashboard.dc.html` changed after the
+Breakpoints build: new promo copy with no pickers, three credit states, and a
+redesigned notifications panel (filter, per-row read). Details and deviations
+in DESIGN_SYSTEM.md. Open: the design's credit *application* flow (Wallet) and
+the `Notifications.dc.html` page are not built.
 
 **Local test data:** order "E2E site" (Website Design Starter) on
 `user@apex.com`, kickoff collected after a £500 admin wallet credit, one

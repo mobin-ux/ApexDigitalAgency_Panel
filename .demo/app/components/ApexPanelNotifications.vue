@@ -1,13 +1,13 @@
 <script setup lang="ts">
 /**
- * The bell in the Panel v2 bars. Same list and endpoint as the admin shell's
- * `ApexNotificationsMenu` (`ApexNotificationsList`, `/api/notifications`); only
- * the container is new: a popover under the 42px bordered button from 768px,
- * a bottom sheet from the 44px phone-bar button.
+ * The bell in the Panel v2 bars (`Dashboard.dc.html`). A 400px popover under
+ * the 42px bordered button from 768px; a bottom sheet from the 44px phone-bar
+ * button. Both hold `ApexPanelNotificationsBody` over `/api/notifications`.
+ * The admin shell keeps its own `ApexNotificationsMenu`.
  */
 const { variant } = defineProps<{ variant: 'bar' | 'phone' }>()
 
-const { notifications, unreadCount, fetchNotifications, markAllAsRead } = useNotifications()
+const { unreadCount, fetchNotifications } = useNotifications()
 const pending = ref(true)
 onMounted(async () => {
   await fetchNotifications()
@@ -33,6 +33,7 @@ const label = computed(() => (unreadCount.value > 0 ? `Notifications, ${unreadCo
     <button
       type="button"
       :aria-label="label"
+      aria-haspopup="dialog"
       :aria-expanded="open"
       class="apex-ring text-fg-heading relative inline-flex shrink-0 cursor-pointer items-center justify-center rounded-xl"
       :class="variant === 'bar' ? 'bg-card border-line-subtle hover:border-line-strong size-[42px] border' : 'size-11'"
@@ -47,35 +48,20 @@ const label = computed(() => (unreadCount.value > 0 ? `Notifications, ${unreadCo
       />
     </button>
 
+    <!-- Fixed to the viewport as drawn: 84px down, level with the page gutter. -->
     <div
       v-if="variant === 'bar' && open"
       role="dialog"
       aria-label="Notifications"
-      class="apex-pop-in bg-card border-line-subtle shadow-pop absolute right-0 top-[calc(100%+10px)] z-40 w-[340px] max-w-[calc(100vw-2rem)] overflow-hidden rounded-2xl border"
+      class="apex-pop-in bg-card border-line-subtle shadow-pop fixed right-[clamp(16px,3vw,40px)] top-[84px] z-[61] flex max-h-[min(620px,calc(100vh-110px))] w-[400px] max-w-[calc(100vw-32px)] flex-col overflow-hidden rounded-[18px] border"
     >
-      <div class="border-line-soft flex items-center gap-2.5 border-b px-4 py-3.5">
-        <span class="font-heading text-fg-heading text-sm font-bold">Notifications</span>
-        <span class="grow" />
-        <button v-if="unreadCount > 0" type="button" class="apex-ring text-accent-ink cursor-pointer rounded-md text-xs font-semibold hover:underline" @click="markAllAsRead()">
-          Mark all read
-        </button>
-      </div>
-      <div class="max-h-[380px] overflow-y-auto">
-        <ApexNotificationsList :notifications="notifications" :pending="pending" />
-      </div>
+      <ApexPanelNotificationsBody :pending="pending" @navigate="open = false" />
     </div>
 
-    <ApexBottomSheet v-if="variant === 'phone'" v-model:open="open" surface="panel" title="Notifications" description="Recent activity on your projects, payments and requests." scrollable>
-      <template #header>
-        <div class="border-line-soft flex shrink-0 items-center gap-2.5 border-b px-4 pb-3 pt-2.5">
-          <span class="font-heading text-fg-heading text-base font-bold">Notifications</span>
-          <span class="grow" />
-          <button v-if="unreadCount > 0" type="button" class="apex-ring text-accent-ink -me-2.5 flex min-h-11 cursor-pointer items-center rounded-xl px-2.5 text-[13.5px] font-semibold" @click="markAllAsRead()">
-            Mark all read
-          </button>
-        </div>
-      </template>
-      <ApexNotificationsList :notifications="notifications" :pending="pending" />
+    <ApexBottomSheet v-if="variant === 'phone'" v-model:open="open" surface="panel" title="Notifications" description="Recent activity on your projects, payments and requests.">
+      <div class="flex max-h-[calc(82vh-30px)] min-h-0 flex-col">
+        <ApexPanelNotificationsBody :pending="pending" @navigate="open = false" />
+      </div>
     </ApexBottomSheet>
   </div>
 </template>

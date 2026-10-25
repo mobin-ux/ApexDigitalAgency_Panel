@@ -8,7 +8,7 @@ import type { ApexTone } from '~/utils/panel'
  * ink text and the dot carries the hue; on dark the text takes the hue too.
  * Both are the `--status-*` tokens, so this component never names a theme.
  */
-const { tone = 'neutral' } = defineProps<{ tone?: ApexTone }>()
+const { tone = 'neutral', dot = true } = defineProps<{ tone?: ApexTone, dot?: boolean }>()
 
 const TONES: Record<ApexTone, { chip: string, dot: string }> = {
   success: { chip: 'bg-st-success-bg text-st-success-fg', dot: 'bg-[#22B07D]' },
@@ -22,7 +22,7 @@ const TONES: Record<ApexTone, { chip: string, dot: string }> = {
 
 <template>
   <span class="inline-flex h-6 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 text-xs font-bold" :class="TONES[tone].chip">
-    <span aria-hidden="true" class="size-1.5 shrink-0 rounded-full" :class="TONES[tone].dot" />
+    <span v-if="dot" aria-hidden="true" class="size-1.5 shrink-0 rounded-full" :class="TONES[tone].dot" />
     <slot />
   </span>
 </template>
