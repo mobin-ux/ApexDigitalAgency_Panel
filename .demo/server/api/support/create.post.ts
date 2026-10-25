@@ -12,7 +12,8 @@ import { validateBody } from '../../utils/validate'
  * The customer picks a topic — a project, billing, their account or
  * something else — and, for a project, optionally which order it is about;
  * the subject may be left blank, in which case the first line of the message
- * stands in for it. Files arrive as ids from `POST /api/uploads`.
+ * stands in for it. Files arrive as ids from `POST /api/uploads`. A request
+ * about an order is assigned to that order's project manager.
  */
 const bodySchema = z.object({
   subject: z.string().trim().max(200).optional(),
@@ -30,11 +31,16 @@ export default defineEventHandler(async (event) => {
   const body = await validateBody(event, bodySchema)
   const priority = body.priority ?? await getSetting('support.default-priority', 'NORMAL')
 
+  // A request about an order goes to that order's project manager, which is
+  // what the review step tells the customer. Anything else is unassigned and
+  // picked up from the admin queue.
+  let assigneeId: string | null = null
   if (body.relatedProjectId) {
-    const owned = await prisma.project.count({ where: { id: body.relatedProjectId, userId: session.id } })
-    if (!owned) {
+    const project = await prisma.project.findFirst({ where: { id: body.relatedProjectId, userId: session.id }, select: { managerId: true } })
+    if (!project) {
       throw createError({ statusCode: 404, message: 'Order not found' })
     }
+    assigneeId = project.managerId
   }
 
   const firstLine = body.message.split('\n')[0]!.trim()
@@ -49,6 +55,7 @@ export default defineEventHandler(async (event) => {
         category: body.category,
         priority,
         relatedProjectId: body.relatedProjectId ?? null,
+        assigneeId,
         customerLastSeenAt: new Date(),
         messages: { create: { content: body.message, isAdmin: false, senderId: session.id } },
       },

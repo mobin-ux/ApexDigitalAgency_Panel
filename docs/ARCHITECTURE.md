@@ -121,6 +121,12 @@ JWT secret: `runtimeConfig.jwtSecret` (`NUXT_JWT_SECRET` env override).
 | POST `/api/orders/:id/files` | attach the caller's own unattached uploads to their order |
 | POST `/api/uploads` · GET `/api/attachments/:id` | client uploads (≤5 × 20 MB, allow-listed types, stored by UUID under `NUXT_UPLOAD_DIR`); download only for the uploader, the owner of the ticket/project, or staff whose role covers it (`credit.approve` for credit application documents) — else 404 |
 | PATCH `/api/support/:id` | customer resolves or reopens their own request |
+| GET `/api/support/tickets` | the caller's requests (latest visible message, its staff author, the assignee, rating, call slot) plus `manager`: the project manager of the newest active order, or null |
+| POST `/api/support/create` | new request; one about an order is assigned to that order's project manager |
+| POST `/api/support/:id/reply` | customer reply; text, files or both |
+| POST `/api/support/:id/rating` | 1–5 and an optional comment on a resolved request; claimed once (409 on a repeat) |
+| POST `/api/support/call` | "Request a call": a preferred slot from `shared/support-call.ts` (next five working days, four UK times) becomes a request assigned to the manager; a second one moves the open request's slot. No calendar: staff confirm by replying |
+| POST `/api/admin/tickets/:id/reply` | `support.answer` — a public reply also notifies the customer; internal notes never do |
 | POST `/api/notifications/:id/read` | mark one of the caller's notifications read (owner-scoped update; 404 otherwise) |
 | GET/POST/DELETE `/api/credit/application` | ADR-020: the caller's credit application (status screen + ceiling), submit one (claims their own photo ID and statement uploads; one at a time, none with a line in place), withdraw it (stamped WITHDRAWN, files deleted from disk) |
 | GET `/api/credit/companies?q=` | Companies House search by name or number for the application; 503 without `NUXT_COMPANIES_HOUSE_KEY` |

@@ -481,6 +481,17 @@ model Ticket {
   // this is "unread" in the customer inbox.
   customerLastSeenAt DateTime?
 
+  // The customer's rating once the request is resolved (1–5), with an
+  // optional comment. Set once; staff see it on the admin ticket.
+  rating     Int?
+  ratingNote String?
+  ratedAt    DateTime?
+
+  // A call request (Support "Book a call"): the customer's preferred slot in
+  // UK time, "YYYY-MM-DD HH:mm". Staff confirm by replying; nothing here is
+  // a booking until they do.
+  callSlot String?
+
   messages TicketMessage[]
 }
 

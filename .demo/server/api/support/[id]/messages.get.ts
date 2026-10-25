@@ -26,7 +26,7 @@ export default defineEventHandler(async (event) => {
     // Internal staff notes are admin-panel-only — never in the customer thread.
     where: { ticketId, isInternal: false },
     orderBy: { createdAt: 'asc' },
-    include: { attachments: { select: { id: true, name: true, size: true } } },
+    include: { attachments: { select: { id: true, name: true, size: true, mime: true } } },
   })
 
   const staffIds = [...new Set(messages.filter(m => m.isAdmin && m.senderId).map(m => m.senderId!))]

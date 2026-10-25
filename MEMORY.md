@@ -2,7 +2,7 @@
 
 > Handoff doc for continuing work in fresh sessions. Update the relevant section
 > whenever a page ships, a decision lands, or a blocker appears.
-> Last updated: **2026-10-25** (Panel v2: dashboard, New order and My orders revisions; Wallet revision — credit by application, ADR-020).
+> Last updated: **2026-10-25** (Panel v2: dashboard, New order and My orders revisions; Wallet revision — credit by application, ADR-020; Support revision — call requests and ratings).
 
 ## Where things stand
 
@@ -73,6 +73,12 @@ them with `meta.colorMode`, because they were only ever checked in dark.
 - Support: customers resolve/reopen (`PATCH /api/support/:id`), topics
   project/billing/account/other, an order link, attachments. The ticket list
   no longer leaks internal notes as the preview line (it did).
+  **Support revision (2026-10-25):** hub / thread / 3-step form; the
+  "account manager" card is the newest active order's project manager;
+  "Request a call" files a support request with `Ticket.callSlot` that staff
+  confirm by replying (no calendar); resolved requests take a 1–5 rating;
+  requests about an order are assigned to its manager; a public staff reply
+  notifies the customer.
 - `Company.companyNumber` + Companies House lookup
   (`/api/settings/companies-house`, needs `NUXT_COMPANIES_HOUSE_KEY`; the
   button is hidden without it). `Project.status` gained `IN_REVIEW`.
@@ -88,7 +94,8 @@ mail provider to confirm a change); nothing claims to have emailed anything;
 no fake "Apex support" auto-reply on a new request; the FAQ tab is gone, as drawn.
 
 **Deploy needs:** `prisma db push` (new columns + `ClientAction`, and
-`CreditApplication` + `Attachment.creditApplicationId` from ADR-020), a writable
+`CreditApplication` + `Attachment.creditApplicationId` from ADR-020, and
+`Ticket.rating`/`ratingNote`/`ratedAt`/`callSlot` from the Support revision), a writable
 `NUXT_UPLOAD_DIR` outside the bundle (e.g. `/opt/apex/uploads`), optionally
 `NUXT_COMPANIES_HOUSE_KEY`. Not deployed yet.
 

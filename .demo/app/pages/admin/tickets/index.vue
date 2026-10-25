@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { callLabel } from '~~/shared/support-call'
+
 /**
  * Admin — Ticketing. Split-pane support inbox (same pattern as the
  * customer Support page): filterable ticket list on the left, thread +
@@ -245,6 +247,15 @@ function senderLabel(m: { isAdmin: boolean, isInternal: boolean, senderId?: stri
                   </NuxtLink>
                   <span>{{ ticket.category }}</span>
                   <span>{{ ticket.user._count.tickets }} ticket(s) · {{ ticket.user._count.projects }} project(s)</span>
+                </div>
+                <!-- What the customer asked for on the Support page: a preferred call slot (UK time), and their rating once resolved. -->
+                <div v-if="ticket.callSlot || ticket.rating" class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12.5px] text-muted-400">
+                  <span v-if="ticket.callSlot" class="inline-flex items-center gap-1.5 font-semibold text-[#F2C14E]">
+                    <Icon name="solar:calendar-linear" class="size-3.5" />Call requested · {{ callLabel(ticket.callSlot) }} UK time
+                  </span>
+                  <span v-if="ticket.rating" class="inline-flex items-center gap-1.5">
+                    <Icon name="solar:star-bold" class="size-3.5 text-primary-400" />Rated {{ ticket.rating }}/5<template v-if="ticket.ratingNote"> · “{{ ticket.ratingNote }}”</template>
+                  </span>
                 </div>
               </div>
             </div>

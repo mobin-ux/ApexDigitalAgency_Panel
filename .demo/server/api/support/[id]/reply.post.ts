@@ -10,10 +10,12 @@ import { validateBody } from '../../../utils/validate'
  * already uploaded through `POST /api/uploads`. Replying reopens a resolved
  * request and moves it back to "With Apex".
  */
+// A reply may be files alone, as the design allows; then the content is empty
+// and the thread shows only the files.
 const bodySchema = z.object({
-  content: z.string().trim().min(1).max(10_000),
+  content: z.string().trim().max(10_000).default(''),
   attachmentIds: z.array(z.string().uuid()).max(5).optional(),
-})
+}).refine(b => b.content.length > 0 || (b.attachmentIds?.length ?? 0) > 0, { message: 'Write a reply or attach a file', path: ['content'] })
 
 export default defineEventHandler(async (event) => {
   const session = requireAuth(event)

@@ -1364,6 +1364,37 @@ the Dashboard revision's. Two gaps closed:
   - Receipts carry no invoice downloads.
   - A default card can still be removed.
 
+**Support revision (`Support.dc.html`, 2026-10-25).**
+- Three screens, one at a time at every width (the split inbox is gone):
+  - the hub: project manager card, "Waiting on you", and requests grouped
+    by order (Open · Resolved);
+  - a request: the thread with a fixed-height scroll, a details column from
+    980px, file cards with a preview dialog, and once resolved a 1–5 rating
+    and "Ask a follow-up";
+  - New request in three steps: topic and order, details, review.
+- `?new=kickoff&order=<id>` now opens the call dialog for that order.
+- Enter sends a reply with a keyboard; on a touch keyboard it stays a newline.
+  A reply may be files alone.
+- Built for it: `Ticket.rating`/`ratingNote`/`ratedAt`, `Ticket.callSlot`,
+  `POST /api/support/:id/rating`, `POST /api/support/call`. A request about an
+  order is assigned to its project manager. A public staff reply now notifies
+  the customer, which is what the page promises.
+- Kept against the design, real or absent (owner's choices):
+  - "Your account manager" is "Your project manager": the manager of the
+    newest active order. There is no per-client account manager. The card is
+    absent when nobody is assigned.
+  - "Book a call" is "Request a call". The preferred slot (next five working
+    days, four UK times) becomes a support request that the manager confirms
+    by replying. Nothing says the call is booked or that a calendar invite
+    was emailed.
+  - No "by email" anywhere: replies arrive here and in notifications.
+  - "Closed requests are kept for twelve months" is dropped, because there is
+    no retention rule.
+  - The status tabs are `aria-pressed` buttons, as on every other page, not
+    `role="tab"` without a tabpanel.
+- "We reply ~15 min" reads "We reply in ~15 min": the config serves the
+  figure without a preposition.
+
 Gotchas:
 - **Heredocs with apostrophes can fail through the shell hook here** — write a
   script file and run it instead.
