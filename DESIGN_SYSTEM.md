@@ -1330,6 +1330,18 @@ on after the Panel Breakpoints build, and three things changed:
   deposit") is taken after the call, and still does not claim to have emailed
   the agreement.
 
+**My orders re-check (`My Orders.dc.html`, 2026-10-25).** The page's markup
+and script are unchanged from the Panel Breakpoints build, and its shell is
+the Dashboard revision's. Two gaps closed:
+- A retainer's plan card shows the design's rows, "First payment" and
+  "Notice · 30 days after month 6". The notice is the signed agreement's term.
+  Fixed plans keep "Paid so far" and "Total, all in".
+- The kickoff prompt names the payment the way the design does when it is
+  true: "The first month" for a retainer with no set-up fee, "The first
+  payment" for a no-deposit plan, otherwise "The kickoff payment".
+- The design's mock orders still show a deposit row; real orders follow the
+  ADR-019 amendment.
+
 Gotchas:
 - **Heredocs with apostrophes can fail through the shell hook here** — write a
   script file and run it instead.

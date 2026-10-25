@@ -176,6 +176,12 @@ const d = computed(() => {
     sched,
     action,
     kickoff: !action && o.status === 'PENDING' && Boolean(o.serviceId) && !o.kickoffPaidAt,
+    // What the kickoff payment is, in the design's words where they are true:
+    // a retainer with no set-up fee takes its first month, a no-deposit plan
+    // its first payment; anything else is "the kickoff payment".
+    kickoffName: sched.kind === 'retainer' && sched.rows[0]?.amount === sched.monthly
+      ? 'The first month'
+      : sched.kind === 'fixed' && !sched.deposit ? 'The first payment' : 'The kickoff payment',
     doneLine: done?.doneLine ?? '',
     ref: orderRef(o.id),
     meta: [o.category, o.planName].filter(Boolean).join(' · '),
@@ -422,7 +428,7 @@ const OVERLINE = 'text-fg-muted text-xs font-bold uppercase tracking-[.06em]'
               <span class="flex min-w-0 flex-[1_1_220px] flex-col gap-[3px]">
                 <span :class="OVERLINE">Waiting on you</span>
                 <span class="font-heading text-fg-heading text-lg font-semibold tracking-[-0.015em]">{{ d.action?.title ?? 'Book your kickoff call' }}</span>
-                <span class="text-fg-body text-[13.5px]">{{ d.action ? (d.action.body ?? '') : 'Thirty minutes on video. The kickoff payment is taken after this call.' }}</span>
+                <span class="text-fg-body text-[13.5px]">{{ d.action ? (d.action.body ?? '') : `Thirty minutes on video. ${d.kickoffName} is taken after this call.` }}</span>
               </span>
               <div class="flex flex-wrap gap-2.5">
                 <template v-if="d.action">
@@ -570,12 +576,18 @@ const OVERLINE = 'text-fg-muted text-xs font-bold uppercase tracking-[.06em]'
                 <span class="text-fg-body">{{ d.sched.started ? 'Next payment' : 'First payment' }}</span>
                 <span class="text-fg-heading text-right font-semibold tabular-nums">{{ d.sched.nextDue ? ukDate(d.sched.nextDue) : d.sched.started ? '—' : 'At kickoff' }}</span>
               </div>
-              <div class="flex items-baseline justify-between gap-3 text-[13.5px]">
-                <span class="text-fg-body">Paid so far</span><span class="text-fg-heading font-semibold tabular-nums">{{ formatCurrency(d.sched.paid) }}</span>
+              <!-- A retainer's notice is the signed agreement's: 30 days, once the minimum term is served. -->
+              <div v-if="d.sched.retainer" class="flex items-baseline justify-between gap-3 text-[13.5px]">
+                <span class="text-fg-body">Notice</span><span class="text-fg-heading text-right font-semibold tabular-nums">30 days after month {{ d.sched.payments }}</span>
               </div>
-              <div class="flex items-baseline justify-between gap-3 text-[13.5px]">
-                <span class="text-fg-body">{{ d.sched.retainer ? 'Minimum term' : 'Total, all in' }}</span><span class="text-fg-heading font-semibold tabular-nums">{{ formatCurrency(d.sched.total) }}</span>
-              </div>
+              <template v-else>
+                <div class="flex items-baseline justify-between gap-3 text-[13.5px]">
+                  <span class="text-fg-body">Paid so far</span><span class="text-fg-heading font-semibold tabular-nums">{{ formatCurrency(d.sched.paid) }}</span>
+                </div>
+                <div class="flex items-baseline justify-between gap-3 text-[13.5px]">
+                  <span class="text-fg-body">Total, all in</span><span class="text-fg-heading font-semibold tabular-nums">{{ formatCurrency(d.sched.total) }}</span>
+                </div>
+              </template>
             </div>
           </div>
         </aside>

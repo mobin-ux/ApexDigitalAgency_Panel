@@ -2,7 +2,7 @@
 
 > Handoff doc for continuing work in fresh sessions. Update the relevant section
 > whenever a page ships, a decision lands, or a blocker appears.
-> Last updated: **2026-10-25** (Panel v2: dashboard revision, then New order revision — no deposit, plan view).
+> Last updated: **2026-10-25** (Panel v2: dashboard revision, New order revision — no deposit, plan view — and a My orders re-check).
 
 ## Where things stand
 
