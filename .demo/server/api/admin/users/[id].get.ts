@@ -39,6 +39,7 @@ export default defineEventHandler(async (event) => {
       createdAt: true,
       updatedAt: true,
       company: true,
+      twoFactor: { select: { enabledAt: true } },
       projects: {
         orderBy: { createdAt: 'desc' },
         take: 10,

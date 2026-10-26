@@ -1,7 +1,7 @@
 import bcrypt from 'bcryptjs'
 import { createError, defineEventHandler } from 'h3'
 import { z } from 'zod'
-import { issueAuthToken, setAuthCookie } from '../../utils/auth'
+import { startSession } from '../../utils/auth'
 import { identifierWhere, parseIdentifier } from '../../utils/identifier'
 import prisma from '../../utils/prisma'
 import { validateBody } from '../../utils/validate'
@@ -69,8 +69,7 @@ export default defineEventHandler(async (event) => {
   })
 
   // Sign the new customer in straight away.
-  const token = issueAuthToken(event, { id: newUser.id, email: newUser.email, role: newUser.role })
-  setAuthCookie(event, token)
+  await startSession(event, { id: newUser.id, email: newUser.email, role: newUser.role })
 
   return { status: 'success', user: newUser }
 })

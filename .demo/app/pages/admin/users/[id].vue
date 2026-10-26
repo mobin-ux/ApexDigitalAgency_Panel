@@ -84,6 +84,30 @@ async function saveProfile() {
 // --- Account controls ---
 const savingAccount = ref(false)
 
+// --- Two-step verification reset ---
+// For a customer who has lost both their phone and their backup codes. A typed
+// reason is required: it is the audit trail's answer to "how did you know it
+// was them".
+const tfResetOpen = ref(false)
+const tfReason = ref('')
+const tfResetting = ref(false)
+async function resetTwoFactor() {
+  tfResetting.value = true
+  try {
+    await $fetch(`/api/admin/users/${userId}/two-factor-reset`, { method: 'POST', body: { reason: tfReason.value } })
+    toaster.add({ title: 'Two-step verification turned off', description: 'The customer has been told in their notifications.', icon: 'lucide:check', progress: true })
+    tfResetOpen.value = false
+    tfReason.value = ''
+    await refresh()
+  }
+  catch (error: any) {
+    toastError(error, 'Two-step verification was not turned off.')
+  }
+  finally {
+    tfResetting.value = false
+  }
+}
+
 async function patchAccount(body: Record<string, unknown>, successTitle: string) {
   savingAccount.value = true
   try {
@@ -519,6 +543,48 @@ const labelClass = 'mb-2 block text-[12.5px] font-semibold text-white'
                 >
                   <span class="absolute top-0.5 size-5 rounded-full bg-white shadow transition-all" :class="detail.verifiedAt ? 'left-[22px]' : 'left-0.5'" />
                 </button>
+              </div>
+
+              <div class="rounded-[11px] border border-white/8 bg-muted-700 px-3.5 py-3">
+                <div class="flex items-center justify-between gap-3">
+                  <div class="min-w-0">
+                    <div class="text-[13.5px] font-semibold text-white">
+                      Two-step verification
+                    </div>
+                    <div class="mt-0.5 text-xs text-muted-500">
+                      {{ detail.twoFactor?.enabledAt ? `On since ${fmtDate(detail.twoFactor.enabledAt)}` : 'Off' }}
+                    </div>
+                  </div>
+                  <button
+                    v-if="detail.twoFactor?.enabledAt && !isSelf && !tfResetOpen"
+                    type="button"
+                    class="apex-tap shrink-0 rounded-full border border-white/10 px-3 py-1.5 text-xs font-semibold text-white hover:bg-white/5"
+                    @click="tfResetOpen = true"
+                  >
+                    Turn off…
+                  </button>
+                </div>
+                <form v-if="tfResetOpen" class="mt-3 flex flex-col gap-2.5" @submit.prevent="resetTwoFactor">
+                  <p class="text-xs leading-[1.5] text-muted-400">
+                    Only when they have lost their phone and their backup codes, and you have confirmed it is them. They will be told in their notifications.
+                  </p>
+                  <label for="tf-reason" :class="labelClass">How you confirmed it is them</label>
+                  <textarea
+                    id="tf-reason"
+                    v-model="tfReason"
+                    rows="2"
+                    maxlength="500"
+                    class="w-full rounded-[11px] border border-white/8 bg-muted-800 px-3.5 py-2.5 text-sm text-white outline-none focus:border-primary-400"
+                  />
+                  <div class="flex justify-end gap-2">
+                    <button type="button" class="apex-tap rounded-full px-3 py-1.5 text-xs font-semibold text-muted-400 hover:text-white" @click="tfResetOpen = false">
+                      Cancel
+                    </button>
+                    <BaseButton type="submit" rounded="full" size="sm" variant="primary" :loading="tfResetting" :disabled="tfReason.trim().length < 5">
+                      Turn off two-step
+                    </BaseButton>
+                  </div>
+                </form>
               </div>
             </div>
           </section>

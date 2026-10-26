@@ -1417,10 +1417,31 @@ revision's. One gap closed, by the owner's choice:
   And Settings refreshed the signed-in user with `fetchUser()`, which returns
   early once a user is loaded, so a changed name reached the sidebar only
   after a reload; it passes `{ force: true }` now.
+- **Signed-in devices** (built after, at the owner's request). Every sign-in
+  records a `Session` row and the token names it. `middleware/02.session.ts`
+  refuses a token whose row is revoked, expired or missing, once per API
+  request, so the guards stay synchronous. Settings lists the devices
+  (browser and platform from the user agent, last active, signed in) with
+  Sign out on each and "Sign out of all other devices". No location is
+  shown: there is no geolocation service. Tokens from before sessions were
+  recorded are ended by `User.sessionsValidAfter`; opening the list gives
+  the current browser a session of its own. A password reset now signs out
+  every device, and the reset page says so; Settings' own password change
+  still does not, as the design says.
+- **Two-step verification** with an authenticator app (TOTP, RFC 6238, in
+  `utils/totp.ts` on `node:crypto`). The switch opens a dialog: a QR code
+  (`uqr`, drawn as one SVG path) and the key, then a code from the app turns
+  it on and shows ten backup codes once (copy, download). Turning it off
+  needs the password and a code. "Make new backup codes" needs a code.
+  Sign-in asks for the code after the password, or a backup code; a code
+  works once (`lastStep`). Secrets live in `TwoFactor`, encrypted, so no
+  route that returns a user row can carry them. Staff with `clients.approve`
+  can turn it off for someone who lost their phone and codes, with a typed
+  reason, never for themselves; the customer gets a notification.
 - Still absent, real or absent: the username (accounts sign in with an email
   or a phone number), editing the sign-in email (no mail provider to confirm
-  it), two-step verification, the device list, and email notification
-  switches (no emails are sent). The page says so where the design draws them.
+  it), and email notification switches (no emails are sent). The page says
+  so where the design draws them.
 
 Gotchas:
 - **Heredocs with apostrophes can fail through the shell hook here** — write a

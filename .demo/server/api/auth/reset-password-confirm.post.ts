@@ -1,6 +1,7 @@
 import bcrypt from 'bcryptjs'
 import { createError, defineEventHandler } from 'h3'
 import { z } from 'zod'
+import { endOtherSessions } from '../../utils/auth'
 import prisma from '../../utils/prisma'
 import { validateBody } from '../../utils/validate'
 
@@ -21,14 +22,18 @@ export default defineEventHandler(async (event) => {
 
   const hashedPassword = await bcrypt.hash(newPassword, 10)
 
-  await prisma.$transaction([
+  const [user] = await prisma.$transaction([
     prisma.user.update({
       where: { email: resetToken.email },
       data: { password: hashedPassword },
+      select: { id: true },
     }),
     // Burn the token — single use.
     prisma.passwordResetToken.delete({ where: { id: resetToken.id } }),
   ])
+  // Whoever knew the old password may be signed in somewhere: a reset is the
+  // moment to end every session, which Settings' own password change does not.
+  await endOtherSessions(user.id, null)
 
   return { status: 'success', message: 'Password updated successfully.' }
 })

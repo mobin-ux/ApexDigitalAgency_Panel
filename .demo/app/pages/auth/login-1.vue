@@ -13,6 +13,11 @@
  * toast is gone, and the three social buttons went with it — they had no
  * click handler, no OAuth provider and no `/api/auth/oauth/*` route, while
  * being the largest controls on the page.
+ *
+ * Two-step verification: when the account has it on, the password step
+ * answers `{ status: 'two_factor', ticket }` instead of signing in, and this
+ * page asks for the code from the authenticator app (or a backup code) and
+ * finishes at `/api/auth/login-2fa`. The ticket lasts five minutes.
  */
 import { toTypedSchema } from '@vee-validate/zod'
 import { Field, useForm } from 'vee-validate'
@@ -49,6 +54,12 @@ const destination = computed(() => safeRedirect(route.query.redirect))
 const errorMessage = ref('')
 const showPassword = ref(false)
 const formRef = ref<HTMLFormElement | null>(null)
+// Second step: set when the password was right and the account has two-step on.
+const ticket = ref('')
+const code = ref('')
+const useBackup = ref(false)
+const codeBusy = ref(false)
+const codeInput = ref<HTMLInputElement | null>(null)
 
 const validationSchema = toTypedSchema(
   z.object({
@@ -65,10 +76,18 @@ const onSubmit = handleSubmit(
   async (values) => {
     errorMessage.value = ''
     try {
-      await $fetch('/api/auth/login', {
+      const res = await $fetch<{ status: string, ticket?: string }>('/api/auth/login', {
         method: 'POST',
         body: { identifier: values.identifier, password: values.password },
       })
+      if (res.status === 'two_factor' && res.ticket) {
+        ticket.value = res.ticket
+        useBackup.value = false
+        code.value = ''
+        await nextTick()
+        codeInput.value?.focus()
+        return
+      }
       await fetchUser({ force: true })
       await router.push(destination.value)
     }
@@ -91,6 +110,46 @@ const onSubmit = handleSubmit(
   },
 )
 
+/* ----------------------------------------------------------- second step */
+const { data: config } = useApexConfig()
+const supportEmail = computed(() => (config.value as any)?.supportEmail as string | undefined)
+const codeReady = computed(() => useBackup.value
+  ? code.value.replace(/[^a-z0-9]/gi, '').length === 10
+  : /^\d{6}$/.test(code.value.replace(/\s/g, '')))
+
+async function submitCode() {
+  if (!codeReady.value || codeBusy.value) {
+    return
+  }
+  errorMessage.value = ''
+  codeBusy.value = true
+  try {
+    await $fetch('/api/auth/login-2fa', { method: 'POST', body: { ticket: ticket.value, code: code.value } })
+    await fetchUser({ force: true })
+    await router.push(destination.value)
+  }
+  catch (error: any) {
+    if (error?.statusCode === 401) {
+      // The five-minute ticket ran out: back to the password.
+      ticket.value = ''
+    }
+    errorMessage.value = error?.data?.message || 'That code did not work. Try again.'
+  }
+  finally {
+    codeBusy.value = false
+  }
+}
+function switchCodeKind() {
+  useBackup.value = !useBackup.value
+  code.value = ''
+  errorMessage.value = ''
+  codeInput.value?.focus()
+}
+function backToPassword() {
+  ticket.value = ''
+  errorMessage.value = ''
+}
+
 onMounted(() => {
   /*
    * Straight to the first field — none of the three auth pages focused
@@ -105,10 +164,12 @@ onMounted(() => {
 <template>
   <div class="apex-fade">
     <h1 class="font-heading text-3xl font-extrabold leading-[1.1] tracking-[-0.02em] text-muted-900 dark:text-white">
-      Welcome back
+      {{ ticket ? 'Enter your code' : 'Welcome back' }}
     </h1>
-    <p class="text-muted-400 mt-2.5 text-[14.5px]">
-      Sign in to your Apex account.
+    <p class="text-muted-400 mt-2.5 text-[14.5px] leading-[1.55]">
+      {{ ticket
+        ? (useBackup ? 'Type one of the backup codes you saved when you turned on two-step verification. Each one works once.' : 'Open your authenticator app and type the six-digit code for Apex Digi.')
+        : 'Sign in to your Apex account.' }}
     </p>
 
     <!--
@@ -125,7 +186,51 @@ onMounted(() => {
       <span class="flex-1 text-[13px] leading-[1.5] text-muted-900 dark:text-white">{{ errorMessage }}</span>
     </div>
 
-    <form ref="formRef" novalidate class="mt-6 flex flex-col gap-4" @submit.prevent="onSubmit">
+    <form v-if="ticket" novalidate class="mt-6 flex flex-col gap-4" @submit.prevent="submitCode">
+      <div>
+        <label for="login-code" class="mb-2 block text-[12.5px] font-semibold text-muted-900 dark:text-white">{{ useBackup ? 'Backup code' : 'Six-digit code' }}</label>
+        <input
+          id="login-code"
+          ref="codeInput"
+          v-model="code"
+          :inputmode="useBackup ? 'text' : 'numeric'"
+          autocomplete="one-time-code"
+          :maxlength="useBackup ? 11 : 7"
+          :placeholder="useBackup ? 'xxxxx-xxxxx' : '123 456'"
+          :disabled="codeBusy"
+          class="apex-focus h-[46px] w-full rounded-xl border border-muted-300 bg-white px-4 font-mono text-[16px] tracking-[0.12em] text-muted-900 outline-none focus:border-primary-500 dark:border-white/10 dark:bg-muted-800 dark:text-white"
+        >
+      </div>
+      <BaseButton
+        type="submit"
+        variant="primary"
+        rounded="full"
+        :disabled="!codeReady || codeBusy"
+        :loading="codeBusy"
+        class="mt-2 h-12! w-full shadow-[0_10px_24px_rgba(125,83,242,0.32)]"
+      >
+        Sign in
+      </BaseButton>
+      <div class="flex flex-wrap items-center justify-between gap-3 text-[13px]">
+        <button type="button" class="apex-focus text-primary-400 hover:text-primary-300 rounded font-semibold" @click="switchCodeKind">
+          {{ useBackup ? 'Use the code from my app' : 'Use a backup code instead' }}
+        </button>
+        <button type="button" class="apex-focus text-muted-400 rounded font-semibold hover:text-muted-900 dark:hover:text-white" @click="backToPassword">
+          Back
+        </button>
+      </div>
+      <p class="text-muted-400 m-0 text-[12.5px] leading-[1.55]">
+        Lost your phone and your backup codes?
+        <template v-if="supportEmail">
+          Email <a :href="`mailto:${supportEmail}`" class="apex-focus text-primary-400 hover:text-primary-300 rounded font-semibold">{{ supportEmail }}</a> and we will check it is you before turning two-step off.
+        </template>
+        <template v-else>
+          Contact us and we will check it is you before turning two-step off.
+        </template>
+      </p>
+    </form>
+
+    <form v-show="!ticket" ref="formRef" novalidate class="mt-6 flex flex-col gap-4" @submit.prevent="onSubmit">
       <Field v-slot="{ field, errorMessage: fieldError, handleChange, handleBlur }" name="identifier">
         <BaseField
           v-slot="{ inputAttrs, inputRef }"
@@ -206,7 +311,7 @@ onMounted(() => {
       </BaseButton>
     </form>
 
-    <p class="text-muted-400 mt-[22px] text-center text-[13.5px]">
+    <p v-if="!ticket" class="text-muted-400 mt-[22px] text-center text-[13.5px]">
       New to Apex?
       <NuxtLink :to="{ path: '/auth/signup-2', query: redirectQuery(route.query.redirect) }" class="apex-focus text-primary-400 hover:text-primary-300 rounded font-semibold">
         Create an account

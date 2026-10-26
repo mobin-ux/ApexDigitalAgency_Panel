@@ -1,7 +1,7 @@
 import type { Role } from '@prisma/client'
 import type { H3Event } from 'h3'
 import { useRuntimeConfig } from '#imports'
-import { createError, deleteCookie, getCookie, setCookie } from 'h3'
+import { createError, deleteCookie, getCookie, getRequestHeader, setCookie } from 'h3'
 import jwt from 'jsonwebtoken'
 import prisma from './prisma'
 
@@ -14,6 +14,10 @@ import prisma from './prisma'
  * would run JWT verification on every request, including the ~40 static
  * template demo endpoints and page SSR, and an accidental gap there is
  * harder to spot than an explicit guard at the top of each handler.
+ *
+ * The one exception is `middleware/02.session.ts`, and it only ever takes
+ * access away: it marks a token whose session was signed out as revoked, so
+ * these guards see no session. It never lets a request in.
  */
 
 /**
@@ -25,6 +29,14 @@ export interface AuthSession {
   id: string
   email: string | null
   role: Role
+  /** The `Session` row this token belongs to; null for a token issued before sessions were recorded. */
+  sid: string | null
+}
+
+/** A verified token's claims, before the session check in `middleware/02.session.ts`. */
+export interface AuthTokenClaims extends AuthSession {
+  /** Issued-at, in seconds. */
+  iat: number
 }
 
 const AUTH_COOKIE = 'auth_token'
@@ -46,7 +58,7 @@ function jwtSecret(event: H3Event): string {
  * (missing cookie, bad signature, expired, malformed payload) — never
  * throws, so an invalid token can't surface as a 500.
  */
-export function getAuthSession(event: H3Event): AuthSession | null {
+export function readAuthToken(event: H3Event): AuthTokenClaims | null {
   const token = getCookie(event, AUTH_COOKIE)
   if (!token) {
     return null
@@ -56,15 +68,40 @@ export function getAuthSession(event: H3Event): AuthSession | null {
     if (typeof decoded !== 'object' || decoded === null) {
       return null
     }
-    const { id, email, role } = decoded as Record<string, unknown>
-    if (typeof id !== 'string' || typeof role !== 'string') {
+    const { id, email, role, sid, iat, purpose } = decoded as Record<string, unknown>
+    // A two-step ticket is signed with the same secret; it is never a session.
+    if (typeof id !== 'string' || typeof role !== 'string' || purpose !== undefined) {
       return null
     }
-    return { id, email: typeof email === 'string' ? email : null, role: role as Role }
+    return {
+      id,
+      email: typeof email === 'string' ? email : null,
+      role: role as Role,
+      sid: typeof sid === 'string' ? sid : null,
+      iat: typeof iat === 'number' ? iat : 0,
+    }
   }
   catch {
     return null
   }
+}
+
+/**
+ * The signed-in session, or null. Also null when the token is valid but its
+ * session was signed out from Settings, expired or predates a "sign out
+ * everywhere": the session middleware decides that once per request and
+ * leaves `authRevoked` on the context, which keeps this function synchronous.
+ */
+export function getAuthSession(event: H3Event): AuthSession | null {
+  if (event.context.authRevoked) {
+    return null
+  }
+  const claims = readAuthToken(event)
+  if (!claims) {
+    return null
+  }
+  const { iat: _iat, ...session } = claims
+  return session
 }
 
 /** Session or a clean 401. The fast path for customer routes (JWT-only, no DB hit). */
@@ -114,13 +151,74 @@ export function requireAdmin(event: H3Event): Promise<AuthSession> {
   return requireRole(event, 'ADMIN')
 }
 
-/** Sign a session token. Payload shape must stay in sync with AuthSession. */
-export function issueAuthToken(event: H3Event, user: { id: string, email: string | null, role: Role }): string {
-  return jwt.sign(
-    { id: user.id, email: user.email, role: user.role },
+/**
+ * Sign someone in on this browser: record a `Session` (what Settings lists as
+ * a signed-in device), sign a token naming it and set the cookie. Every
+ * sign-in path — password, two-step code, signup, invite — goes through here.
+ */
+export async function startSession(event: H3Event, user: { id: string, email: string | null, role: Role }): Promise<string> {
+  const row = await prisma.session.create({
+    data: {
+      userId: user.id,
+      userAgent: getRequestHeader(event, 'user-agent')?.slice(0, 400) ?? null,
+      expiresAt: new Date(Date.now() + TOKEN_TTL_SECONDS * 1000),
+    },
+    select: { id: true },
+  })
+  const token = jwt.sign(
+    { id: user.id, email: user.email, role: user.role, sid: row.id },
     jwtSecret(event),
     { expiresIn: TOKEN_TTL_SECONDS },
   )
+  setAuthCookie(event, token)
+  return row.id
+}
+
+/** Sign out this browser: end its session row, then clear the cookie. */
+export async function endSession(event: H3Event): Promise<void> {
+  const claims = readAuthToken(event)
+  if (claims?.sid) {
+    await prisma.session.updateMany({ where: { id: claims.sid, revokedAt: null }, data: { revokedAt: new Date() } })
+  }
+  clearAuthCookie(event)
+}
+
+/**
+ * Sign an account out everywhere except, optionally, one session: revoke the
+ * rows and stamp `sessionsValidAfter`, which also ends tokens issued before
+ * sessions were recorded (they have no row to revoke).
+ */
+export async function endOtherSessions(userId: string, keepSid: string | null): Promise<number> {
+  const now = new Date()
+  const [revoked] = await prisma.$transaction([
+    prisma.session.updateMany({
+      where: { userId, revokedAt: null, ...(keepSid ? { id: { not: keepSid } } : {}) },
+      data: { revokedAt: now },
+    }),
+    prisma.user.update({ where: { id: userId }, data: { sessionsValidAfter: now } }),
+  ])
+  return revoked.count
+}
+
+const TICKET_TTL_SECONDS = 5 * 60
+
+/**
+ * The proof that a password was right, handed back when the account also needs
+ * a two-step code. Five minutes, names nothing but the account, and carries a
+ * `purpose` so `readAuthToken` can never mistake it for a session.
+ */
+export function signTwoFactorTicket(event: H3Event, userId: string): string {
+  return jwt.sign({ uid: userId, purpose: 'two-factor' }, jwtSecret(event), { expiresIn: TICKET_TTL_SECONDS })
+}
+
+export function readTwoFactorTicket(event: H3Event, ticket: string): string | null {
+  try {
+    const decoded = jwt.verify(ticket, jwtSecret(event)) as Record<string, unknown>
+    return decoded.purpose === 'two-factor' && typeof decoded.uid === 'string' ? decoded.uid : null
+  }
+  catch {
+    return null
+  }
 }
 
 /**

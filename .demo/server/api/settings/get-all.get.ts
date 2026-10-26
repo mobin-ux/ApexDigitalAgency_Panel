@@ -19,6 +19,6 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 404, message: 'User not found' })
   }
 
-  const { password: _password, ...userWithoutPassword } = user
+  const { password: _password, sessionsValidAfter: _sva, ...userWithoutPassword } = user
   return { user: userWithoutPassword }
 })

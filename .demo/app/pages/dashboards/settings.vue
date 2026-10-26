@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { encode } from 'uqr'
 import { AVATAR_MAX_BYTES, AVATAR_MIMES, AVATAR_MIN_PX, avatarPhoto } from '~~/shared/avatar'
 import { PASSWORD_MIN } from '~~/shared/password'
 
@@ -21,9 +22,11 @@ import { PASSWORD_MIN } from '~~/shared/password'
  *  - Business saves the name, the Companies House number (new column), the
  *    registered address and the VAT number; "Look up" is offered only when
  *    the Companies House key is configured (`/api/config`).
- *  - Two-step verification, signed-in devices and email notifications are
- *    described, not switched: none exists yet, and a switch that stores
- *    nothing is the defect V2 Phase 7 removed.
+ *  - Security: the password, two-step verification with an authenticator
+ *    app (`/api/settings/two-factor/*`) and the signed-in devices, each of
+ *    which can be signed out (`/api/settings/sessions`).
+ *  - Email notifications are described, not switched: no emails are sent
+ *    yet, and a switch that stores nothing is the defect V2 Phase 7 removed.
  *  - The sticky save bar posts only the section on screen.
  */
 definePageMeta({
@@ -283,14 +286,183 @@ async function savePw() {
   }
 }
 
-/* This browser, read after mount because `navigator` does not exist on the server. */
-const thisDevice = ref('This browser')
-onMounted(() => {
-  const ua = navigator.userAgent
-  const os = /iPhone|iPad/.test(ua) ? 'iPhone' : /Android/.test(ua) ? 'Android' : /Mac/.test(ua) ? 'Mac' : /Windows/.test(ua) ? 'Windows' : 'This device'
-  const browser = /Edg\//.test(ua) ? 'Edge' : /Chrome\//.test(ua) ? 'Chrome' : /Safari\//.test(ua) ? 'Safari' : /Firefox\//.test(ua) ? 'Firefox' : 'Browser'
-  thisDevice.value = `${os} · ${browser}`
+/* -------------------------------------------------------- signed-in devices */
+// Client-only: the list call can hand a browser on an old token a new session
+// cookie, and a cookie set during SSR's internal fetch never reaches it.
+interface Device { id: string, name: string, kind: 'phone' | 'tablet' | 'laptop' | 'desktop', createdAt: string, lastSeenAt: string, current: boolean }
+const { data: devicesData, refresh: refreshDevices, status: devicesStatus, execute: loadDevices } = useFetch<{ sessions: Device[] }>('/api/settings/sessions', { key: 'sessions', server: false, immediate: false })
+const devices = computed(() => devicesData.value?.sessions ?? [])
+const DEVICE_ICON: Record<Device['kind'], string> = { phone: 'solar:smartphone-2-linear', tablet: 'solar:tablet-linear', laptop: 'solar:laptop-minimalistic-linear', desktop: 'solar:monitor-linear' }
+
+/** "Active now", "Active 40 min ago", "Active today at 09:12", "Active 3 days ago", then the date. */
+function lastActive(d: Device) {
+  const at = new Date(d.lastSeenAt)
+  const mins = Math.round((Date.now() - at.getTime()) / 60_000)
+  if (d.current || mins < 6) {
+    return 'Active now'
+  }
+  if (mins < 60) {
+    return `Active ${mins} min ago`
+  }
+  const days = -daysUntil(at)
+  if (days <= 0) {
+    return `Active today at ${String(at.getHours()).padStart(2, '0')}:${String(at.getMinutes()).padStart(2, '0')}`
+  }
+  return days === 1 ? 'Active yesterday' : days < 7 ? `Active ${days} days ago` : `Active ${ukDate(at)}`
+}
+
+const deviceBusy = ref<string | null>(null)
+async function signOutDevice(d: Device) {
+  deviceBusy.value = d.id
+  try {
+    await $fetch(`/api/settings/sessions/${d.id}`, { method: 'DELETE' })
+    flash.value = `Signed out of ${d.name}.`
+  }
+  catch (e) {
+    toaster.add({ title: 'Not signed out', description: errorMessage(e), icon: 'lucide:circle-alert', progress: true })
+  }
+  finally {
+    deviceBusy.value = null
+    await refreshDevices()
+  }
+}
+async function signOutOthers() {
+  deviceBusy.value = 'others'
+  try {
+    // Not "no other device": sign-ins from before the list existed are ended
+    // too, and they cannot be counted.
+    await $fetch('/api/settings/sessions/others', { method: 'POST' })
+    flash.value = 'Signed out of every other device.'
+  }
+  catch (e) {
+    toaster.add({ title: 'Not signed out', description: errorMessage(e), icon: 'lucide:circle-alert', progress: true })
+  }
+  finally {
+    deviceBusy.value = null
+    await refreshDevices()
+  }
+}
+
+/* --------------------------------------------------- two-step verification */
+interface TwoFactorStatus { enabled: boolean, enabledAt: string | null, backupCodesLeft: number }
+const { data: tf, refresh: refreshTf, execute: loadTf } = useFetch<TwoFactorStatus>('/api/settings/two-factor', { key: 'two-factor', server: false, immediate: false })
+watch(section, (s) => {
+  if (s === 'security') {
+    loadDevices()
+    loadTf()
+  }
+}, { immediate: true })
+
+type TfStep = 'setup' | 'codes' | 'disable' | 'renew'
+const tfStep = ref<TfStep | null>(null)
+const tfOpen = computed({
+  get: () => tfStep.value !== null,
+  set: (v) => {
+    if (!v) {
+      tfStep.value = null
+    }
+  },
 })
+const tfSetup = ref<{ secret: string, uri: string } | null>(null)
+const tfCode = ref('')
+const tfPassword = ref('')
+const tfBusy = ref(false)
+const tfError = ref('')
+const backupCodes = ref<string[]>([])
+const codesCopied = ref(false)
+
+/** The setup QR as one SVG path: a 1×1 square per dark module. */
+const qr = computed(() => {
+  if (!tfSetup.value) {
+    return null
+  }
+  const { data, size } = encode(tfSetup.value.uri, { border: 0 })
+  let d = ''
+  data.forEach((row, y) => row.forEach((on, x) => {
+    if (on) {
+      d += `M${x} ${y}h1v1h-1z`
+    }
+  }))
+  return { size, d }
+})
+const secretGroups = computed(() => tfSetup.value?.secret.match(/.{1,4}/g)?.join(' ') ?? '')
+
+function openTf(step: TfStep) {
+  tfCode.value = ''
+  tfPassword.value = ''
+  tfError.value = ''
+  tfStep.value = step
+}
+async function toggleTwoFactor() {
+  if (tf.value?.enabled) {
+    openTf('disable')
+    return
+  }
+  tfBusy.value = true
+  try {
+    tfSetup.value = await $fetch<{ secret: string, uri: string }>('/api/settings/two-factor/setup', { method: 'POST' })
+    openTf('setup')
+  }
+  catch (e) {
+    toaster.add({ title: 'Two-step verification', description: errorMessage(e), icon: 'lucide:circle-alert', progress: true })
+  }
+  finally {
+    tfBusy.value = false
+  }
+}
+async function submitTf() {
+  tfError.value = ''
+  tfBusy.value = true
+  try {
+    if (tfStep.value === 'setup') {
+      backupCodes.value = (await $fetch<{ backupCodes: string[] }>('/api/settings/two-factor/enable', { method: 'POST', body: { code: tfCode.value } })).backupCodes
+      tfSetup.value = null
+      codesCopied.value = false
+      tfStep.value = 'codes'
+      flash.value = 'Two-step verification is on.'
+    }
+    else if (tfStep.value === 'renew') {
+      backupCodes.value = (await $fetch<{ backupCodes: string[] }>('/api/settings/two-factor/backup-codes', { method: 'POST', body: { code: tfCode.value } })).backupCodes
+      codesCopied.value = false
+      tfStep.value = 'codes'
+      flash.value = 'New backup codes made. The old ones no longer work.'
+    }
+    else if (tfStep.value === 'disable') {
+      await $fetch('/api/settings/two-factor/disable', { method: 'POST', body: { password: tfPassword.value, code: tfCode.value } })
+      tfStep.value = null
+      flash.value = 'Two-step verification is off.'
+    }
+    await refreshTf()
+  }
+  catch (e) {
+    tfError.value = errorMessage(e)
+  }
+  finally {
+    tfBusy.value = false
+  }
+}
+async function copyCodes() {
+  try {
+    await navigator.clipboard.writeText(backupCodes.value.join('\n'))
+    codesCopied.value = true
+  }
+  catch {
+    tfError.value = 'Copying did not work here. Download the codes instead.'
+  }
+}
+function downloadCodes() {
+  const text = `Apex Digi backup codes\nEach code works once.\n\n${backupCodes.value.join('\n')}\n`
+  const url = URL.createObjectURL(new Blob([text], { type: 'text/plain' }))
+  const a = document.createElement('a')
+  a.href = url
+  a.download = 'apex-backup-codes.txt'
+  a.click()
+  URL.revokeObjectURL(url)
+}
+const TF_TITLES: Record<TfStep, string> = { setup: 'Turn on two-step verification', codes: 'Save your backup codes', disable: 'Turn off two-step verification', renew: 'New backup codes' }
+const tfTitle = computed(() => TF_TITLES[tfStep.value ?? 'setup'])
+// Six digits from the app; turning it off also takes a ten-character backup code.
+const tfCodeOk = computed(() => /^\d{6}$/.test(tfCode.value.replace(/\s/g, '')) || (tfStep.value === 'disable' && tfCode.value.replace(/[^a-z0-9]/gi, '').length === 10))
 
 const THEMES = [
   { id: 'light' as const, label: 'Light', page: 'bg-[#F7F8F9]', chrome: 'bg-white', card: 'bg-white', ink: 'bg-[#101828]', muted: 'bg-[#EDEFF1]', line: 'border-[#EDEFF1]' },
@@ -443,30 +615,145 @@ const CARD = 'bg-card border-line-subtle shadow-panel rounded-[20px] border'
               <ApexField v-model="pw1" label="New password" type="password" autocomplete="new-password" :hint="`At least ${PASSWORD_MIN} characters`" :error="pwErr" />
             </div>
             <div class="flex flex-wrap items-center justify-between gap-3">
-              <span class="text-fg-muted max-w-[52ch] text-[13px] leading-[1.55]">Changing your password does not sign out your other devices.</span>
+              <span class="text-fg-muted max-w-[52ch] text-[13px] leading-[1.55]">Changing your password does not sign out your other devices. Sign them out below.</span>
               <ApexButton size="sm" :disabled="pwDisabled" @click="savePw">
                 {{ pwSaving ? 'Updating…' : 'Update password' }}
               </ApexButton>
             </div>
           </div>
-          <div :class="CARD" class="flex items-center gap-3.5 px-[clamp(18px,2vw,26px)] py-[18px]">
-            <span class="bg-accent-tint text-accent-ink inline-flex size-[42px] shrink-0 items-center justify-center rounded-xl"><Icon name="solar:shield-check-linear" class="size-[21px]" /></span>
-            <span class="flex min-w-0 grow flex-col gap-[3px]">
-              <span class="text-fg-heading text-[15px] font-semibold">Two-step verification</span>
-              <span class="text-fg-muted text-[13px]">Not available yet. Your password is the only sign-in step for now.</span>
-            </span>
+          <div :class="CARD" class="flex flex-col gap-3 px-[clamp(18px,2vw,26px)] py-[18px]">
+            <div class="flex items-center gap-3.5">
+              <span class="bg-accent-tint text-accent-ink inline-flex size-[42px] shrink-0 items-center justify-center rounded-xl"><Icon name="solar:shield-check-linear" class="size-[21px]" /></span>
+              <span class="flex min-w-0 grow flex-col gap-[3px]">
+                <span id="tf-label" class="text-fg-heading text-[15px] font-semibold">Two-step verification</span>
+                <span v-if="!tf" class="bg-raised block h-4 w-40 animate-pulse rounded motion-reduce:animate-none" />
+                <span v-else class="text-fg-muted text-[13px]">{{ tf.enabled ? `On · Authenticator app · ${tf.backupCodesLeft} backup ${tf.backupCodesLeft === 1 ? 'code' : 'codes'} left` : 'Off · We recommend turning this on' }}</span>
+              </span>
+              <button
+                type="button"
+                role="switch"
+                :aria-checked="Boolean(tf?.enabled)"
+                aria-labelledby="tf-label"
+                :disabled="!tf || tfBusy"
+                class="apex-ring relative h-7 w-[46px] shrink-0 cursor-pointer rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none"
+                :class="tf?.enabled ? 'bg-accent' : 'bg-line-strong'"
+                @click="toggleTwoFactor"
+              >
+                <span class="absolute top-[3px] size-[22px] rounded-full bg-white shadow-[0_1px_3px_rgba(17,31,34,.25)] transition-[left] duration-150 motion-reduce:transition-none" :class="tf?.enabled ? 'left-[21px]' : 'left-[3px]'" />
+              </button>
+            </div>
+            <p v-if="tf?.enabled" class="text-fg-muted m-0 text-[13px] leading-[1.55]">
+              Signing in asks for a code from your app after your password.
+              <button type="button" class="apex-ring text-accent-ink rounded font-semibold hover:underline" @click="openTf('renew')">
+                Make new backup codes
+              </button>
+            </p>
           </div>
           <div :class="CARD" class="overflow-hidden">
             <span class="border-line-soft text-fg-heading block border-b px-[clamp(18px,2vw,26px)] py-4 text-[15px] font-semibold">Signed-in devices</span>
-            <div class="border-line-soft flex flex-wrap items-center gap-3.5 border-b px-[clamp(18px,2vw,26px)] py-3.5">
-              <Icon name="solar:laptop-minimalistic-linear" class="text-fg-muted size-[22px]" />
-              <span class="flex min-w-0 flex-[1_1_200px] flex-col gap-0.5"><span class="text-fg-heading text-[14.5px] font-semibold">{{ thisDevice }}</span><span class="text-fg-muted text-[12.5px]">Active now</span></span>
-              <span class="text-st-success-fg text-[12.5px] font-bold">This device</span>
+            <div v-if="devicesStatus === 'pending' && !devices.length" class="px-[clamp(18px,2vw,26px)] py-4">
+              <span class="bg-raised block h-10 animate-pulse rounded-xl motion-reduce:animate-none" />
             </div>
-            <p class="text-fg-muted m-0 px-[clamp(18px,2vw,26px)] py-3.5 text-[12.5px] leading-relaxed">
-              We do not keep a list of your other devices yet, so they cannot be signed out from here. Each sign-in lasts seven days.
-            </p>
+            <ul class="m-0 list-none p-0">
+              <li v-for="d in devices" :key="d.id" class="border-line-soft flex flex-wrap items-center gap-3.5 border-b px-[clamp(18px,2vw,26px)] py-3.5">
+                <Icon :name="DEVICE_ICON[d.kind]" class="text-fg-muted size-[22px]" />
+                <span class="flex min-w-0 flex-[1_1_200px] flex-col gap-0.5">
+                  <span class="text-fg-heading text-[14.5px] font-semibold">{{ d.name }}</span>
+                  <span class="text-fg-muted text-[12.5px]">{{ lastActive(d) }} · Signed in {{ ukDate(d.createdAt) }}</span>
+                </span>
+                <span v-if="d.current" class="text-st-success-fg text-[12.5px] font-bold">This device</span>
+                <button
+                  v-else
+                  type="button"
+                  :disabled="deviceBusy !== null"
+                  :aria-label="`Sign out of ${d.name}, ${lastActive(d).toLowerCase()}`"
+                  class="apex-ring border-line-rule bg-card text-fg-heading hover:bg-hover min-h-[38px] cursor-pointer rounded-[10px] border px-3 text-[13.5px] font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+                  @click="signOutDevice(d)"
+                >
+                  {{ deviceBusy === d.id ? 'Signing out…' : 'Sign out' }}
+                </button>
+              </li>
+            </ul>
+            <div class="flex flex-wrap items-center justify-between gap-3 px-[clamp(18px,2vw,26px)] py-3.5">
+              <span class="text-fg-muted max-w-[52ch] text-[12.5px] leading-relaxed">Each sign-in lasts seven days. A device you sign out has to sign in again.</span>
+              <button
+                v-if="devices.length"
+                type="button"
+                :disabled="deviceBusy !== null"
+                class="apex-ring text-fg-body hover:bg-hover min-h-[38px] cursor-pointer rounded-[10px] px-2 text-[13.5px] font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+                @click="signOutOthers"
+              >
+                {{ deviceBusy === 'others' ? 'Signing out…' : 'Sign out of all other devices' }}
+              </button>
+            </div>
           </div>
+
+          <ApexPanelDialog v-model:open="tfOpen" :title="tfTitle" description="Two-step verification for your Apex account." :width="460">
+            <template v-if="tfStep === 'setup'">
+              <ol class="text-fg-body m-0 flex list-decimal flex-col gap-1.5 ps-5 text-[14px] leading-[1.55]">
+                <li>Open an authenticator app, such as Google Authenticator, Microsoft Authenticator or 1Password.</li>
+                <li>Scan this code, or enter the key below.</li>
+                <li>Type the six-digit code the app shows.</li>
+              </ol>
+              <div v-if="qr" class="flex justify-center">
+                <svg :viewBox="`-4 -4 ${qr.size + 8} ${qr.size + 8}`" class="size-[184px] rounded-xl bg-white" role="img" aria-label="QR code for your authenticator app" shape-rendering="crispEdges">
+                  <path :d="qr.d" fill="#101828" />
+                </svg>
+              </div>
+              <div class="bg-raised flex flex-col gap-1 rounded-xl px-3.5 py-3">
+                <span class="text-fg-muted text-[12px] font-semibold">Key, if you cannot scan</span>
+                <code class="text-fg-heading select-all break-all font-mono text-[14px] tracking-[0.04em]">{{ secretGroups }}</code>
+              </div>
+            </template>
+            <template v-if="tfStep === 'codes'">
+              <p class="text-fg-body m-0 text-[14px] leading-[1.55]">
+                If you lose your phone, each of these codes signs you in once. Keep them somewhere safe. This is the only time we show them.
+              </p>
+              <ul class="bg-raised m-0 grid list-none grid-cols-2 gap-x-4 gap-y-1.5 rounded-xl p-4 font-mono text-[14.5px]" aria-label="Backup codes">
+                <li v-for="c in backupCodes" :key="c" class="text-fg-heading select-all">
+                  {{ c }}
+                </li>
+              </ul>
+              <div class="flex flex-wrap gap-2.5">
+                <ApexButton variant="soft" size="sm" @click="copyCodes">
+                  {{ codesCopied ? 'Copied' : 'Copy codes' }}
+                </ApexButton>
+                <ApexButton variant="soft" size="sm" @click="downloadCodes">
+                  Download
+                </ApexButton>
+              </div>
+              <p v-if="tfError" role="alert" class="text-st-danger-fg m-0 text-[13px] font-medium">
+                {{ tfError }}
+              </p>
+              <ApexButton block @click="tfStep = null">
+                I have saved them
+              </ApexButton>
+            </template>
+            <template v-if="tfStep === 'disable'">
+              <p class="text-fg-body m-0 text-[14px] leading-[1.55]">
+                Signing in will only ask for your password. Enter it, and a code from your app or a backup code.
+              </p>
+              <ApexField v-model="tfPassword" label="Password" type="password" autocomplete="current-password" required />
+            </template>
+            <template v-if="tfStep === 'renew'">
+              <p class="text-fg-body m-0 text-[14px] leading-[1.55]">
+                Your current backup codes will stop working. Enter a code from your app to make ten new ones.
+              </p>
+            </template>
+            <form v-if="tfStep && tfStep !== 'codes'" class="flex flex-col gap-3.5" @submit.prevent="submitTf">
+              <ApexField
+                v-model="tfCode"
+                :label="tfStep === 'disable' ? 'Code from your app, or a backup code' : 'Six-digit code from your app'"
+                :inputmode="tfStep === 'disable' ? 'text' : 'numeric'"
+                autocomplete="one-time-code"
+                required
+                :error="tfError"
+              />
+              <ApexButton type="submit" block :disabled="!tfCodeOk || tfBusy || (tfStep === 'disable' && !tfPassword)">
+                {{ tfBusy ? 'Checking…' : tfStep === 'setup' ? 'Turn on' : tfStep === 'disable' ? 'Turn off' : 'Make new codes' }}
+              </ApexButton>
+            </form>
+          </ApexPanelDialog>
         </template>
 
         <!-- Notifications -->

@@ -2,7 +2,7 @@
 
 > Handoff doc for continuing work in fresh sessions. Update the relevant section
 > whenever a page ships, a decision lands, or a blocker appears.
-> Last updated: **2026-10-25** (Panel v2: dashboard, New order and My orders revisions; Wallet revision — credit by application, ADR-020; Support revision — call requests and ratings; 2026-10-27 Settings re-check — profile photos).
+> Last updated: **2026-10-25** (Panel v2: dashboard, New order and My orders revisions; Wallet revision — credit by application, ADR-020; Support revision — call requests and ratings; 2026-10-27 Settings re-check — profile photos, signed-in devices, two-step verification).
 
 ## Where things stand
 
@@ -83,6 +83,13 @@ them with `meta.colorMode`, because they were only ever checked in dark.
   `PUT`/`DELETE /api/settings/avatar`, `GET /api/avatars/:userId` (self and
   staff only). `User.avatar` = `/api/avatars/<id>?v=<file>`; any other value
   is treated as no photo. `ApexPanelAvatar :person` renders it everywhere.
+- **Sessions and two-step (2026-10-27):** `Session` (one per sign-in; JWT
+  carries `sid`; `middleware/02.session.ts` refuses revoked ones),
+  `User.sessionsValidAfter` (ends pre-session tokens), `TwoFactor` (TOTP
+  secret encrypted with `utils/crypto`, backup-code hashes, `lastStep`).
+  Login answers `{ status: 'two_factor', ticket }` when on; the page finishes
+  at `/api/auth/login-2fa`. Staff reset: `POST /api/admin/users/:id/two-factor-reset`.
+  New dependency `uqr` (QR), pinned 0.1.3.
 - `Company.companyNumber` + Companies House lookup
   (`/api/settings/companies-house`, needs `NUXT_COMPANIES_HOUSE_KEY`; the
   button is hidden without it). `Project.status` gained `IN_REVIEW`.
@@ -100,7 +107,9 @@ no fake "Apex support" auto-reply on a new request; the FAQ tab is gone, as draw
 **Deploy needs:** `prisma db push` (new columns + `ClientAction`, and
 `CreditApplication` + `Attachment.creditApplicationId` from ADR-020, and
 `Ticket.rating`/`ratingNote`/`ratedAt`/`callSlot` from the Support revision, and
-`Attachment.avatarUserId` from the Settings re-check), a writable
+`Attachment.avatarUserId`, `Session`, `TwoFactor` and `User.sessionsValidAfter`
+from the Settings re-check), `NUXT_ENCRYPTION_KEY` (two-step secrets are
+encrypted with it, falling back to the JWT secret), a writable
 `NUXT_UPLOAD_DIR` outside the bundle (e.g. `/opt/apex/uploads`), optionally
 `NUXT_COMPANIES_HOUSE_KEY`. Not deployed yet.
 

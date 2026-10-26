@@ -3,7 +3,7 @@ import { createError, defineEventHandler } from 'h3'
 import { z } from 'zod'
 import { isStaffRole } from '../../../shared/permissions'
 import { recordAudit } from '../../utils/audit'
-import { issueAuthToken, setAuthCookie } from '../../utils/auth'
+import { startSession } from '../../utils/auth'
 import prisma from '../../utils/prisma'
 import { rateLimit, RateLimits } from '../../utils/ratelimit'
 import { validateBody } from '../../utils/validate'
@@ -80,8 +80,7 @@ export default defineEventHandler(async (event) => {
     metadata: { role: invite.role, invitedById: invite.invitedById },
   })
 
-  const authToken = issueAuthToken(event, { id: user.id, email: user.email, role: user.role })
-  setAuthCookie(event, authToken)
+  await startSession(event, { id: user.id, email: user.email, role: user.role })
 
   return { status: 'success', user }
 })

@@ -36,7 +36,9 @@ function getKey(): Buffer {
     return cachedKey
   }
 
-  const material = process.env.NUXT_ENCRYPTION_KEY || process.env.NUXT_JWT_SECRET
+  // A dev server usually has neither variable set (the JWT secret falls back
+  // to 'secret' there too); production still refuses to run without one.
+  const material = process.env.NUXT_ENCRYPTION_KEY || process.env.NUXT_JWT_SECRET || (import.meta.dev ? 'apex-dev-only-encryption-key' : '')
 
   if (!material) {
     throw new Error(

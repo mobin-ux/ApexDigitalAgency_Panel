@@ -85,6 +85,15 @@ implementation. Hard rules live in CLAUDE.md; rationale in docs/decisions/.
 - All request input is zod-validated server-side (`validateBody`/`validateQuery`).
 - ~~Review `/api/create-admin` + `/api/seed-*` exposure~~ **done**: dev-only,
   404 in production builds. JWT secret now via `NUXT_JWT_SECRET` runtimeConfig.
+- **Signed-in devices can be signed out** (2026-10-27): each sign-in is a
+  `Session` row named in the token and checked on every API request, so
+  "Sign out" on another device takes effect at its next request. A password
+  reset signs out every device.
+- **Optional two-step verification** with an authenticator app (TOTP) and ten
+  single-use backup codes. Secrets are encrypted at rest in their own table;
+  codes cannot be replayed; code checks are rate-limited per IP and per
+  account; turning it off needs the password and a code; staff can turn it
+  off for a customer only with a typed, audited reason.
 - Remaining hardening backlog: httpOnly cookie (blocked on reworking the client
   auth middleware — ADR-013), rate limiting on auth endpoints, real mail
   provider for password reset.

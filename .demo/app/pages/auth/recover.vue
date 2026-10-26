@@ -154,7 +154,7 @@ async function resend() {
         Password changed
       </h1>
       <p class="text-muted-400 mt-3 text-[14.5px] leading-[1.6]">
-        You can sign in with your new password now.
+        You can sign in with your new password now. Anyone signed in to your account, on any device, has been signed out.
       </p>
       <BaseButton
         to="/auth/login-1"

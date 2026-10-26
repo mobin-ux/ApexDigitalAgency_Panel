@@ -127,6 +127,11 @@ JWT secret: `runtimeConfig.jwtSecret` (`NUXT_JWT_SECRET` env override).
 | POST `/api/support/:id/rating` | 1–5 and an optional comment on a resolved request; claimed once (409 on a repeat) |
 | POST `/api/support/call` | "Request a call": a preferred slot from `shared/support-call.ts` (next five working days, four UK times) becomes a request assigned to the manager; a second one moves the open request's slot. No calendar: staff confirm by replying |
 | PUT/DELETE `/api/settings/avatar` | set the profile photo from one of the caller's own unclaimed image uploads (JPG/PNG/WebP/GIF, ≤5 MB), or remove it; the previous file is deleted |
+| GET `/api/settings/sessions` | the caller's signed-in devices (device name from the user agent, created, last seen, which is this one). A browser still on a pre-session token gets a session here |
+| DELETE `/api/settings/sessions/:id` · POST `/api/settings/sessions/others` | sign out one other device, or all others (also ends pre-session tokens via `User.sessionsValidAfter`) |
+| GET `/api/settings/two-factor` · POST `…/setup` · `…/enable` · `…/disable` · `…/backup-codes` | authenticator-app two-step: status; a pending secret and otpauth URI; a code turns it on and returns ten backup codes once; off needs the password and a code; new codes need a code. Code checks are rate-limited per account |
+| POST `/api/auth/login-2fa` | second sign-in step: the five-minute ticket from `/api/auth/login` plus an app code or a backup code; starts the session |
+| POST `/api/admin/users/:id/two-factor-reset` | `clients.approve` — turn off someone else's two-step, with a typed reason (audited); the customer is notified |
 | GET `/api/avatars/:userId` | the profile photo, inline, to the account itself and active staff only (404 otherwise); a year's private cache, since the URL carries `?v=<file id>` |
 | POST `/api/admin/tickets/:id/reply` | `support.answer` — a public reply also notifies the customer; internal notes never do |
 | POST `/api/notifications/:id/read` | mark one of the caller's notifications read (owner-scoped update; 404 otherwise) |
@@ -186,6 +191,16 @@ verification), and the Tairo demo routes `/api/payments/*` and `/api/hello`.
    caching on authenticated, per-user routes. Template demo routes keep their swr.
 5. `postinstall: prisma generate` in root package.json — without it every API route
    500s after a fresh install (ADR-009).
+6. **Sessions (2026-10-27).** `startSession()` records a `Session` row and puts its
+   id (`sid`) in the JWT. `server/middleware/02.session.ts` runs on `/api/**`: a
+   revoked, expired or missing row sets `event.context.authRevoked` and clears the
+   cookie, so `getAuthSession()` (still synchronous) returns null. It only takes
+   access away; the per-route guards still decide who gets in. Logout revokes the
+   row; a password reset revokes them all.
+7. **Two-step verification.** With `TwoFactor.enabledAt` set, `/api/auth/login`
+   returns a five-minute ticket (a JWT with `purpose: 'two-factor'`, which
+   `readAuthToken` refuses as a session) instead of a cookie, and
+   `/api/auth/login-2fa` takes the ticket and a code.
 
 ## 7. Frontend architecture — implemented pages
 

@@ -2,7 +2,7 @@ import bcrypt from 'bcryptjs'
 import { createError, defineEventHandler } from 'h3'
 import { z } from 'zod'
 import { recordAudit } from '../../utils/audit'
-import { issueAuthToken, setAuthCookie } from '../../utils/auth'
+import { signTwoFactorTicket, startSession } from '../../utils/auth'
 import { identifierWhere, parseIdentifier } from '../../utils/identifier'
 import prisma from '../../utils/prisma'
 import { clientIp, rateLimit, RateLimits } from '../../utils/ratelimit'
@@ -15,6 +15,11 @@ import { validateBody } from '../../utils/validate'
  * one used at signup — see utils/identifier). The 401 message is identical for
  * "unknown account" and "wrong password" so the endpoint can't be used to
  * enumerate accounts. The JWT lives only in the cookie — never in the body.
+ *
+ * With two-step verification on, a right password sets no cookie: the answer
+ * is `{ status: 'two_factor', ticket }` and `/api/auth/login-2fa` finishes it
+ * with a code. The ticket says only that the password was right, for five
+ * minutes, and is refused anywhere a session is expected.
  */
 
 const bodySchema = z.object({
@@ -62,9 +67,13 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 403, message: 'This account has been suspended. Contact support for assistance.' })
   }
 
-  const token = issueAuthToken(event, user)
-  setAuthCookie(event, token)
+  const twoFactor = await prisma.twoFactor.findUnique({ where: { userId: user.id }, select: { enabledAt: true } })
+  if (twoFactor?.enabledAt) {
+    return { status: 'two_factor', ticket: signTwoFactorTicket(event, user.id) }
+  }
 
-  const { password: _password, ...userWithoutPassword } = user
+  await startSession(event, user)
+
+  const { password: _password, sessionsValidAfter: _sva, ...userWithoutPassword } = user
   return { status: 'success', user: userWithoutPassword }
 })

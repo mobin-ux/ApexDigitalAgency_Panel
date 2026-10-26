@@ -131,6 +131,16 @@ model User {
   // `avatar` above holds that URL (versioned by the file id) for display.
   avatarFile  Attachment?  @relation("UserAvatar")
 
+  // Signed-in devices (Settings › Security). Every token issued since this
+  // column exists names its Session row; a token from before it does not, and
+  // is refused once it was issued before `sessionsValidAfter` — which is how
+  // "Sign out of all other devices" and a password reset end those too.
+  sessions           Session[]
+  sessionsValidAfter DateTime?
+  // Authenticator-app two-step verification. Its own table so the secret can
+  // never ride along when a route returns the user row.
+  twoFactor          TwoFactor?
+
   // Support System
   tickets         Ticket[]
   // Tickets this user handles as a support agent (admin/employee side)
@@ -962,4 +972,36 @@ model StaffInvite {
 
   @@index([email])
   @@index([acceptedAt, cancelledAt])
+}
+
+/// One signed-in browser (Settings › Security › Signed-in devices). The JWT
+/// carries the id; `server/middleware/02.session.ts` refuses a token whose row
+/// is revoked, expired or missing. No location is stored: there is no
+/// geolocation service, and an IP address shown back is not one.
+model Session {
+  id         String    @id @default(uuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userAgent  String?
+  createdAt  DateTime  @default(now())
+  lastSeenAt DateTime  @default(now())
+  expiresAt  DateTime
+  revokedAt  DateTime?
+
+  @@index([userId])
+}
+
+/// Authenticator-app (TOTP, RFC 6238) two-step verification for one account.
+/// `secret` and `pending` are AES-GCM envelopes (utils/crypto). `lastStep` is
+/// the 30-second step of the last accepted code, so a code works once.
+/// `backupCodes` is a JSON array of SHA-256 hashes; a used code is removed.
+model TwoFactor {
+  userId      String    @id
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pending     String?
+  secret      String?
+  enabledAt   DateTime?
+  lastStep    Int?
+  backupCodes String?
+  updatedAt   DateTime  @updatedAt
 }
