@@ -64,7 +64,6 @@ export default defineEventHandler(async (event) => {
       firstName,
       lastName,
       role: 'CUSTOMER',
-      avatar: '/img/avatars/placeholder.svg',
     },
     select: { id: true, email: true, phone: true, firstName: true, lastName: true, role: true },
   })

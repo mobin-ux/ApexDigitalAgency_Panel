@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { requireAuth } from '../../../utils/auth'
 import prisma from '../../../utils/prisma'
 import { rateLimit, RateLimits } from '../../../utils/ratelimit'
+import { unclaimedBy } from '../../../utils/uploads'
 import { validateBody } from '../../../utils/validate'
 
 /**
@@ -40,7 +41,7 @@ export default defineEventHandler(async (event) => {
     })
     if (attachmentIds.length > 0) {
       const linked = await tx.attachment.updateMany({
-        where: { id: { in: attachmentIds }, uploaderId: session.id, ticketMessageId: null, projectId: null },
+        where: { id: { in: attachmentIds }, ...unclaimedBy(session.id) },
         data: { ticketMessageId: created.id },
       })
       if (linked.count !== attachmentIds.length) {

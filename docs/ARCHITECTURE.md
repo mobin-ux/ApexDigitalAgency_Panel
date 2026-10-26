@@ -126,6 +126,8 @@ JWT secret: `runtimeConfig.jwtSecret` (`NUXT_JWT_SECRET` env override).
 | POST `/api/support/:id/reply` | customer reply; text, files or both |
 | POST `/api/support/:id/rating` | 1–5 and an optional comment on a resolved request; claimed once (409 on a repeat) |
 | POST `/api/support/call` | "Request a call": a preferred slot from `shared/support-call.ts` (next five working days, four UK times) becomes a request assigned to the manager; a second one moves the open request's slot. No calendar: staff confirm by replying |
+| PUT/DELETE `/api/settings/avatar` | set the profile photo from one of the caller's own unclaimed image uploads (JPG/PNG/WebP/GIF, ≤5 MB), or remove it; the previous file is deleted |
+| GET `/api/avatars/:userId` | the profile photo, inline, to the account itself and active staff only (404 otherwise); a year's private cache, since the URL carries `?v=<file id>` |
 | POST `/api/admin/tickets/:id/reply` | `support.answer` — a public reply also notifies the customer; internal notes never do |
 | POST `/api/notifications/:id/read` | mark one of the caller's notifications read (owner-scoped update; 404 otherwise) |
 | GET/POST/DELETE `/api/credit/application` | ADR-020: the caller's credit application (status screen + ceiling), submit one (claims their own photo ID and statement uploads; one at a time, none with a line in place), withdraw it (stamped WITHDRAWN, files deleted from disk) |

@@ -1395,6 +1395,33 @@ the Dashboard revision's. Two gaps closed:
 - "We reply ~15 min" reads "We reply in ~15 min": the config serves the
   figure without a preposition.
 
+**Settings re-check (`Settings.dc.html`, 2026-10-27).** The page in the design
+is unchanged from the Panel Breakpoints build; its shell is the Dashboard
+revision's. One gap closed, by the owner's choice:
+- **Profile photo.** Upload (JPG, PNG, WebP or GIF, under 5 MB, at least
+  200px a side, checked in the browser) or Remove, saved on choosing it. The
+  file goes through `POST /api/uploads` and `PUT /api/settings/avatar` claims
+  it (`Attachment.avatarUserId`); the old photo is deleted from disk.
+  `GET /api/avatars/:userId` serves it inline to the account and to staff
+  only. `User.avatar` holds that URL with `?v=<file id>`, so it can be cached
+  for good; `shared/avatar.ts` `avatarPhoto()` accepts only that shape, so the
+  old Tairo demo paths still in the column show initials.
+- `ApexPanelAvatar` takes an optional `person` and shows the photo or the
+  initials (also if the image fails). It replaced `BaseAvatar` and its Tairo
+  cartoon fallback in `AdminUserCell` and the admin user page, and sits beside
+  the customer's messages in the admin ticket thread.
+- Fixed in passing: signup wrote `/img/avatars/placeholder.svg`, a file that
+  never existed, so every new account was a broken image in the admin lists;
+  and the order and support upload claims did not exclude a credit
+  application's documents. One filter, `unclaimedBy()`, now serves all six.
+  And Settings refreshed the signed-in user with `fetchUser()`, which returns
+  early once a user is loaded, so a changed name reached the sidebar only
+  after a reload; it passes `{ force: true }` now.
+- Still absent, real or absent: the username (accounts sign in with an email
+  or a phone number), editing the sign-in email (no mail provider to confirm
+  it), two-step verification, the device list, and email notification
+  switches (no emails are sent). The page says so where the design draws them.
+
 Gotchas:
 - **Heredocs with apostrophes can fail through the shell hook here** — write a
   script file and run it instead.

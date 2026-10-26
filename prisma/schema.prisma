@@ -126,7 +126,10 @@ model User {
   ledgerEntries  LedgerEntry[]
 
   // Files this user uploaded (ticket attachments, etc.)
-  attachments Attachment[]
+  attachments Attachment[] @relation("AttachmentUploader")
+  // The profile photo: one of their own uploads, served by /api/avatars/:id.
+  // `avatar` above holds that URL (versioned by the file id) for display.
+  avatarFile  Attachment?  @relation("UserAvatar")
 
   // Support System
   tickets         Ticket[]
@@ -523,7 +526,11 @@ model Attachment {
   createdAt DateTime @default(now())
 
   uploaderId String
-  uploader   User   @relation(fields: [uploaderId], references: [id], onDelete: Cascade)
+  uploader   User   @relation("AttachmentUploader", fields: [uploaderId], references: [id], onDelete: Cascade)
+
+  // Set when this upload is its uploader's profile photo (Settings › Profile).
+  avatarUserId String? @unique
+  avatarUser   User?   @relation("UserAvatar", fields: [avatarUserId], references: [id], onDelete: Cascade)
 
   ticketMessageId String?
   ticketMessage   TicketMessage? @relation(fields: [ticketMessageId], references: [id], onDelete: Cascade)

@@ -2,7 +2,7 @@
 
 > Handoff doc for continuing work in fresh sessions. Update the relevant section
 > whenever a page ships, a decision lands, or a blocker appears.
-> Last updated: **2026-10-25** (Panel v2: dashboard, New order and My orders revisions; Wallet revision — credit by application, ADR-020; Support revision — call requests and ratings).
+> Last updated: **2026-10-25** (Panel v2: dashboard, New order and My orders revisions; Wallet revision — credit by application, ADR-020; Support revision — call requests and ratings; 2026-10-27 Settings re-check — profile photos).
 
 ## Where things stand
 
@@ -79,6 +79,10 @@ them with `meta.colorMode`, because they were only ever checked in dark.
   confirm by replying (no calendar); resolved requests take a 1–5 rating;
   requests about an order are assigned to its manager; a public staff reply
   notifies the customer.
+- **Profile photos (Settings re-check, 2026-10-27):** `Attachment.avatarUserId`,
+  `PUT`/`DELETE /api/settings/avatar`, `GET /api/avatars/:userId` (self and
+  staff only). `User.avatar` = `/api/avatars/<id>?v=<file>`; any other value
+  is treated as no photo. `ApexPanelAvatar :person` renders it everywhere.
 - `Company.companyNumber` + Companies House lookup
   (`/api/settings/companies-house`, needs `NUXT_COMPANIES_HOUSE_KEY`; the
   button is hidden without it). `Project.status` gained `IN_REVIEW`.
@@ -95,7 +99,8 @@ no fake "Apex support" auto-reply on a new request; the FAQ tab is gone, as draw
 
 **Deploy needs:** `prisma db push` (new columns + `ClientAction`, and
 `CreditApplication` + `Attachment.creditApplicationId` from ADR-020, and
-`Ticket.rating`/`ratingNote`/`ratedAt`/`callSlot` from the Support revision), a writable
+`Ticket.rating`/`ratingNote`/`ratedAt`/`callSlot` from the Support revision, and
+`Attachment.avatarUserId` from the Settings re-check), a writable
 `NUXT_UPLOAD_DIR` outside the bundle (e.g. `/opt/apex/uploads`), optionally
 `NUXT_COMPANIES_HOUSE_KEY`. Not deployed yet.
 

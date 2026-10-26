@@ -2,6 +2,7 @@ import { createError, defineEventHandler, getRouterParam } from 'h3'
 import { z } from 'zod'
 import { requireAuth } from '../../../utils/auth'
 import prisma from '../../../utils/prisma'
+import { unclaimedBy } from '../../../utils/uploads'
 import { validateBody } from '../../../utils/validate'
 
 /**
@@ -22,7 +23,7 @@ export default defineEventHandler(async (event) => {
   }
   const { attachmentIds } = await validateBody(event, bodySchema)
   const linked = await prisma.attachment.updateMany({
-    where: { id: { in: attachmentIds }, uploaderId: session.id, projectId: null, ticketMessageId: null },
+    where: { id: { in: attachmentIds }, ...unclaimedBy(session.id) },
     data: { projectId: project.id },
   })
   if (linked.count !== attachmentIds.length) {

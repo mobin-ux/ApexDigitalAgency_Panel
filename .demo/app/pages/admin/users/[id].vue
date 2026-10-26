@@ -221,7 +221,7 @@ const labelClass = 'mb-2 block text-[12.5px] font-semibold text-white'
     <div v-if="detail" class="flex flex-col gap-6">
       <!-- ========== IDENTITY HEADER ========== -->
       <div class="flex flex-wrap items-center gap-5 rounded-[20px] border border-white/10 bg-muted-800 p-6">
-        <BaseAvatar size="lg" :src="detail.avatar || '/img/avatars/10.svg'" />
+        <ApexPanelAvatar :size="64" :person="detail" />
         <div class="min-w-0 flex-1">
           <div class="flex flex-wrap items-center gap-2.5">
             <h1 class="font-heading text-[26px] font-extrabold leading-tight tracking-[-0.02em] text-white">

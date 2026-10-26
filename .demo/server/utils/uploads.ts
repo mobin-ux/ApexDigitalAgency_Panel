@@ -103,8 +103,21 @@ export async function storeUpload(uploaderId: string, file: { filename?: string,
   })
 }
 
-/** Stream a stored attachment as a download. */
-export async function sendAttachment(event: H3Event, row: { path: string, name: string, mime: string, size: number }) {
+/**
+ * The caller's own uploads that belong to nothing yet — the only ones an order,
+ * a message, a credit application or the profile photo may claim. One filter,
+ * so a file already given to one record (a credit application's photo ID, the
+ * profile photo) cannot be claimed into another.
+ */
+export function unclaimedBy(uploaderId: string) {
+  return { uploaderId, projectId: null, ticketMessageId: null, creditApplicationId: null, avatarUserId: null }
+}
+
+/**
+ * Stream a stored attachment: a download by default, or `inline` with a
+ * cache lifetime for the profile photo, whose URL changes with every photo.
+ */
+export async function sendAttachment(event: H3Event, row: { path: string, name: string, mime: string, size: number }, opts: { inline?: boolean, cache?: string } = {}) {
   // `path` is a UUID we generated; refuse anything else rather than trusting it.
   if (!/^[0-9a-f-]{36}$/i.test(row.path)) {
     throw createError({ statusCode: 404, message: 'File not found' })
@@ -119,9 +132,9 @@ export async function sendAttachment(event: H3Event, row: { path: string, name: 
   setResponseHeaders(event, {
     'Content-Type': row.mime,
     'Content-Length': String(row.size),
-    'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(row.name)}`,
+    'Content-Disposition': `${opts.inline ? 'inline' : 'attachment'}; filename*=UTF-8''${encodeURIComponent(row.name)}`,
     'X-Content-Type-Options': 'nosniff',
-    'Cache-Control': 'private, no-store',
+    'Cache-Control': opts.cache ?? 'private, no-store',
   })
   return sendStream(event, createReadStream(file))
 }

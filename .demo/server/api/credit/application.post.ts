@@ -6,6 +6,7 @@ import { requireAuth } from '../../utils/auth'
 import { creditLimit, ensureCredit } from '../../utils/credit'
 import prisma from '../../utils/prisma'
 import { rateLimit, RateLimits } from '../../utils/ratelimit'
+import { unclaimedBy } from '../../utils/uploads'
 import { validateBody } from '../../utils/validate'
 
 /**
@@ -94,7 +95,7 @@ export default defineEventHandler(async (event) => {
       },
     })
     const claimed = await tx.attachment.updateMany({
-      where: { id: { in: fileIds }, uploaderId: session.id, projectId: null, ticketMessageId: null, creditApplicationId: null },
+      where: { id: { in: fileIds }, ...unclaimedBy(session.id) },
       data: { creditApplicationId: app.id },
     })
     if (claimed.count !== fileIds.length) {

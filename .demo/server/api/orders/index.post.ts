@@ -10,6 +10,7 @@ import { creditAllows, ensureCredit } from '../../utils/credit'
 import { planIcon } from '../../utils/finance'
 import prisma from '../../utils/prisma'
 import { getSetting } from '../../utils/settings'
+import { unclaimedBy } from '../../utils/uploads'
 import { validateBody } from '../../utils/validate'
 
 /**
@@ -96,7 +97,7 @@ export default defineEventHandler(async (event) => {
   const attachmentIds = [...new Set(body.attachmentIds ?? [])]
   if (attachmentIds.length > 0) {
     const owned = await prisma.attachment.count({
-      where: { id: { in: attachmentIds }, uploaderId: session.id, projectId: null, ticketMessageId: null },
+      where: { id: { in: attachmentIds }, ...unclaimedBy(session.id) },
     })
     if (owned !== attachmentIds.length) {
       throw createError({ statusCode: 400, message: 'One of the files is no longer available. Please add it again.' })

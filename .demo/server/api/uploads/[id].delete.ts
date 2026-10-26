@@ -1,7 +1,7 @@
 import { createError, defineEventHandler, getRouterParam } from 'h3'
 import { requireAuth } from '../../utils/auth'
 import prisma from '../../utils/prisma'
-import { deleteAttachments } from '../../utils/uploads'
+import { deleteAttachments, unclaimedBy } from '../../utils/uploads'
 
 /**
  * DELETE /api/uploads/:id — discard one of the caller's own uploads that is
@@ -13,7 +13,7 @@ export default defineEventHandler(async (event) => {
   const session = requireAuth(event)
   const id = getRouterParam(event, 'id')
   const row = await prisma.attachment.findFirst({
-    where: { id, uploaderId: session.id, projectId: null, ticketMessageId: null, creditApplicationId: null },
+    where: { id, ...unclaimedBy(session.id) },
     select: { id: true, path: true },
   })
   if (!row) {

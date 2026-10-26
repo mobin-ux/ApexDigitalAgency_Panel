@@ -337,6 +337,7 @@ function senderLabel(m: { isAdmin: boolean, isInternal: boolean, senderId?: stri
               >
                 <div class="mb-1 flex items-center gap-2 text-[11.5px] font-bold" :class="m.isInternal ? 'text-[#F2C14E]' : m.isAdmin ? 'text-primary-200' : 'text-muted-500'">
                   <Icon v-if="m.isInternal" name="lucide:lock" class="size-3" />
+                  <ApexPanelAvatar v-else-if="!m.isAdmin" :size="20" :person="ticket.user" />
                   {{ senderLabel(m) }}
                   <span class="font-normal text-muted-500">· {{ fmtDateTime(m.createdAt) }}</span>
                 </div>

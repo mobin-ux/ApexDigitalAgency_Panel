@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { AVATAR_MAX_BYTES, AVATAR_MIMES, AVATAR_MIN_PX, avatarPhoto } from '~~/shared/avatar'
 import { PASSWORD_MIN } from '~~/shared/password'
 
 /**
@@ -11,7 +12,9 @@ import { PASSWORD_MIN } from '~~/shared/password'
  * query, not a measured width, so the server renders the right one.
  *
  * Every control saves something real, or is not drawn as a control:
- *  - Profile saves the name and mobile. The sign-in email is shown but not
+ *  - Profile saves the photo (on choosing it), the name and mobile. The
+ *    username the design draws does not exist: people sign in with an email
+ *    or a phone number. The sign-in email is shown but not
  *    editable: changing it needs a confirmation email and there is no mail
  *    provider, so the page says how to change it instead (the reason
  *    `/api/settings/profile` was deleted on 2026-10-23).
@@ -31,7 +34,7 @@ definePageMeta({
 
 type Section = 'profile' | 'business' | 'security' | 'notify' | 'appearance'
 const SECTIONS: { id: Section, label: string, icon: string, sub: string, intro: string }[] = [
-  { id: 'profile', label: 'Profile', icon: 'solar:user-circle-linear', sub: 'Name, email and mobile', intro: 'How your team sees you, and where we reach you.' },
+  { id: 'profile', label: 'Profile', icon: 'solar:user-circle-linear', sub: 'Name, email and photo', intro: 'How your team sees you, and where we reach you.' },
   { id: 'business', label: 'Business', icon: 'solar:buildings-2-linear', sub: 'Invoice details and VAT', intro: 'Used on every receipt and agreement.' },
   { id: 'security', label: 'Security', icon: 'solar:lock-keyhole-minimalistic-linear', sub: 'Password and sign-in', intro: 'Keep your account and payments safe.' },
   { id: 'notify', label: 'Notifications', icon: 'solar:bell-linear', sub: 'How we tell you about updates', intro: 'Where updates on your orders, payments and requests appear.' },
@@ -88,7 +91,91 @@ watch(data, () => {
   Object.assign(form, saved.value)
 })
 const email = computed(() => (data.value?.user ?? data.value)?.email ?? '')
-const initials = computed(() => (form.name || email.value || 'A').split(/[\s@.]+/).filter(Boolean).slice(0, 2).map((p: string) => p[0]!.toUpperCase()).join(''))
+
+/* ------------------------------------------------------------ profile photo */
+// Saved the moment it is chosen, like every other upload in the panel: the
+// file goes to /api/uploads and the avatar endpoint claims it. Not part of the
+// save bar, which only covers the text fields.
+const { user } = useUser()
+const hasPhoto = computed(() => Boolean(avatarPhoto((user.value as any)?.avatar)))
+const photoBusy = ref(false)
+const photoError = ref('')
+
+/** Width and height of an image file, read in the browser. */
+function imageSize(file: File) {
+  return new Promise<{ w: number, h: number } | null>((resolve) => {
+    const url = URL.createObjectURL(file)
+    const img = new Image()
+    img.onload = () => {
+      resolve({ w: img.naturalWidth, h: img.naturalHeight })
+      URL.revokeObjectURL(url)
+    }
+    img.onerror = () => {
+      resolve(null)
+      URL.revokeObjectURL(url)
+    }
+    img.src = url
+  })
+}
+
+async function choosePhoto(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file) {
+    return
+  }
+  photoError.value = ''
+  flash.value = ''
+  if (!AVATAR_MIMES.includes(file.type)) {
+    photoError.value = 'Use a JPG, PNG, WebP or GIF image.'
+    return
+  }
+  if (file.size > AVATAR_MAX_BYTES) {
+    photoError.value = 'Use a photo under 5 MB.'
+    return
+  }
+  const dims = await imageSize(file)
+  if (!dims) {
+    photoError.value = 'That image could not be opened. Try another.'
+    return
+  }
+  if (Math.min(dims.w, dims.h) < AVATAR_MIN_PX) {
+    photoError.value = `That photo is ${dims.w} × ${dims.h}px. Use one at least ${AVATAR_MIN_PX}px on each side.`
+    return
+  }
+  photoBusy.value = true
+  try {
+    const body = new FormData()
+    body.append('files', file, file.name)
+    const up = await $fetch<{ files: { id: string }[] }>('/api/uploads', { method: 'POST', body })
+    await $fetch('/api/settings/avatar', { method: 'PUT', body: { fileId: up.files[0]!.id } })
+    await fetchUser({ force: true })
+    flash.value = 'Photo updated.'
+  }
+  catch (e) {
+    photoError.value = errorMessage(e, 'Your photo did not upload. Please try again.')
+  }
+  finally {
+    photoBusy.value = false
+  }
+}
+
+async function removePhoto() {
+  photoError.value = ''
+  photoBusy.value = true
+  try {
+    await $fetch('/api/settings/avatar', { method: 'DELETE' })
+    await fetchUser({ force: true })
+    flash.value = 'Photo removed.'
+  }
+  catch (e) {
+    photoError.value = errorMessage(e, 'Your photo was not removed. Please try again.')
+  }
+  finally {
+    photoBusy.value = false
+  }
+}
 
 const SECTION_FIELDS: Record<'profile' | 'business', (keyof Form)[]> = {
   profile: ['name', 'phone'],
@@ -118,7 +205,7 @@ async function save() {
     if (section.value === 'profile') {
       const [first, ...rest] = form.name.trim().split(/\s+/)
       await $fetch('/api/settings/update-all', { method: 'PUT', body: { user: { firstName: first, lastName: rest.join(' '), phone: form.phone.trim() || null } } })
-      await fetchUser()
+      await fetchUser({ force: true })
     }
     else {
       await $fetch('/api/settings/update-all', {
@@ -264,12 +351,37 @@ const CARD = 'bg-card border-line-subtle shadow-panel rounded-[20px] border'
         <!-- Profile -->
         <template v-if="section === 'profile'">
           <div :class="CARD" class="flex flex-col gap-[22px] p-[clamp(18px,2vw,26px)]">
-            <div class="flex flex-wrap items-center gap-4">
-              <span aria-hidden="true" class="font-heading inline-flex size-16 shrink-0 items-center justify-center rounded-full bg-[#7D53F2] text-xl font-semibold text-white shadow-[0_0_0_4px_var(--accent-tint)]">{{ initials }}</span>
-              <span class="flex flex-[1_1_200px] flex-col gap-[3px]">
-                <span class="text-fg-heading text-[15px] font-semibold">Your initials</span>
-                <span class="text-fg-muted text-[13px]">Shown to your Apex team beside your messages. Profile photos are not supported yet.</span>
-              </span>
+            <div class="flex flex-col gap-2.5">
+              <div class="flex flex-wrap items-center gap-4">
+                <span class="shrink-0 rounded-full shadow-[0_0_0_4px_var(--accent-tint)]"><ApexPanelAvatar :size="64" /></span>
+                <span class="flex flex-[1_1_200px] flex-col gap-[3px]">
+                  <span id="photo-label" class="text-fg-heading text-[15px] font-semibold">Profile photo</span>
+                  <span id="photo-hint" class="text-fg-muted text-[13px]">Shown to your Apex team. Square, at least {{ AVATAR_MIN_PX }}px.</span>
+                </span>
+                <span class="flex flex-wrap items-center gap-2">
+                  <button v-if="hasPhoto" type="button" :disabled="photoBusy" class="apex-ring text-fg-body min-h-10 cursor-pointer rounded-xl px-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50" @click="removePhoto">
+                    Remove
+                  </button>
+                  <label
+                    class="border-line-rule text-fg-heading hover:bg-hover relative inline-flex min-h-10 cursor-pointer items-center rounded-xl border px-3.5 text-sm font-semibold focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-[var(--accent)]"
+                    :class="photoBusy ? 'pointer-events-none opacity-50' : ''"
+                  >
+                    {{ photoBusy ? 'Uploading…' : hasPhoto ? 'Change' : 'Upload' }}
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp,image/gif"
+                      aria-labelledby="photo-label"
+                      aria-describedby="photo-hint"
+                      class="absolute size-px opacity-0"
+                      :disabled="photoBusy"
+                      @change="choosePhoto"
+                    >
+                  </label>
+                </span>
+              </div>
+              <p v-if="photoError" role="alert" class="text-st-danger-fg m-0 text-[13px] font-medium">
+                {{ photoError }}
+              </p>
             </div>
             <div class="grid grid-cols-[repeat(auto-fit,minmax(min(100%,260px),1fr))] gap-5">
               <ApexField v-model="form.name" label="Full name" required autocomplete="name" :error="errName" />

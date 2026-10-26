@@ -28,7 +28,7 @@ const displayName = computed(() => {
 
 <template>
   <div class="flex min-w-0 items-center gap-3">
-    <BaseAvatar size="xs" :src="user.avatar || '/img/avatars/10.svg'" />
+    <ApexPanelAvatar :size="32" :person="user" />
     <div class="min-w-0">
       <div class="truncate text-[13.5px] font-semibold text-white">
         {{ displayName }}
