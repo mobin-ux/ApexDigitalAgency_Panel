@@ -1,5 +1,5 @@
 import type { Article } from './articles'
-import { articleBySlug, websiteCostGuide } from './articles'
+import { articleBySlug, articleLink, articleTopic, websiteCostGuide } from './articles'
 import { caseStudyBySlug } from './case-studies'
 import { routes } from './routes'
 
@@ -86,6 +86,7 @@ export interface ArticleTeaser {
   /** ISO date, rendered as "March 2026". */
   published?: string
   image?: MediaImage
+  /** The article's page, or '' while it is unwritten (listed as "Coming soon", not linked). */
   to: string
 }
 
@@ -93,13 +94,13 @@ export interface ArticleTeaser {
 function teaser(article: Article): ArticleTeaser {
   return {
     slug: article.slug,
-    category: article.topic,
+    category: articleTopic(article),
     readMinutes: article.readMinutes,
     title: article.title,
     excerpt: article.excerpt ?? '',
     published: article.published,
     image: article.body?.heroImage ?? article.image,
-    to: routes.article(article.slug),
+    to: articleLink(article),
   }
 }
 

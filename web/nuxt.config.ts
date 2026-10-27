@@ -97,6 +97,7 @@ export default defineNuxtConfig({
     '/': { prerender: true },
     '/services': { prerender: true },
     '/our-work': { prerender: true },
+    '/insights': { prerender: true },
     '/about': { prerender: true },
     '/contact': { prerender: true },
     // The site's one write. POST is allowed here and nowhere else; the body is

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { articleBySlug } from '~/data/articles'
+import { articleBySlug, articleTopic } from '~/data/articles'
 import { routes } from '~/data/routes'
 import { serviceBySlug } from '~/data/services'
 
@@ -21,7 +21,8 @@ const body = found.body
 const siteUrl = useSiteConfig().url
 const pageUrl = `${siteUrl}${routes.article(article.slug)}`
 const ogImage = body.heroImage ? `${siteUrl}${body.heroImage.src}` : `${siteUrl}/og-default.png`
-const service = serviceBySlug(body.service)
+const service = serviceBySlug(article.service)
+const topic = articleTopic(article)
 
 useSeoMeta({
   title: body.seo.title,
@@ -34,7 +35,7 @@ useSeoMeta({
   ...(body.heroImage ? { ogImageAlt: body.heroImage.alt } : { ogImageWidth: 1200, ogImageHeight: 630, ogImageAlt: 'Apex Digital Agency — Grow online. Pay monthly.' }),
   articlePublishedTime: article.published,
   articleModifiedTime: article.updated ?? article.published,
-  articleSection: article.topic,
+  articleSection: topic,
   articleAuthor: [body.author.name],
   twitterCard: 'summary_large_image',
   twitterImage: ogImage,
@@ -60,7 +61,7 @@ useSchemaOrg([
     'url': pageUrl,
     'mainEntityOfPage': pageUrl,
     'inLanguage': 'en-GB',
-    'articleSection': article.topic,
+    'articleSection': topic,
     ...(article.published ? { datePublished: article.published } : {}),
     ...((article.updated ?? article.published) ? { dateModified: article.updated ?? article.published } : {}),
     'author': {
@@ -87,9 +88,15 @@ useSchemaOrg([
         :article="article"
         :body="body"
       />
-      <ArticleBody :body="body" />
+      <ArticleBody
+        :body="body"
+        :service="article.service"
+      />
     </article>
-    <ArticleCta :body="body" />
+    <ArticleCta
+      :body="body"
+      :service="article.service"
+    />
     <ArticleMore :article="article" />
   </div>
 </template>

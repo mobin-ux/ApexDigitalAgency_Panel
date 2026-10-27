@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { Article, ArticleBody } from '~/data/articles'
 import { articleChrome } from '~/data/article-page'
+import { articleTopic } from '~/data/articles'
 import { routes } from '~/data/routes'
 
 const props = defineProps<{ article: Article, body: ArticleBody }>()
@@ -8,7 +9,7 @@ const props = defineProps<{ article: Article, body: ArticleBody }>()
 const crumbs = [
   { label: 'Home', to: routes.home },
   { label: 'Insights', to: routes.insights },
-  { label: props.article.topic, to: routes.article(props.article.slug) },
+  { label: articleTopic(props.article), to: routes.article(props.article.slug) },
 ]
 
 // The date shown is the last revision; the first publication goes to the markup.
@@ -21,7 +22,7 @@ const shownDate = props.article.updated ?? props.article.published
       <UiBreadcrumbs :items="crumbs" />
 
       <p class="flex flex-wrap items-center gap-2.5">
-        <span class="rounded-full bg-violet-50 px-3.25 py-1.5 text-[0.78125rem] font-bold whitespace-nowrap text-violet-600">{{ article.format ?? article.topic }}</span>
+        <span class="rounded-full bg-violet-50 px-3.25 py-1.5 text-[0.78125rem] font-bold whitespace-nowrap text-violet-600">{{ article.format ?? articleTopic(article) }}</span>
         <span
           v-if="shownDate"
           class="text-[0.84375rem] whitespace-nowrap text-muted"

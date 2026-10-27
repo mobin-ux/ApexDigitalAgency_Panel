@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import type { Article } from '~/data/articles'
 import { keepReading } from '~/data/article-page'
-import { relatedArticles } from '~/data/articles'
+import { articleLink, articleTopic, relatedArticles } from '~/data/articles'
+import { comingSoon } from '~/data/insights'
 import { routes } from '~/data/routes'
 
 const props = defineProps<{ article: Article }>()
 
-const related = relatedArticles(props.article)
+const related = relatedArticles(props.article).map(item => ({ ...item, to: articleLink(item) }))
 </script>
 
 <template>
@@ -38,7 +39,8 @@ const related = relatedArticles(props.article)
         <li
           v-for="item in related"
           :key="item.slug"
-          class="relative flex flex-col gap-4 rounded-2xl border border-line bg-white p-3 pb-6 shadow-tile transition duration-200 ease-out-soft hover:shadow-tile-hover motion-safe:hover:-translate-y-0.75"
+          class="relative flex flex-col gap-4 rounded-2xl border border-line bg-white p-3 pb-6 shadow-tile"
+          :class="item.to && 'transition duration-200 ease-out-soft hover:shadow-tile-hover motion-safe:hover:-translate-y-0.75'"
         >
           <div class="h-47.5 overflow-hidden rounded-lg">
             <UiMediaFrame
@@ -47,20 +49,31 @@ const related = relatedArticles(props.article)
             />
           </div>
           <p class="flex items-center gap-2.5 px-3 text-xs font-bold tracking-[0.06em] whitespace-nowrap text-muted uppercase">
-            <span class="text-violet-600">{{ item.format ?? item.topic }}</span>
+            <span class="text-violet-600">{{ item.format ?? articleTopic(item) }}</span>
             <span
               class="size-0.75 rounded-full bg-line-dashed"
               aria-hidden="true"
             />
             {{ item.readMinutes }} min
+            <template v-if="!item.to">
+              <span
+                class="size-0.75 rounded-full bg-line-dashed"
+                aria-hidden="true"
+              />
+              {{ comingSoon }}
+            </template>
           </p>
           <h3 class="px-3 font-display text-xl leading-[1.28] font-semibold tracking-[-0.02em] text-pretty text-heading">
             <NuxtLink
-              :to="routes.article(item.slug)"
+              v-if="item.to"
+              :to="item.to"
               class="after:absolute after:inset-0 after:rounded-2xl"
             >
               {{ item.title }}
             </NuxtLink>
+            <template v-else>
+              {{ item.title }}
+            </template>
           </h3>
         </li>
       </ul>

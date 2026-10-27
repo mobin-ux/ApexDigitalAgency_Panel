@@ -4,8 +4,9 @@
  * Pages are linked by their final URL even before the page exists, so adding
  * a page never means touching the components that point at it.
  * Built so far: `home`, `services`, all seven `service(slug)` pages, `ourWork`,
- * `caseStudy(slug)`, `article(slug)` for written articles, `about` and `contact`;
- * every other URL is a page still to come.
+ * `caseStudy(slug)`, `insights`, `article(slug)` for written articles, `about`
+ * and `contact`; every other URL is a page still to come. Link an article with
+ * `articleLink()`, which gives '' for one that is not written yet.
  */
 
 export const routes = {

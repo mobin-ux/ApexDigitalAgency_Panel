@@ -2,6 +2,7 @@ import type { MediaImage } from './content'
 import type { ServiceSlug } from './routes'
 import { formatGbp } from '../utils/format'
 import { defaultPlanTerm, websitePlans } from './plans'
+import { routes } from './routes'
 
 /**
  * Every Insights article, in one catalogue (`Article.dc.html`).
@@ -65,8 +66,6 @@ export interface ArticleBody {
   sections: readonly ArticleSection[]
   faq: { label: string, title: string, items: readonly { question: string, answer: string }[] }
   method?: { title: string, body: string }
-  /** The service the article sells: side card, inline card and closing panel. */
-  service: ServiceSlug
   cta: { title: string, body: string }
   /** Slugs shown under "Keep reading". */
   related: readonly string[]
@@ -74,8 +73,13 @@ export interface ArticleBody {
 
 export interface Article {
   slug: string
-  /** Subject area: the breadcrumb and the homepage's category label ("Websites", "SEO"). */
-  topic: string
+  /**
+   * The service the article is about. It names the article's topic (see
+   * `articleTopics`) and is the service it sells: the "Related service" link on
+   * the Insights page, and on a written article the side card, inline card and
+   * closing panel.
+   */
+  service: ServiceSlug
   /** Format chip, when it has one ("Cost guide", "Checklist"). Cards fall back to the topic. */
   format?: string
   title: string
@@ -105,7 +109,7 @@ const webFrom = formatGbp(Math.min(...websitePlans.map(plan => plan.monthly[defa
  */
 export const websiteCostGuide: Article = {
   slug: 'website-cost-uk-2026',
-  topic: 'Websites',
+  service: 'website-design',
   format: 'Cost guide',
   title: 'How much does a website cost in the UK in 2026?',
   excerpt: 'What sits behind a £900 site, a £4,000 site and a £15,000 site — and how to work out which one your business actually needs.',
@@ -232,7 +236,6 @@ export const websiteCostGuide: Article = {
       title: 'How we got these numbers',
       body: '120 written quotes from 64 UK agencies and 56 freelancers, requested January to August 2026 using the same five-page brief. Figures exclude VAT and are reviewed every six months.',
     },
-    service: 'website-design',
     cta: {
       title: `A site that pays for itself, from ${webFrom} a month`,
       body: 'Everything in this guide, handled for you. Design, build, hosting and care on one monthly plan.',
@@ -241,56 +244,108 @@ export const websiteCostGuide: Article = {
   },
 }
 
-/** Articles listed before they are written: the homepage list and the design's "Keep reading". */
+/**
+ * Articles listed before they are written. The Insights page shows them as
+ * "Coming soon" and nothing links to them until they have a body.
+ *
+ * The first nine, in order, are the Insights design's list; the rest come from
+ * the homepage. TODO(content): this is a writing plan, not a promise — drop any
+ * title that will not be written. Two overlap and should become one: "What
+ * should a small business spend on Google Ads?" (Insights design) and "Google
+ * Ads on a £500 monthly budget" (homepage).
+ */
 const teasers: readonly Article[] = [
   {
+    slug: 'how-long-does-seo-take',
+    service: 'seo',
+    format: 'Guide',
+    readMinutes: 7,
+    title: 'How long does SEO take to work for a local business?',
+    excerpt: 'Month-by-month, with what you should see at each stage.',
+  },
+  {
+    slug: 'google-ads-budget-small-business',
+    service: 'ppc',
+    format: 'Cost guide',
+    readMinutes: 6,
+    title: 'What should a small business spend on Google Ads?',
+    excerpt: 'How to set a budget from the value of one customer.',
+  },
+  {
+    slug: 'questions-before-hiring-web-agency',
+    service: 'website-design',
+    format: 'Checklist',
+    readMinutes: 5,
+    title: 'Twelve questions to ask before you hire a web agency',
+    excerpt: 'Including the ones most agencies would rather you did not ask.',
+  },
+  {
+    slug: 'marketing-agency-or-freelancer',
+    service: 'digital-marketing',
+    format: 'Guide',
+    readMinutes: 8,
+    title: 'Do you need a marketing agency or a freelancer?',
+    excerpt: 'A plain comparison of cost, cover and accountability.',
+  },
+  {
+    slug: 'logo-brand-identity-cost',
+    service: 'branding',
+    format: 'Cost guide',
+    readMinutes: 6,
+    title: 'How much does a logo and brand identity cost?',
+    excerpt: 'From £200 marketplaces to £20k studios, and where the difference goes.',
+  },
+  {
+    slug: 'what-ux-research-involves',
+    service: 'ui-ux-design',
+    format: 'Explainer',
+    readMinutes: 5,
+    title: 'What UX research actually involves, and why it saves money',
+    excerpt: 'Five interviews can prevent a rebuild. Here is how.',
+  },
+  {
+    slug: 'off-the-shelf-or-custom-software',
+    service: 'software-development',
+    format: 'Guide',
+    readMinutes: 10,
+    title: 'Off-the-shelf or custom software: how to decide',
+    excerpt: 'When a subscription is enough, and when it starts costing you.',
+  },
+  {
+    slug: 'google-business-profile-setup',
+    service: 'seo',
+    format: 'Checklist',
+    readMinutes: 4,
+    title: 'Google Business Profile: the fifteen-minute setup',
+    excerpt: 'The fields that affect local ranking, in order of impact.',
+  },
+  {
     slug: 'local-seo-for-trades',
-    topic: 'SEO',
+    service: 'seo',
     readMinutes: 6,
     title: 'Local SEO for trades: the five things that actually move you up',
     excerpt: 'Most local rankings are won on three signals. The rest is noise.',
   },
   {
     slug: 'google-ads-500-budget',
-    topic: 'PPC',
+    service: 'ppc',
     readMinutes: 5,
     title: 'Google Ads on a £500 monthly budget: what is realistic',
     excerpt: 'Where a small budget wins, and the two sectors where it will not.',
   },
   {
     slug: 'ai-search-answers',
-    topic: 'Strategy',
+    service: 'digital-marketing',
     readMinutes: 7,
     title: 'Getting your business quoted in AI search answers',
     excerpt: 'How buyers now research suppliers, and what to publish because of it.',
   },
   {
     slug: 'website-build-checklist',
-    topic: 'Websites',
+    service: 'website-design',
     readMinutes: 4,
     title: 'Nine things to have ready before your website build starts',
     excerpt: 'The projects that launch on time all start the same way.',
-  },
-  {
-    slug: 'questions-before-hiring-web-agency',
-    topic: 'Websites',
-    format: 'Checklist',
-    readMinutes: 5,
-    title: 'Twelve questions to ask before you hire a web agency',
-  },
-  {
-    slug: 'how-long-does-seo-take',
-    topic: 'SEO',
-    format: 'Guide',
-    readMinutes: 7,
-    title: 'How long does SEO take to work for a local business?',
-  },
-  {
-    slug: 'logo-brand-identity-cost',
-    topic: 'Branding',
-    format: 'Cost guide',
-    readMinutes: 6,
-    title: 'How much does a logo and brand identity cost?',
   },
 ]
 
@@ -301,6 +356,35 @@ export const publishedArticles = articles.filter(article => article.body)
 
 export function articleBySlug(slug: string): Article | undefined {
   return articles.find(article => article.slug === slug)
+}
+
+/**
+ * The topics an article can be filed under, one per service, in the Insights
+ * page's order. The label is the topic everywhere an article shows one: the
+ * filter chip, the breadcrumb, the homepage category and the markup.
+ */
+export const articleTopics: readonly { service: ServiceSlug, label: string }[] = [
+  { service: 'website-design', label: 'Websites' },
+  { service: 'seo', label: 'SEO' },
+  { service: 'ppc', label: 'Paid ads' },
+  { service: 'digital-marketing', label: 'Marketing' },
+  { service: 'software-development', label: 'Software' },
+  { service: 'ui-ux-design', label: 'UX' },
+  { service: 'branding', label: 'Branding' },
+]
+
+export function topicLabel(service: ServiceSlug): string {
+  return articleTopics.find(topic => topic.service === service)?.label ?? service
+}
+
+/** "Websites", "Paid ads": the article's topic, from its service. */
+export function articleTopic(article: Article): string {
+  return topicLabel(article.service)
+}
+
+/** The article's page, or '' while it is unwritten, so no card links to a 404. */
+export function articleLink(article: Article): string {
+  return article.body ? routes.article(article.slug) : ''
 }
 
 /** The body's own picks, in order, skipping any slug not in the catalogue. */

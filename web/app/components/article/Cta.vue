@@ -1,13 +1,14 @@
 <script setup lang="ts">
 import type { ArticleBody } from '~/data/articles'
+import type { ServiceSlug } from '~/data/routes'
 import { articleCta } from '~/data/article-page'
 import { routes } from '~/data/routes'
 import { serviceBySlug } from '~/data/services'
 
 /** Closing panel: the article's related service, and a call for anyone not ready to order. */
-const props = defineProps<{ body: ArticleBody }>()
+const props = defineProps<{ body: ArticleBody, service: ServiceSlug }>()
 
-const service = serviceBySlug(props.body.service)
+const offer = serviceBySlug(props.service)
 </script>
 
 <template>
@@ -23,7 +24,7 @@ const service = serviceBySlug(props.body.service)
 
       <div class="relative flex max-w-[54ch] flex-col gap-4.5">
         <UiEyebrowChip tone="dark">
-          {{ articleCta.eyebrow(service.shortName) }}
+          {{ articleCta.eyebrow(offer.shortName) }}
         </UiEyebrowChip>
         <h2
           id="article-cta-title"
@@ -38,11 +39,11 @@ const service = serviceBySlug(props.body.service)
 
       <div class="relative flex w-full flex-none flex-col gap-4 lg:ml-auto lg:w-75">
         <UiButton
-          :to="routes.service(service.slug)"
+          :to="routes.service(offer.slug)"
           size="lg"
           block
         >
-          {{ articleCta.button(service.shortName) }}
+          {{ articleCta.button(offer.shortName) }}
         </UiButton>
         <NuxtLink
           :to="routes.contact"

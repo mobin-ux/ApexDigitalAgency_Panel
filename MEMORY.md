@@ -144,7 +144,8 @@ node_modules** — run `pnpm install` inside `web/`, never add it to the root wo
 | Article (`/insights/[slug]`) | ✅ built — the website cost guide in full (answer-first summary box, sticky contents list with scroll highlight, price table, checklists, costs grid, quote, inline service card, FAQ, method note, author), closing CTA and "Keep reading"; CSS-only reading bar in the header; JSON-LD Article (Person author) + FAQPage + BreadcrumbList |
 | About (`/about`) | ✅ built — hero with three figures, four promises, team with a department filter, company paperwork card, timeline, studio card, CTA; JSON-LD AboutPage + BreadcrumbList. Unconfirmed company facts are hidden, not printed |
 | Contact (`/contact`) | ✅ built — hero with three figures, message form (services, budget, fields, reply method) posting to `POST /api/contact`, side panel, studio card, FAQ; `?service=&plan=` from service pages names the plan; JSON-LD ContactPage + FAQPage + BreadcrumbList |
-| Insights, legal | ☐ not built — every link already points at its final URL (`app/data/routes.ts`) |
+| Insights (`/insights`) | ✅ built — hero with search (`?q=`), featured article beside "Coming soon", topic chips (`?topic=<service>`) over every catalogue article, quick price answers, CTA; JSON-LD CollectionPage + ItemList (written articles only) |
+| Legal, careers | ☐ not built — every link already points at its final URL (`app/data/routes.ts`) |
 
 **Deployed 2026-10-20** to the same VPS as the panel (146.19.130.11).
 `bash scripts/ship-web.sh` uploads `web/` source, builds ON the server (~30s;
@@ -350,6 +351,29 @@ is `ceo@digiapex.co.uk` while the domain is `apexdigi.co.uk`; confirm which.
 - **TODO(content)**: "4 hrs average first reply" (measured how?), the reply
   promises, and the hero line "call … or come to the studio" while neither
   the phone nor the address is published.
+
+**Insights page decisions (`Insights.dc.html`)**
+- Every article names one `service` (replacing the free-text `topic`), and
+  `articleTopics` maps it to the design's chip labels (Websites, SEO, Paid ads,
+  Marketing, Software, UX, Branding). That label is now the topic everywhere:
+  homepage category, breadcrumb, markup. "PPC" reads "Paid ads", "Strategy"
+  reads "Marketing".
+- Only the cost guide is written. The other twelve catalogue entries (the
+  design's eight plus the homepage's four) are listed as "Coming soon" with no
+  link, and the homepage list and "Keep reading" stopped linking to them too
+  (they were 404s). `articleLink()` is the one place that decides.
+- **Kept against the design, real or absent:** "Most read this month" became
+  "Coming soon" (nothing measures readership); the newsletter section is gone
+  (no mailing list, no provider, and "2,400 subscribed" is invented); the
+  result line says how many are published and coming, not "newest first"
+  (unwritten articles have no date); "Quick answers" does not claim the market
+  ranges come from "our 2026 quote research" (the only research described is
+  the cost guide's, websites only). The Apex prices there come from the plan
+  catalogue and read "With Apex, from".
+- Search matches every word against title, summary, topic and format, live as
+  you type; without JavaScript the form is a GET to `?q=`, which the page reads.
+- **TODO(content)**: the market ranges, the five new teaser titles (a writing
+  plan, not a promise), and two near-duplicate Google Ads teasers.
 
 **Gotchas**
 - An `sr-only` element inside an `overflow-x-auto` box escapes it unless the

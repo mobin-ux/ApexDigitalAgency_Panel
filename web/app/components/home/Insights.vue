@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { articleList, leadArticle } from '~/data/content'
+import { comingSoon } from '~/data/insights'
 import { routes } from '~/data/routes'
 import { formatMonthYear } from '~/utils/format'
 </script>
@@ -64,15 +65,19 @@ import { formatMonthYear } from '~/utils/format'
           >
             <p class="flex items-center gap-3">
               <span class="text-[0.71875rem] font-bold tracking-wider text-violet-600 uppercase">{{ article.category }}</span>
-              <span class="text-[0.78rem] text-muted">{{ article.readMinutes }} min read</span>
+              <span class="text-[0.78rem] text-muted">{{ article.readMinutes }} min read<template v-if="!article.to"> · {{ comingSoon }}</template></span>
             </p>
             <h3 class="font-display text-[1.3125rem] leading-snug font-semibold tracking-tight text-heading">
               <NuxtLink
+                v-if="article.to"
                 :to="article.to"
                 class="after:absolute after:inset-0"
               >
                 {{ article.title }}
               </NuxtLink>
+              <template v-else>
+                {{ article.title }}
+              </template>
             </h3>
             <p class="text-[0.90625rem] leading-relaxed text-body">
               {{ article.excerpt }}

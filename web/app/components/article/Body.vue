@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { ArticleBody } from '~/data/articles'
+import type { ServiceSlug } from '~/data/routes'
 import { articleChrome } from '~/data/article-page'
 import { routes } from '~/data/routes'
 import { serviceBySlug } from '~/data/services'
@@ -12,9 +13,9 @@ import { serviceBySlug } from '~/data/services'
  * offset come from `main.css`); the highlight on the section in view is an
  * enhancement added after mount.
  */
-const props = defineProps<{ body: ArticleBody }>()
+const props = defineProps<{ body: ArticleBody, service: ServiceSlug }>()
 
-const service = serviceBySlug(props.body.service)
+const offer = serviceBySlug(props.service)
 
 const contents = [
   { id: 'short', label: props.body.summary.label },
@@ -74,18 +75,18 @@ onMounted(update)
             {{ articleChrome.sideService.label }}
           </p>
           <p class="font-display text-[1.0625rem] font-semibold tracking-[-0.015em] text-heading">
-            {{ service.shortName }}
+            {{ offer.shortName }}
           </p>
           <p
-            v-if="service.fromMonthly"
+            v-if="offer.fromMonthly"
             class="flex items-baseline gap-1.5"
           >
             <span class="text-[0.78125rem] text-muted">From</span>
-            <span class="font-display text-2xl leading-none font-extrabold tracking-[-0.024em] text-heading">{{ formatGbp(service.fromMonthly) }}</span>
+            <span class="font-display text-2xl leading-none font-extrabold tracking-[-0.024em] text-heading">{{ formatGbp(offer.fromMonthly) }}</span>
             <span class="text-[0.8125rem] text-muted">/month</span>
           </p>
           <NuxtLink
-            :to="routes.service(service.slug)"
+            :to="routes.service(offer.slug)"
             class="group text-sm font-semibold whitespace-nowrap text-violet-600 hover:underline"
           >
             {{ articleChrome.sideService.link }} <span
@@ -140,7 +141,7 @@ onMounted(update)
             v-for="(block, i) in section.blocks"
             :key="i"
             :block="block"
-            :service="body.service"
+            :service="service"
           />
         </section>
 

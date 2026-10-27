@@ -50,6 +50,8 @@ app/
     work/               one component per /our-work section
     case-study/         the sections of /our-work/[slug]: hero, results, story
                         (contents list + four chapters + chart), CTA, similar projects
+    insights/           the sections of /insights: hero with search, featured article,
+                        topic filter and cards, quick price answers, CTA
     article/            the sections of /insights/[slug]: hero, share row, body
                         (contents list + typed blocks + FAQ), CTA, keep reading
     about/              one component per /about section
@@ -57,8 +59,9 @@ app/
                         studio card, FAQ
   data/                 typed content: routes, site, services, services-page, plans,
                         home, content, case-studies, case-study-page, our-work, articles,
-                        article-page, about, contact, and service-pages/ (one file per service page)
-  composables/          usePanelLinks, useServiceLinks, useContactForm
+                        insights, article-page, about, contact, and service-pages/ (one file
+                        per service page)
+  composables/          usePanelLinks, useServiceLinks, useContactForm, useInsightsFilter
   utils/                formatters, initials, studio (the studio address and its links)
   pages/                one file per route
 shared/contact.ts       the contact form's ids, limits and validator, used by page AND server
@@ -104,8 +107,10 @@ is `<HomeHero>`, `components/ui/Button.vue` is `<UiButton>`.
 - **Articles are data, block by block.** `data/articles.ts` holds every
   article; an entry with a `body` (sections of typed blocks: paragraph, table,
   note, checklist, costs, quote, service card) gets a prerendered
-  `/insights/[slug]` page, and one without is a teaser that can be listed but
-  404s until it is written. Homepage teasers are views of the same catalogue.
+  `/insights/[slug]` page, and one without is a teaser: listed as "Coming
+  soon" and linked nowhere (`articleLink()` returns '') until it is written.
+  Each article names one `service`, which is its topic on `/insights` and the
+  service it sells. Homepage teasers are views of the same catalogue.
 - **No style attributes.** The strict CSP blocks them, so sizes are classes.
   Data-driven sizes are generated: the case-study chart's bar heights are
   `h-[N%]` classes from an `@source inline` range in `main.css`. The article
