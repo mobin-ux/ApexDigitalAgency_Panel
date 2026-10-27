@@ -147,6 +147,11 @@ node_modules** — run `pnpm install` inside `web/`, never add it to the root wo
 | Insights (`/insights`) | ✅ built — hero with search (`?q=`), featured article beside "Coming soon", topic chips (`?topic=<service>`) over every catalogue article, quick price answers, CTA; JSON-LD CollectionPage + ItemList (written articles only) |
 | Legal, careers | ☐ not built — every link already points at its final URL (`app/data/routes.ts`) |
 
+**Last site deploy: 2026-10-27** (`aaf767e`, the Insights page) — build ok,
+health 200; `/insights`, the cost guide and the sitemap checked on the box.
+HTTPS to the sslip.io host timed out from the dev machine that day while SSH
+worked, so verify on the server (`curl 127.0.0.1:3100`) when that happens.
+
 **Deployed 2026-10-20** to the same VPS as the panel (146.19.130.11).
 `bash scripts/ship-web.sh` uploads `web/` source, builds ON the server (~30s;
 it must, because `sharp` is bundled per platform), swaps `/opt/apex-web/.output`,
