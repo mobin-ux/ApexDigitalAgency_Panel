@@ -97,6 +97,9 @@ model User {
   // When true, due installments are charged from the wallet automatically
   // (evaluated lazily on finance-dashboard load — no cron in this stack).
   autoPayInstallments Boolean @default(true)
+  /// Mirror in-app notifications to the account's email (ADR-022). Account
+  /// and security emails ignore it. Set from Settings › Notifications.
+  emailNotifications  Boolean @default(true)
 
   // --- Relations (Connecting all modules) ---
   company            Company? // One-to-One

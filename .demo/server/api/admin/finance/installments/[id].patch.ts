@@ -59,14 +59,12 @@ export default defineEventHandler(async (event) => {
         status: settled ? 'settled' : 'active',
       },
     })
-    await prisma.notification.create({
-      data: {
-        userId: before.userId,
-        title: 'Installment waived',
-        message: `Installment ${monthsPaid} of ${before.monthsTotal} for ${before.project} was waived by Apex — nothing to pay this month.`,
-        type: 'SUCCESS',
-        link: '/dashboards/wallet',
-      },
+    await notify({
+      userIds: [before.userId],
+      title: 'Installment waived',
+      message: `Installment ${monthsPaid} of ${before.monthsTotal} for ${before.project} was waived by Apex — nothing to pay this month.`,
+      type: 'SUCCESS',
+      link: '/dashboards/wallet',
     })
   }
 

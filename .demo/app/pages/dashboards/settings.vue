@@ -101,6 +101,33 @@ const email = computed(() => (data.value?.user ?? data.value)?.email ?? '')
 // save bar, which only covers the text fields.
 const { user } = useUser()
 const hasPhoto = computed(() => Boolean(avatarPhoto((user.value as any)?.avatar)))
+
+/* ----------------------------------------------------- notification emails */
+// One real switch (ADR-022): mirror in-app notifications to the account's
+// email. Account and security emails ignore it. Only an account with an
+// address has anything to switch; the line under it says whether the panel
+// can send at all right now.
+const mailAvailable = computed(() => (config.value as any)?.features?.mail === true)
+const emailNotifyOn = computed(() => (user.value as any)?.emailNotifications !== false)
+const emailNotifyBusy = ref(false)
+async function toggleEmailNotifications() {
+  if (emailNotifyBusy.value) {
+    return
+  }
+  emailNotifyBusy.value = true
+  const next = !emailNotifyOn.value
+  try {
+    await $fetch('/api/settings/preferences', { method: 'PATCH', body: { emailNotifications: next } })
+    await fetchUser({ force: true })
+    toaster.add({ title: next ? 'Notification emails on' : 'Notification emails off', description: next ? 'We will email you what appears under the bell.' : 'Updates stay in the panel. Account and security emails still arrive.', icon: next ? 'lucide:mail' : 'lucide:mail-x', progress: true })
+  }
+  catch (error: any) {
+    toaster.add({ title: 'Could not save that', description: error?.data?.message || 'Please try again.', icon: 'lucide:circle-alert', progress: true })
+  }
+  finally {
+    emailNotifyBusy.value = false
+  }
+}
 const photoBusy = ref(false)
 const photoError = ref('')
 
@@ -765,8 +792,35 @@ const CARD = 'bg-card border-line-subtle shadow-panel rounded-[20px] border'
               <span class="text-fg-body text-[13.5px] leading-[1.55]">Milestones, files, replies to your requests, payments taken and anything your team needs from you appear under the bell in the top bar.</span>
             </span>
           </div>
+          <div v-if="(user as any)?.email" class="border-line-soft flex items-center gap-3.5 border-t pt-3">
+            <span class="bg-accent-tint text-accent-ink inline-flex size-[42px] shrink-0 items-center justify-center rounded-xl"><Icon name="solar:letter-linear" class="size-[21px]" /></span>
+            <span class="flex min-w-0 grow flex-col gap-[3px]">
+              <span id="email-notify-label" class="text-fg-heading text-[15px] font-semibold">Email me my notifications</span>
+              <span class="text-fg-muted text-[13px]">{{ emailNotifyOn ? `On · Sent to ${(user as any).email}` : 'Off · Updates stay in the panel' }}</span>
+            </span>
+            <button
+              type="button"
+              role="switch"
+              :aria-checked="emailNotifyOn"
+              aria-labelledby="email-notify-label"
+              :disabled="emailNotifyBusy"
+              class="apex-ring relative h-7 w-[46px] shrink-0 cursor-pointer rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none"
+              :class="emailNotifyOn ? 'bg-accent' : 'bg-line-strong'"
+              @click="toggleEmailNotifications"
+            >
+              <span class="absolute top-[3px] size-[22px] rounded-full bg-white shadow-[0_1px_3px_rgba(17,31,34,.25)] transition-[left] duration-150 motion-reduce:transition-none" :class="emailNotifyOn ? 'left-[21px]' : 'left-[3px]'" />
+            </button>
+          </div>
           <p class="bg-raised text-fg-muted m-0 rounded-xl px-3.5 py-3 text-[12.5px] leading-relaxed">
-            We do not send notification emails yet, so there is nothing to switch on or off here. When we do, you will choose which ones on this page.
+            <template v-if="!(user as any)?.email">
+              Add an email address to your account to receive notifications by email. Until then, everything appears under the bell.
+            </template>
+            <template v-else-if="!mailAvailable">
+              Email is not set up on this panel yet, so nothing is sent for now; your choice is kept for when it is. Account and security emails (password resets, confirmation links) are always sent when they can be.
+            </template>
+            <template v-else>
+              Account and security emails (password resets, confirmation links, two-step changes) are always sent, whatever you choose here.
+            </template>
           </p>
         </div>
 

@@ -1330,7 +1330,7 @@ watch(screen, (s) => {
               Direct Debit is being set up
             </h3>
             <p class="mt-2 max-w-[340px] text-[13px] leading-[1.6] text-muted-400">
-              Your mandate has been sent to your bank. It takes about <strong class="text-white">3 working days</strong> to become active — we’ll email you the moment it’s ready, and you’ll get at least {{ advanceDays }} working days’ notice before any collection.
+              Your mandate has been sent to your bank. It takes about <strong class="text-white">3 working days</strong> to become active — we’ll let you know in the panel, and by email if you have kept notification emails on, and you’ll get at least {{ advanceDays }} working days’ notice before any collection.
             </p>
             <p v-if="mode === 'topup'" class="mt-3 max-w-[340px] text-[12.5px] leading-[1.55] text-muted-500">
               Nothing has been charged yet. To add funds right now, use a debit or credit card instead.

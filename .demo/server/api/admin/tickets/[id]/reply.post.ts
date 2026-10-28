@@ -1,6 +1,7 @@
 import { createError, defineEventHandler, getRouterParam } from 'h3'
 import { z } from 'zod'
 import { recordAudit } from '../../../../utils/audit'
+import { notify } from '../../../../utils/notify'
 import { requireStaffPermission } from '../../../../utils/permissions'
 import prisma from '../../../../utils/prisma'
 import { staffName } from '../../../../utils/support'
@@ -56,18 +57,16 @@ export default defineEventHandler(async (event) => {
   ])
 
   // The customer hears about a public reply in their notifications — the
-  // Support page promises that, and there is no email to do it instead.
+  // Support page promises that — and by email if they have kept those on.
   if (!isInternal) {
     const me = await prisma.user.findUnique({ where: { id: admin.id }, select: { firstName: true, lastName: true } })
     const who = staffName(me) || 'Apex support'
-    await prisma.notification.create({
-      data: {
-        userId: ticket.userId,
-        title: `${who} replied: ${ticket.subject}`.slice(0, 200),
-        message: content.length > 160 ? `${content.slice(0, 157).trim()}…` : content,
-        type: 'INFO',
-        link: `/dashboards/support?ticket=${ticketId}`,
-      },
+    await notify({
+      userIds: [ticket.userId],
+      title: `${who} replied: ${ticket.subject}`,
+      message: content.length > 160 ? `${content.slice(0, 157).trim()}…` : content,
+      type: 'INFO',
+      link: `/dashboards/support?ticket=${ticketId}`,
     })
   }
 

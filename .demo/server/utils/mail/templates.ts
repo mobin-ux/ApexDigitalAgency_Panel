@@ -78,6 +78,7 @@ export function staffInviteMail(brand: Brand, input: { name: string, role: strin
   }
 }
 
+/** Every in-app notification, mirrored (ADR-022); the website review steps use it too, filed as `cms-review`. */
 export function notificationMail(brand: Brand, input: { title: string, message: string, url: string | null }): MailDraft {
   return {
     subject: `${brand.siteName}: ${input.title}`,
@@ -86,18 +87,6 @@ export function notificationMail(brand: Brand, input: { title: string, message: 
       paragraphs: [input.message],
       ...(input.url ? { action: { label: 'Open in the panel', url: input.url } } : {}),
       footer: `You are receiving this because notification emails are on for your ${brand.siteName} account. Turn them off under Settings. ${footer(brand)}`,
-    },
-  }
-}
-
-export function cmsReviewMail(brand: Brand, input: { heading: string, lines: string[], url: string }): MailDraft {
-  return {
-    subject: `${brand.siteName} website: ${input.heading}`,
-    content: {
-      heading: input.heading,
-      paragraphs: input.lines,
-      action: { label: 'Open the document', url: input.url },
-      footer: footer(brand),
     },
   }
 }

@@ -35,14 +35,12 @@ export default defineEventHandler(async (event) => {
   const action = await prisma.clientAction.create({
     data: { ...input, projectId: id, userId: project.userId, createdById: admin.id },
   })
-  await prisma.notification.create({
-    data: {
-      userId: project.userId,
-      title: 'Waiting on you',
-      message: `${project.name}: ${input.title}.`,
-      type: 'INFO',
-      link: `/dashboards/orders?project=${id}`,
-    },
+  await notify({
+    userIds: [project.userId],
+    title: 'Waiting on you',
+    message: `${project.name}: ${input.title}.`,
+    type: 'INFO',
+    link: `/dashboards/orders?project=${id}`,
   })
   await recordAudit(event, admin, {
     action: 'admin.project.action-request',

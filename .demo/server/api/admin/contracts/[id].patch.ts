@@ -32,14 +32,12 @@ export default defineEventHandler(async (event) => {
   // Cancelling a contract also cancels the underlying project.
   if (status === 'CANCELLED' && before.status !== 'CANCELLED') {
     await prisma.project.update({ where: { id: before.projectId }, data: { status: 'CANCELLED' } })
-    await prisma.notification.create({
-      data: {
-        userId: before.userId,
-        title: 'Contract cancelled',
-        message: `Your contract ${before.reference} for ${before.project?.name ?? 'your project'} has been cancelled.`,
-        type: 'WARNING',
-        link: '/dashboards/orders',
-      },
+    await notify({
+      userIds: [before.userId],
+      title: 'Contract cancelled',
+      message: `Your contract ${before.reference} for ${before.project?.name ?? 'your project'} has been cancelled.`,
+      type: 'WARNING',
+      link: '/dashboards/orders',
     })
   }
 

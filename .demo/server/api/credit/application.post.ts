@@ -108,14 +108,12 @@ export default defineEventHandler(async (event) => {
     return app
   })
 
-  await prisma.notification.create({
-    data: {
-      userId: session.id,
-      title: 'Credit application received',
-      message: `We are checking your business details for ${creditRef(created.id)}. We will update your Wallet with our decision.`,
-      type: 'INFO',
-      link: '/dashboards/wallet?credit=status',
-    },
+  await notify({
+    userIds: [session.id],
+    title: 'Credit application received',
+    message: `We are checking your business details for ${creditRef(created.id)}. We will update your Wallet with our decision.`,
+    type: 'INFO',
+    link: '/dashboards/wallet?credit=status',
   })
   await recordAudit(event, { id: session.id, email: session.email ?? session.id }, {
     action: 'credit.applied',

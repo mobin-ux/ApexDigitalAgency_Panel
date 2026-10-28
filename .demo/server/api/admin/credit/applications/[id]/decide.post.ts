@@ -65,16 +65,14 @@ export default defineEventHandler(async (event) => {
   })
 
   const ref = creditRef(app.id)
-  await prisma.notification.create({
-    data: {
-      userId: app.userId,
-      title: action === 'approve' ? 'Credit line approved' : 'Credit application not approved',
-      message: action === 'approve'
-        ? `Your credit line of £${approved.toLocaleString('en-GB')} is ready to use. You can now run more than one plan at once.`
-        : `We cannot offer a credit line on ${ref} at the moment. You can still order any service on a monthly plan, one at a time.`,
-      type: action === 'approve' ? 'SUCCESS' : 'WARNING',
-      link: '/dashboards/wallet',
-    },
+  await notify({
+    userIds: [app.userId],
+    title: action === 'approve' ? 'Credit line approved' : 'Credit application not approved',
+    message: action === 'approve'
+      ? `Your credit line of £${approved.toLocaleString('en-GB')} is ready to use. You can now run more than one plan at once.`
+      : `We cannot offer a credit line on ${ref} at the moment. You can still order any service on a monthly plan, one at a time.`,
+    type: action === 'approve' ? 'SUCCESS' : 'WARNING',
+    link: '/dashboards/wallet',
   })
   await recordAudit(event, admin, {
     action: `admin.credit.${action}`,

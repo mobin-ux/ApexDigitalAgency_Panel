@@ -72,14 +72,12 @@ export default defineEventHandler(async (event) => {
 
   const after = await prisma.creditLine.update({ where: { userId }, data })
 
-  await prisma.notification.create({
-    data: {
-      userId,
-      title: 'Apex credit update',
-      message: note,
-      type: action === 'reject' || action === 'freeze' ? 'WARNING' : 'SUCCESS',
-      link: '/dashboards/wallet',
-    },
+  await notify({
+    userIds: [userId],
+    title: 'Apex credit update',
+    message: note,
+    type: action === 'reject' || action === 'freeze' ? 'WARNING' : 'SUCCESS',
+    link: '/dashboards/wallet',
   })
 
   await recordAudit(event, admin, {

@@ -1,15 +1,17 @@
-import { randomBytes, randomUUID } from 'node:crypto'
 import type { PaymentIntent } from '@prisma/client'
+import type { Capability, CustomerRef, NormalisedEvent, ProviderName } from './types'
+import { randomBytes, randomUUID } from 'node:crypto'
 import { createLogger } from '../utils/logger'
+import { deliverNow } from '../utils/mail/outbox'
 import { assertValidMinor, toMajor } from '../utils/money'
+import { notify } from '../utils/notify'
 import prisma from '../utils/prisma'
-import { getProvider, getProviderByName } from './registry'
 import {
   installmentChargeLines,
   postJournal,
   walletTopUpLines,
 } from './ledger'
-import type { Capability, CustomerRef, NormalisedEvent, ProviderName } from './types'
+import { getProvider, getProviderByName } from './registry'
 
 /**
  * Payment orchestration — the layer routes talk to.
@@ -172,7 +174,9 @@ export async function startPayment(input: StartPaymentInput): Promise<StartPayme
  * a non-settled state is allowed to move money.
  */
 export async function settleIntent(intentId: string, opts?: { feeAmount?: number }): Promise<boolean> {
-  return prisma.$transaction(async (tx) => {
+  // The customer's notification rides in the same transaction as the money; its email is tried after the commit.
+  let mailIds: string[] = []
+  const settled = await prisma.$transaction(async (tx) => {
     const claimed = await tx.paymentIntent.updateMany({
       where: { id: intentId, status: { notIn: ['succeeded', 'cancelled'] } },
       data: { status: 'succeeded', settledAt: new Date(), feeAmount: opts?.feeAmount ?? undefined },
@@ -234,19 +238,22 @@ export async function settleIntent(intentId: string, opts?: { feeAmount?: number
       })
     }
 
-    await tx.notification.create({
-      data: {
-        userId: intent.userId,
-        title: 'Payment received',
-        message: `Your payment of £${major.toFixed(2)} (${intent.reference}) was successful.`,
-        type: 'SUCCESS',
-        link: '/dashboards/wallet',
-      },
-    })
+    const sent = await notify({
+      userIds: [intent.userId],
+      title: 'Payment received',
+      message: `Your payment of £${major.toFixed(2)} (${intent.reference}) was successful.`,
+      type: 'SUCCESS',
+      link: '/dashboards/wallet',
+    }, tx)
+    mailIds = sent.mailIds
 
     log.info('intent settled', { intentId, reference: intent.reference, purpose: intent.purpose, amount: intent.amount })
     return true
   })
+  if (mailIds.length) {
+    void deliverNow(mailIds)
+  }
+  return settled
 }
 
 /** Mark an intent failed, once. Safe to call from duplicate webhooks. */
@@ -261,16 +268,14 @@ export async function failIntent(intentId: string, failure: { code?: string, mes
 
   const intent = await prisma.paymentIntent.findUnique({ where: { id: intentId } })
   if (intent) {
-    await prisma.notification.create({
-      data: {
-        userId: intent.userId,
-        title: 'Payment failed',
-        message: failure.message
-          ? `Your payment ${intent.reference} could not be completed: ${failure.message}`
-          : `Your payment ${intent.reference} could not be completed.`,
-        type: 'WARNING',
-        link: '/dashboards/wallet',
-      },
+    await notify({
+      userIds: [intent.userId],
+      title: 'Payment failed',
+      message: failure.message
+        ? `Your payment ${intent.reference} could not be completed: ${failure.message}`
+        : `Your payment ${intent.reference} could not be completed.`,
+      type: 'WARNING',
+      link: '/dashboards/wallet',
     })
   }
   log.warn('intent failed', { intentId, ...failure })
@@ -344,14 +349,12 @@ export async function applyWebhookEvent(provider: ProviderName, event: Normalise
         if (hasDefault === 0) {
           await prisma.paymentMethod.update({ where: { id: method.id }, data: { isDefault: true } })
         }
-        await prisma.notification.create({
-          data: {
-            userId: method.userId,
-            title: 'Direct Debit ready',
-            message: 'Your Direct Debit mandate is active. Instalments will be collected automatically.',
-            type: 'SUCCESS',
-            link: '/dashboards/wallet',
-          },
+        await notify({
+          userIds: [method.userId],
+          title: 'Direct Debit ready',
+          message: 'Your Direct Debit mandate is active. Instalments will be collected automatically.',
+          type: 'SUCCESS',
+          link: '/dashboards/wallet',
         })
       }
       break
@@ -368,16 +371,14 @@ export async function applyWebhookEvent(provider: ProviderName, event: Normalise
             isDefault: false,
           },
         })
-        await prisma.notification.create({
-          data: {
-            userId: method.userId,
-            title: 'Direct Debit ended',
-            message: event.kind === 'mandate.failed'
-              ? 'Your Direct Debit mandate could not be set up. Please add another payment method.'
-              : 'Your Direct Debit mandate was cancelled. Add another method to keep instalments on track.',
-            type: 'WARNING',
-            link: '/dashboards/wallet',
-          },
+        await notify({
+          userIds: [method.userId],
+          title: 'Direct Debit ended',
+          message: event.kind === 'mandate.failed'
+            ? 'Your Direct Debit mandate could not be set up. Please add another payment method.'
+            : 'Your Direct Debit mandate was cancelled. Add another method to keep instalments on track.',
+          type: 'WARNING',
+          link: '/dashboards/wallet',
         })
       }
       break

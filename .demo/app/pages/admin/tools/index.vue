@@ -112,7 +112,7 @@ const LABEL = 'mb-2 block text-[12.5px] font-semibold text-muted-900 dark:text-w
             Announcement
           </div>
           <p class="text-muted-500 mb-5 mt-[7px] text-[13px] leading-[1.55]">
-            Writes an in-app notification into every active customer's feed. No emails are sent — there is no mail provider wired up.
+            Writes an in-app notification into every active customer's feed, and emails it to those who have kept notification emails on. A broadcast to everyone queues one email each; the outbox sends fifty a minute.
           </p>
           <form class="flex flex-col gap-3.5" @submit.prevent="showBroadcastConfirm = true">
             <div>

@@ -29,16 +29,14 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 409, message: 'This request has already been answered.' })
   }
 
-  const notify = action.project.managerId ?? action.createdById
-  if (notify) {
-    await prisma.notification.create({
-      data: {
-        userId: notify,
-        title: 'Client answered',
-        message: `${action.project.name}: "${action.title}" is done.`,
-        type: 'SUCCESS',
-        link: `/admin/projects/${projectId}`,
-      },
+  const recipient = action.project.managerId ?? action.createdById
+  if (recipient) {
+    await notify({
+      userIds: [recipient],
+      title: 'Client answered',
+      message: `${action.project.name}: "${action.title}" is done.`,
+      type: 'SUCCESS',
+      link: `/admin/projects/${projectId}`,
     })
   }
   return { ok: true, doneLine: action.doneLine }

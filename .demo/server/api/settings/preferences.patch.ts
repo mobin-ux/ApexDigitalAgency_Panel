@@ -4,11 +4,13 @@ import { requireAuth } from '../../utils/auth'
 import prisma from '../../utils/prisma'
 import { validateBody } from '../../utils/validate'
 
-/** PATCH /api/settings/preferences — persisted account toggles (auto-pay, …). */
+/** PATCH /api/settings/preferences — persisted account toggles (auto-pay, notification emails). */
 
 const bodySchema = z
   .object({
     autoPayInstallments: z.boolean().optional(),
+    /** Mirror in-app notifications to the account's email (ADR-022); account and security emails ignore it. */
+    emailNotifications: z.boolean().optional(),
   })
   .strict()
   .refine(data => Object.keys(data).length > 0, { message: 'At least one preference must be provided' })
@@ -20,7 +22,7 @@ export default defineEventHandler(async (event) => {
   const user = await prisma.user.update({
     where: { id: session.id },
     data: updates,
-    select: { autoPayInstallments: true },
+    select: { autoPayInstallments: true, emailNotifications: true },
   })
 
   return { status: 'success', preferences: user }

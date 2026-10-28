@@ -1,6 +1,7 @@
 import { createError, defineEventHandler, getRouterParam } from 'h3'
 import { z } from 'zod'
 import { requireAuth } from '../../../utils/auth'
+import { notify, notifyRoles } from '../../../utils/notify'
 import prisma from '../../../utils/prisma'
 import { rateLimit, RateLimits } from '../../../utils/ratelimit'
 import { unclaimedBy } from '../../../utils/uploads'
@@ -30,7 +31,10 @@ export default defineEventHandler(async (event) => {
   const { content, attachmentIds = [] } = await validateBody(event, bodySchema)
 
   // 404 for both "doesn't exist" and "not yours" — don't leak ticket ids.
-  const ticket = await prisma.ticket.findUnique({ where: { id: ticketId }, select: { userId: true } })
+  const ticket = await prisma.ticket.findUnique({
+    where: { id: ticketId },
+    select: { userId: true, subject: true, assigneeId: true, relatedProject: { select: { managerId: true } } },
+  })
   if (!ticket || ticket.userId !== session.id) {
     throw createError({ statusCode: 404, message: 'Ticket not found' })
   }
@@ -52,6 +56,18 @@ export default defineEventHandler(async (event) => {
     await tx.ticket.update({ where: { id: ticketId }, data: { updatedAt: new Date(), status: 'OPEN' } })
     return created
   })
+
+  // Whoever handles the request hears about the reply (ADR-022): the
+  // assignee, else the order's manager, else everyone who answers support.
+  const preview = content ? (content.length > 160 ? `${content.slice(0, 157).trim()}…` : content) : `${attachmentIds.length} ${attachmentIds.length === 1 ? 'file' : 'files'} attached.`
+  const handler = ticket.assigneeId ?? ticket.relatedProject?.managerId ?? null
+  const heads = { title: `Customer replied: ${ticket.subject}`, message: preview, type: 'INFO' as const, link: `/admin/tickets?ticket=${ticketId}` }
+  if (handler) {
+    await notify({ userIds: [handler], ...heads })
+  }
+  else {
+    await notifyRoles('support.answer', heads)
+  }
 
   return { status: 'success', message }
 })

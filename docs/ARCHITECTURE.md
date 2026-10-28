@@ -124,7 +124,8 @@ JWT secret: `runtimeConfig.jwtSecret` (`NUXT_JWT_SECRET` env override).
 | PATCH `/api/support/:id` | customer resolves or reopens their own request |
 | GET `/api/support/tickets` | the caller's requests (latest visible message, its staff author, the assignee, rating, call slot) plus `manager`: the project manager of the newest active order, or null |
 | POST `/api/support/create` | new request; one about an order is assigned to that order's project manager |
-| POST `/api/support/:id/reply` | customer reply; text, files or both |
+| POST `/api/support/:id/reply` | customer reply; text, files or both. Notifies the assignee, else the order's manager, else everyone holding `support.answer` (ADR-022) |
+| PATCH `/api/settings/preferences` | the account's own switches: `autoPayInstallments`, `emailNotifications` (mirror in-app notifications to the account's email; account and security emails ignore it — ADR-022) |
 | POST `/api/support/:id/rating` | 1–5 and an optional comment on a resolved request; claimed once (409 on a repeat) |
 | POST `/api/support/call` | "Request a call": a preferred slot from `shared/support-call.ts` (next five working days, four UK times) becomes a request assigned to the manager; a second one moves the open request's slot. No calendar: staff confirm by replying |
 | PUT/DELETE `/api/settings/avatar` | set the profile photo from one of the caller's own unclaimed image uploads (JPG/PNG/WebP/GIF, ≤5 MB), or remove it; the previous file is deleted |
@@ -152,7 +153,7 @@ JWT secret: `runtimeConfig.jwtSecret` (`NUXT_JWT_SECRET` env override).
 | **`/api/admin/users`** (GET) | ADMIN only — paginated/searchable/role-filterable directory (`?page&pageSize&search&role`) |
 | **`/api/admin/users/:id`** (GET/PATCH) | ADMIN only — detail w/ recent activity; whitelisted PATCH (role/adCredits/profile — not password/walletBalance/email) + audit row; self-demotion blocked |
 | **`/api/admin/stats`** (GET) | `work.view` — the Overview screen: the four count tiles, the oldest-first work queue, the delivery pipeline, and the money card **only** for a role holding `money.view`. Every pre-existing field is still returned |
-| **`/api/admin/projects/:id/deliverables/release`** (POST) | `work.release` — hands the files to the client. A reason is **required** while a balance is outstanding; the balance is snapshotted on the row. 409 if already released |
+| **`/api/admin/projects/:id/deliverables/release`** (POST) | `work.release` — hands the files to the client. A reason is **required** while a balance is outstanding; the balance is snapshotted on the row. 409 if already released. The client is told the files are ready (in the panel and by email, ADR-022) |
 | **`/api/admin/projects/:id/deliverables/withdraw`** (POST) | `work.release` — stamps `withdrawnAt` on the active release with a conditional update, so racing withdrawals settle it once |
 | **`/api/admin/projects/:id/advance`** (POST) | `work.assign` — completes the current milestone, lights the next, and recomputes `progress` from the timeline in one transaction and one audit entry |
 | **`/api/admin/projects/:id/notes`** (POST) | `work.assign` — a staff-only project note. No customer endpoint reads `ProjectNote` |
@@ -353,6 +354,20 @@ Real money infrastructure, provider-agnostic by construction.
   included, so the mail module has no barrel: a re-exporting `index.ts`
   duplicated every name in `#imports` and left the scanner holding a stale
   export list.
+- **`notify()` (`server/utils/notify.ts`) is the one way to tell a person
+  something**: the in-app `Notification` row plus the email that mirrors it
+  for accounts with an address that kept `User.emailNotifications` on
+  (`always: true` for account and security notices; a suspended account gets
+  the row and no email; `excludeUserId` leaves the actor out).
+  `notifyRoles(permission, …)` fans out to every active staff account whose
+  role holds the permission. Inside a transaction, pass the transaction
+  client and call `deliverNow(mailIds)` after the commit; otherwise the first
+  attempt is fired by the helper. No route writes `prisma.notification`
+  itself any more (the dev seed is the one exception).
+- Account emails (`server/utils/mail/flows.ts`): the reset link, the
+  verification link and the staff invite, each queued with its business row
+  in the caller's transaction. A link that cannot be built becomes a FAILED
+  row with the reason rather than an exception.
 
 ## 11. Known issues (technical detail)
 

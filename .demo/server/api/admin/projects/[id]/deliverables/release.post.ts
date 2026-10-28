@@ -2,6 +2,7 @@ import { createError, defineEventHandler, getRouterParam } from 'h3'
 import { z } from 'zod'
 import { recordAudit } from '../../../../../utils/audit'
 import { activeRelease, outstandingFor } from '../../../../../utils/deliverables'
+import { notify } from '../../../../../utils/notify'
 import { requireStaffPermission } from '../../../../../utils/permissions'
 import prisma from '../../../../../utils/prisma'
 import { validateBody } from '../../../../../utils/validate'
@@ -43,6 +44,7 @@ export default defineEventHandler(async (event) => {
     select: {
       id: true,
       name: true,
+      userId: true,
       status: true,
       amount: true,
       installmentPlan: { select: { total: true, paid: true } },
@@ -76,6 +78,15 @@ export default defineEventHandler(async (event) => {
       actorEmail: admin.email,
       actorRole: admin.staffRole,
     },
+  })
+
+  // The client learns the files are theirs now, in the panel and by email (ADR-022).
+  await notify({
+    userIds: [project.userId],
+    title: 'Your files are ready',
+    message: `${project.name}: ${project._count.files} ${project._count.files === 1 ? 'file is' : 'files are'} ready to download from your order.`,
+    type: 'SUCCESS',
+    link: `/dashboards/orders?project=${id}`,
   })
 
   await recordAudit(event, admin, {

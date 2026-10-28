@@ -25,14 +25,14 @@ export default defineEventHandler(async (event) => {
   if (!count) {
     throw createError({ statusCode: 404, message: 'Two-step verification is not on for this account.' })
   }
-  await prisma.notification.create({
-    data: {
-      userId: id,
-      title: 'Two-step verification was turned off',
-      message: 'Our team turned it off at your request. Turn it on again in Settings › Security.',
-      type: 'WARNING',
-      link: '/dashboards/settings?section=security',
-    },
+  // A security change is emailed whatever the notification switch says.
+  await notify({
+    userIds: [id],
+    title: 'Two-step verification was turned off',
+    message: 'Our team turned it off at your request. Turn it on again in Settings › Security.',
+    type: 'WARNING',
+    link: '/dashboards/settings?section=security',
+    always: true,
   })
   await recordAudit(event, admin, { action: 'admin.user.two-factor.reset', targetType: 'User', targetId: id, reason })
   return { status: 'off' }

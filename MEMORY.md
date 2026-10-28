@@ -386,7 +386,7 @@ and the invite, reset and CMS review flows emailed. Plan file:
 |---|---|---|
 | 1 | `MailMessage`, `server/utils/mail/*`, `mail:deliver` task, `runtimeConfig.mail`, startup checks, `features.mail`, `/api/admin/mail` + `/admin/mail`, dev `_test/mail`, ADR-022, DEPLOYMENT §10 | ✅ |
 | 2 | Password reset, soft email verification (banner, page, purpose token), invites emailed with an honest fallback, recover page copy | ✅ |
-| 3 | `notify()` helper over the 16 call sites, `User.emailNotifications` + Settings switch, the three new notifications, copy fixes | ☐ |
+| 3 | `notify()` helper over the 16 call sites, `User.emailNotifications` + Settings switch, the three new notifications, copy fixes | ✅ |
 | 4 | CMS review emails (`SiteDocument.submittedById`), docs sweep | ☐ |
 
 **Gate 1 shipped (2026-10-28).** Outbox rows are rendered at enqueue
@@ -425,6 +425,42 @@ second click still a success; reset → link → new password → sign in,
 unknown address answers identically and queues nothing; invite and
 resend answer FAILED "Mail is not configured" on the keyless server with
 the emailed link equal to the returned one).
+
+**Gate 3 shipped (2026-10-28).** `server/utils/notify.ts` — `notify({
+userIds, title, message, type?, link?, always?, excludeUserId? }, tx?)`
+writes the Notification rows and queues `notificationMail` for accounts
+with an address that kept `User.emailNotifications` (new column, default
+on) on; `always` for account notices; a suspended account gets the row and
+no email; `notifyRoles(permission, …)` resolves the staff holding a
+permission (plus accounts with no `staffRole`, the owner fallback). The
+rules are a pure `selectRecipients()` in `notify-rules.ts`. Every one of
+the sixteen inline `prisma.notification.create` sites went through it
+(the dev seed is the one left); `chargeInstallment`, `collectKickoff` and
+`settleIntent` pass their transaction client and deliver after the
+commit. Three notifications that did not exist: a customer reply reaches
+the assignee, else the order's manager, else everyone holding
+`support.answer` (`/admin/tickets?ticket=`); releasing a project's files
+tells the client "Your files are ready"; a new signed order goes to
+`work.assign` holders instead of every ADMIN account. Customer Settings ›
+Notifications has the real switch (`PATCH /api/settings/preferences`
+`emailNotifications`; `/api/auth/me` returns it), with the line saying
+whether the panel can send at all; phone-only accounts are told to add an
+address. Copy fixed: the wallet mandate screen no longer promises an
+email unconditionally, the Tools broadcast says it emails and drains at
+fifty a minute, and `web/.env.example` had the site's FROM address on the
+CMS secret line. SQL: a hand-written `ALTER TABLE "User" ADD COLUMN`
+(Prisma proposed a table rebuild differing only in column order). Tests:
+3 unit (recipient rules), the `notify-mail` API suite (customer reply →
+owner's in-app row + queued email; switch off → row, no email; broadcast
+reports `emailed`; an off-site link is 400).
+
+Gate 3 gotchas:
+- **eslint-plugin-unicorn still crashes on `server/payments/*`**; lint that
+  file with `--rule "unicorn/error-message: off"` (it then auto-fixes the
+  import order), never in the main list.
+- **The dev server keeps the Prisma client it started with**: after
+  `db push` + `generate` for a new column, restart it or every select of
+  the column is "Unknown field".
 
 Gate 2 gotchas:
 - **Queue inside the caller's transaction with the caller's client.** The

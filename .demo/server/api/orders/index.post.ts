@@ -8,6 +8,7 @@ import { getCatalog } from '../../utils/catalog-v2'
 import { nextContractReference } from '../../utils/contracts'
 import { creditAllows, ensureCredit } from '../../utils/credit'
 import { planIcon } from '../../utils/finance'
+import { notifyRoles } from '../../utils/notify'
 import prisma from '../../utils/prisma'
 import { getSetting } from '../../utils/settings'
 import { unclaimedBy } from '../../utils/uploads'
@@ -240,18 +241,13 @@ export default defineEventHandler(async (event) => {
         total: terms.total,
       },
     })
-    const admins = await prisma.user.findMany({ where: { role: 'ADMIN' }, select: { id: true } })
-    if (admins.length > 0) {
-      await prisma.notification.createMany({
-        data: admins.map(a => ({
-          userId: a.id,
-          title: 'New order signed',
-          message: `${contract.reference}: ${project.name} · ${service.name}, ${plan.name}. Book the kickoff call.`,
-          type: 'INFO',
-          link: `/admin/projects/${project.id}`,
-        })),
-      })
-    }
+    // The people who book kickoffs and assign work, not every staff account.
+    await notifyRoles('work.assign', {
+      title: 'New order signed',
+      message: `${contract.reference}: ${project.name} · ${service.name}, ${plan.name}. Book the kickoff call.`,
+      type: 'INFO',
+      link: `/admin/projects/${project.id}`,
+    })
   }
   catch {
     // Best effort: the Contract row is the record, not the fan-out.

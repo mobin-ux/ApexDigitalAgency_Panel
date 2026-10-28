@@ -30,14 +30,12 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, message: 'One of the files is no longer available. Please add it again.' })
   }
   if (project.managerId) {
-    await prisma.notification.create({
-      data: {
-        userId: project.managerId,
-        title: 'Client added files',
-        message: `${project.name}: ${linked.count} new file${linked.count === 1 ? '' : 's'}.`,
-        type: 'INFO',
-        link: `/admin/projects/${project.id}`,
-      },
+    await notify({
+      userIds: [project.managerId],
+      title: 'Client added files',
+      message: `${project.name}: ${linked.count} new file${linked.count === 1 ? '' : 's'}.`,
+      type: 'INFO',
+      link: `/admin/projects/${project.id}`,
     })
   }
   return { ok: true, count: linked.count }

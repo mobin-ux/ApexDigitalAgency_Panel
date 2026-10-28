@@ -27,3 +27,8 @@ CREATE INDEX "MailMessage_to_createdAt_idx" ON "MailMessage"("to", "createdAt");
 -- CreateIndex
 CREATE INDEX "MailMessage_createdAt_idx" ON "MailMessage"("createdAt");
 
+
+-- Notification emails (ADR-022, Gate 3): one switch per account. Written by
+-- hand as ADD COLUMN; prisma migrate diff proposes a full table rebuild of
+-- "User" that differs only in column order.
+ALTER TABLE "User" ADD COLUMN "emailNotifications" BOOLEAN NOT NULL DEFAULT true;

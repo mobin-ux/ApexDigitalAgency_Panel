@@ -1,15 +1,17 @@
 import { createError, defineEventHandler } from 'h3'
 import { z } from 'zod'
 import { recordAudit } from '../../../utils/audit'
+import { notify } from '../../../utils/notify'
 import { requireStaffPermission } from '../../../utils/permissions'
 import prisma from '../../../utils/prisma'
 import { validateBody } from '../../../utils/validate'
 
 /**
  * POST /api/admin/notifications/broadcast — send an in-app notification
- * to one user or to every customer. In-app only: there is no mail
- * provider wired up (REQUIREMENTS §5 backlog), so this never pretends
- * to send email.
+ * to one user or to every customer. Also emailed (ADR-022) to the
+ * recipients who have an address and have kept notification emails on;
+ * a broadcast to everyone queues one row each, which the outbox drains at
+ * fifty a minute.
  */
 
 const bodySchema = z.object({
@@ -45,15 +47,13 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, message: 'No recipients matched' })
   }
 
-  await prisma.notification.createMany({
-    data: recipients.map(id => ({ userId: id, title, message, type, link: link ?? null })),
-  })
+  const result = await notify({ userIds: recipients, title, message, type, link: link ?? null })
 
   await recordAudit(event, admin, {
     action: 'admin.notification.broadcast',
     targetType: 'Notification',
-    metadata: { title, type, recipientCount: recipients.length, single: Boolean(userId) },
+    metadata: { title, type, recipientCount: result.notified, emailed: result.mailIds.length, single: Boolean(userId) },
   })
 
-  return { status: 'success', recipientCount: recipients.length }
+  return { status: 'success', recipientCount: result.notified, emailed: result.mailIds.length }
 })

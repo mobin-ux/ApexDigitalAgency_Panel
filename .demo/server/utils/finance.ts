@@ -1,5 +1,7 @@
 import { createError } from 'h3'
 import { firstPaymentDate } from '../../shared/catalog'
+import { deliverNow } from './mail/outbox'
+import { notify } from './notify'
 import prisma from './prisma'
 
 /**
@@ -65,7 +67,9 @@ export interface ChargeResult {
  * the charge on the customer's behalf.
  */
 export async function chargeInstallment(planId: string, opts?: { actorNote?: string }): Promise<ChargeResult> {
-  return prisma.$transaction(async (tx) => {
+  // The customer's notification rides in the same transaction as the charge; its email is tried after the commit.
+  let mailIds: string[] = []
+  const result = await prisma.$transaction(async (tx) => {
     const plan = await tx.installment.findUnique({
       where: { id: planId },
       include: { projectRef: { select: { id: true, name: true, category: true } } },
@@ -142,20 +146,23 @@ export async function chargeInstallment(planId: string, opts?: { actorNote?: str
       },
     })
 
-    await tx.notification.create({
-      data: {
-        userId: plan.userId,
-        title: settled ? 'Payment plan settled 🎉' : 'Installment paid',
-        message: settled
-          ? `Final installment of ${amount.toFixed(2)} for ${projectName} received — the plan is fully paid.`
-          : `Installment ${monthsPaid} of ${plan.monthsTotal} (${amount.toFixed(2)}) for ${projectName} was paid.`,
-        type: 'SUCCESS',
-        link: '/dashboards/wallet',
-      },
-    })
+    const sent = await notify({
+      userIds: [plan.userId],
+      title: settled ? 'Payment plan settled 🎉' : 'Installment paid',
+      message: settled
+        ? `Final installment of ${amount.toFixed(2)} for ${projectName} received — the plan is fully paid.`
+        : `Installment ${monthsPaid} of ${plan.monthsTotal} (${amount.toFixed(2)}) for ${projectName} was paid.`,
+      type: 'SUCCESS',
+      link: '/dashboards/wallet',
+    }, tx)
+    mailIds = sent.mailIds
 
     return { ok: true, charged: amount, settled }
   })
+  if (mailIds.length) {
+    void deliverNow(mailIds)
+  }
+  return result
 }
 
 /**
@@ -215,7 +222,9 @@ class KickoffShortfall extends Error {
  * conditional update on `kickoffPaidAt` means two clicks charge once.
  */
 export async function collectKickoff(projectId: string, opts?: { actorNote?: string }): Promise<KickoffResult> {
-  return prisma.$transaction(async (tx) => {
+  // The customer's notification rides in the same transaction as the debit; its email is tried after the commit.
+  let mailIds: string[] = []
+  const result = await prisma.$transaction(async (tx) => {
     const project = await tx.project.findUnique({
       where: { id: projectId },
       include: { installmentPlan: true, milestones: { orderBy: { date: { sort: 'asc', nulls: 'last' } } } },
@@ -292,17 +301,16 @@ export async function collectKickoff(projectId: string, opts?: { actorNote?: str
           : { status: 'active', nextDue: firstPaymentDate(now) },
       })
     }
-    await tx.notification.create({
-      data: {
-        userId: project.userId,
-        title: 'Work has started',
-        message: amount > 0
-          ? `${project.name}: £${amount.toLocaleString('en-GB', { minimumFractionDigits: 2 })} was taken from your wallet and work has started.`
-          : `${project.name}: work has started.`,
-        type: 'SUCCESS',
-        link: `/dashboards/orders?project=${project.id}`,
-      },
-    })
+    const sent = await notify({
+      userIds: [project.userId],
+      title: 'Work has started',
+      message: amount > 0
+        ? `${project.name}: £${amount.toLocaleString('en-GB', { minimumFractionDigits: 2 })} was taken from your wallet and work has started.`
+        : `${project.name}: work has started.`,
+      type: 'SUCCESS',
+      link: `/dashboards/orders?project=${project.id}`,
+    }, tx)
+    mailIds = sent.mailIds
     return { ok: true as const, charged: amount }
   }).catch((error: unknown) => {
     if (error instanceof KickoffShortfall) {
@@ -310,4 +318,8 @@ export async function collectKickoff(projectId: string, opts?: { actorNote?: str
     }
     throw error
   })
+  if (mailIds.length) {
+    void deliverNow(mailIds)
+  }
+  return result
 }
