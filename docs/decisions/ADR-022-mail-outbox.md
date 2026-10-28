@@ -52,8 +52,8 @@ reset and review flows emailed.
 
 ## Consequences
 
-- Delivery needs a sender on a domain verified with Resend. While
-  `apexdigi.co.uk` is suspended at the registrar that is impossible, so
+- Delivery needs a sender on a domain verified with Resend. Until the
+  Resend records are in the Cloudflare zone (ADR-023) that is not done, so
   production runs with the keys unset and degrades as in (4).
 - One `node-server` process runs one scheduler; a second would be harmless
   because of the claim and the idempotency key, but is not the design.

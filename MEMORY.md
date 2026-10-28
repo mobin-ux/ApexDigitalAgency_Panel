@@ -2,7 +2,7 @@
 
 > Handoff doc for continuing work in fresh sessions. Update the relevant section
 > whenever a page ships, a decision lands, or a blocker appears.
-> Last updated: **2026-10-28** (Mail provider deployed — ADR-022; Website CMS — ADR-021; 2026-10-25 Panel v2: dashboard, New order and My orders revisions; Wallet revision — credit by application, ADR-020; Support revision — call requests and ratings; 2026-10-27 Settings re-check — profile photos, signed-in devices, two-step verification).
+> Last updated: **2026-10-28** (Cloudflare prepared — ADR-023; Mail provider deployed — ADR-022; Website CMS — ADR-021; 2026-10-25 Panel v2: dashboard, New order and My orders revisions; Wallet revision — credit by application, ADR-020; Support revision — call requests and ratings; 2026-10-27 Settings re-check — profile photos, signed-in devices, two-step verification).
 
 ## Where things stand
 
@@ -371,7 +371,80 @@ Gate 9 gotchas:
   build externalises the relative form and breaks in Nitro. Only tests use
   the relative `.ts` path.
 
-## Mail provider — done and deployed (2026-10-28)  ⬅ LATEST WORKSTREAM
+## Cloudflare — prepared, not applied (2026-10-28)  ⬅ WAITING ON THE USER
+
+The user asked for the project to be connected to Cloudflare end to end
+(DNS, TLS, caching, security, server and code in step). Design and
+decisions: ADR-023; operator steps: DEPLOYMENT §11.
+
+**Found on the box and in public DNS (2026-10-28):** `apexdigi.co.uk` is
+**registered until 2027-08-06** (the "suspended" notes below are history),
+nameservers `carol`/`rex.ns.cloudflare.com`, the zone holds one
+**unproxied** A record for the apex and **no record for
+`panel.apexdigi.co.uk`** or `www` — so the panel's public name does not
+resolve, its origin certificate (`notAfter` 2026-11-01) cannot renew, and
+every mail link built from `NUXT_PUBLIC_SITE_URL` points at a dead host.
+No MX/TXT/CAA. `https://apexdigi.co.uk` answers 200 directly (Caddy's
+Let's Encrypt cert, valid to 2027-01-23). No Cloudflare token or
+`cloudflared` anywhere on the server; `ufw` opens 22/80/443. The
+panel↔site URLs in both env files are loopback, as §9 says, so proxying
+changes nothing between them.
+
+**In the repo (commit below):**
+- `deploy/cloudflare-zone.mjs` — the zone as code: three proxied records
+  (apex A, panel A, www CNAME), settings (Full strict, always-HTTPS,
+  TLS ≥ 1.2, 1.3, HTTP/3, 0-RTT, Brotli, early hints; Rocket Loader,
+  Email Obfuscation, Cloudflare Fonts, hotlink protection, server-side
+  exclude OFF; browser TTL = respect headers; Bot Fight Mode off), one
+  edge redirect www → apex (ACME path excluded), three cache rules (never
+  cache either host's HTML or APIs; cache `/_nuxt/`, `/_ipx/`, `/media/`,
+  `/api/site/media/`, fonts, brand, icons, img with the origin TTL), a WAF
+  skip for `/api/webhooks/*`, one flood-guard rate limit (POST
+  `/api/auth/*` and `/api/contact`, 30 per 10 s per IP).
+- `scripts/cloudflare-apply.mjs` — plan by default, `--apply`,
+  `--dns-only`, `--replace-rules`, `--check` (no token: what the public
+  internet sees). Token from `CLOUDFLARE_API_TOKEN` or
+  `CLOUDFLARE_API_TOKEN_FILE`, never printed. Verified end to end against
+  a local stand-in for the API (`cf-mock.mjs` in the scratchpad, not
+  committed): plan → `--apply --dns-only` → `--apply --replace-rules` →
+  a second plan reports 0 changes; a foreign rule in a phase is left
+  alone and reported; a setting the plan lacks is skipped; `--check`
+  against the real internet reports the state above (DoH, falling back
+  to the system resolver from this machine).
+- `deploy/Caddyfile` + `scripts/cloudflare-ips.sh` + `scripts/ship-caddy.sh`
+  — Caddy becomes the client-IP trust boundary: `trusted_proxies static`
+  over Cloudflare's published ranges (imported file, weekly systemd timer),
+  `client_ip_headers Cf-Connecting-Ip X-Forwarded-For`,
+  `trusted_proxies_strict`, and every upstream gets
+  `X-Forwarded-For: {client_ip}` — one address, so the apps' "first entry
+  is the client" rule holds whether a request comes through Cloudflare or
+  straight to a sslip host. `ship-caddy.sh --check` ran on the server:
+  the new file validates there (Caddy 2.11.4), nothing installed.
+- App code: only the comment on `clientIp()` in `server/utils/ratelimit.ts`;
+  both apps already read the first `X-Forwarded-For` entry, which is the
+  contract Caddy now guarantees. The site's strict CSP is why every
+  script-injecting edge feature is off.
+
+**Not done, by the standing rule (nothing on production or in the zone
+without the go-ahead), and because no Cloudflare token exists here:**
+1. `bash scripts/ship-caddy.sh` (installs the Caddyfile, reload, timer);
+2. `node scripts/cloudflare-apply.mjs --apply --dns-only`, wait for Caddy
+   to obtain the panel and www certificates, then `--apply`;
+3. afterwards: Resend's records for the sending domain, then the mail keys
+   (§10.4).
+The token is the user's to create (§11.1) and should reach the script
+through a file outside the repo, never through chat.
+
+Gotchas:
+- **Cloudflare appends to a client's own `X-Forwarded-For`** rather than
+  replacing it, so "first entry = client" is only safe when the hop before
+  the app rewrites the header; that is what the Caddyfile does.
+- **Caddy validates an imported file's path**, so `ship-caddy.sh` rewrites
+  the import to a scratch copy for `caddy validate`.
+- **`cloudflare-dns.com` is unreachable from this dev machine**; the
+  public check falls back to `node:dns`.
+
+## Mail provider — done and deployed (2026-10-28)
 
 The panel gets outgoing email: Resend over REST (the site's contact form
 already uses it), behind a durable outbox. Design and decisions: ADR-022.
@@ -726,10 +799,10 @@ health-checks and rolls back. `apex-web.service` runs it as user `apex` on
 127.0.0.1:3100; Caddy serves `apexdigi.co.uk` (+ `www` → apex) and the
 preview `site.146-19-130-11.sslip.io`. Runtime env is `/opt/apex-web/.env`
 (the `NUXT_CONTACT_*` keys are still empty, so the form shows its
-"not sent, email us" fallback). **`apexdigi.co.uk` expired on 2026-08-06 and
-is SUSPENDED at names.co.uk (NS: Cloudflare)** — nothing under it resolves,
-the panel subdomain included, until it is renewed; Caddy then issues the
-certificates by itself.
+"not sent, email us" fallback). `apexdigi.co.uk` expired on 2026-08-06, was
+suspended at names.co.uk for a while, and **was renewed by 2026-10-28**
+(registered until 2027-08-06; NS Cloudflare). The apex resolves; `panel`
+and `www` have no DNS record until the Cloudflare section above is applied.
 
 **Open items for the homepage:** real client logos, case-study and article
 photography (`MediaFrame` already takes an image), the real phone number,
@@ -2019,8 +2092,8 @@ defaults to **off**, which is exactly the behaviour production has today.
   `prisma/schema.prisma` now matches the repo (old copy beside it,
   `.pre-phase9`). The deliverables hold setting is absent, i.e. off.
 - **Website** is a second service on the same box — see the Public website
-  section. `apexdigi.co.uk` is suspended at the registry (expired
-  2026-08-06), so until renewal the two apps answer only at
+  section. `apexdigi.co.uk` was suspended at the registry then (expired
+  2026-08-06; renewed by 2026-10-28), so the two apps answered only at
   `https://146-19-130-11.sslip.io` (panel) and
   `https://site.146-19-130-11.sslip.io` (site).
 - The deploy surfaced ~20 links from service pages and the homepage to case

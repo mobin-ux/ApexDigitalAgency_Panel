@@ -280,8 +280,9 @@ Nothing is sent, and nothing pretends to be. Messages are still recorded
 and shown as failed ("Mail is not configured") under **System → Email**;
 invites hand the operator the link as before and say no email went; the
 recover page says reset-by-email is unavailable; notifications stay in the
-panel. **While `apexdigi.co.uk` is suspended at the registrar the sender
-cannot be verified, so leave the keys unset until the domain is renewed.**
+panel. **Leave the keys unset until the sending domain is verified in
+Resend** (its DNS records go into the Cloudflare zone, §11; the domain
+itself is registered until 2027-08-06).
 
 ### 10.4 Turning it on
 
@@ -292,3 +293,78 @@ cannot be verified, so leave the keys unset until the domain is renewed.**
 4. Retry any failed invite or notification rows worth sending. Reset and
    verification rows cannot be retried (their links died with their
    tokens); the person asks for a new one.
+---
+
+## 11. Cloudflare (ADR-023)
+
+`apexdigi.co.uk` is on Cloudflare's nameservers (`carol` / `rex`). The zone
+is kept as code in `deploy/cloudflare-zone.mjs`; `scripts/cloudflare-apply.mjs`
+makes the live zone match it. Found on 2026-10-28: the domain is registered
+until 2027-08-06, the zone held one unproxied A record for the apex and no
+record for `panel.apexdigi.co.uk` (so the panel's public name did not
+resolve and its certificate could not renew), no `www`, no mail records.
+
+### 11.1 The token
+
+Create an API token in the Cloudflare dashboard (**My Profile → API
+Tokens → Create Token → Custom**), scoped to the one zone:
+
+| Permission | Why |
+|---|---|
+| Zone · Zone · Read | find the zone |
+| Zone · DNS · Edit | the three records |
+| Zone · Zone Settings · Edit | TLS, caching, the switched-off features |
+| Zone · Zone WAF · Edit | the webhook skip rule and the flood guard |
+| Zone · Cache Rules · Edit | the three cache rules |
+| Zone · Bot Management · Edit | turn Bot Fight Mode off (optional; the script says what it could not reach) |
+
+Keep it on the machine you run the script from — in a file outside the
+repository (`CLOUDFLARE_API_TOKEN_FILE=~/.config/apex/cloudflare-token`)
+or in the shell for one session (`CLOUDFLARE_API_TOKEN`). It is never
+needed on the server and never belongs in an `.env` file.
+
+### 11.2 Order of operations
+
+1. **Caddy first.** `bash scripts/ship-caddy.sh --check` validates
+   `deploy/Caddyfile` on the server and prints the diff; `bash
+   scripts/ship-caddy.sh` installs it (dated backup beside it), reloads,
+   checks the two preview hosts still answer, and installs the weekly
+   `apex-cloudflare-ips.timer` that refreshes the trusted ranges. Until
+   this is in place, a proxied record makes every visitor look like a
+   Cloudflare address to both apps' rate limiters and audit log.
+2. **Records, unproxied.** `node scripts/cloudflare-apply.mjs --apply
+   --dns-only` creates `panel` and `www` (and applies the settings and
+   rules). Within ten minutes Caddy obtains the certificates it is missing
+   (`journalctl -u caddy | grep obtain`); `curl -sI https://panel.apexdigi.co.uk/auth/login-1`
+   from anywhere answers 200.
+3. **Proxy.** `node scripts/cloudflare-apply.mjs --apply` flips the three
+   records to proxied. The script ends with the public check: every host
+   resolves to Cloudflare addresses, `www` is a 301 at the edge, the panel
+   and the site answer 200 with `server: cloudflare`, `/api/config` is
+   `no-store`.
+4. **Check the apps see real addresses.** Sign in from a browser, open
+   **System → Audit log**: the row for the sign-in carries your address,
+   not a `104.x` / `172.6x.x` Cloudflare one.
+
+Run `node scripts/cloudflare-apply.mjs` with no flags at any time for a
+plan (nothing is written), and `--check` with no token for what the public
+internet sees. A phase holding a rule the repository does not own is
+reported and left alone; `--replace-rules` replaces it.
+
+### 11.3 What is deliberately not done at the edge
+
+- No HTML caching (per-user panel pages; per-request CSP nonce on the site).
+- No header added or rewritten: both apps send their own CSP, HSTS and the
+  rest, where they are tested.
+- No script injection: Rocket Loader, Email Obfuscation, Cloudflare Fonts
+  and Bot Fight Mode are off, because the site's CSP would block them and
+  the panel's webhooks must never be challenged.
+- No lock of the origin to Cloudflare's ranges: the sslip.io preview hosts
+  stay reachable directly. Closing that is a separate decision.
+
+### 11.4 Rollback
+
+Unproxy the records (`--apply --dns-only`) and the edge is out of the path
+within the TTL; Caddy keeps serving as before. Restore the previous
+Caddyfile from its dated backup and `systemctl reload caddy` to drop the
+proxy trust (harmless to keep).

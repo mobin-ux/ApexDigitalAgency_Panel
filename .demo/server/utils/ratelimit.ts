@@ -62,8 +62,11 @@ export interface RateLimitOptions {
 }
 
 /**
- * Client IP, trusting `x-forwarded-for` only for its FIRST entry. Later
- * entries are attacker-controllable when the app sits behind one proxy.
+ * Client IP, trusting `x-forwarded-for` only for its FIRST entry. Caddy is
+ * the one proxy in front of the app and sets that header to exactly one
+ * address — the visitor's, read from `Cf-Connecting-Ip` when the request
+ * came from Cloudflare's ranges, otherwise the socket address — so anything
+ * a client sent itself never reaches here (deploy/Caddyfile, ADR-023).
  */
 export function clientIp(event: H3Event): string {
   const forwarded = getRequestHeader(event, 'x-forwarded-for')

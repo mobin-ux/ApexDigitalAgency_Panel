@@ -1,0 +1,56 @@
+# /etc/caddy/Caddyfile — the reverse proxy in front of both apps (ADR-023).
+#
+# Installed by `bash scripts/ship-caddy.sh` (which validates it first and keeps
+# a dated backup of the previous file). The global block makes Caddy the one
+# place that decides what the client IP is:
+#
+#   - requests from Cloudflare's address ranges (the imported file, refreshed
+#     by scripts/cloudflare-ips.sh) are trusted, and the visitor's address is
+#     read from Cf-Connecting-Ip, which Cloudflare sets and a visitor cannot;
+#   - requests from anywhere else (the sslip.io preview hosts, a direct hit on
+#     the IP) are not trusted, so any X-Forwarded-For they carry is ignored and
+#     the socket address is the client;
+#   - each upstream receives X-Forwarded-For set to exactly that one address,
+#     which is what the panel's rate limiter and audit log, and the site's
+#     contact-form limiter, read (the first entry).
+#
+# Without this, proxying through Cloudflare would make every visitor look like
+# one of Cloudflare's own addresses to both apps.
+{
+	servers {
+		import /etc/caddy/cloudflare-ips.caddy
+		client_ip_headers Cf-Connecting-Ip X-Forwarded-For
+		trusted_proxies_strict
+	}
+}
+
+# Customer and admin panel (.demo/, apex.service). 146-19-130-11.sslip.io is
+# the direct preview address and stays reachable without Cloudflare.
+panel.apexdigi.co.uk, 146-19-130-11.sslip.io {
+	encode zstd gzip
+	reverse_proxy 127.0.0.1:3000 {
+		header_up X-Forwarded-For {client_ip}
+	}
+}
+
+# Public website (web/, apex-web.service). site.146-19-130-11.sslip.io is a
+# preview address that works without Cloudflare.
+apexdigi.co.uk, site.146-19-130-11.sslip.io {
+	encode zstd gzip
+	reverse_proxy 127.0.0.1:3100 {
+		header_up X-Forwarded-For {client_ip}
+	}
+}
+
+# Cloudflare redirects www at the edge (deploy/cloudflare-zone.mjs); this is
+# the fallback when the record is not proxied.
+www.apexdigi.co.uk {
+	redir https://apexdigi.co.uk{uri} permanent
+}
+
+browser.146-19-130-11.sslip.io {
+	encode zstd gzip
+	reverse_proxy 127.0.0.1:3010 {
+		header_up X-Forwarded-For {client_ip}
+	}
+}
