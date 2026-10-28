@@ -164,3 +164,86 @@ stores provider tokens plus brand/last4/expiry, never a card number.
 
 Keep it that way. Building your own card form would move you to SAQ-A-EP and
 substantially more compliance burden.
+
+---
+
+## 9. The website CMS (ADR-021) — what a deploy needs
+
+The panel became the content system for the public site on 2026-10-28
+(commits `bbedafa` → `cc969a5`, nine gates). Nothing from it is deployed
+yet, and it goes out together with the panel's Settings re-check commits
+(`1d4c5ae`, `8ea3dcd`), which are also waiting. Deploy **the panel first,
+then the site**: the site falls back to its code baseline when the panel is
+unreachable, but a site built against the new content API talks to the old
+panel for nothing.
+
+### 9.1 Panel — schema
+
+Back up the live database, then apply the additive SQL in
+`docs/migrations/2026-10-cms.sql` (five new tables: `SiteDocument`,
+`SiteRevision`, `SiteRedirect`, `SiteMedia`, `SiteMediaRef`, plus their
+indexes), **and** the Settings re-check schema that is still pending
+(`Attachment.avatarUserId`, `Session`, `TwoFactor`,
+`User.sessionsValidAfter` — generate it with `prisma migrate diff` from the
+live schema, as the Phase 9 deploy did). Copy `prisma/schema.prisma` to the
+box afterwards so the two match. No backfill: every new table starts empty
+and every new column is nullable or defaulted.
+
+```bash
+cp /opt/apex/prisma/dev.db /opt/apex/backups/dev.db.$(date +%Y%m%d-%H%M%S).pre-cms
+sqlite3 /opt/apex/prisma/dev.db < docs/migrations/2026-10-cms.sql
+```
+
+### 9.2 Panel — environment (`/opt/apex/.env.production`)
+
+| Key | Value | Why |
+|---|---|---|
+| `NUXT_WEBSITE_SITE_URL` | `http://127.0.0.1:3100` | where the panel tells the site to drop its cache after a publish |
+| `NUXT_WEBSITE_REVALIDATE_SECRET` | a long random string | the bearer the site checks; must equal the site's `NUXT_CMS_REVALIDATE_SECRET` |
+| `NUXT_WEBSITE_MEDIA_DIR` | `/opt/apex/site-media` (owned by `apex`, outside the bundle) | the media library's files; the default `.data/site-media` is inside the deploy and would be swapped out |
+| `NUXT_UPLOAD_DIR` | `/opt/apex/uploads` | client and ticket uploads (Panel v2) — already needed, still unset |
+| `NUXT_ENCRYPTION_KEY` | a long random string | two-step secrets at rest (Settings re-check) |
+| `NUXT_COMPANIES_HOUSE_KEY` | optional | the lookup button hides without it |
+
+Generate a secret with `openssl rand -base64 48`. Paste it into both env
+files and nowhere else.
+
+### 9.3 Site — environment (`/opt/apex-web/.env`)
+
+| Key | Value |
+|---|---|
+| `NUXT_CMS_URL` | `http://127.0.0.1:3000` (the panel, as this box sees it) |
+| `NUXT_CMS_REVALIDATE_SECRET` | the same string as the panel's |
+
+With `NUXT_CMS_URL` empty the site renders its code baseline and the
+redirects, sitemap and settings come from the code too — that is the
+rollback position. `scripts/ship-web.sh` already creates and `chown`s
+`.data`, which is where the content snapshot (`.data/cms`) and the image
+cache (`.data/ipx`) live.
+
+### 9.4 Order of operations
+
+1. Panel: backup, SQL, schema copy, env keys, `bash scripts/ship-bundle.sh`.
+   Health check as today. The scheduler (`website:publish-due`, every
+   minute) starts with the process — one `node-server` process, so one
+   scheduler; do not run the panel under `node-cluster`.
+2. Sign in as the owner, open **Website → Pages → Import current site
+   content**. This creates one published document per page and piece of
+   chrome from the site's own code (33 today) and changes nothing the
+   visitor sees. Do it before the site deploy and the first publish both
+   work; do it after and the site simply keeps rendering its code until
+   then.
+3. Site: env keys, `bash scripts/ship-web.sh`. Check
+   `curl -s 127.0.0.1:3100/robots.txt` lists `Disallow: /preview/`, and
+   `curl -sI 127.0.0.1:3100/` carries a fresh CSP nonce per request.
+4. Invite the people who will edit (**Team & access**, roles Editor /
+   Publisher). An Editor lands on the Website overview, not the work queue.
+
+### 9.5 Rollback
+
+Both ship scripts keep `.output.previous`. Rolling the site back to a build
+without the CMS loses nothing: the panel's documents stay in the database.
+Rolling the panel back leaves the five tables in place (the old build
+ignores them) and the site degrades to its baseline on its next cache
+miss. Media files under `NUXT_WEBSITE_MEDIA_DIR` are never deleted by a
+deploy.

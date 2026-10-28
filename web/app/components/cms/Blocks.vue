@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { Block } from '../../../shared/cms'
+import type { Block } from '#shared/cms'
 
 /**
  * Structured text blocks (shared/cms/blocks.ts): every string is rendered

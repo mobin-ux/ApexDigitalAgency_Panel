@@ -41,7 +41,7 @@ Gates, each one commit (`feat(cms): …`), lint → typecheck vs baseline → te
 | 6 | Media library (sniff, dimensions, GET+HEAD), IPX disk cache, site settings + identity plugin | ✅ |
 | 7 | SEO tab, sitemap source, robots hook, redirects middleware, SEO audit | ✅ |
 | 8 | Overview dashboard, UX states, a11y, responsive | ✅ |
-| 9 | Full verification, docs, deployment notes, final report | ☐ |
+| 9 | Full verification, docs, deployment notes, final report | ✅ |
 
 **Baselines (2026-10-28, before any CMS code):** `pnpm test:tsc-demo` reports
 **56** errors (all in `layers/tairo` and pre-existing template files — the 87
@@ -335,9 +335,46 @@ Gate 2 gotchas:
 - A heredoc through the shell hook strips backslashes inside JS regexes —
   write edit scripts to the scratchpad and run them with node.
 
+**Gate 9 (2026-10-28).** Regression smoke over 19 admin routes (owner
+200; customer 302 to the dashboard), 8 customer routes (200), the
+anonymous redirects, 14 site addresses (200, the unknown one 404), the
+audit partition (430 rows = the seven kinds summed, 0 double-counted) and
+the team matrix (eight roles rendered). Site SSR HTML has no style
+attributes; the nine the browser shows in dev are Nuxt devtools, the vue
+tracer and the route announcer. Lint over every file the workstream
+touched (212, in chunks — the list exceeds Windows' command line), both
+typechecks at baseline, 31 unit + 22 API + 1 site. Docs:
+`docs/DEPLOYMENT.md` §9 (schema, env keys, order, first-run import,
+rollback), `docs/REQUIREMENTS.md` §1b and three gap rows,
+`DESIGN_SYSTEM.md` (Website module standards), `docs/ARCHITECTURE.md`
+(API table). The site's production build **failed first**: Vite externalised the
+relative `../../shared/cms` imports and Nitro could not resolve them from
+its chunk directory (`Could not resolve "../../../../../../../../shared/cms/
+index.ts"`). Every site import of the contract is `#shared/cms` now — the
+alias Nuxt bundles for both halves, which `#shared/contact` had already
+proven in the deployed build; the tests keep their relative `.ts` imports
+for `node --test`. The rebuild passed (1038 s here, 33 MB `.output`) and
+the built server, run on :3100 against the panel, answered pages 200, a
+redirect 301, the sitemap (21 addresses), robots.txt with the disallows,
+X-Robots-Tag on a summary case study, a fresh CSP nonce per request and
+404 for an unknown address. That smoke also caught a bad preview token
+rendering a 200 page titled "Preview: undefined": `ignoreResponseError`
+handed the proxy's 404 body to the page as a document. The page reads the
+fetch error now and answers 404 (the API suite asserts it).
+
+Gate 9 gotchas:
+- **`ignoreResponseError: true` turns an error body into `data`.** A page
+  that decides 404 from "no document" must read `error` from `useFetch`,
+  or an error object passes as a document.
+- **Import `web/shared` through `#shared/…` in the site's app and server
+  code, never by relative path.** Dev resolves both; the production server
+  build externalises the relative form and breaks in Nitro. Only tests use
+  the relative `.ts` path.
+
 **Not deployed:** nothing from this workstream, and the panel's Settings
 re-check commits (`1d4c5ae`, `8ea3dcd`) are still waiting for the user's
 review. Never deploy the panel or the site without the user's go-ahead.
+Deploy order and every key: `docs/DEPLOYMENT.md` §9.
 
 ## Panel v2 — `Panel Breakpoints.dc.html` (2026-10-24)
 

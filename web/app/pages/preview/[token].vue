@@ -11,13 +11,13 @@ import { CMS_MEDIA_KEY } from '~/composables/useCmsContent'
 definePageMeta({ layout: false })
 
 const route = useRoute()
-const { data: doc } = await useFetch<{ template: string, title: string, key: string, draftVersion: number, draftUpdatedAt: string, content: any, media?: Record<string, any> } | null>(`/api/cms/preview/${route.params.token}`, {
+// A bad or expired token is a 404 from the proxy; `ignoreResponseError` would hand that error body over as if it were a document.
+const { data: doc, error } = await useFetch<{ template: string, title: string, key: string, draftVersion: number, draftUpdatedAt: string, content: any, media?: Record<string, any> } | null>(`/api/cms/preview/${route.params.token}`, {
   default: () => null,
-  ignoreResponseError: true,
 })
 provide(CMS_MEDIA_KEY, computed(() => doc.value?.media ?? {}))
 
-if (!doc.value) {
+if (error.value || !doc.value?.template) {
   throw createError({ statusCode: 404, statusMessage: 'This preview link is not valid or has expired', fatal: true })
 }
 

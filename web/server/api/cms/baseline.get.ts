@@ -1,10 +1,10 @@
-import type { TemplateKey } from '../../../shared/cms'
+import type { TemplateKey } from '#shared/cms'
+import { TEMPLATES, validateContent } from '#shared/cms'
 import { publishedArticles } from '../../../app/data/articles'
 import { allCaseStudies } from '../../../app/data/case-studies'
 import { articleBaseline, caseStudyBaseline, fixedBaselines, serviceBaseline } from '../../../app/data/cms-baseline'
 import { routes } from '../../../app/data/routes'
 import { loadServicePage, servicePagePaths } from '../../../app/data/service-pages'
-import { TEMPLATES, validateContent } from '../../../shared/cms'
 
 /**
  * The code baseline as documents (ADR-021): one per fixed template and one

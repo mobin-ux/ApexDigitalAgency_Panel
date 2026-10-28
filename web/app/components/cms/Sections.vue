@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { Section } from '../../../shared/cms'
+import type { Section } from '#shared/cms'
 
 /**
  * Renders a landing page's sections in order. Each type has its own

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { MediaRef } from '../../../shared/cms'
+import type { MediaRef } from '#shared/cms'
 
 /**
  * A media-library reference rendered as an optimised image (or a link, for

@@ -1,6 +1,6 @@
-import type { SeoValue } from '../../shared/cms'
+import type { SeoValue } from '#shared/cms'
+import { resolveSeo } from '#shared/cms'
 import { setResponseHeader } from 'h3'
-import { resolveSeo } from '../../shared/cms'
 import { CMS_MEDIA_KEY } from './useCmsContent'
 
 /**

@@ -147,7 +147,9 @@ describe('website SEO and redirects', { skip: !enabled && 'CMS_TEST_URL is not s
       assert.equal(res.status, 404, 'with the redirect gone the address is an ordinary 404')
       const preview = await fetch(`${SITE}/preview/not-a-token`)
       await preview.arrayBuffer()
-      assert.equal(preview.headers.get('cache-control'), 'no-store')
+      assert.equal(preview.status, 404, 'a bad token is a 404, not a page titled "Preview: undefined"')
+      // The error page carries Nitro's own no-cache; a rendered preview carries the route rule's no-store. Neither is cacheable.
+      assert.match(preview.headers.get('cache-control') ?? '', /no-(store|cache)/)
       assert.equal(preview.headers.get('x-robots-tag'), 'noindex, nofollow')
     }
   })

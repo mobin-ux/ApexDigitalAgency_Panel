@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { Department } from '~/data/about'
+import { fill } from '#shared/cms'
 import { departments, team as teamData } from '~/data/about'
-import { fill } from '../../../shared/cms'
 
 const page = useCmsContent('about')
 const team = computed(() => ({

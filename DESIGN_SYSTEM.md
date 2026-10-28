@@ -93,6 +93,7 @@ ships as a `.dc.html` mockup plus a `PHASE-N-*.md` implementation spec.
 | 7M | **Settings at 393px** — the sub-nav becomes a hub, save is pinned and scoped | ✅ Done |
 | 9A | **Admin — Team & platform** — six staff roles, one enforced matrix, invites, platform settings, audit log | ✅ Done |
 | 9B | **Admin — Overview & work** — a work queue, an orders table with counts, the deliverable release gate | ✅ Done |
+| CMS | **Admin — Website module** (ADR-021) — pages, editor, navigation, media, SEO & redirects, site settings, panel content; the public site renders published documents over its code baseline | ✅ Done |
 
 #### Phase 1 — the shell standard (applies to every page from here on)
 
@@ -1250,6 +1251,46 @@ measure identically on pages this phase did not touch.
 A template whose first node is an HTML comment is multi-root, so the client
 hydrates a Fragment where the server rendered an element. Keep layout commentary
 inside the root node.
+#### Website module (ADR-021, 2026-10-28)
+
+No mockup: the seven screens under **Website** in the admin sidebar were
+built on the V2 admin vocabulary (`AdminPageHeader`, `AdminStatTile`,
+`AdminEmptyState`, `AdminAccessWall`, `ApexSectionLabel`, `BaseSelect`
+with a placeholder, toasts, `apex-fade`/`apex-pop`) and the standing rules.
+What the module adds to the standards:
+
+- **A form is generated from the contract, never written twice.** The field
+  DSL in `web/shared/cms/fields.ts` produces both the zod schema the server
+  validates with and the form `AdminWebsiteFields` renders, so a field
+  cannot exist in the editor without a rule behind it, or the other way
+  round. Errors come back by dotted path and land on the input.
+- **An action a role cannot take is absent, not disabled.** Workflow buttons
+  come from `availableActions()` filtered by `can()`; the overview's quick
+  actions, the SEO audit card and the money-like counts are left out for a
+  role that cannot open them (the endpoint does not send them), so a reader
+  never sees a figure with no screen behind it.
+- **Every count links to the list it counts** (`AdminStatTile` `to`), and
+  every destructive action confirms in the panel's own dialog:
+  `AdminWebsiteDialog` on reka's Dialog (focus trap, Escape, scroll lock,
+  focus return), the same foundation as the customer bottom sheet. In-row
+  confirmation (Remove → Confirm remove / Keep) is used where the row is the
+  context, as on Media and Redirects.
+- **A failed load says so.** `AdminWebsiteLoadError` renders the server's
+  reason and a Try again; an empty state means empty, never "could not
+  load".
+- **Leaving with unsaved changes asks**, on the editor and on Site settings,
+  through the same dialog and `beforeunload`.
+- **A live check is the form's own server call.** The redirect form asks
+  `POST redirects/check` as the two addresses are typed and shows the
+  loop/chain/shadow answer in an `aria-live` region; Save stays disabled
+  while the answer is an error.
+- Status chips: `AdminWebsiteStatusChip` carries the display status and
+  the publish error, one tone per state, from `DISPLAY_STATUS_LABEL` in
+  the shared contract.
+- Measured: zero horizontal overflow at 375 and 768 on every screen (the
+  pages table scrolls inside its card); the dialogs were checked for name,
+  description, focus, Escape and focus return in the browser.
+
 ### Panel v2 (`Panel Breakpoints.dc.html`, 2026-10-24)
 
 A third generation of the customer panel, built to match the website v2: the

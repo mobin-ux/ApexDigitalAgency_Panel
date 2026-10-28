@@ -1,4 +1,4 @@
-import type { TemplateKey } from '../../shared/cms'
+import type { TemplateKey } from '#shared/cms'
 
 /**
  * The site's read side of the CMS (ADR-021 §2).

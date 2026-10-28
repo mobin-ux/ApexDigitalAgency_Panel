@@ -1,7 +1,7 @@
-import { publicCacheHeaders } from '../../utils/website/content-api'
-import { mediaPath, MEDIA_SELECT } from '../../utils/website/media'
-import { getWebsiteSettings } from '../../utils/website/settings'
 import prisma from '../../utils/prisma'
+import { publicCacheHeaders } from '../../utils/website/content-api'
+import { MEDIA_SELECT, mediaPath } from '../../utils/website/media'
+import { getWebsiteSettings } from '../../utils/website/settings'
 
 /**
  * The site's settings as the site reads them (public, cacheable): company

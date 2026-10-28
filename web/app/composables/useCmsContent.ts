@@ -1,8 +1,8 @@
+import type { ResolveWarning, TemplateContent, TemplateKey } from '#shared/cms'
 import type { ComputedRef, InjectionKey, Ref } from 'vue'
-import type { ResolveWarning, TemplateContent, TemplateKey } from '../../shared/cms'
 import type { FixedBaselineKey } from '~/data/cms-baseline'
+import { resolveDocument, resolveSections, TEMPLATES, validateContent } from '#shared/cms'
 import { fixedBaselines } from '~/data/cms-baseline'
-import { resolveDocument, resolveSections, TEMPLATES, validateContent } from '../../shared/cms'
 
 /**
  * The content a page or a piece of chrome renders (ADR-021).

@@ -1,4 +1,4 @@
-import type { LinkValue } from '../../shared/cms'
+import type { LinkValue } from '#shared/cms'
 
 /**
  * Turn a stored link into the props a `NuxtLink`/`UiButton` takes: an

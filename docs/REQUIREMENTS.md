@@ -19,6 +19,32 @@ implementation. Hard rules live in CLAUDE.md; rationale in docs/decisions/.
       duration, financing breakdown, payment schedule
 - [x] Complete and submit orders directly in the platform (e-sign → POST /api/orders)
 
+### 1b. Website management (2026-10-28, ADR-021)
+
+The panel is also the content system for the public website. Staff with the
+website roles must be able to:
+
+- [x] Edit every page's copy (home, services, each service, our work, each
+      case study, insights, each article, about, contact), the menus, the
+      footer and an announcement bar, with the site's code as the baseline
+      and the panel's document laid over it field by field
+- [x] Create landing pages at new addresses from eleven section types
+- [x] Work through a lifecycle: draft → review → approve → publish, schedule
+      for a time, unpublish, archive, restore, with every revision kept and
+      restorable, and a preview link for a draft that expires
+- [x] Manage a media library (images and PDFs, checked by their bytes, with
+      alt text, usage and replacement) and use it in documents
+- [x] Set the site's facts and defaults (company details, social profiles,
+      search title and description, social image, robots disallows)
+- [x] Manage SEO per page (title, description, canonical, robots, social
+      tags), redirects, and see an audit of what search engines will find
+- [x] Edit the customer panel's own documents: Terms, Privacy, the
+      dashboard promo, a panel announcement, and the credit-applications switch
+- [x] See every change in the audit log, attributed and with the role held
+
+Held out, stated in ADR-021: localisation, dynamic roles, OG-image
+generation, drag-and-drop page building, email notifications, a CDN.
+
 ## 2. The financing product (core differentiator — copy-accurate)
 
 - **"0% Finance"**: 12-month interest-free instalments, **no upfront payment**
@@ -130,3 +156,6 @@ implementation. Hard rules live in CLAUDE.md; rationale in docs/decisions/.
 | No mail provider: staff invites, password resets and notifications cannot be emailed. The invite panel hands the operator a link to pass on instead | a self-service invite flow; "check your inbox" copy that is literally true |
 | ~~No `DeliverableRelease` model~~ **done** (ADR-017): releasing and withholding project files is real, the platform rule governs it, and the audit log's Files bucket is populated. Clients can now upload to their order (Panel v2, `/api/uploads`); **still missing: a staff uploader** — deliverable `ProjectFile` rows arrive by seed or direct record | an uploader for project deliverables |
 | Instalment pricing is fixed to 12 and 24 months (ADR-011), so the platform cannot offer the design's 3/6/36-month terms | a per-service term catalogue (Phase 9 Support & Catalogue, badge 21) |
+| No mail provider, so the CMS cannot email a publisher that a draft is waiting for review, or an editor that a draft was sent back; the overview's counts and the audit log are the only signal | review notifications |
+| An article's body and a case study's chapters are not CMS fields (the overlay covers title, lead, excerpt, search listing); the catalogue in `web/app/data` holds them | writing a new article or study from the panel |
+| The legal documents are editable in the panel, but the text itself still has to come from the business; the pages keep their placeholder and `TODO(legal)` until it is published | an enforceable click-wrap at signup |

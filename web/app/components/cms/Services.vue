@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { SectionProps } from '../../../shared/cms'
+import type { SectionProps } from '#shared/cms'
 import { routes } from '~/data/routes'
 import { catalogueServices } from '~/data/services'
 import { formatGbp } from '~/utils/format'

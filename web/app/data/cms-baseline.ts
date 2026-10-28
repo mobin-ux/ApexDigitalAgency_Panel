@@ -1,4 +1,4 @@
-import type { TemplateContent, TemplateKey } from '../../shared/cms'
+import type { TemplateContent, TemplateKey } from '#shared/cms'
 import type { Article } from './articles'
 import type { CaseStudy } from './case-studies'
 import type { ServicePageContent } from './service-pages/types'

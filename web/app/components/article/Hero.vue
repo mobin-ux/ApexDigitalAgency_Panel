@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import type { Article, ArticleBody } from '~/data/articles'
+import { fill } from '#shared/cms'
 import { articleTopic } from '~/data/articles'
 import { routes } from '~/data/routes'
-import { fill } from '../../../shared/cms'
 
 const props = defineProps<{ article: Article, body: ArticleBody }>()
 const chrome = useCmsContent('article-chrome')

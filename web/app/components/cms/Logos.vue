@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { SectionProps } from '../../../shared/cms'
+import type { SectionProps } from '#shared/cms'
 
 defineProps<{ id: string, props: SectionProps<'logos'> }>()
 </script>
