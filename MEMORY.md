@@ -371,10 +371,47 @@ Gate 9 gotchas:
   build externalises the relative form and breaks in Nitro. Only tests use
   the relative `.ts` path.
 
-**Not deployed:** nothing from this workstream, and the panel's Settings
-re-check commits (`1d4c5ae`, `8ea3dcd`) are still waiting for the user's
-review. Never deploy the panel or the site without the user's go-ahead.
-Deploy order and every key: `docs/DEPLOYMENT.md` §9.
+## Production deploy — 2026-10-28 (panel: Panel v2 → CMS; site: CMS)
+
+On the user's go-ahead ("Deploy both"). The live panel had been on the
+Phase 9B schema since 2026-10-20, so this deploy carried **everything from
+Panel v2 onward** (client actions, credit applications, sessions, two-step,
+avatars, the Support revision and the CMS) in one additive migration.
+
+- **Schema:** `prisma migrate diff` from the live `schema.prisma` to the
+  repo's, applied with the panel stopped for a few seconds: 8 `ADD COLUMN`
+  (User, Company, Transaction, Ticket), 9 new tables (ClientAction,
+  CreditApplication, Session, TwoFactor, the five `Site*`), and Project /
+  Installment / Attachment redefined with every existing column copied
+  (every required column without a default was in the copy list, checked
+  before running). Integrity ok, row counts identical (5 users, 5 projects,
+  5 instalments, 14 transactions), 28 → 37 tables. Backup
+  `/opt/apex/backups/dev.db.20261028-105726.pre-cms`, the SQL beside it as
+  `migration-20261028-105726.sql`. The four `foreign_key_check` rows
+  (LedgerEntry → missing PaymentIntent) are identical in the pre-Phase-9
+  backup: pre-existing, not this migration.
+- **Env:** panel gained `NUXT_WEBSITE_SITE_URL`, `NUXT_WEBSITE_REVALIDATE_SECRET`,
+  `NUXT_WEBSITE_MEDIA_DIR=/opt/apex/site-media`, `NUXT_UPLOAD_DIR=/opt/apex/uploads`
+  (`NUXT_ENCRYPTION_KEY` was already there); site gained `NUXT_CMS_URL` and
+  `NUXT_CMS_REVALIDATE_SECRET`. The secret was generated on the box and
+  never left it. Both directories exist, owned by `apex`.
+- **Panel** shipped with `ship-bundle.sh` (167 MB, health 200, Stripe live
+  keys intact). **Site** shipped with `ship-web.sh` (built on the box,
+  health 200). Verified on the box: `/api/site/*` public and cacheable,
+  site pages 200, `/preview/x` 404, robots.txt with `/preview/` and
+  `/api/`, sitemap 15 addresses, a fresh CSP nonce per request,
+  `X-Robots-Tag` on a summary case study, `GET /api/cms/baseline` → 33
+  documents, revalidate 401 without the secret and `{ok,purged:9}` with
+  it, the site reading the panel's (empty) settings, both journals clean,
+  both sslip hosts answering through Caddy.
+- **Still to do by hand:** sign in as the owner and run **Website → Pages →
+  Import current site content** (no owner credentials are known here);
+  until then the site renders its code baseline, which is identical. Then
+  invite the editors.
+
+**Deployed now:** everything on master up to this commit. Never deploy the
+panel or the site without the user's go-ahead. Deploy order and every key:
+`docs/DEPLOYMENT.md` §9.
 
 ## Panel v2 — `Panel Breakpoints.dc.html` (2026-10-24)
 

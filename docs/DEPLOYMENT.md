@@ -227,15 +227,15 @@ cache (`.data/ipx`) live.
    Health check as today. The scheduler (`website:publish-due`, every
    minute) starts with the process — one `node-server` process, so one
    scheduler; do not run the panel under `node-cluster`.
-2. Sign in as the owner, open **Website → Pages → Import current site
-   content**. This creates one published document per page and piece of
-   chrome from the site's own code (33 today) and changes nothing the
-   visitor sees. Do it before the site deploy and the first publish both
-   work; do it after and the site simply keeps rendering its code until
-   then.
-3. Site: env keys, `bash scripts/ship-web.sh`. Check
+2. Site: env keys, `bash scripts/ship-web.sh`. Check
    `curl -s 127.0.0.1:3100/robots.txt` lists `Disallow: /preview/`, and
    `curl -sI 127.0.0.1:3100/` carries a fresh CSP nonce per request.
+3. Sign in as the owner, open **Website → Pages → Import current site
+   content**. This reads the site's own `GET /api/cms/baseline` (so the
+   new site must be live first) and creates one published document per
+   page and piece of chrome (33 today); nothing the visitor sees changes
+   until a document is edited and published. Until the import is done the
+   site keeps rendering its code, which is identical.
 4. Invite the people who will edit (**Team & access**, roles Editor /
    Publisher). An Editor lands on the Website overview, not the work queue.
 
