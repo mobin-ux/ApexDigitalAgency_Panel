@@ -2,7 +2,7 @@
 
 > Handoff doc for continuing work in fresh sessions. Update the relevant section
 > whenever a page ships, a decision lands, or a blocker appears.
-> Last updated: **2026-10-25** (Panel v2: dashboard, New order and My orders revisions; Wallet revision — credit by application, ADR-020; Support revision — call requests and ratings; 2026-10-27 Settings re-check — profile photos, signed-in devices, two-step verification).
+> Last updated: **2026-10-28** (Website CMS, Gate 1 — ADR-021; 2026-10-25 Panel v2: dashboard, New order and My orders revisions; Wallet revision — credit by application, ADR-020; Support revision — call requests and ratings; 2026-10-27 Settings re-check — profile photos, signed-in devices, two-step verification).
 
 ## Where things stand
 
@@ -16,7 +16,47 @@
 - Stale branch `refactor/apex-dashboard` (local + origin) is superseded by master;
   deletable, but ask the user first.
 
-## Panel v2 — `Panel Breakpoints.dc.html` (2026-10-24)  ⬅ CURRENT
+## Website CMS — in progress (started 2026-10-28)  ⬅ CURRENT WORKSTREAM
+
+The panel becomes the content management system for the public website and
+for a few customer-facing panel documents. Design and decisions: ADR-021.
+The user settled two choices before the plan was approved: **SSR per request
+over cached content** (no HTML `swr`, because nuxt-security would reuse one
+CSP nonce for the cache lifetime) and **extend the fixed role matrix** with
+Editor and Publisher (no dynamic roles). The site keeps its typed data as the
+baseline and renders `overlay ?? baseline`; the contract lives once in
+`web/shared/cms/` and the panel imports it by relative path through
+`.demo/shared/cms.ts`.
+
+Gates, each one commit (`feat(cms): …`), lint → typecheck vs baseline → tests
+→ preview → docs → `graphify update .` → push:
+
+| Gate | Scope | Status |
+|---|---|---|
+| 1 | Baselines, ADR-021, contract stub, cross-tree import proven, `zod@3.25.76` pinned in `web/` | ✅ |
+| 2 | Roles/permissions, audit bucket, sidebar group, `homeFor(role)`, Prisma models + migration SQL, field DSL + templates, settings registry, state machine, purpose tokens, test harness | ☐ |
+| 3 | Site refactor: template-typed copy into data (~25 components), core templates, `cms-baseline.ts`, `GET /api/cms/baseline` | ☐ |
+| 4 | Documents, publish/unpublish, revisions, preview tokens, `/api/site/**`, site `cms.ts` + proxies + revalidate, editor UI, landing renderer, import | ☐ |
+| 5 | Review workflow, scheduling task, key change + redirect, navigation globals, announcement bar, panel content, `credit.applications-open` | ☐ |
+| 6 | Media library (sniff, dimensions, GET+HEAD), IPX disk cache, site settings + identity plugin | ☐ |
+| 7 | SEO tab, sitemap source, robots hook, redirects middleware, SEO audit | ☐ |
+| 8 | Overview dashboard, UX states, a11y, responsive | ☐ |
+| 9 | Full verification, docs, deployment notes, final report | ☐ |
+
+**Baselines (2026-10-28, before any CMS code):** `pnpm test:tsc-demo` reports
+**56** errors (all in `layers/tairo` and pre-existing template files — the 87
+recorded below was an older count); `pnpm web:typecheck` exits 0. Check a gate
+against those, not against zero.
+
+**Gate 1 proof:** a temporary `server/api/_cms-probe.get.ts` importing
+`~~/shared/cms` answered `{ "version": 1 }` on the panel dev server, so Nitro
+bundles files from the `web/` tree by relative path. The probe was deleted.
+
+**Not deployed:** nothing from this workstream, and the panel's Settings
+re-check commits (`1d4c5ae`, `8ea3dcd`) are still waiting for the user's
+review. Never deploy the panel or the site without the user's go-ahead.
+
+## Panel v2 — `Panel Breakpoints.dc.html` (2026-10-24)
 
 The customer panel was redesigned again as "Panel v2": six pages (Dashboard,
 New order, My orders, Wallet, Support, Settings) in one new shell, light by
@@ -420,7 +460,7 @@ leaving an invisible full-screen overlay that swallowed all clicks (close handle
 "did nothing"). Fix: drop `<Transition>`, use plain `v-if` + the `.apex-fade`/`.apex-pop`
 classes. If a future modal "won't close," suspect a stuck Transition-leave first.
 
-## V2 redesign — in progress  ⬅ CURRENT WORKSTREAM
+## V2 redesign (complete)
 
 The client is shipping a second-generation design from a Claude Design project
 (`19ec9d54-4e35-471d-a590-b6280be241d3`), one phase at a time, each as a
