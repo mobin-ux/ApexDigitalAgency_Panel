@@ -2,7 +2,7 @@
 
 > Handoff doc for continuing work in fresh sessions. Update the relevant section
 > whenever a page ships, a decision lands, or a blocker appears.
-> Last updated: **2026-10-28** (Website CMS, Gate 1 — ADR-021; 2026-10-25 Panel v2: dashboard, New order and My orders revisions; Wallet revision — credit by application, ADR-020; Support revision — call requests and ratings; 2026-10-27 Settings re-check — profile photos, signed-in devices, two-step verification).
+> Last updated: **2026-10-28** (Mail provider deployed — ADR-022; Website CMS — ADR-021; 2026-10-25 Panel v2: dashboard, New order and My orders revisions; Wallet revision — credit by application, ADR-020; Support revision — call requests and ratings; 2026-10-27 Settings re-check — profile photos, signed-in devices, two-step verification).
 
 ## Where things stand
 
@@ -371,7 +371,7 @@ Gate 9 gotchas:
   build externalises the relative form and breaks in Nitro. Only tests use
   the relative `.ts` path.
 
-## Mail provider — in progress (started 2026-10-28)  ⬅ CURRENT WORKSTREAM
+## Mail provider — done and deployed (2026-10-28)  ⬅ LATEST WORKSTREAM
 
 The panel gets outgoing email: Resend over REST (the site's contact form
 already uses it), behind a durable outbox. Design and decisions: ADR-022.
@@ -471,14 +471,40 @@ REQUIREMENTS §5 (reset, verification) and §6 (both mail rows done),
 DESIGN_SYSTEM (invite, release, Settings switch, signup verification),
 ADR-016 (invites emailed), ARCHITECTURE, DEPLOYMENT §10.
 
-**Workstream complete (2026-10-28).** Four gates, all on master. Not
-deployed: production needs `docs/migrations/2026-10-mail.sql` (one table,
-two columns), `NUXT_PUBLIC_SITE_URL` confirmed as the panel's public
-origin, and, once `apexdigi.co.uk` is renewed and verified in Resend, the
-two `NUXT_MAIL_*` keys (DEPLOYMENT §10). Never deploy without the user's
-go-ahead. Verified end to end only on the keyless dev server (every row
-FAILED "Mail is not configured", as designed); a real send still has to be
-tried by hand with the owner's address once a key exists.
+**Workstream complete and deployed (2026-10-28).** Four gates, all on
+master, live on the VPS on the user's go-ahead ("Deploy panel now") with
+the mail keys unset. Order followed DEPLOYMENT §10: pre-flight (no
+`NUXT_MAIL_*` keys, `NUXT_PUBLIC_SITE_URL=https://panel.apexdigi.co.uk`,
+integrity ok), then `docs/migrations/2026-10-mail.sql` applied in one
+transaction with the panel stopped for a few seconds — backup
+`/opt/apex/backups/dev.db.20261028-145202.pre-mail`, the SQL and the
+schema beside it as `migration-20261028-145202-mail.sql` and
+`schema-20261028-145202-mail.prisma`; 37 → 38 tables, `MailMessage` with
+its three indexes, `User.emailNotifications` on for all 5 accounts,
+`SiteDocument.submittedById` present, row counts unchanged (5 users,
+5 projects, 28 notifications, 14 transactions); `/opt/apex/prisma/
+schema.prisma` replaced with the repo's. Bundle shipped with
+`ship-bundle.sh` (183 MB, health 200, Stripe live keys intact, previous
+build kept at `/opt/apex/.output.previous`). Verified on the box: startup
+checks passed (9, no mail warning because no key is set), login, recover
+and verify-email pages 200, `/api/config` serves `features.mail: false`,
+`/api/admin/mail` 401 anonymous, `/api/_test/mail` 404, a bad
+verification token 400, a reset request for an unknown address 200 and
+queues nothing (0 `MailMessage` rows), the sslip host 200 through Caddy,
+journal clean. Not seen: the Email screen's "Not configured" card, which
+needs an owner sign-in (no owner credentials are known here); the
+endpoint behind it answers as designed. Two 403s in the first verify run
+were the panel's own CSRF check refusing an `Origin` that did not match
+the loopback `Host` — a check working, not a defect; the same requests
+through Caddy with a matching origin answered 400 and 200.
+
+**Still to do by hand:** once `apexdigi.co.uk` is renewed and verified in
+Resend, set `NUXT_MAIL_RESEND_API_KEY` and `NUXT_MAIL_FROM` in
+`/opt/apex/.env.production`, restart `apex`, and send a test email from
+System → Email; any FAILED `notification` or `staff-invite` rows written
+meanwhile can be retried from that screen (reset and verification rows
+cannot — their links died with their tokens). Never deploy without the
+user's go-ahead.
 
 Gate 3 gotchas:
 - **eslint-plugin-unicorn still crashes on `server/payments/*`**; lint that
