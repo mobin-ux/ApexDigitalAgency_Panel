@@ -21,7 +21,7 @@ const toaster = useNuiToasts()
 const { can } = useStaffAccess()
 const allowed = computed(() => can('website.view'))
 
-const { data, pending, refresh } = await useFetch('/api/admin/website/documents', { query: { kind: 'panel', pageSize: 50 }, immediate: allowed.value })
+const { data, pending, refresh, error } = await useFetch('/api/admin/website/documents', { query: { kind: 'panel', pageSize: 50 }, immediate: allowed.value })
 const { data: config, refresh: refreshConfig } = await useFetch('/api/config', { key: 'apex-config-panel', immediate: allowed.value })
 
 const SLOTS = [
@@ -93,6 +93,8 @@ const CARD = 'border-muted-200 bg-white dark:border-muted-800 dark:bg-muted-900 
       title="Website content is not part of your role"
       body="Panel content is part of the website module."
     />
+
+    <AdminWebsiteLoadError v-else-if="error" :error="error" title="Could not load the panel documents" @retry="refresh()" />
 
     <template v-else>
       <div :class="CARD" class="divide-muted-200 flex flex-col divide-y dark:divide-white/5">

@@ -41,7 +41,7 @@ interface Issue {
   redirectId?: string
 }
 
-const { data: redirects, pending, refresh } = await useFetch<{ items: Redirect[] }>('/api/admin/website/redirects', { immediate: allowed.value })
+const { data: redirects, pending, refresh, error } = await useFetch<{ items: Redirect[] }>('/api/admin/website/redirects', { immediate: allowed.value })
 const { data: audit, pending: auditPending, refresh: refreshAudit } = await useFetch<{ issues: Issue[], checked: { documents: number, redirects: number } }>('/api/admin/website/seo-audit', { immediate: canEdit.value })
 
 /* ------------------------------------------------------------ redirect form */
@@ -182,6 +182,8 @@ const LABEL = 'text-muted-900 mb-1.5 block text-[13.5px] font-semibold dark:text
       title="Website content is not part of your role"
       body="Redirects and the SEO audit are part of the website module."
     />
+
+    <AdminWebsiteLoadError v-else-if="error" :error="error" title="Could not load the redirects" @retry="refresh()" />
 
     <template v-else>
       <!-- ========== Redirects ========== -->

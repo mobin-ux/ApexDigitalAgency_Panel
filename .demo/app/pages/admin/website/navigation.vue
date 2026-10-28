@@ -21,7 +21,7 @@ definePageMeta({
 const { can } = useStaffAccess()
 const allowed = computed(() => can('website.view'))
 
-const { data, pending } = await useFetch('/api/admin/website/documents', { query: { kind: 'global', pageSize: 50 }, immediate: allowed.value })
+const { data, pending, error, refresh } = await useFetch('/api/admin/website/documents', { query: { kind: 'global', pageSize: 50 }, immediate: allowed.value })
 
 const ORDER = ['header', 'footer', 'announcement', 'service-chrome', 'case-study-chrome', 'article-chrome'] as const
 const rows = computed(() => ORDER.map((template) => {
@@ -49,6 +49,8 @@ const CARD = 'border-muted-200 bg-white dark:border-muted-800 dark:bg-muted-900 
       title="Website content is not part of your role"
       body="Navigation is part of the website module."
     />
+
+    <AdminWebsiteLoadError v-else-if="error" :error="error" title="Could not load the navigation documents" @retry="refresh()" />
 
     <div v-else :class="CARD" class="divide-muted-200 flex flex-col divide-y dark:divide-white/5">
       <div v-for="row in rows" :key="row.template" class="flex flex-col gap-3 px-6 py-5 sm:flex-row sm:items-center">

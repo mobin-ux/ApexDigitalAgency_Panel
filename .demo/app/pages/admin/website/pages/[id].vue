@@ -247,6 +247,23 @@ async function restore(number: number) {
 // Leaving with unsaved changes asks in the panel's own dialog (no native confirm).
 const pendingLeave = ref<string | null>(null)
 const leaveConfirmed = ref(false)
+// The dialogs are reka-based (focus trap, Escape, focus return); their open state is derived from the intent that opened them.
+const leaveOpen = computed({
+  get: () => pendingLeave.value !== null,
+  set: (v: boolean) => {
+    if (!v) {
+      pendingLeave.value = null
+    }
+  },
+})
+const confirmOpen = computed({
+  get: () => confirming.value !== null,
+  set: (v: boolean) => {
+    if (!v) {
+      confirming.value = null
+    }
+  },
+})
 onBeforeRouteLeave((to) => {
   if (dirty.value && !leaveConfirmed.value) {
     pendingLeave.value = to.fullPath
@@ -502,53 +519,39 @@ const INPUT = 'focus:border-primary-400 w-full rounded-xl border border-muted-20
     </div>
 
     <!-- ========== LEAVE WITH UNSAVED CHANGES ========== -->
-    <div v-if="pendingLeave" class="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="leave-title">
-      <div class="apex-fade absolute inset-0 bg-black/60 backdrop-blur-sm" @click="pendingLeave = null" />
-      <div class="apex-pop relative flex w-full max-w-[440px] flex-col gap-4 rounded-2xl border border-muted-200 bg-white p-6 shadow-[0_30px_60px_rgba(0,0,0,.5)] dark:border-white/10 dark:bg-muted-800">
-        <h2 id="leave-title" class="font-heading text-muted-900 text-[18px] font-extrabold tracking-[-0.01em] dark:text-white">
-          Leave without saving?
-        </h2>
-        <p class="text-muted-500 text-[13px] leading-[1.5]">
-          Your unsaved changes to this draft will be lost.
-        </p>
-        <div class="flex justify-end gap-2">
-          <BaseButton variant="muted" rounded="lg" @click="pendingLeave = null">
-            Stay
-          </BaseButton>
-          <BaseButton variant="primary" rounded="lg" @click="leaveAnyway">
-            Leave
-          </BaseButton>
-        </div>
-      </div>
-    </div>
+    <AdminWebsiteDialog v-model:open="leaveOpen" title="Leave without saving?" description="Your unsaved changes to this draft will be lost.">
+      <template #actions>
+        <BaseButton variant="muted" rounded="lg" @click="pendingLeave = null">
+          Stay
+        </BaseButton>
+        <BaseButton variant="primary" rounded="lg" @click="leaveAnyway">
+          Leave
+        </BaseButton>
+      </template>
+    </AdminWebsiteDialog>
 
     <!-- ========== CONFIRM ========== -->
-    <div v-if="confirming" class="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
-      <div class="apex-fade absolute inset-0 bg-black/60 backdrop-blur-sm" @click="confirming = null" />
-      <div class="apex-pop relative flex w-full max-w-[480px] flex-col gap-4 rounded-2xl border border-muted-200 bg-white p-6 shadow-[0_30px_60px_rgba(0,0,0,.5)] dark:border-white/10 dark:bg-muted-800">
-        <h2 id="confirm-title" class="font-heading text-muted-900 text-[18px] font-extrabold tracking-[-0.01em] dark:text-white">
-          {{ confirming === 'delete' ? 'Delete this draft?' : CONFIRM_COPY[confirming]?.title }}
-        </h2>
-        <p class="text-muted-500 text-[13px] leading-[1.5]">
-          {{ confirming === 'delete' ? 'It has never been published, so nothing on the site changes. This cannot be undone.' : CONFIRM_COPY[confirming]?.body }}
-        </p>
-        <div v-if="confirming === 'schedule'">
-          <label for="schedule-at" class="text-muted-900 mb-1.5 block text-[13.5px] font-semibold dark:text-white">Publish at</label>
-          <input id="schedule-at" v-model="scheduleAt" type="datetime-local" :min="minSchedule" :class="INPUT">
-        </div>
-        <div class="flex justify-end gap-2">
-          <BaseButton variant="muted" rounded="lg" @click="confirming = null">
-            Cancel
-          </BaseButton>
-          <BaseButton
-            variant="primary" rounded="lg" :loading="acting"
-            :disabled="acting || (confirming === 'schedule' && !scheduleAt)"
-            @click="confirming === 'delete' ? deleteDraft() : run(confirming!)"
-          >
-            {{ confirming === 'delete' ? 'Delete' : CONFIRM_COPY[confirming]?.button }}
-          </BaseButton>
-        </div>
+    <AdminWebsiteDialog
+      v-model:open="confirmOpen"
+      :title="confirming === 'delete' ? 'Delete this draft?' : (confirming && CONFIRM_COPY[confirming]?.title) || ''"
+      :description="confirming === 'delete' ? 'It has never been published, so nothing on the site changes. This cannot be undone.' : (confirming && CONFIRM_COPY[confirming]?.body) || ''"
+    >
+      <div v-if="confirming === 'schedule'">
+        <label for="schedule-at" class="text-muted-900 mb-1.5 block text-[13.5px] font-semibold dark:text-white">Publish at</label>
+        <input id="schedule-at" v-model="scheduleAt" type="datetime-local" :min="minSchedule" :class="INPUT">
       </div>
-    </div>
+      <template #actions>
+        <BaseButton variant="muted" rounded="lg" @click="confirming = null">
+          Cancel
+        </BaseButton>
+        <BaseButton
+          variant="primary" rounded="lg" :loading="acting"
+          :disabled="acting || (confirming === 'schedule' && !scheduleAt)"
+          @click="confirming === 'delete' ? deleteDraft() : run(confirming!)"
+        >
+          {{ confirming === 'delete' ? 'Delete' : (confirming && CONFIRM_COPY[confirming]?.button) || 'Confirm' }}
+        </BaseButton>
+      </template>
+    </AdminWebsiteDialog>
   </div>
 </template>

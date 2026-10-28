@@ -40,7 +40,7 @@ Gates, each one commit (`feat(cms): …`), lint → typecheck vs baseline → te
 | 5 | Review workflow, scheduling task, key change + redirect, navigation globals, announcement bar, panel content, `credit.applications-open` | ✅ |
 | 6 | Media library (sniff, dimensions, GET+HEAD), IPX disk cache, site settings + identity plugin | ✅ |
 | 7 | SEO tab, sitemap source, robots hook, redirects middleware, SEO audit | ✅ |
-| 8 | Overview dashboard, UX states, a11y, responsive | ☐ |
+| 8 | Overview dashboard, UX states, a11y, responsive | ✅ |
 | 9 | Full verification, docs, deployment notes, final report | ☐ |
 
 **Baselines (2026-10-28, before any CMS code):** `pnpm test:tsc-demo` reports
@@ -218,6 +218,34 @@ with the query kept, the sitemap without it, robots.txt with the
 disallows; 302 after a patch, off not served, delete → 404, preview
 no-store). 31 unit, 22 API, 1 site; both typechecks at baseline; the
 eleven-page text diff is identical to the pre-CMS snapshots.
+
+**Gate 8 shipped (2026-10-28).** The overview is a screen you act from:
+every tile links to the list it counts (`AdminStatTile` gained `to`),
+quick actions show only the screens the signed-in role may open, the
+failed-publish / waiting-for-the-site card carries "Retry now" (the
+scheduler's job, `POST publish-due`, for `website.publish`), scheduled and
+failed rows open the editor, and a "Search and addresses" card counts the
+redirects and, for a role holding `website.seo`, the audit's issues
+(computed server-side only for those roles, so a reader never sees a count
+with no screen behind it). Every website screen renders
+`AdminWebsiteLoadError` (the server's reason + Try again) when its fetch
+fails, instead of the empty state it used to show. The editor's two
+dialogs (leave without saving, confirm an action) and Settings' new leave
+guard are `AdminWebsiteDialog`, built on reka's Dialog like the customer
+bottom sheet: measured in the browser — labelled and described, focus
+moves inside, body scroll locks, Escape closes, focus returns to the
+button that opened it. The hand-rolled dialogs had none of that. Settings
+now asks before leaving with unsaved values (route change and
+`beforeunload`), and Discard still resets. Audit `detailOf` already
+covered every `admin.website.*` action the server writes (checked by
+diffing the emitted set against the cases). Responsive: zero horizontal
+overflow at 375 and 768 on overview, pages, editor, media, settings and
+SEO; the pages table scrolls inside its card by design.
+
+Gate 8 gotcha:
+- **`AdminStatTile` renders a `<component :is>`** — pass `to` and it is a
+  `NuxtLink` with the focus ring; the two other admin screens that use it
+  (contracts, payments) are unchanged because they pass none.
 
 Gate 7 gotchas:
 - **h3 helpers are not auto-imported in the site's app code**:

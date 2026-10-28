@@ -20,7 +20,7 @@ const { can } = useStaffAccess()
 const allowed = computed(() => can('website.view'))
 const canSave = computed(() => can('website.settings'))
 
-const { data, refresh } = await useFetch<{ fields: { key: string, label: string, group: string, hint: string }[], values: Record<string, unknown> }>('/api/admin/website/settings', { immediate: allowed.value })
+const { data, refresh, error } = await useFetch<{ fields: { key: string, label: string, group: string, hint: string }[], values: Record<string, unknown> }>('/api/admin/website/settings', { immediate: allowed.value })
 
 const values = ref<Record<string, unknown>>({})
 const saved = ref('')
@@ -80,6 +80,39 @@ function discard() {
   errors.value = {}
 }
 
+// Leaving with unsaved changes asks in the panel's own dialog (no native confirm), as the editor does.
+const pendingLeave = ref<string | null>(null)
+const leaveConfirmed = ref(false)
+const leaveOpen = computed({
+  get: () => pendingLeave.value !== null,
+  set: (v: boolean) => {
+    if (!v) {
+      pendingLeave.value = null
+    }
+  },
+})
+onBeforeRouteLeave((to) => {
+  if (dirty.value && !leaveConfirmed.value) {
+    pendingLeave.value = to.fullPath
+    return false
+  }
+})
+function leaveAnyway() {
+  leaveConfirmed.value = true
+  const target = pendingLeave.value
+  pendingLeave.value = null
+  if (target) {
+    navigateTo(target)
+  }
+}
+function beforeUnload(e: BeforeUnloadEvent) {
+  if (dirty.value) {
+    e.preventDefault()
+  }
+}
+onMounted(() => window.addEventListener('beforeunload', beforeUnload))
+onBeforeUnmount(() => window.removeEventListener('beforeunload', beforeUnload))
+
 const CARD = 'border-muted-200 bg-white dark:border-muted-800 dark:bg-muted-900 rounded-2xl border'
 const INPUT = 'focus:border-primary-400 w-full rounded-xl border border-muted-200 bg-muted-50 px-3.5 py-2.5 text-sm text-muted-900 outline-none placeholder:text-muted-400 dark:border-white/10 dark:bg-white/5 dark:text-white dark:placeholder:text-muted-500'
 const LABEL = 'text-muted-900 mb-1.5 block text-[13.5px] font-semibold dark:text-white'
@@ -98,6 +131,8 @@ const LABEL = 'text-muted-900 mb-1.5 block text-[13.5px] font-semibold dark:text
       title="Website content is not part of your role"
       body="Site settings are part of the website module."
     />
+
+    <AdminWebsiteLoadError v-else-if="error" :error="error" title="Could not load the settings" @retry="refresh()" />
 
     <form v-else class="flex flex-col gap-6" @submit.prevent="save">
       <fieldset :disabled="!canSave" class="flex flex-col gap-6">
@@ -154,5 +189,16 @@ const LABEL = 'text-muted-900 mb-1.5 block text-[13.5px] font-semibold dark:text
         An Owner or Admin changes these.
       </p>
     </form>
+
+    <AdminWebsiteDialog v-model:open="leaveOpen" title="Leave without saving?" description="Your unsaved changes to the site settings will be lost.">
+      <template #actions>
+        <BaseButton variant="muted" rounded="lg" @click="pendingLeave = null">
+          Stay
+        </BaseButton>
+        <BaseButton variant="primary" rounded="lg" @click="leaveAnyway">
+          Leave
+        </BaseButton>
+      </template>
+    </AdminWebsiteDialog>
   </div>
 </template>

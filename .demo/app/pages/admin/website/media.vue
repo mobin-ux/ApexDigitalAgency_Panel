@@ -32,7 +32,7 @@ watch(kind, () => {
   page.value = 1
 })
 const query = computed(() => ({ page: page.value, pageSize: 48, ...(debouncedSearch.value ? { q: debouncedSearch.value } : {}), ...(kind.value ? { kind: kind.value } : {}) }))
-const { data, pending, refresh } = await useFetch('/api/admin/website/media', { query, immediate: allowed.value, watch: [query] })
+const { data, pending, refresh, error } = await useFetch('/api/admin/website/media', { query, immediate: allowed.value, watch: [query] })
 const items = computed(() => data.value?.items ?? [])
 
 /* ------------------------------------------------------------ upload */
@@ -183,6 +183,8 @@ const LABEL = 'text-muted-900 mb-1.5 block text-[13.5px] font-semibold dark:text
       title="Website content is not part of your role"
       body="The media library holds the files the public pages use."
     />
+
+    <AdminWebsiteLoadError v-else-if="error" :error="error" title="Could not load the media library" @retry="refresh()" />
 
     <div v-else class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
       <div class="flex flex-col gap-4">

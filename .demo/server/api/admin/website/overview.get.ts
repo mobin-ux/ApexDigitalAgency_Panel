@@ -1,6 +1,8 @@
 import { displayStatus } from '../../../../shared/cms'
+import { can } from '../../../../shared/permissions'
 import { requireStaffPermission } from '../../../utils/permissions'
 import prisma from '../../../utils/prisma'
+import { seoAudit } from '../../../utils/website/seo-audit'
 
 /**
  * The Website overview (ADR-021): counts by display status, what is waiting
@@ -9,7 +11,10 @@ import prisma from '../../../utils/prisma'
  * from anything but the tables.
  */
 export default defineEventHandler(async (event) => {
-  await requireStaffPermission(event, 'website.view')
+  const actor = await requireStaffPermission(event, 'website.view')
+
+  // The audit is for the roles that may act on it; a count a reader cannot open would be a figure with no screen behind it.
+  const seo = can(actor.staffRole, 'website.seo') ? await seoAudit() : null
 
   const [documents, media, redirects, recent] = await Promise.all([
     prisma.siteDocument.findMany({
@@ -89,6 +94,7 @@ export default defineEventHandler(async (event) => {
     revalidatePending,
     media: { count: media._count._all, bytes: media._sum.bytes ?? 0 },
     redirects: redirectCounts,
+    seo: seo ? { issues: seo.issues.length, errors: seo.issues.filter(i => i.severity === 'error').length, warnings: seo.issues.filter(i => i.severity === 'warning').length } : null,
     recent,
   }
 })

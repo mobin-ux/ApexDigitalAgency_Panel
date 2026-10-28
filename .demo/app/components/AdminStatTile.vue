@@ -10,9 +10,13 @@ const props = withDefaults(defineProps<{
   icon: string
   hint?: string
   accent?: 'violet' | 'green' | 'amber' | 'coral' | 'blue' | 'muted'
+  /** Where the count leads: a tile is a count of rows a screen lists, and a linked tile opens that screen. */
+  to?: string
 }>(), {
   accent: 'violet',
 })
+
+const NuxtLink = resolveComponent('NuxtLink')
 
 const accentClasses: Record<NonNullable<typeof props.accent>, string> = {
   violet: 'bg-primary-500/14 text-primary-400',
@@ -25,7 +29,7 @@ const accentClasses: Record<NonNullable<typeof props.accent>, string> = {
 </script>
 
 <template>
-  <div class="flex flex-col rounded-[20px] border border-white/10 bg-muted-800 p-5 transition hover:border-white/15">
+  <component :is="to ? NuxtLink : 'div'" :to="to" class="flex flex-col rounded-[20px] border border-white/10 bg-muted-800 p-5 transition hover:border-white/15" :class="to && 'apex-focus hover:bg-muted-700/60'">
     <div class="mb-4 flex items-center justify-between gap-3">
       <span class="text-[11.5px] font-bold uppercase tracking-[0.06em] text-muted-500">{{ label }}</span>
       <span class="flex size-9 shrink-0 items-center justify-center rounded-[10px]" :class="accentClasses[accent]">
@@ -38,5 +42,5 @@ const accentClasses: Record<NonNullable<typeof props.accent>, string> = {
     <div v-if="hint" class="mt-2 text-[12.5px] text-muted-500">
       {{ hint }}
     </div>
-  </div>
+  </component>
 </template>

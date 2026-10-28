@@ -48,7 +48,7 @@ const query = computed(() => ({
   ...(state.value ? { state: state.value } : {}),
 }))
 
-const { data, pending, refresh } = await useFetch('/api/admin/website/documents', { query, immediate: allowed.value, watch: [query] })
+const { data, pending, refresh, error } = await useFetch('/api/admin/website/documents', { query, immediate: allowed.value, watch: [query] })
 const items = computed(() => data.value?.items ?? [])
 const filtered = computed(() => Boolean(debouncedSearch.value || kind.value || state.value))
 
@@ -143,6 +143,8 @@ const TEXT_INPUT = 'focus:border-primary-400 w-full rounded-xl border border-mut
       title="Website content is not part of your role"
       body="The pages list shows every document the website is built from."
     />
+
+    <AdminWebsiteLoadError v-else-if="error" :error="error" title="Could not load the pages" @retry="refresh()" />
 
     <template v-else>
       <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
