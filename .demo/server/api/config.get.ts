@@ -4,6 +4,22 @@ import { getAuthSession } from '../utils/auth'
 import { DEFAULT_BANK_DETAILS, DEFAULT_FAQ } from '../utils/catalog'
 import { getCatalog } from '../utils/catalog-v2'
 import { getSettings } from '../utils/settings'
+import { panelContent } from '../utils/website/content-api'
+
+/** An announcement shows only when it is on, has text, and is inside its window (if one is set). */
+function liveAnnouncement(a: { enabled: boolean, text: string, link?: { label: string, link: unknown }, tone: string, startsAt: string, endsAt: string }) {
+  if (!a.enabled || !a.text.trim()) {
+    return null
+  }
+  const now = Date.now()
+  if (a.startsAt && Date.parse(a.startsAt) > now) {
+    return null
+  }
+  if (a.endsAt && Date.parse(a.endsAt) < now) {
+    return null
+  }
+  return { text: a.text, tone: a.tone, link: a.link ?? null }
+}
 
 /**
  * GET /api/config — the whitelisted, customer-safe slice of application
@@ -17,12 +33,19 @@ export default defineEventHandler(async (event) => {
    * signed-out visitor got a 401 on every view of the Terms. They get the two
    * public facts; bank details, prices and the rest stay with customers.
    */
+  const panel = await panelContent()
+  const legal = {
+    terms: panel.legal.terms ? { title: panel.legal.terms.title, ...(panel.legal.terms.content as object) } : null,
+    privacy: panel.legal.privacy ? { title: panel.legal.privacy.title, ...(panel.legal.privacy.content as object) } : null,
+  }
+  const announcement = liveAnnouncement(panel.announcement)
+
   if (!getAuthSession(event)) {
     const pub = await getSettings({
       'general.site-name': 'Apex Digital Agency',
       'general.support-email': 'support@apexdigi.co.uk',
     })
-    return { siteName: pub['general.site-name'], supportEmail: pub['general.support-email'] }
+    return { siteName: pub['general.site-name'], supportEmail: pub['general.support-email'], legal, announcement }
   }
 
   const s = await getSettings({
@@ -38,6 +61,7 @@ export default defineEventHandler(async (event) => {
     [replyTargetKey('normal')]: DEFAULT_REPLY_TARGETS.normal,
     'support.hours': 'Mon–Fri · 9am–6pm GMT',
     'support.faq': DEFAULT_FAQ,
+    'credit.applications-open': true,
   })
   const runtime = useRuntimeConfig(event)
 
@@ -65,5 +89,10 @@ export default defineEventHandler(async (event) => {
     catalog: await getCatalog(),
     // Settings offers the Companies House lookup only when it can work.
     companiesHouseLookup: Boolean(runtime.companiesHouseKey),
+    // Website CMS (ADR-021): the customer-facing documents the panel renders.
+    legal,
+    announcement,
+    dashboardPromo: panel.promo,
+    features: { creditApplications: s['credit.applications-open'] !== false },
   }
 })

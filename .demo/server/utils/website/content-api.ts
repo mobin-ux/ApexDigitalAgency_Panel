@@ -1,7 +1,8 @@
 import type { H3Event } from 'h3'
 import type { TemplateDef, TemplateKey } from '../../../shared/cms'
 import { setHeader } from 'h3'
-import { normalisePath, TEMPLATES } from '../../../shared/cms'
+import { normalisePath, resolveDocument, TEMPLATES } from '../../../shared/cms'
+import { panelAnnouncementBaseline, panelPromoBaseline } from '../../../shared/panel-baseline'
 import prisma from '../prisma'
 import { parseJson } from './documents'
 
@@ -93,6 +94,43 @@ export async function manifest() {
       noindex: typeof content?.seo?.robots === 'string' && content.seo.robots.startsWith('noindex'),
     }
   })
+}
+
+export interface PanelContent {
+  legal: { terms: PublishedDocument | null, privacy: PublishedDocument | null }
+  promo: ReturnType<typeof resolveDocument<'panel-promo'>>['content']
+  announcement: ReturnType<typeof resolveDocument<'panel-announcement'>>['content']
+}
+
+let panelCache: { at: number, value: PanelContent } | null = null
+const PANEL_CACHE_MS = 30_000
+
+/**
+ * The published panel documents, resolved over the panel's own baseline,
+ * cached in process for 30 s: /api/config is read on every customer page
+ * and the documents change rarely. A publish clears the cache directly.
+ */
+export async function panelContent(): Promise<PanelContent> {
+  if (panelCache && Date.now() - panelCache.at < PANEL_CACHE_MS) {
+    return panelCache.value
+  }
+  const rows = await prisma.siteDocument.findMany({
+    where: { kind: 'panel', status: 'PUBLISHED', publishedRevisionId: { not: null } },
+    select: PUBLISHED_SELECT,
+  })
+  const docs = rows.map(toPublished).filter((d): d is PublishedDocument => Boolean(d))
+  const find = (template: string, key?: string) => docs.find(d => d.template === template && (key === undefined || d.key === key)) ?? null
+  const value: PanelContent = {
+    legal: { terms: find('legal', 'terms'), privacy: find('legal', 'privacy') },
+    promo: resolveDocument('panel-promo', panelPromoBaseline, find('panel-promo')?.content ?? null).content,
+    announcement: resolveDocument('panel-announcement', panelAnnouncementBaseline, find('panel-announcement')?.content ?? null).content,
+  }
+  panelCache = { at: Date.now(), value }
+  return value
+}
+
+export function clearPanelContentCache(): void {
+  panelCache = null
 }
 
 /** Public, cacheable: the site's server is the caller and keeps its own 60 s cache on top. */

@@ -292,6 +292,15 @@ export default defineNuxtConfig({
     logging: {
       compressedSizes: false,
     },
+    // The website CMS scheduler (ADR-021): one in-process cron that publishes
+    // documents whose time has come. The panel runs as a single node-server
+    // process, so there is exactly one.
+    experimental: {
+      tasks: true,
+    },
+    scheduledTasks: {
+      '* * * * *': ['website:publish-due'],
+    },
     // Minifying the server bundle is the peak-memory stage of the build and
     // repeatedly OOM-killed the 4GB production VPS (the rollup pass holds the
     // whole bundle in memory twice). The server bundle is never downloaded by

@@ -21,10 +21,25 @@ definePageMeta({
 
 const { data: config } = await useApexConfig()
 const supportEmail = computed(() => (config.value as any)?.supportEmail ?? 'support@apexdigi.co.uk')
+/** The published legal document (ADR-021), or null while none is: then the placeholder below stays. */
+const published = computed<{ title: string, updated: string, blocks: any[] } | null>(() => (config.value as any)?.legal?.terms ?? null)
 </script>
 
 <template>
-  <article class="flex flex-col gap-5">
+  <article v-if="published" class="flex flex-col gap-5">
+    <div>
+      <h1 class="font-heading text-3xl font-extrabold leading-[1.1] tracking-[-0.02em] text-muted-900 dark:text-white">
+        {{ published.title }}
+      </h1>
+      <p v-if="published.updated" class="text-muted-400 mt-2.5 text-[14.5px] leading-[1.6]">
+        Last updated {{ new Date(published.updated).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) }}
+      </p>
+    </div>
+    <div class="rounded-2xl border border-muted-200 dark:border-white/8 bg-muted-100 dark:bg-muted-800 p-6">
+      <ApexRichBlocks :blocks="published.blocks" />
+    </div>
+  </article>
+  <article v-else class="flex flex-col gap-5">
     <div>
       <h1 class="font-heading text-3xl font-extrabold leading-[1.1] tracking-[-0.02em] text-muted-900 dark:text-white">
         Terms of Service

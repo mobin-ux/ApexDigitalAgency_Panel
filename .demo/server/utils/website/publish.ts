@@ -6,6 +6,7 @@ import { createError } from 'h3'
 import { transition } from '../../../shared/cms'
 import { recordAudit } from '../audit'
 import prisma from '../prisma'
+import { clearPanelContentCache } from './content-api'
 import { loadDocument, WITH_PUBLISHED, workflowDocOf } from './documents'
 
 /**
@@ -113,6 +114,9 @@ export async function applyTransition(event: H3Event, actor: AuditActor, id: str
     },
   })
 
+  if (updated.kind === 'panel') {
+    clearPanelContentCache()
+  }
   let revalidated: boolean | null = null
   if (touchesSite && updated.revalidatePending) {
     revalidated = await revalidateSite([updated.key])
@@ -163,6 +167,86 @@ export async function revalidateSite(paths: string[]): Promise<boolean> {
   catch {
     return false
   }
+}
+
+/** The scheduler's actor: no session, no IP; the audit row says so. */
+const SYSTEM_ACTOR = { id: 'system', email: 'scheduler', staffRole: 'system' }
+
+async function recordSystemAudit(action: string, targetId: string, subject: string, metadata: unknown): Promise<void> {
+  try {
+    await prisma.auditLog.create({
+      data: { actorId: SYSTEM_ACTOR.id, actorEmail: SYSTEM_ACTOR.email, action, targetType: 'SiteDocument', targetId, metadata: JSON.stringify({ subject, ...(metadata as object) }), ip: null, roleAtTime: SYSTEM_ACTOR.staffRole, reason: null },
+    })
+  }
+  catch {
+    // The audit row is evidence, not a precondition; a failed insert must not stop a publish.
+  }
+}
+
+export interface PublishDueResult {
+  published: string[]
+  failed: { id: string, error: string }[]
+  revalidated: boolean | null
+  retried: number
+}
+
+/**
+ * Publish every document whose scheduled time has come. Idempotent: each
+ * document is claimed by a conditional update on the exact revision that
+ * was scheduled, so two overlapping runs cannot publish it twice, and a
+ * document re-scheduled meanwhile is left to its new time. A failure is
+ * written on the document (error, attempt count, an audit row) and the
+ * next run tries again; the site call runs once for all of them.
+ */
+export async function publishDue(now = new Date()): Promise<PublishDueResult> {
+  const due = await prisma.siteDocument.findMany({
+    where: { scheduledRevisionId: { not: null }, scheduledFor: { lte: now }, status: { not: 'ARCHIVED' } },
+    select: { id: true, key: true, title: true, scheduledRevisionId: true, scheduledById: true, publishAttempts: true },
+  })
+  const published: string[] = []
+  const failed: { id: string, error: string }[] = []
+
+  for (const doc of due) {
+    try {
+      const done = await prisma.$transaction(async (tx) => {
+        const claimed = await tx.siteDocument.updateMany({
+          where: { id: doc.id, scheduledRevisionId: doc.scheduledRevisionId },
+          data: {
+            status: 'PUBLISHED',
+            review: 'NONE',
+            publishedRevisionId: doc.scheduledRevisionId,
+            publishedAt: now,
+            publishedById: doc.scheduledById,
+            scheduledRevisionId: null,
+            scheduledFor: null,
+            scheduledById: null,
+            archivedAt: null,
+            lastPublishError: null,
+            publishAttempts: 0,
+            revalidatePending: true,
+          },
+        })
+        if (claimed.count === 0) {
+          return false
+        }
+        await tx.siteRevision.update({ where: { id: doc.scheduledRevisionId! }, data: { publishedAt: now } })
+        return true
+      })
+      if (done) {
+        published.push(doc.key)
+        await recordSystemAudit('admin.website.document.publish', doc.id, doc.title, { key: doc.key, scheduled: true })
+      }
+    }
+    catch (error) {
+      const message = (error as Error).message.slice(0, 300)
+      failed.push({ id: doc.id, error: message })
+      await prisma.siteDocument.update({ where: { id: doc.id }, data: { lastPublishError: message, publishAttempts: { increment: 1 } } }).catch(() => {})
+      await recordSystemAudit('admin.website.publish.failed', doc.id, doc.title, { key: doc.key, error: message, attempt: doc.publishAttempts + 1 })
+    }
+  }
+
+  const retried = await retryRevalidations()
+  return { published, failed, revalidated: published.length ? retried > 0 : null, retried }
 }
 
 /** Retry every document whose last publish did not reach the site. */

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { Catalog, ServiceId } from '~~/shared/catalog'
 import { DEFAULT_CATALOG, featuredPlan, fromMonthly, paymentCount } from '~~/shared/catalog'
+import { panelPromoBaseline } from '~~/shared/panel-baseline'
 
 /**
  * Dashboard — Panel v2 (`Dashboard.dc.html` inside `Panel Breakpoints.dc.html`).
@@ -38,6 +39,15 @@ const { user } = useUser()
 const { formatCurrency } = useCurrency()
 const { data, pending, error, refresh } = await useFetch<Overview>('/api/dashboard/overview', { key: 'dashboard-overview' })
 const { data: config } = useApexConfig({ lazy: false })
+
+/** The promo band's words: the published panel document, or the defaults the API answers with. */
+const promo = computed(() => (config.value as any)?.dashboardPromo ?? panelPromoBaseline)
+/** The headline's last sentence takes the violet accent, as the design draws it. */
+const promoTitle = computed(() => {
+  const title: string = promo.value.title
+  const cut = title.lastIndexOf('. ')
+  return cut > 0 && cut < title.length - 2 ? { lead: title.slice(0, cut + 1), accent: title.slice(cut + 2) } : { lead: title, accent: '' }
+})
 const catalog = computed<Catalog>(() => ((config.value as any)?.catalog as Catalog | undefined) ?? DEFAULT_CATALOG)
 
 const firstName = computed(() => data.value?.firstName || (user.value as any)?.firstName || 'there')
@@ -256,7 +266,7 @@ const LINK = 'apex-ring text-accent-ink rounded-md text-sm font-semibold hover:u
               <span aria-hidden="true" class="inline-flex size-[18px] shrink-0 items-center justify-center rounded-full bg-[#22B07D] text-[9.5px] text-white">✓</span>{{ t }}
             </span>
           </div>
-          <ApexButton to="/dashboards/wallet?credit=apply" size="sm" class="mt-auto self-start">
+          <ApexButton v-if="(config as any)?.features?.creditApplications !== false" to="/dashboards/wallet?credit=apply" size="sm" class="mt-auto self-start">
             Apply now
           </ApexButton>
         </template>
@@ -347,20 +357,21 @@ const LINK = 'apex-ring text-accent-ink rounded-md text-sm font-semibold hover:u
     <section v-if="calc" aria-labelledby="h-calc" class="apex-dark relative flex flex-wrap items-center gap-x-10 gap-y-8 overflow-hidden rounded-[28px] bg-[#0C1719] p-[clamp(22px,3.4vw,48px)]">
       <div aria-hidden="true" class="pointer-events-none absolute inset-0 bg-[radial-gradient(85%_120%_at_88%_26%,rgba(125,83,242,.30),transparent_60%)]" />
       <div class="relative flex min-w-0 flex-[1_1_320px] flex-col items-start gap-[18px]">
-        <span class="inline-flex items-center whitespace-nowrap rounded-full border border-white/[.12] bg-white/[.08] px-4 py-2 text-[13px] font-semibold text-white">Grow now, pay monthly</span>
+        <span class="inline-flex items-center whitespace-nowrap rounded-full border border-white/[.12] bg-white/[.08] px-4 py-2 text-[13px] font-semibold text-white">{{ promo.eyebrow }}</span>
         <h2 id="h-calc" class="font-heading m-0 text-balance text-[clamp(28px,1.6vw+16px,42px)] font-bold leading-[1.06] tracking-[-0.03em] text-white">
-          Build your business. <span class="text-[#9B79F6]">Let it pay its own way.</span>
+          {{ promoTitle.lead }} <span v-if="promoTitle.accent" class="text-[#9B79F6]">{{ promoTitle.accent }}</span>
         </h2>
         <!-- "Order today", not the design's "Launch today": work starts at the
-             kickoff call, not on signing (ADR-019). -->
+             kickoff call, not on signing (ADR-019). The words come from the
+             published dashboard promo document, or these defaults (ADR-021). -->
         <p class="m-0 max-w-[44ch] text-pretty text-base leading-[1.62] text-[#A9B2B8]">
-          Order today and spread the cost into small monthly payments. As your new website and marketing bring in customers, the revenue covers each payment. No interest, no credit check.
+          {{ promo.text }}
         </p>
         <div class="mt-1.5 flex flex-wrap items-center gap-x-[18px] gap-y-3.5">
           <ApexButton :to="calc.href">
-            {{ calc.cta }}
+            {{ promo.button || calc.cta }}
           </ApexButton>
-          <span class="max-w-[30ch] text-[13px] leading-[1.55] text-[#A9B2B8]">{{ calc.fine }}</span>
+          <span class="max-w-[30ch] text-[13px] leading-[1.55] text-[#A9B2B8]">{{ promo.finePrint ? `${promo.finePrint} ${calc.fine}` : calc.fine }}</span>
         </div>
       </div>
       <div ref="illoBox" role="img" :aria-label="calc.illoLabel" class="relative h-[380px] min-w-0 flex-[1.05_1_340px] @min-[900px]:h-[440px]">

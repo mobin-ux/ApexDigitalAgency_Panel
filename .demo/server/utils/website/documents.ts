@@ -3,7 +3,7 @@ import type { H3Event } from 'h3'
 import type { DisplayStatus, TemplateDef, TemplateKey, WorkflowAction, WorkflowDoc } from '../../../shared/cms'
 import type { AuditActor } from '../audit'
 import { createError } from 'h3'
-import { availableActions, displayStatus, isSafeInternalPath, isTemplateKey, normalisePath, TEMPLATES, validateContent } from '../../../shared/cms'
+import { availableActions, displayStatus, isSafeInternalPath, isTemplateKey, LEGAL_KEYS, normalisePath, TEMPLATES, validateContent } from '../../../shared/cms'
 import { recordAudit } from '../audit'
 import prisma from '../prisma'
 
@@ -125,6 +125,13 @@ export function contentError(issues: { path: string, message: string }[]): never
 /** Normalise and check the address a page document lives at. */
 export function pageKey(template: TemplateKey, raw: string): string {
   const def = TEMPLATES[template] as TemplateDef
+  if (def.kind === 'panel' && !def.fixedKey) {
+    // A legal document is one of the two the panel renders.
+    if (!(LEGAL_KEYS as readonly string[]).includes(raw)) {
+      throw createError({ statusCode: 400, message: `A legal document is one of: ${LEGAL_KEYS.join(', ')}.` })
+    }
+    return raw
+  }
   if (def.kind !== 'page') {
     return def.fixedKey ?? template
   }
@@ -272,6 +279,64 @@ export async function restoreRevision(event: H3Event, actor: AuditActor, id: str
     metadata: { revision: number },
   })
   return restored
+}
+
+/** A copy of a free page or legal document as a new draft at a free address. */
+export async function duplicateDocument(event: H3Event, actor: AuditActor, id: string, input: { key?: string, title?: string }): Promise<DocumentRow> {
+  const doc = await loadDocument(id)
+  const template = doc.template as TemplateKey
+  const def = TEMPLATES[template] as TemplateDef
+  if (def.fixedKey) {
+    throw createError({ statusCode: 409, message: 'This document exists once and cannot be duplicated.' })
+  }
+  const key = input.key ?? (doc.kind === 'page' ? `${doc.key}-copy` : doc.key)
+  const copy = await createDocument(event, actor, {
+    template,
+    key,
+    title: input.title ?? `Copy of ${doc.title}`,
+    content: parseJson(doc.draft),
+    note: `Duplicated from ${doc.key}`,
+  })
+  await recordAudit(event, actor, { action: 'admin.website.document.duplicate', targetType: 'SiteDocument', targetId: copy.id, subject: copy.title, metadata: { from: doc.key, to: key } })
+  return copy
+}
+
+/**
+ * Move a page to a new address. If it was ever published, a 301 from the
+ * old address is created so links keep working; the site is told to drop
+ * both. Fixed-key documents cannot move.
+ */
+export async function changeKey(event: H3Event, actor: AuditActor, id: string, rawKey: string): Promise<{ doc: DocumentRow, redirect: boolean }> {
+  const doc = await loadDocument(id)
+  const template = doc.template as TemplateKey
+  const def = TEMPLATES[template] as TemplateDef
+  if (def.kind !== 'page' || def.fixedKey) {
+    throw createError({ statusCode: 409, message: 'This document has a fixed address.' })
+  }
+  const key = pageKey(template, rawKey)
+  if (key === doc.key) {
+    return { doc, redirect: false }
+  }
+  const clash = await prisma.siteDocument.findUnique({ where: { kind_key: { kind: 'page', key } }, select: { title: true } })
+  if (clash) {
+    throw createError({ statusCode: 409, message: `"${clash.title}" already lives at ${key}.` })
+  }
+  const wasLive = doc.revisions.length > 0
+  const updated = await prisma.$transaction(async (tx) => {
+    await tx.siteDocument.update({ where: { id }, data: { key, revalidatePending: doc.status === 'PUBLISHED' } })
+    if (wasLive) {
+      await tx.siteRedirect.upsert({
+        where: { fromPath: doc.key },
+        create: { fromPath: doc.key, toPath: key, statusCode: 301, enabled: true, note: `Moved "${doc.title}"`, createdById: actor.id },
+        update: { toPath: key, enabled: true, note: `Moved "${doc.title}"` },
+      })
+      // A redirect that pointed at the old address now points at the new one.
+      await tx.siteRedirect.updateMany({ where: { toPath: doc.key }, data: { toPath: key } })
+    }
+    return tx.siteDocument.findUniqueOrThrow({ where: { id }, include: WITH_PUBLISHED })
+  })
+  await recordAudit(event, actor, { action: 'admin.website.document.key', targetType: 'SiteDocument', targetId: id, subject: updated.title, metadata: { from: doc.key, to: key, redirect: wasLive } })
+  return { doc: updated, redirect: wasLive }
 }
 
 /** Everything the editor screen needs for one document. */

@@ -42,6 +42,9 @@ const router = useRouter()
 const toaster = useNuiToasts()
 const { fetchNotifications } = useNotifications()
 const { formatCurrency } = useCurrency()
+/** Whether customers may apply for credit right now (Website › Panel content). */
+const { data: appConfig } = useApexConfig()
+const creditApplicationsOpen = computed(() => (appConfig.value as any)?.features?.creditApplications !== false)
 
 const { data: finance, refresh: refreshFinance } = await useFetch<any>('/api/finance/dashboard', { key: 'finance-dashboard' })
 const { data: txData, refresh: refreshTx } = await useFetch<{ transactions: Tx[] }>('/api/finance/transactions', { key: 'wallet-tx', query: { limit: 500 } })
@@ -467,11 +470,14 @@ const PILL = 'apex-ring h-[38px] shrink-0 cursor-pointer whitespace-nowrap round
               <p v-if="credit.application?.status === 'DECLINED'" class="text-fg-muted m-0 text-[13px] leading-normal">
                 Your last application was not approved{{ credit.application.decidedAt ? ` on ${ukDate(credit.application.decidedAt)}` : '' }}. You can apply again.
               </p>
-              <div class="mt-auto pt-1.5">
+              <div v-if="creditApplicationsOpen" class="mt-auto pt-1.5">
                 <ApexButton size="sm" @click="openCredit('apply')">
                   Apply for a credit line
                 </ApexButton>
               </div>
+              <p v-else class="text-fg-muted mt-auto pt-1.5 text-[13px] leading-normal">
+                Credit applications are closed at the moment. You can still order one plan at a time.
+              </p>
             </template>
             <template v-else-if="credit.state === 'review'">
               <div class="flex flex-wrap items-baseline gap-2.5">

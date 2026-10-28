@@ -61,6 +61,8 @@ export const ADMIN_NAV: AdminNavGroup[] = [
       // a page that does not exist yet is the dead control the panel refuses.
       { label: 'Overview', icon: 'solar:global-linear', to: '/admin/website', needs: 'website.view' },
       { label: 'Pages', icon: 'solar:documents-linear', to: '/admin/website/pages', needs: 'website.view' },
+      { label: 'Navigation', icon: 'solar:compass-linear', to: '/admin/website/navigation', needs: 'website.view' },
+      { label: 'Panel content', icon: 'solar:chat-square-like-linear', to: '/admin/website/panel', needs: 'website.view' },
     ],
   },
   {

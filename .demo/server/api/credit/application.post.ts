@@ -6,6 +6,7 @@ import { requireAuth } from '../../utils/auth'
 import { creditLimit, ensureCredit } from '../../utils/credit'
 import prisma from '../../utils/prisma'
 import { rateLimit, RateLimits } from '../../utils/ratelimit'
+import { getSetting } from '../../utils/settings'
 import { unclaimedBy } from '../../utils/uploads'
 import { validateBody } from '../../utils/validate'
 
@@ -41,6 +42,9 @@ const bodySchema = z.object({
 export default defineEventHandler(async (event) => {
   const session = requireAuth(event)
   rateLimit(event, { ...RateLimits.mutation, bucket: 'credit-apply', identity: session.id })
+  if ((await getSetting('credit.applications-open', true)) === false) {
+    throw createError({ statusCode: 409, message: 'Credit applications are closed at the moment. You can still order one plan at a time.' })
+  }
   const body = await validateBody(event, bodySchema)
 
   const isCompany = body.businessType !== 'sole'

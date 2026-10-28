@@ -37,7 +37,7 @@ Gates, each one commit (`feat(cms): …`), lint → typecheck vs baseline → te
 | 2 | Roles/permissions, audit bucket, sidebar group, `homeFor(role)`, Prisma models + migration SQL, field DSL + templates, settings registry, state machine, purpose tokens, test harness | ✅ |
 | 3 | Site refactor: template-typed copy into data (~25 components), core templates, `cms-baseline.ts`, `GET /api/cms/baseline` | ✅ |
 | 4 | Documents, publish/unpublish, revisions, preview tokens, `/api/site/**`, site `cms.ts` + proxies + revalidate, editor UI, landing renderer, import | ✅ |
-| 5 | Review workflow, scheduling task, key change + redirect, navigation globals, announcement bar, panel content, `credit.applications-open` | ☐ |
+| 5 | Review workflow, scheduling task, key change + redirect, navigation globals, announcement bar, panel content, `credit.applications-open` | ✅ |
 | 6 | Media library (sniff, dimensions, GET+HEAD), IPX disk cache, site settings + identity plugin | ☐ |
 | 7 | SEO tab, sitemap source, robots hook, redirects middleware, SEO audit | ☐ |
 | 8 | Overview dashboard, UX states, a11y, responsive | ☐ |
@@ -112,6 +112,48 @@ panel `NUXT_WEBSITE_SITE_URL` + `NUXT_WEBSITE_REVALIDATE_SECRET`; site
 `NUXT_CMS_URL` + `NUXT_CMS_REVALIDATE_SECRET` (local `.env` files pair the
 two dev servers; never committed). Tests: `test:cms:api` has the lifecycle
 suite (12 API tests incl. the site checks when `SITE_TEST_URL` is set).
+
+**Gate 5 shipped (2026-10-28).** Scheduling: `publishDue()` in
+`server/utils/website/publish.ts` claims each due document by a conditional
+update on the exact scheduled revision (so two runs cannot publish twice),
+records failures on the document and in the audit log under a `system`
+actor, and retries pending revalidations; `server/tasks/website/publish-due.ts`
+runs it every minute (`nitro.experimental.tasks` + `scheduledTasks`, one
+node-server process), and `POST /api/admin/website/publish-due` is "run
+now". Addresses: `PATCH documents/:id/key` moves a page and writes a 301
+`SiteRedirect` from the old address when the page was ever live;
+`POST documents/:id/duplicate` copies a free page or legal document as a
+draft. Navigation: `/admin/website/navigation` lists the six chrome
+documents (header, footer, announcement, three page-chrome) with their
+state and an Edit link; the site's `LayoutAnnouncementBar` renders the
+published announcement above the header (on, with text, inside its window;
+dismissable per browser). Panel content: `/admin/website/panel` creates and
+lists the Terms, Privacy, dashboard promo and panel announcement documents
+and holds the `credit.applications-open` switch (`PUT /api/admin/website/
+panel-features`, `website.settings`, audited). `/api/config` now carries
+`legal.{terms,privacy}` and `announcement` for everyone and
+`dashboardPromo` + `features.creditApplications` for customers, resolved
+over `shared/panel-baseline.ts` through a 30 s in-process cache cleared on
+publish; the dashboard promo, the legal pages (`ApexRichBlocks`), the
+sidenav (`ApexAnnouncementBar`) and the two apply buttons read it, and
+`POST /api/credit/application` refuses with 409 while the switch is off.
+Verified: the scheduling suite schedules a page a minute out, sees run-now
+decline it, waits, sees it published exactly once, then moves it (301) and
+duplicates it; the panel-documents suite publishes an announcement, sees it
+in `/api/config` signed in and out, unpublishes it, closes applications and
+sees the customer refused and an editor denied. API 14/14. On the site, a
+published announcement appeared with its link and disappeared when
+switched off (the document stays in the payload with `enabled: false`; the
+bar is what goes).
+
+Gate 5 gotchas:
+- **Nitro tasks need a dev-server restart** to register the cron; HMR does
+  not pick up `scheduledTasks`.
+- **A panel document's key is a slug, not a path**: `legal` takes `terms` or
+  `privacy`; the fixed-key panel templates are creatable once from the
+  Panel content screen (the baseline import only creates site documents).
+- Checking "the bar is gone" means checking its control, not its text: the
+  disabled document still travels in the SSR payload.
 
 Gate 4 gotchas:
 - **A Nitro catch-all route cannot match the root**, so a page's address is

@@ -125,7 +125,7 @@ function detailOf(entry: { action: string, metadata: string | null }) {
     case 'admin.website.document.reject':
       return 'Sent a draft back for changes'
     case 'admin.website.document.publish':
-      return meta?.revision ? `Published revision ${meta.revision}` : 'Published'
+      return meta?.scheduled ? 'Published on schedule' : meta?.revision ? `Published revision ${meta.revision}` : 'Published'
     case 'admin.website.document.schedule':
       return meta?.scheduledFor ? `Scheduled to publish at ${meta.scheduledFor}` : 'Scheduled a publish'
     case 'admin.website.document.unschedule':

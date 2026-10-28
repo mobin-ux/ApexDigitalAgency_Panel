@@ -6,6 +6,7 @@
     >
       Skip to main content
     </a>
+    <LayoutAnnouncementBar />
     <LayoutHeader />
     <main
       id="main"

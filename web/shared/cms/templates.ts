@@ -174,7 +174,18 @@ export function isTemplateKey(value: unknown): value is TemplateKey {
   return typeof value === 'string' && value in TEMPLATES
 }
 
-/** Templates a staff member may create a new document from; the fixed ones exist once and are created by the import. */
+/**
+ * Templates a staff member may create a document from: the free page, and
+ * the panel documents (the site's own pages and chrome come from the
+ * baseline import). A fixed-key panel document can be created once.
+ */
 export function creatableTemplates(): TemplateKey[] {
-  return TEMPLATE_KEYS.filter(key => !(TEMPLATES[key] as TemplateDef).fixedKey)
+  return TEMPLATE_KEYS.filter((key) => {
+    const def = TEMPLATES[key] as TemplateDef
+    return def.kind === 'panel' || !def.fixedKey
+  })
 }
+
+/** The two legal documents the panel renders; a legal document's key is one of these. */
+export const LEGAL_KEYS = ['terms', 'privacy'] as const
+export type LegalKey = typeof LEGAL_KEYS[number]
