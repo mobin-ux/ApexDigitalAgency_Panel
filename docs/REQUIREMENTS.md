@@ -63,13 +63,15 @@ implementation. Hard rules live in CLAUDE.md; rationale in docs/decisions/.
 - Every customer page: `middleware: 'auth'`; every customer API route verifies the
   JWT via `requireAuth(event)`; **every admin API route uses
   `requireStaffPermission(event, '<permission>')`** — the coarse `Role` gate plus
-  one of eleven staff permissions, both checked DB-fresh (ADR-013, ADR-016).
+  one of seventeen staff permissions, both checked DB-fresh (ADR-013, ADR-016).
   Bad/expired tokens → clean 401, never 500; an insufficient role → 403 naming
   the roles that do hold the permission.
-- **Six fixed staff roles** (Owner · Admin · Project manager · Support agent ·
-  Finance · Read-only) over eleven permissions, defined once in
-  `shared/permissions.ts` and imported by both the server guard and the admin UI,
-  so the documented matrix and the enforced matrix are the same object.
+- **Eight fixed staff roles** (Owner · Admin · Project manager · Support agent ·
+  Finance · Publisher · Editor · Read-only) over seventeen permissions, defined
+  once in `shared/permissions.ts` and imported by both the server guard and the
+  admin UI, so the documented matrix and the enforced matrix are the same
+  object. Publisher and Editor (ADR-021) hold only the six `website.*`
+  permissions.
 - **Suspension ends a live session**: `requireRole` refuses a `SUSPENDED` account
   on the next request, rather than only blocking the next sign-in (sessions are
   stateless 7-day JWTs).

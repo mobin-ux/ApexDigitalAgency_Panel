@@ -14,12 +14,17 @@
  * rather than relying on an auto-import that only exists on one side.
  */
 
-/** The six fixed staff roles. No per-user overrides — spec §3. */
-export const STAFF_ROLES = ['owner', 'admin', 'pm', 'support', 'finance', 'readonly'] as const
+/**
+ * The eight fixed staff roles. No per-user overrides — spec §3. Publisher
+ * and Editor arrived with the website CMS (ADR-021): they hold the
+ * `website.*` permissions and nothing else, so a content hire never sees
+ * client money or project work.
+ */
+export const STAFF_ROLES = ['owner', 'admin', 'pm', 'support', 'finance', 'publisher', 'editor', 'readonly'] as const
 
 export type StaffRole = typeof STAFF_ROLES[number]
 
-/** The eleven things a staff member can be allowed to do. */
+/** The seventeen things a staff member can be allowed to do. */
 export const PERMISSION_KEYS = [
   'work.view',
   'work.assign',
@@ -29,6 +34,12 @@ export const PERMISSION_KEYS = [
   'money.refund',
   'clients.approve',
   'support.answer',
+  'website.view',
+  'website.edit',
+  'website.media',
+  'website.publish',
+  'website.seo',
+  'website.settings',
   'catalogue.edit',
   'team.manage',
   'platform.settings',
@@ -69,10 +80,20 @@ export const ROLES: Record<StaffRole, RoleDef> = {
     label: 'Finance',
     covers: 'payments, refunds and reporting',
   },
+  publisher: {
+    key: 'publisher',
+    label: 'Publisher',
+    covers: 'website content, media, publishing, SEO and redirects',
+  },
+  editor: {
+    key: 'editor',
+    label: 'Editor',
+    covers: 'drafting website content and media, sent for review',
+  },
   readonly: {
     key: 'readonly',
     label: 'Read-only',
-    covers: 'reading projects and clients',
+    covers: 'reading projects, clients and website content',
   },
 }
 
@@ -97,6 +118,12 @@ export const PERMISSIONS: PermissionDef[] = [
   { key: 'money.refund', label: 'Refund a payment', detail: 'Full or partial', allow: ['owner', 'finance'] },
   { key: 'clients.approve', label: 'Approve client accounts', detail: 'Portal signup, suspend, restore', allow: ['owner', 'admin'] },
   { key: 'support.answer', label: 'Answer support', detail: 'Reply, assign, resolve', allow: ['owner', 'admin', 'pm', 'support'] },
+  { key: 'website.view', label: 'See website content', detail: 'Pages, drafts, media, revisions', allow: ['owner', 'admin', 'publisher', 'editor', 'readonly'] },
+  { key: 'website.edit', label: 'Edit website content', detail: 'Draft pages, menus, submit for review', allow: ['owner', 'admin', 'publisher', 'editor'] },
+  { key: 'website.media', label: 'Manage media', detail: 'Upload, replace, delete files', allow: ['owner', 'admin', 'publisher', 'editor'] },
+  { key: 'website.publish', label: 'Publish the website', detail: 'Approve, publish, schedule, unpublish', allow: ['owner', 'admin', 'publisher'] },
+  { key: 'website.seo', label: 'SEO and redirects', detail: 'Metadata, sitemap, robots, redirects', allow: ['owner', 'admin', 'publisher'] },
+  { key: 'website.settings', label: 'Site settings', detail: 'Company facts, identity, defaults', allow: ['owner', 'admin'] },
   { key: 'catalogue.edit', label: 'Edit services and prices', detail: 'Catalogue and help articles', allow: ['owner', 'admin'] },
   { key: 'team.manage', label: 'Manage team and roles', detail: 'Invite, change role, suspend', allow: ['owner', 'admin'] },
   { key: 'platform.settings', label: 'Platform settings', detail: 'Reply promise, credit rules', allow: ['owner'] },

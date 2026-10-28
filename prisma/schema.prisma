@@ -1005,3 +1005,126 @@ model TwoFactor {
   backupCodes String?
   updatedAt   DateTime  @updatedAt
 }
+
+// ---------------------------------------------------------------------------
+// Website CMS (ADR-021). Additive; applied to production by hand as the SQL in
+// docs/migrations/2026-10-cms.sql. Content is JSON text validated against the
+// shared contract in web/shared/cms before it is written, never free HTML.
+// ---------------------------------------------------------------------------
+
+/// One managed document: a public page (`kind` page, `key` = its path), a
+/// piece of site chrome (`global`: header, footer, announcement) or a
+/// customer-facing panel document (`panel`: legal text, dashboard promo).
+/// `status` is what the website serves; `review` is where the working draft
+/// stands. Pointers name the revision that is live and the one waiting to go
+/// live; both are nulled, never cascaded, if a revision row ever goes.
+model SiteDocument {
+  id                  String         @id @default(cuid())
+  kind                String
+  template            String
+  key                 String
+  title               String
+  locale              String         @default("en-GB")
+  status              String         @default("DRAFT")
+  review              String         @default("NONE")
+  draft               String
+  draftVersion        Int            @default(1)
+  draftUpdatedAt      DateTime       @default(now())
+  draftUpdatedById    String?
+  publishedRevisionId String?        @unique
+  publishedRevision   SiteRevision?  @relation("PublishedRevision", fields: [publishedRevisionId], references: [id], onDelete: SetNull)
+  publishedAt         DateTime?
+  publishedById       String?
+  scheduledRevisionId String?        @unique
+  scheduledRevision   SiteRevision?  @relation("ScheduledRevision", fields: [scheduledRevisionId], references: [id], onDelete: SetNull)
+  scheduledFor        DateTime?
+  scheduledById       String?
+  archivedAt          DateTime?
+  lastPublishError    String?
+  publishAttempts     Int            @default(0)
+  revalidatePending   Boolean        @default(false)
+  createdById         String
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+  revisions           SiteRevision[] @relation("DocumentRevisions")
+  mediaRefs           SiteMediaRef[]
+
+  @@unique([kind, key])
+  @@index([status, scheduledFor])
+  @@index([kind, template])
+}
+
+/// An immutable snapshot of a document's content. Saving a draft writes one;
+/// publishing points `SiteDocument.publishedRevisionId` at one. Numbered per
+/// document so the history reads 1, 2, 3 and a restore can name its source.
+model SiteRevision {
+  id          String        @id @default(cuid())
+  documentId  String
+  document    SiteDocument  @relation("DocumentRevisions", fields: [documentId], references: [id], onDelete: Cascade)
+  number      Int
+  content     String
+  note        String?
+  authorId    String
+  createdAt   DateTime      @default(now())
+  publishedAt DateTime?
+  publishedOf SiteDocument? @relation("PublishedRevision")
+  scheduledOf SiteDocument? @relation("ScheduledRevision")
+
+  @@unique([documentId, number])
+}
+
+/// A redirect the site's middleware answers before routing. `fromPath` is
+/// normalised (lower case, no trailing slash); `toPath` is a site path or an
+/// https URL. Loops and chains are refused or flattened when saved.
+model SiteRedirect {
+  id          String   @id @default(cuid())
+  fromPath    String   @unique
+  toPath      String
+  statusCode  Int      @default(301)
+  enabled     Boolean  @default(true)
+  note        String?
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([enabled])
+}
+
+/// A file in the website media library, separate from customer uploads.
+/// `key` is the on-disk name (a UUID); `version` increments on replace so the
+/// public URL changes and long caches stay correct. Soft-deleted so a
+/// document that still names it can say so.
+model SiteMedia {
+  id           String         @id @default(cuid())
+  key          String         @unique
+  filename     String
+  mime         String
+  bytes        Int
+  width        Int?
+  height       Int?
+  alt          String         @default("")
+  caption      String?
+  sha256       String
+  version      Int            @default(1)
+  uploadedById String
+  createdAt    DateTime       @default(now())
+  replacedAt   DateTime?
+  deletedAt    DateTime?
+  refs         SiteMediaRef[]
+
+  @@index([deletedAt, createdAt])
+}
+
+/// Which documents use which media, per slot (draft, published or scheduled
+/// content), so deleting a referenced file can be refused with the list of
+/// documents that would break.
+model SiteMediaRef {
+  mediaId    String
+  media      SiteMedia    @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+  documentId String
+  document   SiteDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  slot       String
+
+  @@id([mediaId, documentId, slot])
+  @@index([documentId])
+}

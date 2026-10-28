@@ -1041,7 +1041,7 @@ the design's five groups (Work · People · Money · Service · System) and a
 destination your role cannot open renders as a padlock, never a link that 403s.
 
 - **The matrix is the enforcement, literally** (badge 26). `shared/permissions.ts`
-  holds six roles × eleven permissions and is imported by *both* halves of the
+  holds six roles × eleven permissions (eight × seventeen since ADR-021) and is imported by *both* halves of the
   app: `requireStaffPermission()` throws the 403 from it, and `/admin/team`
   renders the table with a `v-for` over the same array. There is no second copy
   to drift. See ADR-016. The 403 even names the roles that do hold it, so an API

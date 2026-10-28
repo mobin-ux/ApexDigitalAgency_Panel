@@ -203,22 +203,40 @@ export async function endOtherSessions(userId: string, keepSid: string | null): 
 const TICKET_TTL_SECONDS = 5 * 60
 
 /**
- * The proof that a password was right, handed back when the account also needs
- * a two-step code. Five minutes, names nothing but the account, and carries a
- * `purpose` so `readAuthToken` can never mistake it for a session.
+ * A short-lived token for one job that is not a session: the two-step
+ * sign-in ticket, a website preview link (ADR-021). Every one carries a
+ * `purpose`, which is what `readAuthToken` refuses, so none of them can be
+ * presented as a session cookie no matter what else it claims.
  */
-export function signTwoFactorTicket(event: H3Event, userId: string): string {
-  return jwt.sign({ uid: userId, purpose: 'two-factor' }, jwtSecret(event), { expiresIn: TICKET_TTL_SECONDS })
+export function signPurposeToken(event: H3Event, purpose: string, claims: Record<string, unknown>, ttlSeconds: number): string {
+  return jwt.sign({ ...claims, purpose }, jwtSecret(event), { expiresIn: ttlSeconds })
 }
 
-export function readTwoFactorTicket(event: H3Event, ticket: string): string | null {
+/** The claims of a purpose token, or null when it is invalid, expired or for another purpose. */
+export function readPurposeToken(event: H3Event, token: string, purpose: string): Record<string, unknown> | null {
   try {
-    const decoded = jwt.verify(ticket, jwtSecret(event)) as Record<string, unknown>
-    return decoded.purpose === 'two-factor' && typeof decoded.uid === 'string' ? decoded.uid : null
+    const decoded = jwt.verify(token, jwtSecret(event))
+    if (typeof decoded !== 'object' || decoded === null || (decoded as Record<string, unknown>).purpose !== purpose) {
+      return null
+    }
+    return decoded as Record<string, unknown>
   }
   catch {
     return null
   }
+}
+
+/**
+ * The proof that a password was right, handed back when the account also needs
+ * a two-step code. Five minutes, names nothing but the account.
+ */
+export function signTwoFactorTicket(event: H3Event, userId: string): string {
+  return signPurposeToken(event, 'two-factor', { uid: userId }, TICKET_TTL_SECONDS)
+}
+
+export function readTwoFactorTicket(event: H3Event, ticket: string): string | null {
+  const claims = readPurposeToken(event, ticket, 'two-factor')
+  return claims && typeof claims.uid === 'string' ? claims.uid : null
 }
 
 /**

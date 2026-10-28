@@ -546,7 +546,7 @@ const INPUT = 'w-full rounded-xl border border-muted-200 bg-white px-3.5 py-3 te
         </div>
 
         <div class="overflow-x-auto" :class="CARD">
-          <table class="w-full min-w-[880px] border-collapse">
+          <table class="w-full min-w-[1040px] border-collapse">
             <caption class="sr-only">
               Staff permissions by role. This table is the object the panel enforces.
             </caption>

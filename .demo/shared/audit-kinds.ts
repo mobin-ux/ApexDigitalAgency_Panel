@@ -14,7 +14,7 @@
  * screen cannot disagree about which bucket a row is in.
  */
 
-export const AUDIT_KINDS = ['access', 'team', 'money', 'files', 'work', 'config'] as const
+export const AUDIT_KINDS = ['access', 'team', 'money', 'files', 'work', 'website', 'config'] as const
 
 export type AuditKind = typeof AUDIT_KINDS[number]
 
@@ -67,6 +67,12 @@ export const AUDIT_KIND_DEFS: Record<AuditKind, AuditKindDef> = {
     key: 'work',
     label: 'Work',
     prefixes: ['admin.project.', 'admin.milestone.', 'admin.ticket.'],
+  },
+  /** Everything the website CMS does (ADR-021): documents, media, redirects, site settings. */
+  website: {
+    key: 'website',
+    label: 'Website',
+    prefixes: ['admin.website.'],
   },
   config: {
     key: 'config',

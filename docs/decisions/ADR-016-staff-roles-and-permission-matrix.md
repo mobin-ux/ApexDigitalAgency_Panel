@@ -113,11 +113,23 @@ the support composer.
 
 - Adding a permission means adding a row to one array and gating the
   routes that need it; the matrix screen and the padlocks follow for free.
-- The eleven permissions are a fixed vocabulary. A twelfth is a design
-  change, not a config change — which is the point of "fixed roles, no
-  per-user overrides".
+- The permissions are a fixed vocabulary. A new one is a design change,
+  not a config change — which is the point of "fixed roles, no per-user
+  overrides".
 - `staffRole` is not in the JWT. It is read from the database on every
   privileged request, so a demotion applies immediately rather than at
   the next login — the same reasoning ADR-013 applied to `role`.
 - The client-side gates (`useStaffAccess`) are convenience only. They
   decide what is worth rendering; the server decides what is allowed.
+
+## 7. Amendment — ADR-021 (2026-10-28)
+
+The website CMS added two roles, **Publisher** and **Editor**, and six
+permissions, `website.view|edit|media|publish|seo|settings`, to the same
+array — eight roles over seventeen permissions now. Nothing above changes:
+the matrix screen, the padlocks, the invite role picker and the 403 wording
+picked the additions up from the one table. The two new roles hold only
+`website.*`, so a content hire never sees client money or project work. One
+new rule came with them: a role lands on the first screen it can open
+(`homeFor()` in `app/utils/adminNav.ts`), because an Editor sent to the
+Overview would meet a 403 on its own data request.

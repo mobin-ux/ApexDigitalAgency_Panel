@@ -17,6 +17,7 @@ import { toTypedSchema } from '@vee-validate/zod'
 import { Field, useForm } from 'vee-validate'
 import { z } from 'zod'
 import { PASSWORD_MIN } from '~~/shared/password'
+import { homeFor } from '~/utils/adminNav'
 
 definePageMeta({
   layout: 'auth',
@@ -26,7 +27,7 @@ definePageMeta({
 /** Same minimum as signup, reset and Settings (Phase 8). */
 
 const route = useRoute()
-const { fetchUser } = useUser()
+const { user, fetchUser } = useUser()
 
 const token = computed(() => (route.query.token as string) || '')
 
@@ -106,9 +107,10 @@ const onSubmit = handleSubmit(async (formValues) => {
       body: { token: token.value, password: formValues.password },
     })
     // The endpoint sets the session cookie, so refresh state and go
-    // straight to the panel they were invited to.
+    // straight to the first screen the invited role can open (an Editor
+    // has no Overview to land on — ADR-021).
     await fetchUser({ force: true })
-    await navigateTo('/admin')
+    await navigateTo(homeFor(user.value?.staffRole))
   }
   catch (error: any) {
     errorMessage.value = error?.statusCode === 429

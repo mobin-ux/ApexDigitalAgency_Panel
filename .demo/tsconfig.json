@@ -1,4 +1,11 @@
 {
   // https://nuxt.com/docs/guide/concepts/typescript
-  "extends": "./.nuxt/tsconfig.json"
+  "extends": "./.nuxt/tsconfig.json",
+  "compilerOptions": {
+    // The website CMS contract (web/shared/cms, ADR-021) writes its relative
+    // imports with the `.ts` extension so Node can run the test suites on the
+    // files directly. Vite and Nitro accept that already; this lets vue-tsc
+    // accept it too (the generated config is noEmit, which the flag requires).
+    "allowImportingTsExtensions": true
+  }
 }

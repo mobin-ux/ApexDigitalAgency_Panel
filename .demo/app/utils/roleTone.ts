@@ -6,10 +6,12 @@ import type { StaffRole } from '~~/shared/permissions'
  * The team table, the invite dialog, the role picker and the audit log
  * all colour a role from here, so the same role cannot be amber in one
  * place and violet in another. The values reuse the shared status
- * accents rather than adding six new hues (CLAUDE.md rule 1): owner is
+ * accents rather than adding new hues (CLAUDE.md rule 1): owner is
  * amber because it is the role carrying a standing warning, and
  * read-only takes the muted surface because it is the absence of
- * privilege rather than a kind of it.
+ * privilege rather than a kind of it. The two website roles (ADR-021)
+ * share the completed-blue with PM at lighter tints: they are the content
+ * side of the same "does the work" family.
  */
 export const ROLE_CHIP: Record<StaffRole, string> = {
   owner: 'bg-[#D9A521]/16 text-[#F2C14E]',
@@ -17,6 +19,8 @@ export const ROLE_CHIP: Record<StaffRole, string> = {
   pm: 'bg-[#6EA8FE]/14 text-[#6EA8FE]',
   support: 'bg-[#22B07D]/14 text-[#22B07D]',
   finance: 'bg-primary-500/10 text-primary-600 dark:text-primary-200',
+  publisher: 'bg-[#6EA8FE]/10 text-[#6EA8FE]',
+  editor: 'bg-[#6EA8FE]/[0.07] text-[#6EA8FE]',
   readonly: 'bg-muted-200 text-muted-600 dark:bg-white/5 dark:text-muted-400',
 }
 
@@ -27,5 +31,7 @@ export const ROLE_DOT: Record<StaffRole, string> = {
   pm: 'bg-[#6EA8FE]',
   support: 'bg-[#22B07D]',
   finance: 'bg-primary-300',
+  publisher: 'bg-[#6EA8FE]',
+  editor: 'bg-[#6EA8FE]/70',
   readonly: 'bg-muted-400',
 }

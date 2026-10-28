@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import type { Permission } from '~~/shared/permissions'
 import type { ApexNavItem } from '~/components/ApexSidebarNav.vue'
+import { ADMIN_NAV } from '~/utils/adminNav'
 
 /**
  * Admin panel navigation. Same shell as the customer `sidenav` layout
@@ -8,57 +8,13 @@ import type { ApexNavItem } from '~/components/ApexSidebarNav.vue'
  * violet ADMIN marker so it's always obvious which side you're on.
  *
  * Phase 9 groups the modules the way the design does — Work · People ·
- * Money · Service · System — and gates each row on the permission its
- * screens require. A row the signed-in role cannot open renders as a
+ * Money · Service · Website · System — and gates each row on the
+ * permission its screens require. The table itself is `ADMIN_NAV` in
+ * utils/adminNav.ts, shared with the invite landing and the /admin guard. A row the signed-in role cannot open renders as a
  * padlock rather than a link that 403s: the point of the matrix is that
  * the panel tells you what your role covers before you click, not after.
  */
 const { can, roleDef } = useStaffAccess()
-
-interface AdminNavDef extends Omit<ApexNavItem, 'locked' | 'lockedReason'> {
-  /** Permission this destination needs; omitted rows are open to all staff. */
-  needs?: Permission
-}
-
-const groups: { heading: string, items: AdminNavDef[] }[] = [
-  {
-    heading: 'Work',
-    items: [
-      { label: 'Overview', icon: 'solar:widget-2-linear', to: '/admin', needs: 'work.view' },
-      { label: 'Projects', icon: 'solar:suitcase-linear', to: '/admin/projects', needs: 'work.view' },
-    ],
-  },
-  {
-    heading: 'People',
-    items: [
-      { label: 'Clients', icon: 'solar:users-group-rounded-linear', to: '/admin/users', needs: 'work.view' },
-      { label: 'Team & access', icon: 'solar:shield-user-linear', to: '/admin/team', needs: 'team.manage' },
-    ],
-  },
-  {
-    heading: 'Money',
-    items: [
-      { label: 'Payments', icon: 'solar:wallet-2-linear', to: '/admin/payments', needs: 'money.view' },
-      { label: 'Credit lines', icon: 'solar:card-transfer-linear', to: '/admin/credit', needs: 'money.view' },
-      { label: 'Contracts', icon: 'solar:document-text-linear', to: '/admin/contracts', needs: 'money.view' },
-    ],
-  },
-  {
-    heading: 'Service',
-    items: [
-      { label: 'Support', icon: 'solar:headphones-round-linear', to: '/admin/tickets', needs: 'support.answer' },
-      { label: 'Catalogue', icon: 'solar:box-linear', to: '/admin/services', needs: 'work.view' },
-    ],
-  },
-  {
-    heading: 'System',
-    items: [
-      { label: 'Platform settings', icon: 'solar:settings-linear', to: '/admin/settings', needs: 'platform.settings' },
-      { label: 'Audit log', icon: 'solar:clock-circle-linear', to: '/admin/audit', needs: 'team.manage' },
-      { label: 'Tools', icon: 'solar:tuning-2-linear', to: '/admin/tools', needs: 'catalogue.edit' },
-    ],
-  },
-]
 
 /**
  * Flattened for `ApexSidebarNav`: the heading rides on each group's first
@@ -66,7 +22,7 @@ const groups: { heading: string, items: AdminNavDef[] }[] = [
  * over one list of targets.
  */
 const menu = computed<ApexNavItem[]>(() =>
-  groups.flatMap(group =>
+  ADMIN_NAV.flatMap(group =>
     group.items.map((item, index) => {
       const locked = Boolean(item.needs) && !can(item.needs!)
       return {

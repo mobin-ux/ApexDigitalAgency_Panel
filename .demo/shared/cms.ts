@@ -7,4 +7,4 @@
  * `web/` is a separate pnpm project (ADR-018), so nothing here goes through a
  * package name, and the panel bundles the files straight from the site tree.
  */
-export * from '../../web/shared/cms/index'
+export * from '../../web/shared/cms/index.ts'

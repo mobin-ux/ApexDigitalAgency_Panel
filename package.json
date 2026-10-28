@@ -29,7 +29,10 @@
     "test": "run-p test:*",
     "test:tsc-demo": "pnpm --filter=demo typecheck",
     "test:lint": "eslint --cache .",
-    "lint": "eslint --cache --fix ."
+    "lint": "eslint --cache --fix .",
+    "test:cms:unit": "node --test \".demo/tests/unit/*.test.ts\" \"web/tests/unit/*.test.ts\"",
+    "test:cms:api": "node --test \".demo/tests/api/*.test.ts\"",
+    "test:cms:site": "node --test \"web/tests/site/*.test.ts\""
   },
   "dependencies": {
     "@pinia/nuxt": "^0.11.3",

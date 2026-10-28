@@ -164,6 +164,8 @@ JWT secret: `runtimeConfig.jwtSecret` (`NUXT_JWT_SECRET` env override).
 | **`/api/admin/team/invites`** (POST) | `team.manage` — create a `StaffInvite` (single-use token, 7-day expiry). Grants nothing. Returns the acceptance link, because there is no mail provider |
 | **`/api/admin/team/invites/:id`** (DELETE) | `team.manage` — withdraw; stamps `cancelledAt` rather than deleting, so the audit trail's subject survives |
 | **`/api/admin/team/invites/:id/resend`** (POST) | `team.manage` — mints a NEW token and restarts the clock, invalidating the previous link |
+| **`/api/admin/website/overview`** (GET) | `website.view` — the Website module's first screen (ADR-021): document counts by display status, the scheduled queue, failed publishes, media totals, redirect counts and the latest `admin.website.*` audit rows. The rest of `/api/admin/website/**` arrives gate by gate |
+| POST `/api/_test/reset-rate-limits` | **dev-only (404 in production)** — clears the in-process rate limiter so the API test suites can sign in as every role from one address |
 | GET `/api/auth/invite?token=` | unauthenticated by necessity (the invitee has no account). Returns only the offered name, address and role — never the token or the inviter |
 | POST `/api/auth/accept-invite` | the **only** route that can create a non-CUSTOMER account. Role and email come from the invite row, never the body; the invite is claimed by a conditional update inside the account-creating transaction |
 | GET `/api/create-admin`, `/api/seed-*` | **dev-only (404 in production builds)**. All seeds now schema-valid |
@@ -229,7 +231,7 @@ All customer pages: `definePageMeta({ layout: 'sidenav', middleware: 'auth' })`.
   role matrix), `/admin/settings` rebuilt as the design's four platform panels
   with the rest of the catalogue below it, `/admin/audit` (the log, lifted out of
   Tools, with kind filters and CSV export). The sidebar is grouped Work · People ·
-  Money · Service · System and renders a padlock — not a link that 403s — for a
+  Money · Service · Website · System and renders a padlock — not a link that 403s — for a
   destination the signed-in `staffRole` cannot open. `/auth/accept-invite`
   completes the invite loop on the Phase 8 auth shell. See ADR-016.
 - **Admin panel** (`/admin/**`): `layout: 'admin'` + `middleware: 'admin'` (role gate;
@@ -246,6 +248,19 @@ Shared UI vocabulary (see DESIGN_SYSTEM.md + CLAUDE.md): status accents
 8 hex of UUID uppercased.
 
 ## 8. Tooling & verification
+
+- **Tests (first added with the CMS, ADR-021).** Node's own runner, no
+  framework: `pnpm test:cms:unit` runs `.demo/tests/unit` and `web/tests/unit`
+  directly on the TypeScript sources (Node 22 strips types; the shared
+  contract's relative imports carry their `.ts` extension for that reason,
+  and the panel's `tsconfig.json` sets `allowImportingTsExtensions` so
+  vue-tsc accepts them). `pnpm test:cms:api` runs `.demo/tests/api` against
+  a live dev server named by `CMS_TEST_URL`, ideally on a copy of the local
+  database (`DATABASE_URL=file:<absolute path>` — the Prisma singleton
+  honours an absolute override and ignores a relative one). It skips, rather
+  than fails, when the variable is unset. Staff accounts for roles the seeds
+  do not create are made through the real invite flow on first use
+  (`cms-test-<role>@example.test`, local database only).
 
 - Preview: `.claude/launch.json` (`demo`, autoPort) — the user often runs their own
   server on :3000; never kill it.

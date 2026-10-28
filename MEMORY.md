@@ -34,7 +34,7 @@ Gates, each one commit (`feat(cms): …`), lint → typecheck vs baseline → te
 | Gate | Scope | Status |
 |---|---|---|
 | 1 | Baselines, ADR-021, contract stub, cross-tree import proven, `zod@3.25.76` pinned in `web/` | ✅ |
-| 2 | Roles/permissions, audit bucket, sidebar group, `homeFor(role)`, Prisma models + migration SQL, field DSL + templates, settings registry, state machine, purpose tokens, test harness | ☐ |
+| 2 | Roles/permissions, audit bucket, sidebar group, `homeFor(role)`, Prisma models + migration SQL, field DSL + templates, settings registry, state machine, purpose tokens, test harness | ✅ |
 | 3 | Site refactor: template-typed copy into data (~25 components), core templates, `cms-baseline.ts`, `GET /api/cms/baseline` | ☐ |
 | 4 | Documents, publish/unpublish, revisions, preview tokens, `/api/site/**`, site `cms.ts` + proxies + revalidate, editor UI, landing renderer, import | ☐ |
 | 5 | Review workflow, scheduling task, key change + redirect, navigation globals, announcement bar, panel content, `credit.applications-open` | ☐ |
@@ -51,6 +51,38 @@ against those, not against zero.
 **Gate 1 proof:** a temporary `server/api/_cms-probe.get.ts` importing
 `~~/shared/cms` answered `{ "version": 1 }` on the panel dev server, so Nitro
 bundles files from the `web/` tree by relative path. The probe was deleted.
+
+**Gate 2 shipped (2026-10-28).** Eight roles × seventeen permissions
+(Publisher, Editor; `website.*`), the Website sidebar group with its first
+screen `/admin/website` and `GET /api/admin/website/overview`, the
+`website` audit bucket, `homeFor(role)` (`app/utils/adminNav.ts`, used by
+the layout, the `/admin` guard and the invite landing), the five Prisma
+models (`SiteDocument`, `SiteRevision`, `SiteRedirect`, `SiteMedia`,
+`SiteMediaRef`; pushed locally, production SQL in
+`docs/migrations/2026-10-cms.sql`), generic `signPurposeToken`/
+`readPurposeToken` (the two-factor pair now delegates), the website
+settings registry (`server/utils/website/settings.ts`), and the shared
+contract: field DSL (`f.*` → zod + editor form), blocks, links, sections,
+SEO precedence, the `landing`/`header`/`footer`/`announcement`/`legal`/
+`panel-promo`/`panel-announcement` templates, `resolveDocument()` and the
+pure publishing state machine (`workflow.ts`, shared so the UI, the server
+and the tests ask one function). Tests: 25 unit (`pnpm test:cms:unit`) and
+the first API suite, every website endpoint × every role + the invite →
+editor → `/admin` redirect path (`CMS_TEST_URL=… pnpm test:cms:api`).
+
+Gate 2 gotchas:
+- **The panel's Nuxt 3 tsconfig refuses `.ts` extensions in imports**
+  (TS5097); the site's Nuxt 4 one allows them. `.demo/tsconfig.json` now sets
+  `allowImportingTsExtensions`. The extensions are needed so `node --test`
+  can load the contract without a bundler.
+- **ESLint auto-fix rewrites `node:test` imports to `vitest`**
+  (`test/no-import-node-test`); each suite carries a disable comment.
+- **The sign-in limiter blocks a test run** (5/min, then 15 min): the
+  dev-only `POST /api/_test/reset-rate-limits` is called before each login.
+- **This checkout's `dev.db` has no Phase 9 staff seeds**; the harness
+  invites `cms-test-<role>@example.test` on first use instead.
+- A heredoc through the shell hook strips backslashes inside JS regexes —
+  write edit scripts to the scratchpad and run them with node.
 
 **Not deployed:** nothing from this workstream, and the panel's Settings
 re-check commits (`1d4c5ae`, `8ea3dcd`) are still waiting for the user's

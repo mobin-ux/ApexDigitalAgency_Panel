@@ -114,6 +114,58 @@ function detailOf(entry: { action: string, metadata: string | null }) {
       return settingsDetail(meta)
     case 'auth.login.failed':
       return 'Failed sign-in attempt'
+    case 'admin.website.document.create':
+      return meta?.template ? `Created a ${meta.template} document` : 'Created a website document'
+    case 'admin.website.document.save':
+      return meta?.revision ? `Saved draft revision ${meta.revision}` : 'Saved a draft'
+    case 'admin.website.document.submit':
+      return 'Submitted a draft for review'
+    case 'admin.website.document.approve':
+      return 'Approved a draft for publishing'
+    case 'admin.website.document.reject':
+      return 'Sent a draft back for changes'
+    case 'admin.website.document.publish':
+      return meta?.revision ? `Published revision ${meta.revision}` : 'Published'
+    case 'admin.website.document.schedule':
+      return meta?.scheduledFor ? `Scheduled to publish at ${meta.scheduledFor}` : 'Scheduled a publish'
+    case 'admin.website.document.unschedule':
+      return 'Cancelled a scheduled publish'
+    case 'admin.website.document.unpublish':
+      return 'Took a page off the website'
+    case 'admin.website.document.archive':
+      return 'Archived a document'
+    case 'admin.website.document.restore':
+      return 'Restored an archived document'
+    case 'admin.website.document.restore-revision':
+      return meta?.revision ? `Restored revision ${meta.revision} into the draft` : 'Restored an earlier revision'
+    case 'admin.website.document.duplicate':
+      return 'Duplicated a document'
+    case 'admin.website.document.key':
+      return meta?.from && meta?.to ? `Moved ${meta.from} to ${meta.to}` : 'Changed a document address'
+    case 'admin.website.document.delete':
+      return 'Deleted a never-published draft'
+    case 'admin.website.publish.failed':
+      return meta?.error ? `Scheduled publish failed: ${meta.error}` : 'Scheduled publish failed'
+    case 'admin.website.media.upload':
+      return 'Uploaded a media file'
+    case 'admin.website.media.update':
+      return 'Updated media details'
+    case 'admin.website.media.replace':
+      return 'Replaced a media file'
+    case 'admin.website.media.delete':
+      return 'Deleted a media file'
+    case 'admin.website.redirect.create':
+      return meta?.from && meta?.to ? `Added a redirect from ${meta.from} to ${meta.to}` : 'Added a redirect'
+    case 'admin.website.redirect.update':
+      return 'Changed a redirect'
+    case 'admin.website.redirect.delete':
+      return 'Removed a redirect'
+    case 'admin.website.settings.update':
+      return Array.isArray(meta?.changed) && meta.changed.length
+        ? `Changed site settings: ${meta.changed.join(', ')}`
+        : 'Changed site settings'
+    case 'admin.website.import':
+      return meta?.created !== undefined ? `Imported the site baseline (${meta.created} new documents)` : 'Imported the site baseline'
     default:
       return humanise(entry.action)
   }
@@ -177,6 +229,7 @@ const KIND_TONE: Record<AuditKind, string> = {
   money: 'bg-[#22B07D]/14 text-[#22B07D]',
   files: 'bg-[#EC6453]/14 text-[#EC6453]',
   work: 'bg-primary-500/14 text-primary-400',
+  website: 'bg-[#6EA8FE]/14 text-[#6EA8FE]',
   config: 'bg-muted-200 text-muted-600 dark:bg-white/5 dark:text-muted-400',
 }
 

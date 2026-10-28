@@ -8,8 +8,19 @@
  * (`.demo/shared/cms.ts`) so the editor validates exactly what the site will
  * render, and the two cannot drift (ADR-021).
  *
- * Nothing here may import from `web/app` or `web/server`.
+ * Nothing here may import from `web/app` or `web/server`. Relative imports
+ * carry their `.ts` extension so Node can run the test suites on these files
+ * directly, without a bundler.
  */
 
 /** Bumped when a stored document shape changes in a way old readers cannot resolve. */
 export const CMS_CONTRACT_VERSION = 1 as const
+
+export * from './blocks.ts'
+export * from './fields.ts'
+export * from './links.ts'
+export * from './resolve.ts'
+export * from './sections.ts'
+export * from './seo.ts'
+export * from './templates.ts'
+export * from './workflow.ts'

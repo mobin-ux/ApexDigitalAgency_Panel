@@ -1,7 +1,14 @@
+import { can, DEFAULT_STAFF_ROLE, isStaffRole } from '~~/shared/permissions'
+import { homeFor } from '~/utils/adminNav'
+
 /**
  * Route guard for /admin/** pages: authentication plus a role gate.
  * Non-admin accounts are sent to their customer dashboard rather than a
  * 403 — the admin panel simply doesn't exist for them.
+ *
+ * The Overview at /admin loads the work queue, which needs `work.view`. A
+ * role without it (an Editor, ADR-021) is sent to the first screen its role
+ * can open instead of a page whose only content is a 403.
  *
  * The session cookie is httpOnly, so authentication is resolved through
  * `fetchUser()` (server-verified). The role check here is UX only; every
@@ -21,5 +28,12 @@ export default defineNuxtRouteMiddleware(async (to) => {
 
   if (user.value.role !== 'ADMIN') {
     return navigateTo('/dashboards/balance')
+  }
+
+  if (to.path === '/admin') {
+    const role = isStaffRole(user.value.staffRole) ? user.value.staffRole : DEFAULT_STAFF_ROLE
+    if (!can(role, 'work.view')) {
+      return navigateTo(homeFor(role))
+    }
   }
 })
