@@ -6,6 +6,7 @@ import { createError } from 'h3'
 import { availableActions, displayStatus, isSafeInternalPath, isTemplateKey, LEGAL_KEYS, normalisePath, TEMPLATES, validateContent } from '../../../shared/cms'
 import { recordAudit } from '../audit'
 import prisma from '../prisma'
+import { syncMediaRefs } from './media'
 
 /**
  * The document store behind the website CMS (ADR-021): create, load, save a
@@ -184,6 +185,7 @@ export async function createDocument(event: H3Event, actor: AuditActor, input: C
     await tx.siteRevision.create({
       data: { documentId: created.id, number: 1, content, note: input.note ?? null, authorId: actor.id },
     })
+    await syncMediaRefs(tx, created.id, 'draft', check.content)
     return tx.siteDocument.findUniqueOrThrow({ where: { id: created.id }, include: WITH_PUBLISHED })
   })
   await recordAudit(event, actor, {
@@ -237,6 +239,7 @@ export async function saveDraft(event: H3Event, actor: AuditActor, id: string, i
     if (last?.content !== content) {
       await tx.siteRevision.create({ data: { documentId: id, number, content, note: input.note ?? null, authorId: actor.id } })
     }
+    await syncMediaRefs(tx, id, 'draft', check.content)
     return tx.siteDocument.findUniqueOrThrow({ where: { id }, include: WITH_PUBLISHED })
   })
 

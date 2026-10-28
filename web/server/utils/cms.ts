@@ -123,6 +123,29 @@ async function getJson<T>(target: string): Promise<T> {
   return await res.json() as T
 }
 
+export interface CmsSettings {
+  name: string
+  url: string
+  tagline: string
+  email: string
+  phone: string
+  openingHours: string
+  companyNumber: string
+  vatNumber: string
+  icoNumber: string
+  address: { street: string, locality: string, region: string, postcode: string }
+  social: { linkedin: string, instagram: string, x: string, youtube: string }
+  seo: { defaultTitle: string, defaultDescription: string, ogImage: { src: string, width: number | null, height: number | null, alt: string } | null }
+  robotsDisallow: string[]
+  timezone: string
+}
+
+/** The site settings the panel holds, or null (no panel): the code baseline then stands. */
+export const fetchSettings = defineCachedFunction(
+  async (): Promise<CmsSettings | null> => fetchWithSnapshot<CmsSettings>('settings', '/api/site/settings'),
+  { name: 'cms', getKey: () => 'settings', maxAge: CMS_CACHE_SECONDS, swr: true },
+)
+
 /** A draft, by preview token. Never cached, never snapshotted. */
 export async function fetchPreview(token: string): Promise<CmsDocument | null> {
   const { url } = cmsConfig()

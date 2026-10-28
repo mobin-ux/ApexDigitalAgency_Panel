@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /* eslint-disable vue/no-mutating-props -- the editor edits one document object in place; the page compares it with its saved copy to know it is dirty, and child controls write into the branch they were given (see AdminWebsiteFields) */
-import type { FieldDef, FieldMap } from '~~/shared/cms'
+import type { FieldDef, FieldMap, MediaField } from '~~/shared/cms'
 import { emptyValue } from '~/utils/cmsEditor'
 
 /**
@@ -80,14 +80,15 @@ function hint(def: FieldDef): string | undefined {
   return 'hint' in def ? def.hint : undefined
 }
 
-function mediaPart(key: string, part: 'mediaId' | 'alt'): string {
-  const current = props.model[key] as { mediaId?: string, alt?: string } | undefined
-  return current?.[part] ?? ''
+function mediaValue(key: string): { mediaId: string, alt: string } | null {
+  const value = props.model[key] as { mediaId?: string, alt?: string } | null | undefined
+  return value && value.mediaId ? { mediaId: value.mediaId, alt: value.alt ?? '' } : null
 }
 
-function setMedia(key: string, part: 'mediaId' | 'alt', value: string) {
-  const current = (props.model[key] as { mediaId?: string, alt?: string } | undefined) ?? { mediaId: '', alt: '' }
-  props.model[key] = { mediaId: current.mediaId ?? '', alt: current.alt ?? '', [part]: value }
+function acceptOf(def: MediaField): 'image' | 'pdf' | undefined {
+  const image = def.accept.includes('image')
+  const pdf = def.accept.includes('pdf')
+  return image && !pdf ? 'image' : pdf && !image ? 'pdf' : undefined
 }
 
 function setNumber(key: string, raw: string) {
@@ -233,21 +234,12 @@ const ICON_BTN = 'apex-focus text-muted-500 hover:bg-muted-100 hover:text-muted-
         </p>
       </div>
 
-      <!-- Media: the library and its picker arrive with the media gate; until then the reference is edited as its id. -->
-      <div v-else-if="def.type === 'media'" class="border-muted-200 rounded-xl border p-4 dark:border-white/10">
+      <!-- Media: a reference into the library, chosen with the picker. -->
+      <div v-else-if="def.type === 'media'">
         <span :class="LABEL">{{ def.label }}</span>
-        <div class="grid gap-3 sm:grid-cols-2">
-          <div>
-            <label :for="`in-${pathOf(key)}-id`" class="text-muted-500 mb-1 block text-xs font-semibold">Media id</label>
-            <input :id="`in-${pathOf(key)}-id`" :value="mediaPart(key, 'mediaId')" :class="INPUT" class="font-mono" @input="setMedia(key, 'mediaId', ($event.target as HTMLInputElement).value)">
-          </div>
-          <div>
-            <label :for="`in-${pathOf(key)}-alt`" class="text-muted-500 mb-1 block text-xs font-semibold">Alt text</label>
-            <input :id="`in-${pathOf(key)}-alt`" :value="mediaPart(key, 'alt')" maxlength="300" :class="INPUT" @input="setMedia(key, 'alt', ($event.target as HTMLInputElement).value)">
-          </div>
-        </div>
-        <p :class="HINT">
-          {{ def.hint ?? '' }} The media library picker is not built yet; an id from the library goes here.
+        <AdminWebsiteMediaPicker :model-value="mediaValue(key)" :accept="acceptOf(def)" @update:model-value="model[key] = $event ?? { mediaId: '', alt: '' }" />
+        <p v-if="def.hint" :class="HINT">
+          {{ def.hint }}
         </p>
         <p v-for="e in [...errorsAt(key), ...(errors[`${pathOf(key)}.mediaId`] ?? [])]" :key="e" :class="ERROR" role="alert">
           {{ e }}

@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { routes } from '~/data/routes'
-import { company } from '~/data/site'
+import { company as companyBaseline } from '~/data/site'
 
 const panel = usePanelLinks()
 const home = useCmsContent('home')
+const settings = useSiteSettings()
+const company = computed(() => settings.value ?? companyBaseline)
 </script>
 
 <template>

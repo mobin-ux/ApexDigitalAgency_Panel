@@ -1,5 +1,6 @@
 import { createError, getRouterParam, setHeader } from 'h3'
 import { loadDocument, parseJson } from '../../../utils/website/documents'
+import { mediaIndex } from '../../../utils/website/media'
 import { readPreviewToken } from '../../../utils/website/preview'
 
 /**
@@ -23,5 +24,6 @@ export default defineEventHandler(async (event) => {
     draftVersion: doc.draftVersion,
     draftUpdatedAt: doc.draftUpdatedAt,
     content: parseJson(doc.draft),
+    media: await mediaIndex(parseJson(doc.draft)),
   }
 })

@@ -185,6 +185,8 @@ export default defineNuxtConfig({
     website: {
       siteUrl: '',
       revalidateSecret: '',
+      /** Where the website media library stores files (NUXT_WEBSITE_MEDIA_DIR); outside the bundle in production. */
+      mediaDir: '',
     },
     payments: {
       stripe: {

@@ -47,6 +47,14 @@ template, give it a value in the baseline, read it in the component. Run
 `pnpm test:cms:unit` and, against a dev server,
 `SITE_TEST_URL=http://localhost:3000 pnpm test:cms:site` (from the repo root).
 
+Runtime pairing with the panel: `NUXT_CMS_URL` (the panel as seen from this
+server; empty renders the code baseline) and `NUXT_CMS_REVALIDATE_SECRET`
+(must equal the panel's `NUXT_WEBSITE_REVALIDATE_SECRET`). Images from the
+panel's media library go through `/_ipx` (`server/middleware/01.ipx-cache.ts`
+caches the processed bytes under `.data/ipx`); PDFs through `/media`. Site
+settings arrive through `useSiteSettings()`: a filled setting wins over the
+value in `data/site.ts`, an empty one keeps it.
+
 ## Layout
 
 ```

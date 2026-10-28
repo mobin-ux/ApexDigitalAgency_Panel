@@ -2,7 +2,6 @@ import process from 'node:process'
 import tailwindcss from '@tailwindcss/vite'
 import { company, seoDefaults } from './app/data/site'
 
-const profiles = company.social.filter(profile => profile.url).map(profile => profile.url)
 const siteUrl = process.env.NUXT_PUBLIC_SITE_URL ?? 'https://apexdigi.co.uk'
 
 // Every powerful browser feature is switched off: the site uses none of them.
@@ -118,6 +117,9 @@ export default defineNuxtConfig({
     },
     // Same-origin content proxies for client-side navigation; the server's own cache bounds the work.
     '/api/cms/**': { security: { rateLimiter: false } },
+    // Images and library files: many per page, cached on disk, no per-IP limiter.
+    '/_ipx/**': { security: { rateLimiter: false } },
+    '/media/**': { security: { rateLimiter: false } },
     // The site's one write. POST is allowed here and nowhere else; the body is
     // small and each IP gets five messages per ten minutes.
     '/api/contact': {
@@ -138,9 +140,12 @@ export default defineNuxtConfig({
     // last published words rather than the baseline (server/utils/cms.ts).
     storage: {
       cms: { driver: 'fs', base: '.data/cms' },
+      // Processed images, by request path (server/routes/_ipx): IPX itself never caches.
+      ipx: { driver: 'fs', base: '.data/ipx' },
     },
     devStorage: {
       cms: { driver: 'fs', base: '.data/cms' },
+      ipx: { driver: 'fs', base: '.data/ipx' },
     },
   },
 
@@ -154,26 +159,9 @@ export default defineNuxtConfig({
     defaultLocale: 'en-GB',
   },
 
-  schemaOrg: {
-    identity: {
-      type: 'Organization',
-      name: company.name,
-      legalName: company.legalName,
-      logo: '/brand/apex-icon.svg',
-      email: company.email,
-      // Only confirmed facts reach structured data: empty values are dropped.
-      ...(company.phone ? { telephone: company.phone } : {}),
-      ...(profiles.length ? { sameAs: profiles } : {}),
-      address: {
-        ...(company.address.street ? { streetAddress: company.address.street } : {}),
-        ...(company.address.postcode ? { postalCode: company.address.postcode } : {}),
-        addressLocality: company.address.locality,
-        addressRegion: company.address.region,
-        addressCountry: company.address.country,
-      },
-      areaServed: 'GB',
-    },
-  },
+  // The Organization identity is defined at request time in app.vue from
+  // the site settings (ADR-021), so a changed phone number or profile URL
+  // reaches structured data without a build.
 
   // The service-worker based skew protection is for apps with many concurrent
   // deploys; a prerendered marketing site gains nothing from it, and its worker

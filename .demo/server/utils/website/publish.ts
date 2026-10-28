@@ -7,7 +7,8 @@ import { transition } from '../../../shared/cms'
 import { recordAudit } from '../audit'
 import prisma from '../prisma'
 import { clearPanelContentCache } from './content-api'
-import { loadDocument, WITH_PUBLISHED, workflowDocOf } from './documents'
+import { loadDocument, parseJson, WITH_PUBLISHED, workflowDocOf } from './documents'
+import { syncMediaRefs } from './media'
 
 /**
  * The lifecycle: one function applies a workflow action to a document.
@@ -54,6 +55,8 @@ export async function applyTransition(event: H3Event, actor: AuditActor, id: str
     switch (result.effect) {
       case 'publish-draft':
         await tx.siteRevision.update({ where: { id: latest.id }, data: { publishedAt: now } })
+        await syncMediaRefs(tx, id, 'published', parseJson(latest.content))
+        await syncMediaRefs(tx, id, 'scheduled', null)
         await tx.siteDocument.update({
           where: { id },
           data: {
@@ -72,24 +75,30 @@ export async function applyTransition(event: H3Event, actor: AuditActor, id: str
         })
         break
       case 'schedule-draft':
+        await syncMediaRefs(tx, id, 'scheduled', parseJson(latest.content))
         await tx.siteDocument.update({
           where: { id },
           data: { ...base, scheduledRevisionId: latest.id, scheduledById: actor.id, lastPublishError: null, publishAttempts: 0 },
         })
         break
       case 'unschedule':
+        await syncMediaRefs(tx, id, 'scheduled', null)
         await tx.siteDocument.update({
           where: { id },
           data: { ...base, scheduledRevisionId: null, scheduledFor: null, scheduledById: null, lastPublishError: null },
         })
         break
       case 'unpublish':
+        await syncMediaRefs(tx, id, 'published', null)
+        await syncMediaRefs(tx, id, 'scheduled', null)
         await tx.siteDocument.update({
           where: { id },
           data: { ...base, publishedRevisionId: null, publishedAt: null, publishedById: null, scheduledRevisionId: null, scheduledFor: null, revalidatePending: true },
         })
         break
       case 'archive':
+        await syncMediaRefs(tx, id, 'published', null)
+        await syncMediaRefs(tx, id, 'scheduled', null)
         await tx.siteDocument.update({
           where: { id },
           data: { ...base, publishedRevisionId: null, publishedAt: null, scheduledRevisionId: null, scheduledFor: null, archivedAt: now, revalidatePending: doc.status === 'PUBLISHED' },
@@ -229,7 +238,9 @@ export async function publishDue(now = new Date()): Promise<PublishDueResult> {
         if (claimed.count === 0) {
           return false
         }
-        await tx.siteRevision.update({ where: { id: doc.scheduledRevisionId! }, data: { publishedAt: now } })
+        const revision = await tx.siteRevision.update({ where: { id: doc.scheduledRevisionId! }, data: { publishedAt: now } })
+        await syncMediaRefs(tx, doc.id, 'published', parseJson(revision.content))
+        await syncMediaRefs(tx, doc.id, 'scheduled', null)
         return true
       })
       if (done) {

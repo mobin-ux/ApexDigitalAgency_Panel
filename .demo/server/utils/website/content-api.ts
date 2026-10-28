@@ -5,6 +5,7 @@ import { normalisePath, resolveDocument, TEMPLATES } from '../../../shared/cms'
 import { panelAnnouncementBaseline, panelPromoBaseline } from '../../../shared/panel-baseline'
 import prisma from '../prisma'
 import { parseJson } from './documents'
+import { mediaIndex } from './media'
 
 /**
  * What the public content API (`/api/site/**`) answers: published revisions
@@ -22,6 +23,15 @@ export interface PublishedDocument {
   revision: number
   publishedAt: Date | null
   content: unknown
+  /** The files the content refers to, by media id: address, size, alt (filled by `withMedia`). */
+  media?: Record<string, { src: string, width: number | null, height: number | null, mime: string, alt: string, filename: string }>
+}
+
+export async function withMedia<T extends PublishedDocument | null>(doc: T): Promise<T> {
+  if (doc) {
+    doc.media = await mediaIndex(doc.content)
+  }
+  return doc
 }
 
 const PUBLISHED_SELECT = {
@@ -57,7 +67,7 @@ export async function publishedPage(path: string): Promise<PublishedDocument | n
     where: { kind: 'page', key, status: 'PUBLISHED', publishedRevisionId: { not: null } },
     select: PUBLISHED_SELECT,
   })
-  return row ? toPublished(row) : null
+  return withMedia(row ? toPublished(row) : null)
 }
 
 /** Every published global (header, footer, announcement, chrome), keyed by template. */
@@ -70,7 +80,7 @@ export async function publishedGlobals(): Promise<Record<string, PublishedDocume
   for (const row of rows) {
     const doc = toPublished(row)
     if (doc) {
-      out[doc.template] = doc
+      out[doc.template] = await withMedia(doc)
     }
   }
   return out

@@ -1,4 +1,4 @@
-import type { ComputedRef } from 'vue'
+import type { ComputedRef, InjectionKey, Ref } from 'vue'
 import type { ResolveWarning, TemplateContent, TemplateKey } from '../../shared/cms'
 import type { FixedBaselineKey } from '~/data/cms-baseline'
 import { fixedBaselines } from '~/data/cms-baseline'
@@ -19,10 +19,23 @@ import { resolveDocument, resolveSections, TEMPLATES, validateContent } from '..
  * the proxies answer 404 and every page renders its baseline.
  */
 
+export interface CmsMediaInfo {
+  src: string
+  width: number | null
+  height: number | null
+  mime: string
+  alt: string
+  filename: string
+}
+
 interface OverlayDoc {
   template: TemplateKey
   content: unknown
+  media?: Record<string, CmsMediaInfo>
 }
+
+/** The injection key for a page's media index: the pages that render media provide it, CmsMedia reads it. */
+export const CMS_MEDIA_KEY: InjectionKey<Ref<Record<string, CmsMediaInfo>>> = Symbol('cms-media')
 
 function warn(template: string, key: string, warnings: ResolveWarning[]) {
   if (warnings.length && import.meta.server) {
@@ -107,5 +120,6 @@ export async function useCmsLanding(path: string) {
     warn('landing', path, warnings)
     return check.content
   })
-  return { page, status }
+  const media = computed<Record<string, CmsMediaInfo>>(() => data.value?.media ?? {})
+  return { page, media, status }
 }

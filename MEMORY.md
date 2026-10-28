@@ -38,7 +38,7 @@ Gates, each one commit (`feat(cms): …`), lint → typecheck vs baseline → te
 | 3 | Site refactor: template-typed copy into data (~25 components), core templates, `cms-baseline.ts`, `GET /api/cms/baseline` | ✅ |
 | 4 | Documents, publish/unpublish, revisions, preview tokens, `/api/site/**`, site `cms.ts` + proxies + revalidate, editor UI, landing renderer, import | ✅ |
 | 5 | Review workflow, scheduling task, key change + redirect, navigation globals, announcement bar, panel content, `credit.applications-open` | ✅ |
-| 6 | Media library (sniff, dimensions, GET+HEAD), IPX disk cache, site settings + identity plugin | ☐ |
+| 6 | Media library (sniff, dimensions, GET+HEAD), IPX disk cache, site settings + identity plugin | ✅ |
 | 7 | SEO tab, sitemap source, robots hook, redirects middleware, SEO audit | ☐ |
 | 8 | Overview dashboard, UX states, a11y, responsive | ☐ |
 | 9 | Full verification, docs, deployment notes, final report | ☐ |
@@ -145,6 +145,49 @@ sees the customer refused and an editor denied. API 14/14. On the site, a
 published announcement appeared with its link and disappeared when
 switched off (the document stays in the payload with `enabled: false`; the
 bar is what goes).
+
+**Gate 6 shipped (2026-10-28).** Media: `shared/media-sniff.ts` (magic
+bytes for JPEG/PNG/GIF/WebP/PDF, header-parsed dimensions, `collectMediaIds`)
+and `server/utils/website/media.ts` (store by UUID with `wx`, replace =
+same id + version bump, soft delete refused while any `SiteMediaRef`
+exists, GET and HEAD serving with a year's immutable cache); public
+`/api/site/media/:id/:version/:name`; admin `/api/admin/website/media`
+(list, upload ≤10 × 10 MB with the Content-Length checked first, get,
+patch alt/caption, delete, replace, usage); references are synced per slot
+(draft on save, published/scheduled on transition and by the scheduler);
+published documents carry a `media` index (address, size, alt). Site: the
+image module's `/_ipx` handler is shadowed by
+`server/middleware/01.ipx-cache.ts`, which runs IPX itself with an http
+source on the panel URL and keeps the processed bytes under `.data/ipx`
+(`X-Image-Cache: miss|hit`); `/media/**` proxies PDFs; `CmsMedia` renders
+`<NuxtImg>` from the index the landing and preview pages provide. Settings:
+`GET/PUT /api/admin/website/settings` on the registry (per-key zod, audited
+diff), public `/api/site/settings`, the site's `useSiteSettings()` (filled
+settings over the `company` baseline) feeding the footer, the three closing
+panels and the Organization identity (now defined in `app.vue` at request
+time; `schemaOrg.identity` left `nuxt.config`), and a `site-config:init`
+plugin pushing name/url/description. Screens: `/admin/website/media`
+(grid, upload, detail with usage, replace, delete) and
+`/admin/website/settings` (registry-driven, picker for the social image,
+robots disallows); the editor's media control is `AdminWebsiteMediaPicker`.
+Tests: media sniffing unit tests on hand-built headers; the media/settings
+API suite (upload, sizes, SVG and mismatched-extension refusals, 403 for
+read-only, HEAD/GET, usage, delete refused, replace → v2, index on the
+published document, site image served then cached, settings 400/403/200
+and public). About/Contact company facts still read the code baseline
+(their derived rows are built at module load); the footer and CTAs are
+dynamic. 31 unit, 18 API, 1 site.
+
+Gate 6 gotchas:
+- **A `server/routes` file cannot override a module's handler at the same
+  path**: the router answers with the first registered match. A
+  `server/middleware` that handles the path and returns runs first.
+- **IPX matches `domains` by hostname, without the port.**
+- **A header-only image fixture passes the sniffer but not the resizer**;
+  anything the site must render needs a real image (a 1×1 PNG is 67 bytes).
+- **`useState`/`useNuxtApp` inside a `useFetch` `transform` fails on the
+  server** and turns into a silent fetch error; pass data down with
+  provide/inject instead.
 
 Gate 5 gotchas:
 - **Nitro tasks need a dev-server restart** to register the cron; HMR does

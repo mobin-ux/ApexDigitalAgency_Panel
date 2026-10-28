@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { CMS_MEDIA_KEY } from '~/composables/useCmsContent'
 import { seoDefaults } from '~/data/site'
 import { resolveSeo } from '../../shared/cms'
 
@@ -11,7 +12,8 @@ import { resolveSeo } from '../../shared/cms'
  */
 const route = useRoute()
 const path = route.path.replace(/\/+$/, '') || '/'
-const { page } = await useCmsLanding(path)
+const { page, media } = await useCmsLanding(path)
+provide(CMS_MEDIA_KEY, media)
 
 if (!page.value) {
   throw createError({ statusCode: 404, statusMessage: 'Page not found', fatal: true })

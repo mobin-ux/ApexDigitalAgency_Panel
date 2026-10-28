@@ -6,13 +6,16 @@
  * page the preview shows the draft's words as a list, because those pages
  * are composed from many components that read the published document.
  */
+import { CMS_MEDIA_KEY } from '~/composables/useCmsContent'
+
 definePageMeta({ layout: false })
 
 const route = useRoute()
-const { data: doc } = await useFetch<{ template: string, title: string, key: string, draftVersion: number, draftUpdatedAt: string, content: any } | null>(`/api/cms/preview/${route.params.token}`, {
+const { data: doc } = await useFetch<{ template: string, title: string, key: string, draftVersion: number, draftUpdatedAt: string, content: any, media?: Record<string, any> } | null>(`/api/cms/preview/${route.params.token}`, {
   default: () => null,
   ignoreResponseError: true,
 })
+provide(CMS_MEDIA_KEY, computed(() => doc.value?.media ?? {}))
 
 if (!doc.value) {
   throw createError({ statusCode: 404, statusMessage: 'This preview link is not valid or has expired', fatal: true })

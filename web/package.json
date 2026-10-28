@@ -25,6 +25,7 @@
     "@nuxtjs/seo": "^6.0.1",
     "@tailwindcss/vite": "^4.3.3",
     "@vueuse/nuxt": "^15.0.0",
+    "ipx": "4.0.0-beta.1",
     "nuxt": "^4.6.1",
     "nuxt-security": "^2.6.0",
     "reka-ui": "^2.11.0",

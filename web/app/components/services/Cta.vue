@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { routes } from '~/data/routes'
-import { company } from '~/data/site'
+import { company as companyBaseline } from '~/data/site'
 
 // An unconfirmed phone number is empty and its row is not rendered.
-const phoneHref = company.phone ? `tel:${company.phone.replace(/\s+/g, '')}` : ''
+const settings = useSiteSettings()
+const company = computed(() => settings.value ?? companyBaseline)
+const phoneHref = computed(() => (company.value.phone ? `tel:${company.value.phone.replace(/\s+/g, '')}` : ''))
 const page = useCmsContent('services')
 const chrome = useCmsContent('service-chrome')
 </script>
