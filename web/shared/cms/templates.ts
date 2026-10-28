@@ -1,5 +1,6 @@
 import type { FieldMap, InferMap } from './fields.ts'
 import { f } from './fields.ts'
+import { PAGE_TEMPLATES } from './pages.ts'
 import { sectionsField } from './sections.ts'
 import { seoField } from './seo.ts'
 
@@ -14,8 +15,8 @@ import { seoField } from './seo.ts'
  *   dashboard promo, a panel-wide announcement.
  *
  * A document's `key` is its path for a page, and the fixed key for a global
- * or panel document (one each). The core page templates arrive with the site
- * refactor; the ones here are complete.
+ * or panel document (one each). The core page templates live in pages.ts;
+ * the free-form and chrome templates are here.
  */
 
 export type TemplateKind = 'page' | 'global' | 'panel'
@@ -31,7 +32,7 @@ export interface TemplateDef<F extends FieldMap = FieldMap> {
 
 const announcementFields = {
   enabled: f.boolean({ label: 'Show the bar', hint: 'Off keeps the text ready without showing it.' }),
-  text: f.text({ label: 'Message', max: 200, required: true }),
+  text: f.text({ label: 'Message', hint: 'The bar shows only when it is on and has a message.', max: 200 }),
   link: f.optional(f.object({
     label: 'Link',
     fields: {
@@ -57,6 +58,7 @@ const navLink = f.object({
 })
 
 export const TEMPLATES = {
+  ...PAGE_TEMPLATES,
   'landing': {
     label: 'Landing page',
     detail: 'A page built from sections, at any address that is free',
@@ -76,6 +78,21 @@ export const TEMPLATES = {
       nav: f.list({ label: 'Menu', hint: 'Services keeps its own menu; these sit beside it.', min: 1, max: 6, item: navLink }),
       signIn: f.text({ label: 'Sign-in button', max: 30, required: true }),
       start: f.text({ label: 'Start button', max: 30, required: true }),
+      servicesLabel: f.text({ label: 'Services menu label', max: 30, required: true }),
+      allServices: f.text({ label: 'All-services link', max: 30, required: true }),
+      menuDescription: f.text({ label: 'Menu description', hint: 'Read by screen readers when the mobile menu opens.', max: 160 }),
+      sections: f.object({
+        label: 'Section names',
+        hint: 'Used in breadcrumbs.',
+        fields: {
+          home: f.text({ label: 'Home', max: 20, required: true }),
+          services: f.text({ label: 'Services', max: 20, required: true }),
+          ourWork: f.text({ label: 'Our work', max: 20, required: true }),
+          insights: f.text({ label: 'Insights', max: 20, required: true }),
+          about: f.text({ label: 'About', max: 20, required: true }),
+          contact: f.text({ label: 'Contact', max: 20, required: true }),
+        },
+      }),
     },
   },
   'footer': {
@@ -103,8 +120,9 @@ export const TEMPLATES = {
           },
         }),
       }),
-      tagline: f.textarea({ label: 'About line', max: 240 }),
-      legalLine: f.text({ label: 'Legal line', hint: '{year} becomes the current year.', max: 200, placeholders: ['year'] }),
+      button: f.text({ label: 'Strip button', max: 40, required: true }),
+      servicesLabel: f.text({ label: 'Services column heading', max: 30, required: true }),
+      registeredIn: f.text({ label: 'Registered-in line', hint: 'The country comes from site settings.', max: 40, required: true }),
     },
   },
   'announcement': {

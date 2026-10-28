@@ -18,7 +18,7 @@ export type RobotsValue = typeof ROBOTS_OPTIONS[number]['value']
 
 export const seoFields = {
   title: f.text({ label: 'Search title', hint: 'Shown as the tab and the search result. The site name is added after it.', max: 70 }),
-  description: f.textarea({ label: 'Search description', hint: 'One or two sentences; Google shows about 155 characters.', max: 160 }),
+  description: f.textarea({ label: 'Search description', hint: 'One or two sentences; Google shows about 155 characters and cuts the rest.', max: 200 }),
   canonical: f.text({ label: 'Canonical address', hint: 'Only when this page is a copy of another. Leave empty for its own address.', max: 512, format: 'path-or-https' }),
   robots: f.select({ label: 'Search engines', options: ROBOTS_OPTIONS }),
   ogTitle: f.text({ label: 'Social title', hint: 'Used when the page is shared. Empty uses the search title.', max: 90 }),
