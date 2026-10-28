@@ -103,11 +103,14 @@ invite row — so a crafted payload cannot pick its own privileges. The
 invite is claimed with a conditional update inside the same transaction
 that creates the user, so two racing submissions cannot both succeed.
 
-**There is no mail provider in this stack, so nothing is emailed.** The
-acceptance link is returned to the caller and the panel says plainly that
-the operator must pass it on. Reporting "invite sent" while no message
-left the building would be the discarded-file defect Phase 6 removed from
-the support composer.
+**The invite is emailed through the outbox, and the panel says whether it
+went** (ADR-022, 2026-10-28; before that there was no mail provider and the
+link was always handed over). The acceptance link is still returned to the
+caller, with the outbox row's status: the panel reports "Invitation emailed"
+only when the provider accepted the message, and otherwise hands the link
+over with the reason. Reporting "invite sent" while no message left the
+building would be the discarded-file defect Phase 6 removed from the
+support composer.
 
 ## 6. Consequences
 

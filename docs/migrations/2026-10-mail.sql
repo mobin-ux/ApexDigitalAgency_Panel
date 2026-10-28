@@ -32,3 +32,7 @@ CREATE INDEX "MailMessage_createdAt_idx" ON "MailMessage"("createdAt");
 -- hand as ADD COLUMN; prisma migrate diff proposes a full table rebuild of
 -- "User" that differs only in column order.
 ALTER TABLE "User" ADD COLUMN "emailNotifications" BOOLEAN NOT NULL DEFAULT true;
+
+-- Website review emails (ADR-022, Gate 4): who submitted a draft, so approve
+-- and reject can answer them. Hand-written for the same reason as above.
+ALTER TABLE "SiteDocument" ADD COLUMN "submittedById" TEXT;

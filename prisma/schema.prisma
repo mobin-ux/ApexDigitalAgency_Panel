@@ -1034,6 +1034,8 @@ model SiteDocument {
   draftVersion        Int            @default(1)
   draftUpdatedAt      DateTime       @default(now())
   draftUpdatedById    String?
+  /// Who sent the draft for review (ADR-022): approve and reject answer them. Cleared when the review ends.
+  submittedById       String?
   publishedRevisionId String?        @unique
   publishedRevision   SiteRevision?  @relation("PublishedRevision", fields: [publishedRevisionId], references: [id], onDelete: SetNull)
   publishedAt         DateTime?

@@ -123,8 +123,13 @@ generation, drag-and-drop page building, email notifications, a CDN.
   account; turning it off needs the password and a code; staff can turn it
   off for a customer only with a typed, audited reason.
 - Remaining hardening backlog: httpOnly cookie (blocked on reworking the client
-  auth middleware — ADR-013), rate limiting on auth endpoints, real mail
-  provider for password reset.
+  auth middleware — ADR-013), rate limiting on auth endpoints. ~~Real mail
+  provider for password reset~~ done (ADR-022): the reset link goes through
+  the outbox and is never logged.
+- **Soft email verification** (ADR-022): an email signup is sent a 24-hour
+  link that sets `verifiedAt`; nothing is blocked while it is unconfirmed,
+  the customer shell asks until it is, and staff see the state. Phone-only
+  accounts have nothing to confirm by email.
 - ~~No real payment processing exists~~ **superseded by ADR-015**: real rails
   are in place (Stripe / GoCardless / PayPal, sandbox-first). Security
   requirements that come with them:
@@ -153,9 +158,9 @@ generation, drag-and-drop page building, email notifications, a CDN.
 | Unread-message counts per project | unread chips in My Orders list (designed, hidden) |
 | ~~Broken seeds (`seed-rich`, `seed-wallet`)~~ fixed (schema-valid, dev-gated); `prisma/seed.js` still stale | realistic local test data |
 | ~~Admin UI pages~~ **done** — all 7 modules at `/admin/**` (overview, users, projects, payments, tickets, settings, tools) on the `/api/admin/**` backend (ADR-013) | — |
-| No mail provider: staff invites, password resets and notifications cannot be emailed. The invite panel hands the operator a link to pass on instead | a self-service invite flow; "check your inbox" copy that is literally true |
+| ~~No mail provider: staff invites, password resets and notifications cannot be emailed~~ **done** (ADR-022, 2026-10-28): Resend over REST behind a durable outbox; invites, resets, a soft verification link and every notification are emailed, with one switch per account and an Email screen for failures. Delivery needs the sender's domain verified in Resend, which waits on the `apexdigi.co.uk` renewal; until then the keys stay unset and every screen says what did not go | a verified sending domain |
 | ~~No `DeliverableRelease` model~~ **done** (ADR-017): releasing and withholding project files is real, the platform rule governs it, and the audit log's Files bucket is populated. Clients can now upload to their order (Panel v2, `/api/uploads`); **still missing: a staff uploader** — deliverable `ProjectFile` rows arrive by seed or direct record | an uploader for project deliverables |
 | Instalment pricing is fixed to 12 and 24 months (ADR-011), so the platform cannot offer the design's 3/6/36-month terms | a per-service term catalogue (Phase 9 Support & Catalogue, badge 21) |
-| No mail provider, so the CMS cannot email a publisher that a draft is waiting for review, or an editor that a draft was sent back; the overview's counts and the audit log are the only signal | review notifications |
+| ~~No mail provider, so the CMS cannot email a publisher that a draft is waiting for review, or an editor that a draft was sent back~~ **done** (ADR-022): a submission reaches everyone holding `website.publish`, a decision reaches the submitter, a publish by someone else reaches the last editor — in the panel and by email | — |
 | An article's body and a case study's chapters are not CMS fields (the overlay covers title, lead, excerpt, search listing); the catalogue in `web/app/data` holds them | writing a new article or study from the panel |
 | The legal documents are editable in the panel, but the text itself still has to come from the business; the pages keep their placeholder and `TODO(legal)` until it is published | an enforceable click-wrap at signup |

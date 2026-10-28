@@ -387,7 +387,7 @@ and the invite, reset and CMS review flows emailed. Plan file:
 | 1 | `MailMessage`, `server/utils/mail/*`, `mail:deliver` task, `runtimeConfig.mail`, startup checks, `features.mail`, `/api/admin/mail` + `/admin/mail`, dev `_test/mail`, ADR-022, DEPLOYMENT §10 | ✅ |
 | 2 | Password reset, soft email verification (banner, page, purpose token), invites emailed with an honest fallback, recover page copy | ✅ |
 | 3 | `notify()` helper over the 16 call sites, `User.emailNotifications` + Settings switch, the three new notifications, copy fixes | ✅ |
-| 4 | CMS review emails (`SiteDocument.submittedById`), docs sweep | ☐ |
+| 4 | CMS review emails (`SiteDocument.submittedById`), docs sweep | ✅ |
 
 **Gate 1 shipped (2026-10-28).** Outbox rows are rendered at enqueue
 (text + escaped HTML from one `MailContent` shape), tried once right after
@@ -453,6 +453,32 @@ CMS secret line. SQL: a hand-written `ALTER TABLE "User" ADD COLUMN`
 3 unit (recipient rules), the `notify-mail` API suite (customer reply →
 owner's in-app row + queued email; switch off → row, no email; broadcast
 reports `emailed`; an off-site link is 400).
+
+**Gate 4 shipped (2026-10-28).** `SiteDocument.submittedById` (set on
+submit, cleared when the review ends; hand-written `ADD COLUMN` in the
+SQL). `server/utils/website/review-notify.ts` `notifyForTransition()` is
+called from `applyTransition()` after the commit and from `publishDue()`
+after a scheduled publish: submit → everyone holding `website.publish`
+(not the submitter); approve / reject → the submitter, else the last
+editor; publish / schedule by someone else → the last editor; nobody about
+their own action. Filed in the outbox as `cms-review` through `notify()`'s
+`kind` option, so the Email screen can tell them apart; the audit row's
+metadata carries `notified`. Tests: the `website-review-mail` API suite
+(publisher and owner told of a submission, the editor not; send back and
+approve reach the editor, the publisher not told of their own decision;
+the owner's publish tells the editor, not the owner). Docs sweep:
+REQUIREMENTS §5 (reset, verification) and §6 (both mail rows done),
+DESIGN_SYSTEM (invite, release, Settings switch, signup verification),
+ADR-016 (invites emailed), ARCHITECTURE, DEPLOYMENT §10.
+
+**Workstream complete (2026-10-28).** Four gates, all on master. Not
+deployed: production needs `docs/migrations/2026-10-mail.sql` (one table,
+two columns), `NUXT_PUBLIC_SITE_URL` confirmed as the panel's public
+origin, and, once `apexdigi.co.uk` is renewed and verified in Resend, the
+two `NUXT_MAIL_*` keys (DEPLOYMENT §10). Never deploy without the user's
+go-ahead. Verified end to end only on the keyless dev server (every row
+FAILED "Mail is not configured", as designed); a real send still has to be
+tried by hand with the owner's address once a key exists.
 
 Gate 3 gotchas:
 - **eslint-plugin-unicorn still crashes on `server/payments/*`**; lint that
@@ -614,8 +640,9 @@ them with `meta.colorMode`, because they were only ever checked in dark.
 (instalments are wallet-only); no auto top-up switch (the real auto-pay
 instalments switch is shown instead); no invoice download per payment (no
 invoice document exists); no 2FA switch, device list or email-notification
-toggles (none exists; the page says so); the sign-in email is read-only (no
-mail provider to confirm a change); nothing claims to have emailed anything;
+toggles (none existed then; one real switch since ADR-022); the sign-in
+email is read-only (a change would need confirming at the new address);
+nothing claims to have emailed anything that the outbox did not send;
 no fake "Apex support" auto-reply on a new request; the FAQ tab is gone, as drawn.
 
 **Deploy needs:** `prisma db push` (new columns + `ClientAction`, and

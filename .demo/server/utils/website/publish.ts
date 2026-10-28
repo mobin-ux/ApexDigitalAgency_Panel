@@ -9,6 +9,7 @@ import prisma from '../prisma'
 import { clearPanelContentCache } from './content-api'
 import { loadDocument, parseJson, WITH_PUBLISHED, workflowDocOf } from './documents'
 import { syncMediaRefs } from './media'
+import { notifyForTransition } from './review-notify'
 
 /**
  * The lifecycle: one function applies a workflow action to a document.
@@ -108,8 +109,20 @@ export async function applyTransition(event: H3Event, actor: AuditActor, id: str
         await tx.siteDocument.update({ where: { id }, data: { ...base, archivedAt: action === 'restore' ? null : undefined } })
         break
     }
+    // Who submitted the draft, so approve and reject can answer them (ADR-022); cleared once the review ends.
+    if (action === 'submit') {
+      await tx.siteDocument.update({ where: { id }, data: { submittedById: actor.id } })
+    }
+    else if (action === 'approve' || action === 'reject' || action === 'publish' || action === 'unpublish') {
+      await tx.siteDocument.update({ where: { id }, data: { submittedById: null } })
+    }
     return tx.siteDocument.findUniqueOrThrow({ where: { id }, include: WITH_PUBLISHED })
   })
+
+  // The people the step concerns hear about it after the commit: publishers
+  // for a submission, the submitter for a decision, the editor for a publish.
+  // The submitter is read from the row as it was, since the step just cleared it.
+  const notified = await notifyForTransition(action, { ...updated, submittedById: doc.submittedById ?? updated.submittedById }, actor)
 
   await recordAudit(event, actor, {
     action: result.auditAction,
@@ -120,6 +133,7 @@ export async function applyTransition(event: H3Event, actor: AuditActor, id: str
       key: updated.key,
       ...(updated.publishedRevision ? { revision: updated.publishedRevision.number } : {}),
       ...(input.scheduledFor ? { scheduledFor: new Date(input.scheduledFor).toISOString() } : {}),
+      ...(notified ? { notified } : {}),
     },
   })
 
@@ -210,7 +224,7 @@ export interface PublishDueResult {
 export async function publishDue(now = new Date()): Promise<PublishDueResult> {
   const due = await prisma.siteDocument.findMany({
     where: { scheduledRevisionId: { not: null }, scheduledFor: { lte: now }, status: { not: 'ARCHIVED' } },
-    select: { id: true, key: true, title: true, scheduledRevisionId: true, scheduledById: true, publishAttempts: true },
+    select: { id: true, kind: true, key: true, title: true, scheduledRevisionId: true, scheduledById: true, draftUpdatedById: true, submittedById: true, publishAttempts: true },
   })
   const published: string[] = []
   const failed: { id: string, error: string }[] = []
@@ -246,6 +260,8 @@ export async function publishDue(now = new Date()): Promise<PublishDueResult> {
       if (done) {
         published.push(doc.key)
         await recordSystemAudit('admin.website.document.publish', doc.id, doc.title, { key: doc.key, scheduled: true })
+        // The editor hears their scheduled words went live; whoever scheduled it chose the time and is not told again.
+        await notifyForTransition('publish', doc, { id: doc.scheduledById ?? 'system' }).catch(() => {})
       }
     }
     catch (error) {

@@ -1092,8 +1092,11 @@ destination your role cannot open renders as a padlock, never a link that 403s.
   control. Work (projects, milestones, tickets) is real. The five buckets were
   verified to *partition* the log: 45 entries, five filters, zero double-counted,
   zero unreachable.
-- **Nothing is emailed on invite.** No mail provider exists, so the acceptance
-  link is handed to the operator with a line saying to pass it on.
+- **The invite is emailed, and the panel says whether it went** (since
+  ADR-022, 2026-10-28). The answer carries the outbox row's status; "Invitation
+  emailed" appears only when the provider accepted it, otherwise the link is
+  handed over with the reason. Before that the link was always handed over,
+  because no mail provider existed.
 - **Sign-in limits state the code's numbers, not the mockup's.** The design says
   "5 attempts per 15 minutes"; `RateLimits.login` is 5 per *minute* with a
   15-minute block. On a page operators consult when someone cannot sign in, the
@@ -1197,9 +1200,10 @@ showing two of six done.
   else in the app reading a second assignee. The list is exactly the staff
   whose role holds `work.assign`, which is the row the assign endpoint is
   gated on, so the picker cannot offer somebody the endpoint would refuse.
-- **Nothing is emailed on release.** No mail provider, so the copy says
-  the files become downloadable on the client's project page — the same
-  resolution ADR-016 reached for invites.
+- **A release tells the client** (since ADR-022): "Your files are ready" in
+  the panel, and by email for accounts that keep notification emails on. The
+  dialog's copy still says the files become downloadable on the client's
+  project page, which is what happens whether or not the email arrives.
 - **Holding defaults to off.** Enabling it retrospectively withholds files
   customers can download today; that is an owner's decision, not a
   deployment's. The design's default amber panel is therefore not what a
@@ -1480,9 +1484,12 @@ revision's. One gap closed, by the owner's choice:
   can turn it off for someone who lost their phone and codes, with a typed
   reason, never for themselves; the customer gets a notification.
 - Still absent, real or absent: the username (accounts sign in with an email
-  or a phone number), editing the sign-in email (no mail provider to confirm
-  it), and email notification switches (no emails are sent). The page says
-  so where the design draws them.
+  or a phone number) and editing the sign-in email (a change would need
+  confirming at the new address, which is not built). The page says so
+  where the design draws them. The notification switch is real since
+  ADR-022: one "Email me my notifications" switch, with a line saying
+  whether the panel can send at all right now and that account and
+  security emails are always sent.
 
 Gotchas:
 - **Heredocs with apostrophes can fail through the shell hook here** — write a
@@ -1556,9 +1563,11 @@ To address:
       pointing at a page that does not contain the terms is still not an
       enforceable click-wrap. Publish the real Terms and Privacy Policy into those
       two routes (each carries a `TODO(legal)`).
-- [ ] No email or phone verification at signup: `/api/auth/signup` sets the session
-      immediately, so an account can be created against an address the user does not
-      control. Flagged by the Phase 8 spec, out of scope for a UI phase.
+- [~] ~~No email or phone verification at signup~~ Email verification is soft since
+      ADR-022: signup still sets the session at once, a 24-hour link sets
+      `verifiedAt`, the customer shell asks until it is clicked and staff see the
+      state. Phone numbers are still unverified (no SMS provider), and nothing
+      is blocked for an unconfirmed address, by the user's choice.
 - [ ] Credit-line, expense-split (balance) and the service "from" prices / order plan
       catalogue (new order) are front-end placeholders — back them with real API/data models.
 - [ ] `orders.vue` formats prices in USD and has a hardcoded "Sarah Connor" project manager.

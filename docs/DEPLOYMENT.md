@@ -257,9 +257,11 @@ already uses; one API key from the same account can serve both apps.
 
 ### 10.1 Schema
 
-Additive: the `MailMessage` table (`docs/migrations/2026-10-mail.sql`),
+Additive: the `MailMessage` table, `User.emailNotifications` (default on)
+and `SiteDocument.submittedById`, all in `docs/migrations/2026-10-mail.sql`,
 applied like §9.1 — back up, run the SQL, copy `prisma/schema.prisma` to
-the box. Nothing to backfill.
+the box. Nothing to backfill: every account starts with notification
+emails on, which is what the Settings switch shows.
 
 ### 10.2 Keys (`/opt/apex/.env.production`)
 
