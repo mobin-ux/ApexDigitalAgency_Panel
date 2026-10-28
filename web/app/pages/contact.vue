@@ -4,22 +4,8 @@ const contactSeo = page.value.seo
 const contactFaq = page.value.faq
 
 const siteUrl = useSiteConfig().url
-const ogImage = `${siteUrl}/og-default.png`
 
-useSeoMeta({
-  title: contactSeo.title,
-  description: contactSeo.description,
-  ogTitle: contactSeo.title,
-  ogDescription: contactSeo.description,
-  ogType: 'website',
-  ogLocale: 'en_GB',
-  ogImage,
-  ogImageWidth: 1200,
-  ogImageHeight: 630,
-  ogImageAlt: 'Apex Digital Agency — Grow online. Pay monthly.',
-  twitterCard: 'summary_large_image',
-  twitterImage: ogImage,
-})
+useCmsSeo(page.value.seo, { title: contactSeo.title, description: contactSeo.description })
 
 // A ContactPage about the agency, with its questions. The Organization node
 // (nuxt.config.ts) carries the confirmed email and, once known, the phone and

@@ -5,22 +5,8 @@ import { routes } from '~/data/routes'
 const page = useCmsContent('our-work')
 const ourWorkSeo = page.value.seo
 const siteUrl = useSiteConfig().url
-const ogImage = `${siteUrl}/og-default.png`
 
-useSeoMeta({
-  title: ourWorkSeo.title,
-  description: ourWorkSeo.description,
-  ogTitle: ourWorkSeo.title,
-  ogDescription: ourWorkSeo.description,
-  ogType: 'website',
-  ogLocale: 'en_GB',
-  ogImage,
-  ogImageWidth: 1200,
-  ogImageHeight: 630,
-  ogImageAlt: 'Apex Digital Agency — Grow online. Pay monthly.',
-  twitterCard: 'summary_large_image',
-  twitterImage: ogImage,
-})
+useCmsSeo(page.value.seo, { title: ourWorkSeo.title, description: ourWorkSeo.description })
 
 // A collection page listing every case study, featured one first, in page
 // order. The breadcrumb node comes from <UiBreadcrumbs> in the hero. The

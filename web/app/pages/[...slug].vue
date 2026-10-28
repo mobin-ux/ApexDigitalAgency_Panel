@@ -1,7 +1,5 @@
 <script setup lang="ts">
 import { CMS_MEDIA_KEY } from '~/composables/useCmsContent'
-import { seoDefaults } from '~/data/site'
-import { resolveSeo } from '../../shared/cms'
 
 /**
  * A landing page published from the panel (ADR-021): an ordered list of
@@ -19,32 +17,7 @@ if (!page.value) {
   throw createError({ statusCode: 404, statusMessage: 'Page not found', fatal: true })
 }
 
-const siteUrl = useSiteConfig().url
-const seo = computed(() => resolveSeo(page.value?.seo, { title: page.value?.title ?? '' }, { title: seoDefaults.title, description: seoDefaults.description }))
-const ogImage = `${siteUrl}/og-default.png`
-
-useSeoMeta({
-  title: () => seo.value.title,
-  description: () => seo.value.description,
-  robots: () => seo.value.robots,
-  ogTitle: () => seo.value.ogTitle,
-  ogDescription: () => seo.value.ogDescription,
-  ogType: 'website',
-  ogLocale: 'en_GB',
-  ogImage,
-  twitterCard: 'summary_large_image',
-  twitterImage: ogImage,
-})
-
-if (seo.value.canonical) {
-  useHead({ link: [{ rel: 'canonical', href: seo.value.canonical.startsWith('/') ? `${siteUrl}${seo.value.canonical}` : seo.value.canonical }] })
-}
-if (seo.value.noindex) {
-  const event = useRequestEvent()
-  if (event) {
-    setResponseHeader(event, 'X-Robots-Tag', 'noindex, nofollow')
-  }
-}
+useCmsSeo(page.value?.seo, { title: page.value?.title ?? '' })
 
 const sections = computed(() => page.value?.sections.filter(section => !section.hidden) ?? [])
 </script>

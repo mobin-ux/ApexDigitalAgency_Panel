@@ -129,7 +129,7 @@ const TEXT_INPUT = 'focus:border-primary-400 w-full rounded-xl border border-mut
       title="Pages"
       subtitle="Every managed document: the public pages, the site chrome and the panel's customer-facing text."
     >
-      <template v-if="allowed && can('website.edit')" #actions>
+      <template v-if="allowed && can('website.edit')">
         <BaseButton variant="primary" rounded="full" @click="showCreate = true">
           <Icon name="lucide:plus" class="size-4" />
           New page

@@ -3,22 +3,8 @@ const page = useCmsContent('about')
 const aboutSeo = page.value.seo
 
 const siteUrl = useSiteConfig().url
-const ogImage = `${siteUrl}/og-default.png`
 
-useSeoMeta({
-  title: aboutSeo.title,
-  description: aboutSeo.description,
-  ogTitle: aboutSeo.title,
-  ogDescription: aboutSeo.description,
-  ogType: 'website',
-  ogLocale: 'en_GB',
-  ogImage,
-  ogImageWidth: 1200,
-  ogImageHeight: 630,
-  ogImageAlt: 'Apex Digital Agency — Grow online. Pay monthly.',
-  twitterCard: 'summary_large_image',
-  twitterImage: ogImage,
-})
+useCmsSeo(page.value.seo, { title: aboutSeo.title, description: aboutSeo.description })
 
 // An AboutPage about the agency. The Organization node is the site identity
 // (nuxt.config.ts), which carries only confirmed company facts. The team is

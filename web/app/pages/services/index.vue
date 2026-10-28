@@ -6,22 +6,8 @@ const page = useCmsContent('services')
 const servicesSeo = page.value.seo
 
 const siteUrl = useSiteConfig().url
-const ogImage = `${siteUrl}/og-default.png`
 
-useSeoMeta({
-  title: servicesSeo.title,
-  description: servicesSeo.description,
-  ogTitle: servicesSeo.title,
-  ogDescription: servicesSeo.description,
-  ogType: 'website',
-  ogLocale: 'en_GB',
-  ogImage,
-  ogImageWidth: 1200,
-  ogImageHeight: 630,
-  ogImageAlt: 'Apex Digital Agency — Grow online. Pay monthly.',
-  twitterCard: 'summary_large_image',
-  twitterImage: ogImage,
-})
+useCmsSeo(page.value.seo, { title: servicesSeo.title, description: servicesSeo.description })
 
 // A collection page listing every service, in the order the page shows them.
 // The breadcrumb node comes from <UiBreadcrumbs> in the hero.

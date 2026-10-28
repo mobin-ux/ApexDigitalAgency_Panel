@@ -52,6 +52,12 @@ server; empty renders the code baseline) and `NUXT_CMS_REVALIDATE_SECRET`
 (must equal the panel's `NUXT_WEBSITE_REVALIDATE_SECRET`). Images from the
 panel's media library go through `/_ipx` (`server/middleware/01.ipx-cache.ts`
 caches the processed bytes under `.data/ipx`); PDFs through `/media`. Site
+every page's head comes from `useCmsSeo()` (page → template default → site
+settings; one canonical; `X-Robots-Tag` on a hidden page); the sitemap is
+`server/api/__sitemap__/urls.get.ts` alone (code pages plus published,
+indexable landing pages); `server/plugins/robots.ts` adds the panel's
+disallows; `server/middleware/00.redirects.ts` answers the panel's
+redirects before routing. Site
 settings arrive through `useSiteSettings()`: a filled setting wins over the
 value in `data/site.ts`, an empty one keeps it.
 

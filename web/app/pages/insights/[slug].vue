@@ -23,25 +23,15 @@ const body = { ...found.body, lead: cms.value.lead, seo: { title: cms.value.seo.
 
 const siteUrl = useSiteConfig().url
 const pageUrl = `${siteUrl}${routes.article(article.slug)}`
-const ogImage = body.heroImage ? `${siteUrl}${body.heroImage.src}` : `${siteUrl}/og-default.png`
 const service = serviceBySlug(article.service)
 const topic = articleTopic(article)
 
+useCmsSeo(cms.value.seo, { title: body.seo.title, description: body.seo.description }, { ogType: 'article', image: body.heroImage })
 useSeoMeta({
-  title: body.seo.title,
-  description: body.seo.description,
-  ogTitle: body.seo.title,
-  ogDescription: body.seo.description,
-  ogType: 'article',
-  ogLocale: 'en_GB',
-  ogImage,
-  ...(body.heroImage ? { ogImageAlt: body.heroImage.alt } : { ogImageWidth: 1200, ogImageHeight: 630, ogImageAlt: 'Apex Digital Agency — Grow online. Pay monthly.' }),
   articlePublishedTime: article.published,
   articleModifiedTime: article.updated ?? article.published,
   articleSection: topic,
   articleAuthor: [body.author.name],
-  twitterCard: 'summary_large_image',
-  twitterImage: ogImage,
 })
 
 // The page with its questions, and the article by its author for the agency.

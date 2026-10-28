@@ -24,28 +24,13 @@ const page = {
   hero: { ...loaded.hero, ...cms.value.hero },
   faq: cms.value.faq,
   cta: { ...loaded.cta, ...cms.value.cta },
-  seo: { title: cms.value.seo.title, description: cms.value.seo.description },
+  seo: cms.value.seo,
 }
 const service = services.find(s => s.slug === page.slug)!
 
 const siteUrl = useSiteConfig().url
 const pageUrl = `${siteUrl}${routes.service(page.slug)}`
-const ogImage = `${siteUrl}/og-default.png`
-
-useSeoMeta({
-  title: page.seo.title,
-  description: page.seo.description,
-  ogTitle: page.seo.title,
-  ogDescription: page.seo.description,
-  ogType: 'website',
-  ogLocale: 'en_GB',
-  ogImage,
-  ogImageWidth: 1200,
-  ogImageHeight: 630,
-  ogImageAlt: 'Apex Digital Agency — Grow online. Pay monthly.',
-  twitterCard: 'summary_large_image',
-  twitterImage: ogImage,
-})
+useCmsSeo(page.seo, { title: page.seo.title, description: page.seo.description })
 
 // One offer per plan, priced from the same catalogue the plan cards render.
 // Monthly plans are a unit price per month; a fixed number of payments adds a

@@ -5,22 +5,8 @@ import { routes } from '~/data/routes'
 const page = useCmsContent('insights')
 const insightsSeo = page.value.seo
 const siteUrl = useSiteConfig().url
-const ogImage = `${siteUrl}/og-default.png`
 
-useSeoMeta({
-  title: insightsSeo.title,
-  description: insightsSeo.description,
-  ogTitle: insightsSeo.title,
-  ogDescription: insightsSeo.description,
-  ogType: 'website',
-  ogLocale: 'en_GB',
-  ogImage,
-  ogImageWidth: 1200,
-  ogImageHeight: 630,
-  ogImageAlt: 'Apex Digital Agency — Grow online. Pay monthly.',
-  twitterCard: 'summary_large_image',
-  twitterImage: ogImage,
-})
+useCmsSeo(page.value.seo, { title: insightsSeo.title, description: insightsSeo.description })
 
 // A collection page listing the written articles only: an unwritten one has no
 // URL to list. The breadcrumb node comes from <UiBreadcrumbs> in the hero.

@@ -146,6 +146,15 @@ export const fetchSettings = defineCachedFunction(
   { name: 'cms', getKey: () => 'settings', maxAge: CMS_CACHE_SECONDS, swr: true },
 )
 
+/** The enabled redirects, for the middleware; empty with no panel. */
+export const fetchRedirects = defineCachedFunction(
+  async (): Promise<{ from: string, to: string, status: number }[]> => {
+    const data = await fetchWithSnapshot<{ redirects: { from: string, to: string, status: number }[] }>('redirects', '/api/site/redirects')
+    return data?.redirects ?? []
+  },
+  { name: 'cms', getKey: () => 'redirects', maxAge: CMS_CACHE_SECONDS, swr: true },
+)
+
 /** A draft, by preview token. Never cached, never snapshotted. */
 export async function fetchPreview(token: string): Promise<CmsDocument | null> {
   const { url } = cmsConfig()

@@ -168,7 +168,7 @@ const LABEL = 'text-muted-900 mb-1.5 block text-[13.5px] font-semibold dark:text
       title="Media"
       subtitle="Images and PDFs the public pages use. Each file is checked by its contents, sized from its header and served with a year's cache."
     >
-      <template v-if="allowed && canEdit" #actions>
+      <template v-if="allowed && canEdit">
         <input ref="fileInput" type="file" class="sr-only" accept="image/jpeg,image/png,image/gif,image/webp,application/pdf" multiple @change="upload(($event.target as HTMLInputElement).files)">
         <BaseButton variant="primary" rounded="full" :loading="uploading" :disabled="uploading" @click="fileInput?.click()">
           <Icon name="lucide:upload" class="size-4" />

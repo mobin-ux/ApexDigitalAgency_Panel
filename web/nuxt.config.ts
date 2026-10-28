@@ -117,6 +117,7 @@ export default defineNuxtConfig({
     },
     // Same-origin content proxies for client-side navigation; the server's own cache bounds the work.
     '/api/cms/**': { security: { rateLimiter: false } },
+    '/api/__sitemap__/**': { security: { rateLimiter: false } },
     // Images and library files: many per page, cached on disk, no per-IP limiter.
     '/_ipx/**': { security: { rateLimiter: false } },
     '/media/**': { security: { rateLimiter: false } },
@@ -168,7 +169,10 @@ export default defineNuxtConfig({
   // registration logs an error under the strict COEP header.
   skewProtection: { enabled: false },
   // The browser-side XSL stylesheet is an inline resource the strict CSP would block.
-  sitemap: { xsl: false },
+  // Every address comes from one server source (code pages plus the published
+  // landing pages, ADR-021), not from the router: the catch-all and the preview
+  // route must never be listed.
+  sitemap: { xsl: false, sources: ['/api/__sitemap__/urls'], excludeAppSources: true },
 
   // TODO(seo): turn the link checker on once the remaining pages exist; it
   // would otherwise report every not-yet-built internal link as broken.

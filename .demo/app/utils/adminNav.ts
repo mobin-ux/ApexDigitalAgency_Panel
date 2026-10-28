@@ -63,6 +63,7 @@ export const ADMIN_NAV: AdminNavGroup[] = [
       { label: 'Pages', icon: 'solar:documents-linear', to: '/admin/website/pages', needs: 'website.view' },
       { label: 'Navigation', icon: 'solar:compass-linear', to: '/admin/website/navigation', needs: 'website.view' },
       { label: 'Media', icon: 'solar:gallery-linear', to: '/admin/website/media', needs: 'website.view' },
+      { label: 'SEO & redirects', icon: 'solar:magnifer-linear', to: '/admin/website/seo', needs: 'website.seo' },
       { label: 'Site settings', icon: 'solar:settings-minimalistic-linear', to: '/admin/website/settings', needs: 'website.view' },
       { label: 'Panel content', icon: 'solar:chat-square-like-linear', to: '/admin/website/panel', needs: 'website.view' },
     ],

@@ -10,8 +10,8 @@ import { serviceBySlug } from '~/data/services'
  *
  * A study with a written-up story renders all of it. One without renders its
  * summary, its headline result and the ways to act on it, so every card on
- * /our-work opens a real page; `nuxt.config.ts` keeps those pages out of
- * search until the story is written. An unknown slug is a 404.
+ * /our-work opens a real page, kept out of search (noindex) until the story
+ * is written. An unknown slug is a 404.
  */
 const route = useRoute()
 const found = caseStudyBySlug(String(route.params.slug))
@@ -35,20 +35,8 @@ const description = story?.seo.description ?? study.summary
 const siteUrl = useSiteConfig().url
 const pageUrl = `${siteUrl}${routes.caseStudy(study.slug)}`
 const image = story?.heroImage ?? study.image
-const ogImage = image ? `${siteUrl}${image.src}` : `${siteUrl}/og-default.png`
-
-useSeoMeta({
-  title,
-  description,
-  ogTitle: title,
-  ogDescription: description,
-  ogType: 'article',
-  ogLocale: 'en_GB',
-  ogImage,
-  ...(image ? { ogImageAlt: image.alt } : { ogImageWidth: 1200, ogImageHeight: 630, ogImageAlt: 'Apex Digital Agency — Grow online. Pay monthly.' }),
-  twitterCard: 'summary_large_image',
-  twitterImage: ogImage,
-})
+// A study without a story is a summary page: real, linkable, but not for search until the story is written.
+useCmsSeo(story ? cms.value.seo : null, { title, description, robots: story ? undefined : 'noindex,follow' }, { ogType: 'article', image })
 
 // The study as an Article by the agency about the client and the services it
 // used. The breadcrumb node comes from <UiBreadcrumbs> in the hero. The client

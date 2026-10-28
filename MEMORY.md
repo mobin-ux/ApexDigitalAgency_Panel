@@ -39,7 +39,7 @@ Gates, each one commit (`feat(cms): …`), lint → typecheck vs baseline → te
 | 4 | Documents, publish/unpublish, revisions, preview tokens, `/api/site/**`, site `cms.ts` + proxies + revalidate, editor UI, landing renderer, import | ✅ |
 | 5 | Review workflow, scheduling task, key change + redirect, navigation globals, announcement bar, panel content, `credit.applications-open` | ✅ |
 | 6 | Media library (sniff, dimensions, GET+HEAD), IPX disk cache, site settings + identity plugin | ✅ |
-| 7 | SEO tab, sitemap source, robots hook, redirects middleware, SEO audit | ☐ |
+| 7 | SEO tab, sitemap source, robots hook, redirects middleware, SEO audit | ✅ |
 | 8 | Overview dashboard, UX states, a11y, responsive | ☐ |
 | 9 | Full verification, docs, deployment notes, final report | ☐ |
 
@@ -177,6 +177,62 @@ published document, site image served then cached, settings 400/403/200
 and public). About/Contact company facts still read the code baseline
 (their derived rows are built at module load); the footer and CTAs are
 dynamic. 31 unit, 18 API, 1 site.
+
+**Gate 7 shipped (2026-10-28).** SEO rendered from the document:
+`useCmsSeo()` (`web/app/composables`) is the one head call on all eleven
+site pages — title, description, robots (with `X-Robots-Tag` on a hidden
+page), canonical (the page's own beats the seo module's default; one
+`<link>`), og/twitter with the document's social image, else the page's
+own (article hero), else the settings default, else the bundled card.
+Precedence page → template default (the words the page used before) →
+site settings. A case study without a story is `noindex,follow` again
+(the static route rule went in Gate 4; this restores it per request).
+Sitemap: `server/api/__sitemap__/urls.get.ts` is the only source
+(`excludeAppSources`): the code pages, written articles, studies with a
+story and the published landing pages, minus anything whose robots say
+noindex, with the panel's publish time as `lastmod`. robots.txt: a Nitro
+plugin on `robots:config` adds `/preview/`, `/api/` and the
+`site.robots.disallow` setting. Redirects: `SiteRedirect` rows through
+`server/utils/website/redirects.ts` (source must be typed as a site path,
+target a site path or https; a loop is 409; pointing at a redirected
+address is flattened to its destination and anything pointing at the new
+source is retargeted; a published page at the source is warned about),
+admin `/api/admin/website/redirects` (list, create, check, patch, delete;
+`website.seo`), public `/api/site/redirects`, and the site's
+`server/middleware/00.redirects.ts` (cached 60 s + purged on publish,
+301/302, query string kept, assets and APIs skipped). SEO audit:
+`seo-audit.ts` over the published documents and redirects — missing or
+over-long titles and descriptions, duplicate titles, off-site or invalid
+canonicals, noindex pages, redirect loops and chains, a redirect shadowing
+a live page, internal links to nothing, library images without alt —
+`GET /api/admin/website/seo-audit`. Screen: `/admin/website/seo` (nav
+row "SEO & redirects", `website.seo`): redirects with a live check as you
+type (the form's own server call), 301/302 as a pressed pair, turn
+on/off, edit, remove with an in-row confirm; the audit grouped Fix /
+Check / Note with links into the editor. Tests: the SEO API suite (editor
+403, `javascript:` 400, self 409, normalised source, loop 409, chain
+flattened, duplicate 409, public endpoint cacheable; a hidden page's
+robots and canonical on the public document and in the manifest, the
+audit naming it, and on the site the header, the meta, one canonical, 301
+with the query kept, the sitemap without it, robots.txt with the
+disallows; 302 after a patch, off not served, delete → 404, preview
+no-store). 31 unit, 22 API, 1 site; both typechecks at baseline; the
+eleven-page text diff is identical to the pre-CMS snapshots.
+
+Gate 7 gotchas:
+- **h3 helpers are not auto-imported in the site's app code**:
+  `setResponseHeader` has to be imported from `h3` in a composable, or
+  every noindex page 500s in SSR with nothing in the server log.
+- **`AdminPageHeader`'s actions are its default slot**, not `#actions`.
+  Media's Upload, Pages' "New page" and SEO's "Add redirect" had all been
+  rendering nothing; fixed in this gate.
+- **The robots module blocks everything in dev** (`Disallow: /`); check
+  `/robots.txt?mockProductionEnv`.
+- **Normalising a redirect source first is a hole**: `javascript:alert(1)`
+  becomes `/javascript:alert(1)`, a "safe" path. Require the typed value to
+  start with `/` before normalising.
+- The settings API suite sets `site.phone` while it runs and resets it at
+  the end; a page snapshot taken meanwhile differs by one footer line.
 
 Gate 6 gotchas:
 - **A `server/routes` file cannot override a module's handler at the same
