@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { publishedArticles } from '~/data/articles'
-import { insightsSeo } from '~/data/insights'
 import { routes } from '~/data/routes'
 
+const page = useCmsContent('insights')
+const insightsSeo = page.value.seo
 const siteUrl = useSiteConfig().url
 const ogImage = `${siteUrl}/og-default.png`
 

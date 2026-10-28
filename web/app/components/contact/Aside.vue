@@ -1,5 +1,8 @@
 <script setup lang="ts">
-import { contactMethods, contactSteps } from '~/data/contact'
+import { contactMethods } from '~/data/contact'
+
+const page = useCmsContent('contact')
+const contactSteps = computed(() => page.value.steps)
 
 /**
  * The other ways in, beside the form, and what happens after a message

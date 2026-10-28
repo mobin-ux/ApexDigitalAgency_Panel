@@ -6,9 +6,10 @@ import { serviceBySlug } from '~/data/services'
 
 const props = defineProps<{ study: CaseStudy }>()
 
+const header = useCmsContent('header')
 const crumbs = [
-  { label: 'Home', to: routes.home },
-  { label: 'Our work', to: routes.ourWork },
+  { label: header.value.sections.home, to: routes.home },
+  { label: header.value.sections.ourWork, to: routes.ourWork },
   { label: props.study.client, to: routes.caseStudy(props.study.slug) },
 ]
 

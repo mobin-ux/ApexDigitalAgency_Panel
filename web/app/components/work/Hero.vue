@@ -1,12 +1,13 @@
 <script setup lang="ts">
-import { ourWorkHero } from '~/data/our-work'
 import { routes } from '~/data/routes'
 import { averageEnquiryLift, projectsDelivered, reviewRating } from '~/data/site'
 
-const crumbs = [
-  { label: 'Home', to: routes.home },
-  { label: 'Our work', to: routes.ourWork },
-] as const
+const page = useCmsContent('our-work')
+const header = useCmsContent('header')
+const crumbs = computed(() => [
+  { label: header.value.sections.home, to: routes.home },
+  { label: header.value.sections.ourWork, to: routes.ourWork },
+])
 
 const stats = [
   { value: projectsDelivered, label: 'projects delivered for UK businesses' },
@@ -25,15 +26,15 @@ const stats = [
 
     <div class="grid gap-10 lg:grid-cols-[minmax(0,1fr)_380px] lg:items-end lg:gap-18">
       <div class="flex flex-col gap-5">
-        <UiEyebrowChip>{{ ourWorkHero.eyebrow }}</UiEyebrowChip>
+        <UiEyebrowChip>{{ page.hero.eyebrow }}</UiEyebrowChip>
         <h1
           id="work-hero-title"
           class="max-w-[18ch] font-display text-h1 text-heading"
         >
-          {{ ourWorkHero.title }}
+          {{ page.hero.title }}
         </h1>
         <p class="max-w-[52ch] text-lead text-body">
-          {{ ourWorkHero.lead }}
+          {{ page.hero.lead }}
         </p>
       </div>
 

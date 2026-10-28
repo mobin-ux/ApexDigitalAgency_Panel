@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { faqs } from '~/data/home'
 import { company } from '~/data/site'
+
+const home = useCmsContent('home')
 </script>
 
 <template>
@@ -13,8 +14,8 @@ import { company } from '~/data/site'
       <div class="lg:sticky lg:top-30">
         <UiSectionHeader
           id="faq-title"
-          eyebrow="Questions"
-          title="The things people ask before they start"
+          :eyebrow="home.faq.eyebrow"
+          :title="home.faq.title"
         >
           Anything else, ask us directly — <a
             :href="`mailto:${company.email}`"
@@ -25,7 +26,7 @@ import { company } from '~/data/site'
 
       <UiFaqList
         name="faq"
-        :items="faqs"
+        :items="home.faq.items"
       />
     </div>
   </section>

@@ -1,6 +1,8 @@
 <script setup lang="ts">
-import { insightsCta as cta } from '~/data/insights'
 import { routes } from '~/data/routes'
+
+const page = useCmsContent('insights')
+const cta = computed(() => page.value.cta)
 </script>
 
 <template>

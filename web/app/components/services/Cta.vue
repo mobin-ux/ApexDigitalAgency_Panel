@@ -4,6 +4,8 @@ import { company } from '~/data/site'
 
 // An unconfirmed phone number is empty and its row is not rendered.
 const phoneHref = company.phone ? `tel:${company.phone.replace(/\s+/g, '')}` : ''
+const page = useCmsContent('services')
+const chrome = useCmsContent('service-chrome')
 </script>
 
 <template>
@@ -22,16 +24,16 @@ const phoneHref = company.phone ? `tel:${company.phone.replace(/\s+/g, '')}` : '
           tone="dark"
           emoji="👋"
         >
-          Not sure which one?
+          {{ page.cta.eyebrow }}
         </UiEyebrowChip>
         <h2
           id="services-cta-title"
           class="font-display text-h2 text-white lg:text-[2.75rem]"
         >
-          Describe the problem. We will tell you what it needs.
+          {{ page.cta.title }}
         </h2>
         <p class="text-[1.0625rem] leading-[1.62] text-body-on-dark">
-          Fifteen minutes on a call, an honest recommendation, and a monthly figure. If one service is enough, we will say so.
+          {{ page.cta.text }}
         </p>
       </div>
 
@@ -41,7 +43,7 @@ const phoneHref = company.phone ? `tel:${company.phone.replace(/\s+/g, '')}` : '
           size="lg"
           block
         >
-          Book a free call
+          {{ page.cta.button }}
         </UiButton>
         <div
           class="h-px bg-white/10"
@@ -49,7 +51,7 @@ const phoneHref = company.phone ? `tel:${company.phone.replace(/\s+/g, '')}` : '
         />
         <dl class="grid grid-cols-[96px_minmax(0,1fr)] items-baseline gap-x-4 gap-y-3">
           <dt class="text-[0.78125rem] text-muted-on-dark">
-            Email
+            {{ chrome.emailLabel }}
           </dt>
           <dd>
             <a
@@ -59,7 +61,7 @@ const phoneHref = company.phone ? `tel:${company.phone.replace(/\s+/g, '')}` : '
           </dd>
           <template v-if="phoneHref">
             <dt class="text-[0.78125rem] text-muted-on-dark">
-              Phone
+              {{ chrome.phoneLabel }}
             </dt>
             <dd>
               <a
@@ -72,7 +74,7 @@ const phoneHref = company.phone ? `tel:${company.phone.replace(/\s+/g, '')}` : '
             Reply
           </dt>
           <dd class="text-[0.90625rem] text-body-on-dark">
-            Within one working day
+            {{ page.cta.replyNote }}
           </dd>
         </dl>
       </div>

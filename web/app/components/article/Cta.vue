@@ -1,12 +1,18 @@
 <script setup lang="ts">
 import type { ArticleBody } from '~/data/articles'
 import type { ServiceSlug } from '~/data/routes'
-import { articleCta } from '~/data/article-page'
 import { routes } from '~/data/routes'
 import { serviceBySlug } from '~/data/services'
+import { fill } from '../../../shared/cms'
 
 /** Closing panel: the article's related service, and a call for anyone not ready to order. */
 const props = defineProps<{ body: ArticleBody, service: ServiceSlug }>()
+const chrome = useCmsContent('article-chrome')
+const articleCta = computed(() => ({
+  eyebrow: (service: string) => fill(chrome.value.ctaEyebrow, { service }),
+  button: (service: string) => fill(chrome.value.ctaButton, { service }),
+  call: chrome.value.ctaCall,
+}))
 
 const offer = serviceBySlug(props.service)
 </script>

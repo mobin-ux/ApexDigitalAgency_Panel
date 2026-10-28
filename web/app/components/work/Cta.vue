@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import { ourWorkCta as cta } from '~/data/our-work'
 import { routes } from '~/data/routes'
 import { projectsDelivered, reviewRating } from '~/data/site'
+
+const page = useCmsContent('our-work')
+const cta = computed(() => page.value.cta)
 </script>
 
 <template>

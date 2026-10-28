@@ -4,10 +4,12 @@ import { routes } from '~/data/routes'
 import { services } from '~/data/services'
 import { projectsDelivered } from '~/data/site'
 
-const crumbs = [
-  { label: 'Home', to: routes.home },
-  { label: 'Services', to: routes.services },
-] as const
+const page = useCmsContent('services')
+const header = useCmsContent('header')
+const crumbs = computed(() => [
+  { label: header.value.sections.home, to: routes.home },
+  { label: header.value.sections.services, to: routes.services },
+])
 
 // Every figure is derived or shared, so the count cannot fall behind the list.
 const stats = [
@@ -28,15 +30,15 @@ const stats = [
 
     <div class="grid gap-10 lg:grid-cols-[minmax(0,1fr)_380px] lg:items-end lg:gap-18">
       <div class="flex flex-col gap-5">
-        <UiEyebrowChip>All services</UiEyebrowChip>
+        <UiEyebrowChip>{{ page.hero.chip }}</UiEyebrowChip>
         <h1
           id="services-hero-title"
           class="max-w-[20ch] font-display text-h1 text-heading"
         >
-          Start with the problem, not the service
+          {{ page.hero.title }}
         </h1>
         <p class="max-w-[50ch] text-lead text-body">
-          Tell us what you are trying to fix and we will show you the work that fixes it — with a monthly figure attached, so you know where you stand before you talk to anyone.
+          {{ page.hero.lead }}
         </p>
       </div>
 

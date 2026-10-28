@@ -40,6 +40,13 @@ Tairo dependency.
 ## 3. Rules that carry forward
 
 - **Content is typed data** in `app/data/`; markup does not change when copy does.
+  Since ADR-021 the words a page shows come to its components through
+  `useCmsContent()` (fixed pages and chrome) and `useCmsRecord()` (a service,
+  case study or article), which lay a published document over the code
+  baseline field by field. The data modules are that baseline, assembled in
+  `app/data/cms-baseline.ts`; a string typed inside a component is now a
+  string the panel cannot offer for editing, so new copy goes in the data
+  layer and the template that declares it (`web/shared/cms/pages.ts`).
 - **Anything unconfirmed is empty, and its UI is hidden** (phone, company and VAT
   number, social URLs). A made-up statutory number on a UK company site is a
   legal defect, so there are no placeholders in production markup.

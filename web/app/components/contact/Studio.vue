@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { contactStudio } from '~/data/contact'
+import { contactStudio as studioData } from '~/data/contact'
 import { company } from '~/data/site'
 
 /**
@@ -10,6 +10,12 @@ import { company } from '~/data/site'
  * and send every visitor's IP to it.
  */
 const { addressLines, directionsUrl } = studio
+const page = useCmsContent('contact')
+const contactStudio = computed(() => ({
+  ...studioData,
+  ...page.value.studio,
+  team: { label: page.value.studio.teamLink, to: studioData.team.to },
+}))
 </script>
 
 <template>

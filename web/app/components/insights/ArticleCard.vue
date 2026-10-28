@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { Article } from '~/data/articles'
 import { articleLink, articleTopic } from '~/data/articles'
-import { comingSoon, insightsBrowse } from '~/data/insights'
+import { comingSoon } from '~/data/insights'
 import { routes } from '~/data/routes'
 import { serviceBySlug } from '~/data/services'
 
@@ -11,6 +11,8 @@ import { serviceBySlug } from '~/data/services'
  * the article is about.
  */
 const props = defineProps<{ article: Article }>()
+
+const insightsPage = useCmsContent('insights')
 
 const to = articleLink(props.article)
 const service = serviceBySlug(props.article.service)
@@ -61,7 +63,7 @@ const service = serviceBySlug(props.article.service)
       :to="routes.service(service.slug)"
       class="group/service mt-auto flex min-h-11 items-center gap-2.5 border-t border-line-soft pt-3.5 text-[0.84375rem] text-muted transition-colors hover:text-violet-600"
     >
-      <span class="whitespace-nowrap">{{ insightsBrowse.relatedService }}</span>
+      <span class="whitespace-nowrap">{{ insightsPage.browse.relatedService }}</span>
       <span class="ml-auto text-right font-semibold text-heading group-hover/service:text-violet-600">
         {{ service.shortName }} <span
           class="text-violet-500"

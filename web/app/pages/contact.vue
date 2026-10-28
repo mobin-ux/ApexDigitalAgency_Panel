@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { contactFaq, contactSeo } from '~/data/contact'
+const page = useCmsContent('contact')
+const contactSeo = page.value.seo
+const contactFaq = page.value.faq
 
 const siteUrl = useSiteConfig().url
 const ogImage = `${siteUrl}/og-default.png`

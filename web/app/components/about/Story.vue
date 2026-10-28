@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { story } from '~/data/about'
+const page = useCmsContent('about')
+const story = computed(() => page.value.story)
 </script>
 
 <template>

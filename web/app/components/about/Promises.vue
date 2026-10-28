@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { promises } from '~/data/about'
+const page = useCmsContent('about')
+const promises = computed(() => page.value.promises)
 </script>
 
 <template>

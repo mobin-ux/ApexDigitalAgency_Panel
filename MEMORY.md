@@ -35,7 +35,7 @@ Gates, each one commit (`feat(cms): …`), lint → typecheck vs baseline → te
 |---|---|---|
 | 1 | Baselines, ADR-021, contract stub, cross-tree import proven, `zod@3.25.76` pinned in `web/` | ✅ |
 | 2 | Roles/permissions, audit bucket, sidebar group, `homeFor(role)`, Prisma models + migration SQL, field DSL + templates, settings registry, state machine, purpose tokens, test harness | ✅ |
-| 3 | Site refactor: template-typed copy into data (~25 components), core templates, `cms-baseline.ts`, `GET /api/cms/baseline` | ☐ |
+| 3 | Site refactor: template-typed copy into data (~25 components), core templates, `cms-baseline.ts`, `GET /api/cms/baseline` | ✅ |
 | 4 | Documents, publish/unpublish, revisions, preview tokens, `/api/site/**`, site `cms.ts` + proxies + revalidate, editor UI, landing renderer, import | ☐ |
 | 5 | Review workflow, scheduling task, key change + redirect, navigation globals, announcement bar, panel content, `credit.applications-open` | ☐ |
 | 6 | Media library (sniff, dimensions, GET+HEAD), IPX disk cache, site settings + identity plugin | ☐ |
@@ -69,6 +69,38 @@ pure publishing state machine (`workflow.ts`, shared so the UI, the server
 and the tests ask one function). Tests: 25 unit (`pnpm test:cms:unit`) and
 the first API suite, every website endpoint × every role + the invite →
 editor → `/admin` redirect path (`CMS_TEST_URL=… pnpm test:cms:api`).
+
+**Gate 3 shipped (2026-10-28, `67112f0` + the refactor commit).** The
+contract describes every page the site renders from code
+(`web/shared/cms/pages.ts`: home, services, our-work, insights, about,
+contact; per-record service, case-study, article; chrome globals
+service-chrome, case-study-chrome, article-chrome; the header template
+carries the menu labels and breadcrumb section names, the footer the strip,
+columns and legal line). `app/data/cms-baseline.ts` assembles one complete
+document per template from the data modules; `GET /api/cms/baseline` serves
+the 33 of them (12 fixed, 7 services, 13 case studies, 1 article), each
+validated against its template. Every site component now reads its words
+through `useCmsContent()` / `useCmsRecord()` (CMS-off path: the resolved
+baseline) and `useCmsLink()` turns stored links into `to`/`href`. Proven
+by a text-content diff of all eleven pages before and after: identical.
+What is editable per template is copy only — prices, counts, routes and the
+catalogues (plans, projects, articles, people) stay in code; an article's
+body and a case study's chapters are not CMS fields yet.
+
+Gate 3 gotchas:
+- **The baseline endpoint is the mismatch detector.** It validates every
+  document before serving; two template caps were wrong on first run
+  (search description 160 → 200, a switched-off announcement may have no
+  text). Run `SITE_TEST_URL=… pnpm test:cms:site` after changing a
+  template or a data module.
+- **`defineCachedEventHandler` keeps serving for its `maxAge` across HMR**;
+  wait it out (60 s) when a changed baseline seems not to appear.
+- **A per-record page merges the overlay into the catalogue record** in the
+  page (`services/[slug].vue`, `our-work/[slug].vue`, `insights/[slug].vue`)
+  so the section components keep their `page`/`study`/`article` props.
+- Function-valued copy (`byline(role, minutes)`, `since(year)`,
+  `ctaEyebrow(service)`) is a placeholder string in the template, filled
+  with `fill()` where the component used to call the function.
 
 Gate 2 gotchas:
 - **The panel's Nuxt 3 tsconfig refuses `.ts` extensions in imports**

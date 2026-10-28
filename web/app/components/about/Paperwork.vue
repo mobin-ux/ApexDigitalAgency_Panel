@@ -1,8 +1,13 @@
 <script setup lang="ts">
-import { companyChecks, companyFacts, paperwork } from '~/data/about'
+import { companyChecks, companyFacts } from '~/data/about'
 import { company } from '~/data/site'
 
-const requestHref = `mailto:${company.email}?${new URLSearchParams({ subject: paperwork.request.subject }).toString().replaceAll('+', '%20')}`
+const page = useCmsContent('about')
+const paperwork = computed(() => ({
+  ...page.value.paperwork,
+  request: { text: page.value.paperwork.requestText, link: page.value.paperwork.requestLink, subject: page.value.paperwork.requestSubject },
+}))
+const requestHref = computed(() => `mailto:${company.email}?${new URLSearchParams({ subject: paperwork.value.request.subject }).toString().replaceAll('+', '%20')}`)
 </script>
 
 <template>

@@ -35,6 +35,18 @@ pnpm web:typecheck  # vue-tsc
 pnpm exec eslint --fix web/app   # lint (repo root config)
 ```
 
+## Content and the CMS (ADR-021)
+
+The words on every page come from the panel's CMS when it is reachable, and
+from the code baseline when it is not. Components call `useCmsContent('home')`
+(or `useCmsRecord('service', path, baseline)`) and read fields from the
+template in `shared/cms/pages.ts`; the baseline documents are assembled in
+`app/data/cms-baseline.ts` from the data modules and served at
+`GET /api/cms/baseline`. To add editable copy: declare the field in the
+template, give it a value in the baseline, read it in the component. Run
+`pnpm test:cms:unit` and, against a dev server,
+`SITE_TEST_URL=http://localhost:3000 pnpm test:cms:site` (from the repo root).
+
 ## Layout
 
 ```

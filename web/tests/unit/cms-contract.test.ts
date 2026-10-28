@@ -119,7 +119,7 @@ describe('resolveDocument', () => {
   })
 
   it('takes valid overlay fields and keeps the baseline for invalid ones', () => {
-    const { content, managed, warnings } = resolveDocument('landing', baseline, { title: 'Managed', seo: { description: 'x'.repeat(200) } })
+    const { content, managed, warnings } = resolveDocument('landing', baseline, { title: 'Managed', seo: { description: 'x'.repeat(260) } })
     assert.equal(managed, true)
     assert.equal(content.title, 'Managed')
     assert.equal(content.seo.description, '', 'the over-long description fell back')

@@ -2,7 +2,7 @@
 import type { SectorId } from '~/data/case-studies'
 import type { ServiceSlug } from '~/data/routes'
 import { caseStudies, isSector, sectorLabel, sectors } from '~/data/case-studies'
-import { nextProject, serviceFilterOrder } from '~/data/our-work'
+import { serviceFilterOrder } from '~/data/our-work'
 import { routes } from '~/data/routes'
 import { serviceBySlug } from '~/data/services'
 
@@ -16,6 +16,8 @@ import { serviceBySlug } from '~/data/services'
  */
 const route = useRoute()
 const router = useRouter()
+const page = useCmsContent('our-work')
+const nextProject = computed(() => page.value.next)
 
 const service = ref<ServiceSlug | null>(null)
 const sector = ref<SectorId | null>(null)
@@ -243,7 +245,7 @@ function clearAll() {
         :to="routes.contact"
         size="lg"
       >
-        {{ nextProject.cta }}
+        {{ nextProject.button }}
       </UiButton>
     </div>
   </section>

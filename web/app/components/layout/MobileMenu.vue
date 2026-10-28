@@ -11,7 +11,6 @@ import {
 } from 'reka-ui'
 import { routes } from '~/data/routes'
 import { services } from '~/data/services'
-import { mainNav } from '~/data/site'
 
 /**
  * Navigation drawer below `lg`. reka-ui's Dialog supplies the parts that are
@@ -19,6 +18,9 @@ import { mainNav } from '~/data/site'
  */
 const open = ref(false)
 const panel = usePanelLinks()
+const header = useCmsContent('header')
+const { linkHref } = useCmsLink()
+const mainNav = computed(() => header.value.nav.map(item => ({ label: item.label, to: linkHref(item.link) })))
 
 watch(() => useRoute().fullPath, () => (open.value = false))
 </script>
@@ -73,7 +75,7 @@ watch(() => useRoute().fullPath, () => (open.value = false))
           </DialogClose>
         </div>
         <DialogDescription class="sr-only">
-          Site navigation: services, pricing, our work, insights, about and contact.
+          {{ header.menuDescription }}
         </DialogDescription>
 
         <nav
@@ -82,7 +84,7 @@ watch(() => useRoute().fullPath, () => (open.value = false))
         >
           <div>
             <p class="mb-2 text-[0.6875rem] font-bold tracking-widest text-muted uppercase">
-              Services
+              {{ header.servicesLabel }}
             </p>
             <ul class="flex flex-col">
               <li
@@ -101,7 +103,7 @@ watch(() => useRoute().fullPath, () => (open.value = false))
                   :to="routes.services"
                   class="flex min-h-11 items-center rounded-md px-2 text-[0.9375rem] font-semibold text-violet-600 hover:bg-violet-50"
                 >
-                  All services →
+                  {{ header.allServices }} →
                 </NuxtLink>
               </li>
             </ul>
@@ -128,7 +130,7 @@ watch(() => useRoute().fullPath, () => (open.value = false))
             shape="pill"
             block
           >
-            Get in touch
+            {{ header.start }}
           </UiButton>
           <UiButton
             :href="panel.login"
@@ -136,7 +138,7 @@ watch(() => useRoute().fullPath, () => (open.value = false))
             shape="pill"
             block
           >
-            Client login
+            {{ header.signIn }}
           </UiButton>
         </div>
       </DialogContent>

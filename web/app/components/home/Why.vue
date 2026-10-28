@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { paymentPlans, planTermMonths, trustMarks, whySwaps } from '~/data/home'
+import { paymentPlans, planTermMonths } from '~/data/home'
 import { formatGbp } from '~/utils/format'
 
 /** The comparison card is the Starter plan, so it can never disagree with the explainer above. */
 const starter = paymentPlans[0]!
 const starterTotal = starter.deposit + starter.monthly * planTermMonths
+const home = useCmsContent('home')
 </script>
 
 <template>
@@ -18,10 +19,10 @@ const starterTotal = starter.deposit + starter.monthly * planTermMonths
         <div class="max-w-[44ch] lg:max-w-none">
           <UiSectionHeader
             id="why-title"
-            eyebrow="Why work with us?"
-            title="We swapped the awkward bits"
+            :eyebrow="home.why.eyebrow"
+            :title="home.why.title"
           >
-            Crossed out is how agencies usually work. Underneath is how we do it.
+            {{ home.why.text }}
           </UiSectionHeader>
         </div>
 
@@ -58,7 +59,7 @@ const starterTotal = starter.deposit + starter.monthly * planTermMonths
 
       <ul class="grid gap-5 md:grid-cols-3">
         <li
-          v-for="swap in whySwaps"
+          v-for="swap in home.why.swaps"
           :key="swap.after"
           class="flex flex-col gap-2.5 rounded-xl border border-line bg-white px-6 py-6.5 transition duration-200 ease-out-soft hover:shadow-lift motion-safe:hover:-translate-y-0.75"
         >
@@ -76,7 +77,7 @@ const starterTotal = starter.deposit + starter.monthly * planTermMonths
 
       <ul class="grid gap-6 pt-2 sm:grid-cols-2 lg:flex lg:items-stretch lg:gap-0">
         <li
-          v-for="(mark, i) in trustMarks"
+          v-for="(mark, i) in home.why.trust"
           :key="mark.title"
           class="flex flex-1 flex-col gap-1.25 lg:px-7 lg:first:pl-0 lg:last:pr-0"
           :class="i > 0 && 'lg:border-l lg:border-line-strong'"

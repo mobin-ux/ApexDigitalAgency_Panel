@@ -1,11 +1,13 @@
 <script setup lang="ts">
-import { insightsHero as hero } from '~/data/insights'
 import { routes } from '~/data/routes'
 
-const crumbs = [
-  { label: 'Home', to: routes.home },
-  { label: 'Insights', to: routes.insights },
-] as const
+const page = useCmsContent('insights')
+const header = useCmsContent('header')
+const hero = computed(() => page.value.hero)
+const crumbs = computed(() => [
+  { label: header.value.sections.home, to: routes.home },
+  { label: header.value.sections.insights, to: routes.insights },
+])
 
 const filter = useInsightsFilter()
 

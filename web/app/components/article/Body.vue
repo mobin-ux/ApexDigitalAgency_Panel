@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import type { ArticleBody } from '~/data/articles'
 import type { ServiceSlug } from '~/data/routes'
-import { articleChrome } from '~/data/article-page'
 import { routes } from '~/data/routes'
 import { serviceBySlug } from '~/data/services'
 
@@ -14,6 +13,12 @@ import { serviceBySlug } from '~/data/services'
  * enhancement added after mount.
  */
 const props = defineProps<{ body: ArticleBody, service: ServiceSlug }>()
+const chrome = useCmsContent('article-chrome')
+const articleChrome = computed(() => ({
+  contents: chrome.value.contents,
+  sideService: { label: chrome.value.relatedService, link: chrome.value.viewService },
+  writtenBy: chrome.value.writtenBy,
+}))
 
 const offer = serviceBySlug(props.service)
 

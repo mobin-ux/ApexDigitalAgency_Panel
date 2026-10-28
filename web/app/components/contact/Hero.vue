@@ -1,11 +1,15 @@
 <script setup lang="ts">
-import { contactHero, contactStats } from '~/data/contact'
 import { routes } from '~/data/routes'
 
-const crumbs = [
-  { label: 'Home', to: routes.home },
-  { label: 'Contact', to: routes.contact },
-]
+const page = useCmsContent('contact')
+const contactHero = computed(() => page.value.hero)
+const contactStats = computed(() => page.value.stats.filter(stat => stat.value))
+
+const header = useCmsContent('header')
+const crumbs = computed(() => [
+  { label: header.value.sections.home, to: routes.home },
+  { label: header.value.sections.contact, to: routes.contact },
+])
 </script>
 
 <template>

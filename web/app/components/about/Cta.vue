@@ -1,6 +1,9 @@
 <script setup lang="ts">
-import { aboutCta } from '~/data/about'
+import { aboutCta as ctaData } from '~/data/about'
 import { routes } from '~/data/routes'
+
+const page = useCmsContent('about')
+const aboutCta = computed(() => ({ ...page.value.cta, facts: ctaData.facts }))
 </script>
 
 <template>

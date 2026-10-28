@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { caseStudies, featuredCaseStudy } from '~/data/case-studies'
-import { ourWorkSeo } from '~/data/our-work'
 import { routes } from '~/data/routes'
 
+const page = useCmsContent('our-work')
+const ourWorkSeo = page.value.seo
 const siteUrl = useSiteConfig().url
 const ogImage = `${siteUrl}/og-default.png`
 

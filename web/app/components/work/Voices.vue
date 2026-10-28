@@ -1,5 +1,8 @@
 <script setup lang="ts">
-import { ourWorkVoices as voices } from '~/data/our-work'
+import { ourWorkVoices } from '~/data/our-work'
+
+const page = useCmsContent('our-work')
+const voices = computed(() => ({ ...page.value.voices, alsoTrustedBy: ourWorkVoices.alsoTrustedBy }))
 
 function initials(name: string) {
   return name.split(/\s+/).map(part => part[0]).join('').slice(0, 2)

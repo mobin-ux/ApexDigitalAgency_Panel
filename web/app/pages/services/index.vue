@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { routes } from '~/data/routes'
 import { catalogueServices } from '~/data/services'
-import { servicesSeo } from '~/data/services-page'
+
+const page = useCmsContent('services')
+const servicesSeo = page.value.seo
 
 const siteUrl = useSiteConfig().url
 const ogImage = `${siteUrl}/og-default.png`

@@ -11,6 +11,7 @@ import { services } from '~/data/services'
  * service URLs are crawlable and work before JavaScript has loaded.
  */
 const open = ref(false)
+const header = useCmsContent('header')
 const root = useTemplateRef<HTMLElement>('root')
 const trigger = useTemplateRef<HTMLButtonElement>('trigger')
 
@@ -52,7 +53,7 @@ const inSection = computed(() => route.path === routes.services || route.path.st
       aria-controls="services-menu"
       @click="open = !open"
     >
-      Services
+      {{ header.servicesLabel }}
       <svg
         class="size-3 text-muted transition-transform duration-150"
         :class="open && 'rotate-180'"
@@ -93,7 +94,7 @@ const inSection = computed(() => route.path === routes.services || route.path.st
             :to="routes.services"
             class="flex h-full items-center rounded-md bg-violet-50 px-4 py-3 font-display text-[0.9375rem] font-bold text-violet-600 transition-colors hover:bg-violet-100"
           >
-            All services →
+            {{ header.allServices }} →
           </NuxtLink>
         </li>
       </ul>

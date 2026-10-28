@@ -1,21 +1,27 @@
 <script setup lang="ts">
 import type { CaseStudy } from '~/data/case-studies'
-import { caseStudyCta } from '~/data/case-study-page'
 import { routes } from '~/data/routes'
 import { serviceBySlug } from '~/data/services'
 
 const props = defineProps<{ study: CaseStudy }>()
+const chrome = useCmsContent('case-study-chrome')
+const caseStudyCta = computed(() => ({
+  fallback: { eyebrow: chrome.value.fallbackEyebrow, title: chrome.value.fallbackTitle, body: chrome.value.fallbackBody },
+  checks: chrome.value.checks,
+  button: chrome.value.button,
+  call: chrome.value.call,
+}))
 
 // The offer is the study's lead service: its price, timeline and order link.
 const primary = serviceBySlug(props.study.services[0]!)
 const { contact } = useServiceLinks(primary.slug)
 
-const copy = props.study.story?.cta ?? caseStudyCta.fallback
+const copy = props.study.story?.cta ?? caseStudyCta.value.fallback
 // Only a website "goes live"; other services' timelines read as a duration
 // ("3–6 months to compound"), so the launch line is for website work alone.
 const checks = primary.slug === 'website-design'
-  ? [`Live in ${primary.timeline}`, ...caseStudyCta.checks]
-  : [...caseStudyCta.checks]
+  ? [`Live in ${primary.timeline}`, ...caseStudyCta.value.checks]
+  : [...caseStudyCta.value.checks]
 </script>
 
 <template>

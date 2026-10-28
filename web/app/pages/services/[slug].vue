@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { serviceBaseline } from '~/data/cms-baseline'
 import { defaultPlanTerm } from '~/data/plans'
 import { routes } from '~/data/routes'
 import { loadServicePage } from '~/data/service-pages'
@@ -14,7 +15,17 @@ const loader = loadServicePage(String(route.params.slug))
 if (!loader) {
   throw createError({ statusCode: 404, statusMessage: 'Page not found', fatal: true })
 }
-const page = await loader
+const loaded = await loader
+// The CMS overlay covers the hero copy, the questions, the closing panel and
+// the search listing; plans, prices, process and proof stay in the catalogue.
+const cms = useCmsRecord('service', routes.service(loaded.slug), serviceBaseline(loaded))
+const page = {
+  ...loaded,
+  hero: { ...loaded.hero, ...cms.value.hero },
+  faq: cms.value.faq,
+  cta: { ...loaded.cta, ...cms.value.cta },
+  seo: { title: cms.value.seo.title, description: cms.value.seo.description },
+}
 const service = services.find(s => s.slug === page.slug)!
 
 const siteUrl = useSiteConfig().url

@@ -1,7 +1,23 @@
 <script setup lang="ts">
 import type { ContactBudgetId, ContactReplyId, ContactServiceId } from '#shared/contact'
 import { contactFieldError } from '#shared/contact'
-import { contactBudgets, contactForm, contactReplies, contactServiceLabels, contactThanks } from '~/data/contact'
+import { contactBudgets, contactForm as contactFormData, contactReplies, contactServiceLabels, contactThanks } from '~/data/contact'
+
+const page = useCmsContent('contact')
+const contactForm = computed(() => {
+  const f = page.value.form
+  return {
+    ...contactFormData,
+    title: f.title,
+    intro: f.intro,
+    services: { label: f.servicesLabel, hint: f.servicesHint },
+    budget: { label: f.budgetLabel, hint: f.budgetHint },
+    reply: { label: f.replyLabel },
+    submit: f.submit,
+    hintReady: f.hintReady,
+    hintMissing: f.hintMissing,
+  }
+})
 
 /**
  * The message card. Name and email are the only required fields. Sending
@@ -20,7 +36,7 @@ const thanksTitle = useTemplateRef<HTMLHeadingElement>('thanksTitle')
 const failureBox = useTemplateRef<HTMLDivElement>('failureBox')
 
 const firstName = computed(() => fields.name.trim().split(/\s+/)[0] ?? '')
-const hint = computed(() => form.canSend.value ? contactForm.hintReady : contactForm.hintMissing)
+const hint = computed(() => form.canSend.value ? contactForm.value.hintReady : contactForm.value.hintMissing)
 
 /**
  * A required field's error shows once it has been left, or a send was

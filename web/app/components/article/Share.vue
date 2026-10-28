@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { articleChrome } from '~/data/article-page'
+import { articleChrome as shareData } from '~/data/article-page'
 
 /**
  * Share row. The two networks are plain links to their share pages (no
@@ -7,18 +7,20 @@ import { articleChrome } from '~/data/article-page'
  * one control that needs JavaScript, and it says when the copy fails.
  */
 const props = defineProps<{ title: string }>()
+const chrome = useCmsContent('article-chrome')
+const articleChrome = computed(() => ({ share: { label: chrome.value.share } }))
 
 const route = useRoute()
 const pageUrl = `${useSiteConfig().url}${route.path}`
 
 const networks = [
   {
-    label: articleChrome.share.linkedin,
+    label: shareData.share.linkedin,
     glyph: 'in',
     href: `https://www.linkedin.com/sharing/share-offsite/?${new URLSearchParams({ url: pageUrl })}`,
   },
   {
-    label: articleChrome.share.x,
+    label: shareData.share.x,
     glyph: 'x',
     href: `https://x.com/intent/post?${new URLSearchParams({ url: pageUrl, text: props.title })}`,
   },
@@ -26,9 +28,9 @@ const networks = [
 
 const state = ref<'idle' | 'copied' | 'failed'>('idle')
 const label = computed(() => ({
-  idle: articleChrome.share.copy,
-  copied: articleChrome.share.copied,
-  failed: articleChrome.share.failed,
+  idle: chrome.value.copy,
+  copied: chrome.value.copied,
+  failed: chrome.value.copyFailed,
 })[state.value])
 
 const { start: reset } = useTimeoutFn(() => {

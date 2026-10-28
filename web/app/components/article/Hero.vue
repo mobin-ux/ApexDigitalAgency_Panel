@@ -1,14 +1,20 @@
 <script setup lang="ts">
 import type { Article, ArticleBody } from '~/data/articles'
-import { articleChrome } from '~/data/article-page'
 import { articleTopic } from '~/data/articles'
 import { routes } from '~/data/routes'
+import { fill } from '../../../shared/cms'
 
 const props = defineProps<{ article: Article, body: ArticleBody }>()
+const chrome = useCmsContent('article-chrome')
+const articleChrome = computed(() => ({
+  updated: chrome.value.updated,
+  byline: (role: string, minutes: number) => fill(chrome.value.byline, { role, minutes }),
+}))
 
+const header = useCmsContent('header')
 const crumbs = [
-  { label: 'Home', to: routes.home },
-  { label: 'Insights', to: routes.insights },
+  { label: header.value.sections.home, to: routes.home },
+  { label: header.value.sections.insights, to: routes.insights },
   { label: articleTopic(props.article), to: routes.article(props.article.slug) },
 ]
 

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { monthlyFinalStep, monthlySteps } from '~/data/home'
+const home = useCmsContent('home')
 </script>
 
 <template>
@@ -12,12 +12,12 @@ import { monthlyFinalStep, monthlySteps } from '~/data/home'
       <div class="mx-auto mb-12 max-w-180 lg:mb-16">
         <UiSectionHeader
           id="monthly-title"
-          eyebrow="Pay monthly"
-          title="Professional work without the upfront lump sum"
+          :eyebrow="home.monthly.eyebrow"
+          :title="home.monthly.title"
           align="center"
           balance
         >
-          Most of our clients are sole traders and small teams. Spread the cost over twelve months and pay for the project out of the revenue it brings in.
+          {{ home.monthly.text }}
         </UiSectionHeader>
       </div>
 
@@ -26,7 +26,7 @@ import { monthlyFinalStep, monthlySteps } from '~/data/home'
 
         <ol class="flex flex-col">
           <li
-            v-for="(step, i) in monthlySteps"
+            v-for="(step, i) in home.monthly.steps"
             :key="step.title"
             class="flex gap-4.5 pb-6.5"
           >
@@ -48,8 +48,8 @@ import { monthlyFinalStep, monthlySteps } from '~/data/home'
               <span class="sr-only">Done:</span>
             </span>
             <span class="flex flex-col gap-1.5 pt-0.75">
-              <span class="font-display text-[1.1875rem] font-semibold tracking-tight text-heading">{{ monthlyFinalStep.title }}</span>
-              <span class="text-[0.9375rem] leading-relaxed text-body">{{ monthlyFinalStep.body }}</span>
+              <span class="font-display text-[1.1875rem] font-semibold tracking-tight text-heading">{{ home.monthly.finalStep.title }}</span>
+              <span class="text-[0.9375rem] leading-relaxed text-body">{{ home.monthly.finalStep.body }}</span>
             </span>
           </li>
         </ol>

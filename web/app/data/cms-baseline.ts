@@ -2,15 +2,15 @@ import type { TemplateContent, TemplateKey } from '../../shared/cms'
 import type { Article } from './articles'
 import type { CaseStudy } from './case-studies'
 import type { ServicePageContent } from './service-pages/types'
-import { aboutCta, aboutHero, paperwork, promises, story, team, visit } from './about'
+import { aboutCta, aboutHero, aboutSeo, paperwork, promises, story, team, visit } from './about'
 import { articleChrome, articleCta, keepReading } from './article-page'
 import { caseStudyCta, sideCta, similarProjects } from './case-study-page'
-import { contactFaq, contactForm, contactHero, contactStats, contactSteps, contactStudio } from './contact'
+import { contactFaq, contactForm, contactHero, contactSeo, contactStats, contactSteps, contactStudio } from './contact'
 import { clients, faqs, heroStats, monthlyFinalStep, monthlySteps, trustMarks, whySwaps } from './home'
-import { costAnswers, insightsBrowse, insightsCta, insightsFeatured, insightsHero } from './insights'
-import { nextProject, ourWorkCta, ourWorkHero, ourWorkVoices } from './our-work'
+import { costAnswers, insightsBrowse, insightsCta, insightsFeatured, insightsHero, insightsSeo } from './insights'
+import { nextProject, ourWorkCta, ourWorkHero, ourWorkSeo, ourWorkVoices } from './our-work'
 import { homeAnchors, routes } from './routes'
-import { orderingSteps } from './services-page'
+import { orderingSteps, servicesSeo } from './services-page'
 import { mainNav, seoDefaults } from './site'
 
 /**
@@ -135,7 +135,7 @@ export const servicesBaseline: TemplateContent<'services'> = {
     button: 'Book a free call',
     replyNote: 'Within one working day',
   },
-  seo: seo('Services: websites, SEO, PPC and software', 'Seven services, each on an interest-free monthly plan. Pick what you want to change and see the work that fixes it, with the monthly price attached.'),
+  seo: seo(servicesSeo.title, servicesSeo.description),
 }
 
 export const ourWorkBaseline: TemplateContent<'our-work'> = {
@@ -148,7 +148,7 @@ export const ourWorkBaseline: TemplateContent<'our-work'> = {
     quotes: ourWorkVoices.quotes.map(q => ({ quote: q.quote, name: q.name, role: q.role, result: q.result })),
   },
   cta: { eyebrow: ourWorkCta.eyebrow, title: ourWorkCta.title, body: ourWorkCta.body, button: ourWorkCta.button },
-  seo: seo('Our work: case studies with measured results', 'Websites, SEO, ads, software and branding for UK businesses, each shown with what changed after launch. Filter by service or by sector.'),
+  seo: seo(ourWorkSeo.title, ourWorkSeo.description),
 }
 
 export const insightsBaseline: TemplateContent<'insights'> = {
@@ -184,7 +184,7 @@ export const insightsBaseline: TemplateContent<'insights'> = {
     items: costAnswers.items.map(i => ({ question: i.question, market: i.market, service: i.service })),
   },
   cta: { eyebrow: insightsCta.eyebrow, title: insightsCta.title, body: insightsCta.body, button: insightsCta.button, checks: [...insightsCta.checks] },
-  seo: seo('Insights: straight answers on costs, timelines and agencies', 'What websites, SEO, ads, software and branding cost in the UK, how long they take and what to ask any agency. Written by the people who do the work.'),
+  seo: seo(insightsSeo.title, insightsSeo.description),
 }
 
 export const aboutBaseline: TemplateContent<'about'> = {
@@ -217,7 +217,7 @@ export const aboutBaseline: TemplateContent<'about'> = {
   story: { eyebrow: story.eyebrow, title: story.title, milestones: story.milestones.map(m => ({ when: m.when, title: m.title, body: m.body })) },
   visit: { eyebrow: visit.eyebrow, title: visit.title, body: visit.body, button: visit.button, directions: visit.directions },
   cta: { eyebrow: aboutCta.eyebrow, title: aboutCta.title, body: aboutCta.body, button: aboutCta.button },
-  seo: seo('About Apex: the Kent team behind your project', 'Meet the in-house Apex team in Maidstone, Kent: who will do your work, the promises in every contract, and the company details you can check before you sign.'),
+  seo: seo(aboutSeo.title, aboutSeo.description),
 }
 
 export const contactBaseline: TemplateContent<'contact'> = {
@@ -244,7 +244,7 @@ export const contactBaseline: TemplateContent<'contact'> = {
     teamLink: contactStudio.team.label,
   },
   faq: { eyebrow: contactFaq.eyebrow, title: contactFaq.title, intro: contactFaq.intro, items: contactFaq.items.map(i => ({ question: i.question, answer: i.answer })) },
-  seo: seo('Contact us: tell us what you need', 'Send a message, email or visit the Maidstone studio. A named lead replies within one working day with a written plan and a monthly figure, free and with no obligation.'),
+  seo: seo(contactSeo.title, contactSeo.description),
 }
 
 export function serviceBaseline(page: ServicePageContent): TemplateContent<'service'> {

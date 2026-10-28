@@ -1,6 +1,15 @@
 <script setup lang="ts">
 import type { Department } from '~/data/about'
-import { departments, team } from '~/data/about'
+import { departments, team as teamData } from '~/data/about'
+import { fill } from '../../../shared/cms'
+
+const page = useCmsContent('about')
+const team = computed(() => ({
+  ...page.value.team,
+  members: teamData.members,
+  since: (year: string) => fill(page.value.team.since, { year }),
+  hiring: { ...page.value.team.hiring, to: teamData.hiring.to },
+}))
 
 /**
  * The team, filterable by department. Every person is in the prerendered
@@ -11,15 +20,15 @@ const selected = ref<Department | null>(null)
 const animate = ref(false)
 
 const chips = [
-  { id: null, label: team.everyone, count: team.members.length },
+  { id: null, label: team.value.everyone, count: teamData.members.length },
   ...departments.map(department => ({
     id: department,
     label: department,
-    count: team.members.filter(member => member.department === department).length,
+    count: teamData.members.filter(member => member.department === department).length,
   })),
 ]
 
-const shown = computed(() => team.members.filter(member => !selected.value || member.department === selected.value))
+const shown = computed(() => teamData.members.filter(member => !selected.value || member.department === selected.value))
 
 function pick(id: Department | null) {
   selected.value = id

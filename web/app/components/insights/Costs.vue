@@ -1,21 +1,22 @@
 <script setup lang="ts">
-import { costAnswers as copy } from '~/data/insights'
 import { routes } from '~/data/routes'
 import { serviceBySlug } from '~/data/services'
 import { formatGbp } from '~/utils/format'
 
 // The Apex figure is the service's lowest monthly plan, or "Quoted" for work
 // scoped on a call, so it always matches the service page it links to.
-const rows = copy.items.map((item) => {
+const page = useCmsContent('insights')
+const copy = computed(() => ({ ...page.value.costs, quoted: { label: page.value.costs.quotedLabel, value: page.value.costs.quotedValue } }))
+const rows = computed(() => copy.value.items.map((item) => {
   const service = serviceBySlug(item.service)
   return {
     ...item,
     to: routes.service(service.slug),
     link: service.tag,
-    apexLabel: service.fromMonthly ? copy.withApex : copy.quoted.label,
-    apexValue: service.fromMonthly ? `${formatGbp(service.fromMonthly)}/mo` : copy.quoted.value,
+    apexLabel: service.fromMonthly ? copy.value.withApex : copy.value.quoted.label,
+    apexValue: service.fromMonthly ? `${formatGbp(service.fromMonthly)}/mo` : copy.value.quoted.value,
   }
-})
+}))
 </script>
 
 <template>

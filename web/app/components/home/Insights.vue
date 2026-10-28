@@ -3,6 +3,8 @@ import { articleList, leadArticle } from '~/data/content'
 import { comingSoon } from '~/data/insights'
 import { routes } from '~/data/routes'
 import { formatMonthYear } from '~/utils/format'
+
+const home = useCmsContent('home')
 </script>
 
 <template>
@@ -16,17 +18,17 @@ import { formatMonthYear } from '~/utils/format'
         <div class="max-w-160">
           <UiSectionHeader
             id="insights-title"
-            eyebrow="Our blog"
-            title="Straight answers, before you spend anything"
+            :eyebrow="home.insights.eyebrow"
+            :title="home.insights.title"
           >
-            We publish what we would tell you on a call — costs, timelines and what actually works for UK businesses.
+            {{ home.insights.text }}
           </UiSectionHeader>
         </div>
         <NuxtLink
           :to="routes.insights"
           class="text-[0.9375rem] font-semibold text-violet-600 hover:underline md:pb-2.5"
         >
-          All insights →
+          {{ home.insights.all }} →
         </NuxtLink>
       </div>
 

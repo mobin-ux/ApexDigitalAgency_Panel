@@ -1,15 +1,14 @@
 <script setup lang="ts">
-import { faqs } from '~/data/home'
-import { seoDefaults } from '~/data/site'
+const home = useCmsContent('home')
 
 // Absolute URL: social crawlers do not resolve relative image paths.
 const ogImage = `${useSiteConfig().url}/og-default.png`
 
 useSeoMeta({
-  title: seoDefaults.title,
-  description: seoDefaults.description,
-  ogTitle: seoDefaults.title,
-  ogDescription: seoDefaults.description,
+  title: home.value.seo.title,
+  description: home.value.seo.description,
+  ogTitle: home.value.seo.title,
+  ogDescription: home.value.seo.description,
   ogType: 'website',
   ogLocale: 'en_GB',
   ogImage,
@@ -25,9 +24,9 @@ useSeoMeta({
 useSchemaOrg([
   defineWebPage({
     '@type': ['WebPage', 'FAQPage'],
-    'name': seoDefaults.title,
-    'description': seoDefaults.description,
-    'mainEntity': faqs.map(item => ({
+    'name': home.value.seo.title,
+    'description': home.value.seo.description,
+    'mainEntity': home.value.faq.items.map(item => ({
       '@type': 'Question',
       'name': item.question,
       'acceptedAnswer': { '@type': 'Answer', 'text': item.answer },

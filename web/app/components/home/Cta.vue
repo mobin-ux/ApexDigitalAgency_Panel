@@ -3,6 +3,7 @@ import { routes } from '~/data/routes'
 import { company } from '~/data/site'
 
 const panel = usePanelLinks()
+const home = useCmsContent('home')
 </script>
 
 <template>
@@ -21,23 +22,23 @@ const panel = usePanelLinks()
           tone="dark"
           emoji="👋"
         >
-          Get in touch
+          {{ home.cta.eyebrow }}
         </UiEyebrowChip>
         <h2
           id="cta-title"
           class="max-w-[20ch] font-display text-h2 text-white"
         >
-          Tell us what your business needs next
+          {{ home.cta.title }}
         </h2>
         <p class="max-w-[48ch] text-body-lg text-body-on-dark">
-          Fifteen minutes, an honest view of what will move the needle first, and a monthly figure. No pitch deck, no pressure.
+          {{ home.cta.text }}
         </p>
         <div class="mt-2 flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-4.5">
           <UiButton
             :to="routes.contact"
             size="lg"
           >
-            Book a free call
+            {{ home.cta.button }}
           </UiButton>
           <a
             :href="`mailto:${company.email}`"
@@ -48,18 +49,18 @@ const panel = usePanelLinks()
 
       <ul class="relative flex flex-col gap-3.5">
         <li class="flex flex-col gap-1 rounded-xl border border-white/10 bg-white/5 px-6 py-5">
-          <span class="text-[0.78rem] text-muted-on-dark">Typical reply time</span>
-          <span class="font-display text-[1.3125rem] font-semibold tracking-tight text-white">Within one working day</span>
+          <span class="text-[0.78rem] text-muted-on-dark">{{ home.cta.replyLabel }}</span>
+          <span class="font-display text-[1.3125rem] font-semibold tracking-tight text-white">{{ home.cta.replyValue }}</span>
         </li>
         <li class="relative flex flex-col gap-1 rounded-xl border border-white/10 bg-white/5 px-6 py-5 transition-colors hover:bg-white/8">
-          <span class="text-[0.78rem] text-muted-on-dark">Already a client?</span>
+          <span class="text-[0.78rem] text-muted-on-dark">{{ home.cta.clientLabel }}</span>
           <a
             :href="panel.newOrder"
             class="font-display text-[1.3125rem] font-semibold tracking-tight text-white after:absolute after:inset-0 after:rounded-xl"
-          >Order from your dashboard <span aria-hidden="true">→</span></a>
+          >{{ home.cta.clientValue }} <span aria-hidden="true">→</span></a>
         </li>
         <li class="flex flex-col gap-1 rounded-xl border border-white/10 bg-white/5 px-6 py-5">
-          <span class="text-[0.78rem] text-muted-on-dark">Where we are</span>
+          <span class="text-[0.78rem] text-muted-on-dark">{{ home.cta.whereLabel }}</span>
           <span class="font-display text-[1.3125rem] font-semibold tracking-tight text-white">{{ company.address.locality }}, {{ company.address.region }}</span>
         </li>
       </ul>

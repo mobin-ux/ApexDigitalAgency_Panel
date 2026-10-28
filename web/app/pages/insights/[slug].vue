@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { articleBySlug, articleTopic } from '~/data/articles'
+import { articleBaseline } from '~/data/cms-baseline'
 import { routes } from '~/data/routes'
 import { serviceBySlug } from '~/data/services'
 
@@ -15,8 +16,10 @@ const found = articleBySlug(String(route.params.slug))
 if (!found?.body) {
   throw createError({ statusCode: 404, statusMessage: 'Page not found', fatal: true })
 }
-const article = found
-const body = found.body
+// The overlay covers the title, excerpt, lead and search listing; the body stays in the catalogue.
+const cms = useCmsRecord('article', routes.article(found.slug), articleBaseline(found))
+const article = { ...found, title: cms.value.title, excerpt: cms.value.excerpt }
+const body = { ...found.body, lead: cms.value.lead, seo: { title: cms.value.seo.title, description: cms.value.seo.description } }
 
 const siteUrl = useSiteConfig().url
 const pageUrl = `${siteUrl}${routes.article(article.slug)}`

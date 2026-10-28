@@ -3,6 +3,8 @@ import { planTermMonths } from '~/data/home'
 import { routes } from '~/data/routes'
 import { serviceCombinations } from '~/data/services-page'
 import { formatGbp } from '~/utils/format'
+
+const page = useCmsContent('services')
 </script>
 
 <template>
@@ -14,11 +16,11 @@ import { formatGbp } from '~/utils/format'
       <div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_420px] lg:items-end lg:gap-16">
         <UiSectionHeader
           id="combinations-title"
-          eyebrow="Combinations"
-          title="Most businesses need two things, not one"
+          :eyebrow="page.combinations.eyebrow"
+          :title="page.combinations.title"
         />
         <p class="text-body-lg text-body lg:mb-1.5">
-          A site with nobody visiting it does not sell, and traffic to a weak site does not either. These are the pairings we set up most often.
+          {{ page.combinations.text }}
         </p>
       </div>
 

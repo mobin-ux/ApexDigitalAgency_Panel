@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import type { Article } from '~/data/articles'
-import { keepReading } from '~/data/article-page'
 import { articleLink, articleTopic, relatedArticles } from '~/data/articles'
 import { comingSoon } from '~/data/insights'
 import { routes } from '~/data/routes'
 
 const props = defineProps<{ article: Article }>()
+const chrome = useCmsContent('article-chrome')
+const keepReading = computed(() => ({ title: chrome.value.moreTitle, link: chrome.value.moreLink }))
 
 const related = relatedArticles(props.article).map(item => ({ ...item, to: articleLink(item) }))
 </script>

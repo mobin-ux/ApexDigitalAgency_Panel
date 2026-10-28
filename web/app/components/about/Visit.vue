@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { aboutPhotos, visit } from '~/data/about'
+import { aboutPhotos, visit as visitData } from '~/data/about'
 import { routes } from '~/data/routes'
 import { company } from '~/data/site'
 
@@ -8,6 +8,8 @@ import { company } from '~/data/site'
  * appear only once they are confirmed in `site.ts`.
  */
 const { addressLines, directionsUrl: directions, telHref } = studio
+const page = useCmsContent('about')
+const visit = computed(() => ({ ...page.value.visit, labels: visitData.labels }))
 </script>
 
 <template>

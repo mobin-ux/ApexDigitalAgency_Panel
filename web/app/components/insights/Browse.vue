@@ -1,7 +1,11 @@
 <script setup lang="ts">
-import { insightsBrowse as copy } from '~/data/insights'
 import { routes } from '~/data/routes'
 
+const page = useCmsContent('insights')
+const copy = computed(() => {
+  const b = page.value.browse
+  return { ...b, empty: { title: b.emptyTitle, body: b.emptyBody, button: b.emptyButton } }
+})
 const filter = useInsightsFilter()
 const { visible, chips, filtered, resultLabel, animate, topic } = filter
 </script>

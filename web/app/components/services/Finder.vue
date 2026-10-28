@@ -13,6 +13,7 @@ import { catalogueServices, isServiceGoal, serviceGoals } from '~/data/services'
  */
 const route = useRoute()
 const router = useRouter()
+const page = useCmsContent('services')
 
 const goal = ref<ServiceGoalId | null>(null)
 
@@ -73,10 +74,10 @@ function toggle(id: ServiceGoalId) {
           id="finder-title"
           class="font-display text-lg leading-[1.3] font-semibold tracking-[-0.015em] text-heading"
         >
-          What do you want to change?
+          {{ page.finder.title }}
         </h2>
         <p class="text-sm text-muted">
-          Pick one — the list below updates.
+          {{ page.finder.hint }}
         </p>
         <button
           v-if="goal"
@@ -84,7 +85,7 @@ function toggle(id: ServiceGoalId) {
           class="ml-auto text-[0.84375rem] font-semibold text-body transition-colors hover:text-violet-600"
           @click="choose(null)"
         >
-          Show everything
+          {{ page.finder.all }}
         </button>
       </div>
 
@@ -133,13 +134,13 @@ function toggle(id: ServiceGoalId) {
       class="flex flex-col items-center gap-3.5 rounded-2xl border border-dashed border-line-dashed bg-subtle p-12 text-center"
     >
       <p class="font-display text-[1.375rem] font-semibold tracking-[-0.02em] text-heading">
-        Nothing matches that on its own
+        {{ page.finder.emptyTitle }}
       </p>
       <p class="max-w-[46ch] text-[0.96875rem] leading-relaxed text-body">
-        It probably needs two services working together. A fifteen-minute call is the quickest way to work out which.
+        {{ page.finder.emptyBody }}
       </p>
       <UiButton :to="routes.contact">
-        Book a free call
+        {{ page.finder.emptyButton }}
       </UiButton>
     </div>
   </section>

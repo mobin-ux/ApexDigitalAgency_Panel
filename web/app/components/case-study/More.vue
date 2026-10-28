@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import type { CaseStudy } from '~/data/case-studies'
 import { relatedStudies } from '~/data/case-studies'
-import { similarProjects } from '~/data/case-study-page'
 import { routes } from '~/data/routes'
 
 const props = defineProps<{ study: CaseStudy }>()
+const chrome = useCmsContent('case-study-chrome')
+const similarProjects = computed(() => ({ eyebrow: chrome.value.moreEyebrow, title: chrome.value.moreTitle, link: chrome.value.moreLink }))
 
 const related = relatedStudies(props.study)
 </script>

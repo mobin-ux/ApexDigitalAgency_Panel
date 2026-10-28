@@ -7,9 +7,10 @@ const props = defineProps<{ page: ServicePageContent }>()
 
 const service = services.find(s => s.slug === props.page.slug)!
 const { linkTo } = useServiceLinks(props.page.slug)
+const header = useCmsContent('header')
 const crumbs = [
-  { label: 'Home', to: routes.home },
-  { label: 'Services', to: routes.services },
+  { label: header.value.sections.home, to: routes.home },
+  { label: header.value.sections.services, to: routes.services },
   { label: service.shortName, to: routes.service(service.slug) },
 ]
 </script>

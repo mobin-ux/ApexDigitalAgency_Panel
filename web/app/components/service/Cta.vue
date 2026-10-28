@@ -3,6 +3,7 @@ import type { ServicePageContent } from '~/data/service-pages/types'
 import { company } from '~/data/site'
 
 const props = defineProps<{ page: ServicePageContent }>()
+const chrome = useCmsContent('service-chrome')
 
 const { contact, linkTo } = useServiceLinks(props.page.slug)
 // An unconfirmed phone number is empty and its row is not rendered.
@@ -25,7 +26,7 @@ const phoneHref = company.phone ? `tel:${company.phone.replace(/\s+/g, '')}` : '
           tone="dark"
           emoji="👋"
         >
-          Ready when you are
+          {{ chrome.ctaEyebrow }}
         </UiEyebrowChip>
         <h2
           id="service-cta-title"
@@ -52,7 +53,7 @@ const phoneHref = company.phone ? `tel:${company.phone.replace(/\s+/g, '')}` : '
           size="lg"
           block
         >
-          Book a free call
+          {{ chrome.call }}
         </UiButton>
         <div
           class="h-px bg-white/10"
@@ -60,7 +61,7 @@ const phoneHref = company.phone ? `tel:${company.phone.replace(/\s+/g, '')}` : '
         />
         <dl class="grid grid-cols-[92px_minmax(0,1fr)] items-baseline gap-x-4 gap-y-3">
           <dt class="text-[0.78125rem] text-muted-on-dark">
-            Email
+            {{ chrome.emailLabel }}
           </dt>
           <dd>
             <a
@@ -70,7 +71,7 @@ const phoneHref = company.phone ? `tel:${company.phone.replace(/\s+/g, '')}` : '
           </dd>
           <template v-if="phoneHref">
             <dt class="text-[0.78125rem] text-muted-on-dark">
-              Phone
+              {{ chrome.phoneLabel }}
             </dt>
             <dd>
               <a

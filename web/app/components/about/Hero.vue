@@ -1,11 +1,18 @@
 <script setup lang="ts">
-import { aboutHero, aboutPhotos, aboutStats } from '~/data/about'
+import { aboutHero as aboutLinks, aboutPhotos, aboutStats } from '~/data/about'
 import { routes } from '~/data/routes'
 
-const crumbs = [
-  { label: 'Home', to: routes.home },
-  { label: 'About', to: routes.about },
-]
+const page = useCmsContent('about')
+const header = useCmsContent('header')
+const aboutHero = computed(() => ({
+  ...page.value.hero,
+  team: { label: page.value.hero.teamLink, to: aboutLinks.team.to },
+  company: { label: page.value.hero.companyLink, to: aboutLinks.company.to },
+}))
+const crumbs = computed(() => [
+  { label: header.value.sections.home, to: routes.home },
+  { label: header.value.sections.about, to: routes.about },
+])
 </script>
 
 <template>

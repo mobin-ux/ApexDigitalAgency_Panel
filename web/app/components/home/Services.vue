@@ -4,6 +4,7 @@ import { featuredService, featuredServiceData, gridServices } from '~/data/servi
 import { formatGbp } from '~/utils/format'
 
 const { instalments } = featuredService
+const home = useCmsContent('home')
 </script>
 
 <template>
@@ -17,10 +18,10 @@ const { instalments } = featuredService
         <div class="max-w-150">
           <UiSectionHeader
             id="services-title"
-            eyebrow="Services"
-            title="Pick the problem. We do the rest."
+            :eyebrow="home.services.eyebrow"
+            :title="home.services.title"
           >
-            Start with what is costing you money today. Add the others later from your dashboard.
+            {{ home.services.text }}
           </UiSectionHeader>
         </div>
         <div class="md:pb-1.5">
@@ -28,7 +29,7 @@ const { instalments } = featuredService
             :to="routes.services"
             variant="light"
           >
-            All services
+            {{ home.services.all }}
           </UiButton>
         </div>
       </div>

@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { aboutSeo } from '~/data/about'
+const page = useCmsContent('about')
+const aboutSeo = page.value.seo
 
 const siteUrl = useSiteConfig().url
 const ogImage = `${siteUrl}/og-default.png`

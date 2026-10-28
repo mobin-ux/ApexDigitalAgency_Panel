@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { articles, articleTopic, publishedArticles } from '~/data/articles'
-import { insightsFeatured as copy } from '~/data/insights'
+import { insightsFeatured } from '~/data/insights'
 import { routes } from '~/data/routes'
 import { formatMonthYear } from '~/utils/format'
 
@@ -8,10 +8,12 @@ import { formatMonthYear } from '~/utils/format'
  * The newest written article, beside the articles still to come. Shown only
  * while nothing is searched or filtered, as in the design.
  */
+const page = useCmsContent('insights')
+const copy = computed(() => ({ ...page.value.featured, upcomingCount: insightsFeatured.upcomingCount }))
 const featured = [...publishedArticles]
   .sort((a, b) => (b.updated ?? b.published ?? '').localeCompare(a.updated ?? a.published ?? ''))[0]
 
-const upcoming = articles.filter(article => !article.body).slice(0, copy.upcomingCount)
+const upcoming = articles.filter(article => !article.body).slice(0, copy.value.upcomingCount)
 
 const chip = computed(() => {
   if (!featured) {

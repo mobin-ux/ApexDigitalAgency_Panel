@@ -1,46 +1,19 @@
 <script setup lang="ts">
-import { homeAnchors, routes } from '~/data/routes'
+import { routes } from '~/data/routes'
 import { services } from '~/data/services'
 import { company } from '~/data/site'
 
-const panel = usePanelLinks()
+const footer = useCmsContent('footer')
+const { linkAttrs } = useCmsLink()
 const year = useRuntimeConfig().public.buildYear
 
 const phoneHref = company.phone ? `tel:${company.phone.replace(/\s+/g, '')}` : ''
 const social = company.social.filter(profile => profile.url)
 
-const groups = [
-  {
-    label: 'Company',
-    links: [
-      { text: 'About Apex', to: routes.about },
-      { text: 'Our work', to: routes.ourWork },
-      { text: 'Pay monthly', to: `${routes.home}${homeAnchors.monthly}` },
-      { text: 'Careers', to: routes.careers },
-      { text: 'Contact us', to: routes.contact },
-    ],
-  },
-  {
-    label: 'Resources',
-    links: [
-      { text: 'Insights blog', to: routes.insights },
-      { text: 'Frequently asked questions', to: `${routes.home}${homeAnchors.faq}` },
-      { text: 'Website cost guide', to: routes.article('website-cost-uk-2026') },
-      { text: 'Instalment plan terms', to: routes.legal.instalmentTerms },
-      { text: 'Client dashboard', href: panel.dashboard },
-    ],
-  },
-  {
-    label: 'Legal',
-    links: [
-      { text: 'Privacy notice', to: routes.legal.privacy },
-      { text: 'Cookie policy', to: routes.legal.cookies },
-      { text: 'Terms of service', to: routes.legal.terms },
-      { text: 'Accessibility statement', to: routes.legal.accessibility },
-      { text: 'Complaints procedure', to: routes.legal.complaints },
-    ],
-  },
-] as const
+const groups = computed(() => footer.value.groups.map(group => ({
+  label: group.label,
+  links: group.links.map(link => ({ text: link.label, ...linkAttrs(link.link) })),
+})))
 
 const linkClass = 'text-[0.9063rem] text-body transition-colors hover:text-violet-600'
 </script>
@@ -51,10 +24,10 @@ const linkClass = 'text-[0.9063rem] text-body transition-colors hover:text-viole
       <div class="flex flex-col gap-6 border-b border-line-strong py-8 md:flex-row md:items-center md:gap-10">
         <div class="flex flex-col gap-1">
           <p class="font-display text-[1.1875rem] font-semibold tracking-tight text-heading">
-            Prefer to talk it through first?
+            {{ footer.strip.title }}
           </p>
           <p class="text-[0.9063rem] text-body">
-            Fifteen minutes, no pitch deck. We reply within one working day.
+            {{ footer.strip.text }}
           </p>
         </div>
         <div class="flex flex-wrap items-center gap-x-7 gap-y-4 md:ml-auto">
@@ -71,7 +44,7 @@ const linkClass = 'text-[0.9063rem] text-body transition-colors hover:text-viole
             :to="routes.contact"
             size="sm"
           >
-            Book a free call
+            {{ footer.button }}
           </UiButton>
         </div>
       </div>
@@ -118,7 +91,7 @@ const linkClass = 'text-[0.9063rem] text-body transition-colors hover:text-viole
 
         <nav aria-label="Services">
           <p class="mb-4 text-[0.6875rem] font-bold tracking-widest text-muted uppercase">
-            Services
+            {{ footer.servicesLabel }}
           </p>
           <ul class="flex flex-col gap-3.25">
             <li
@@ -169,7 +142,7 @@ const linkClass = 'text-[0.9063rem] text-body transition-colors hover:text-viole
         <span>© {{ year }} {{ company.legalName }}</span>
         <span v-if="company.companyNumber">Company no. {{ company.companyNumber }}</span>
         <span v-if="company.vatNumber">VAT no. {{ company.vatNumber }}</span>
-        <span class="md:ml-auto">Registered in {{ company.registeredIn }}</span>
+        <span class="md:ml-auto">{{ footer.registeredIn }} {{ company.registeredIn }}</span>
       </div>
     </div>
   </footer>

@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { routes } from '~/data/routes'
-import { mainNav } from '~/data/site'
 
 const panel = usePanelLinks()
+const header = useCmsContent('header')
+const { linkHref } = useCmsLink()
+const mainNav = computed(() => header.value.nav.map(item => ({ label: item.label, to: linkHref(item.link) })))
 const route = useRoute()
 
 // The section's own page is "page"; its child pages, such as a case study
@@ -61,7 +63,7 @@ function currentFor(to: string): 'page' | 'true' | undefined {
           :href="panel.login"
           class="hidden text-[0.9063rem] font-semibold text-body transition-colors hover:text-violet-600 lg:inline"
         >
-          Client login
+          {{ header.signIn }}
         </a>
         <div class="hidden sm:block">
           <UiButton
@@ -69,7 +71,7 @@ function currentFor(to: string): 'page' | 'true' | undefined {
             size="sm"
             shape="pill"
           >
-            Get in touch
+            {{ header.start }}
           </UiButton>
         </div>
         <div class="lg:hidden">

@@ -2,9 +2,9 @@
 import { planTermMonths } from '~/data/home'
 import { homeAnchors, routes } from '~/data/routes'
 import { featuredService } from '~/data/services'
-import { orderingSteps } from '~/data/services-page'
 
 const { paid } = featuredService.instalments
+const page = useCmsContent('services')
 </script>
 
 <template>
@@ -16,15 +16,15 @@ const { paid } = featuredService.instalments
       <div class="flex flex-col gap-4.5">
         <UiSectionHeader
           id="ordering-title"
-          eyebrow="How ordering works"
-          title="Every service ends in the same three steps"
+          :eyebrow="page.ordering.eyebrow"
+          :title="page.ordering.title"
         />
         <p class="max-w-[44ch] text-body-lg text-body">
-          Choose a plan on the service page, create an account, then confirm the schedule in your dashboard. Nothing is taken before you have seen every payment date.
+          {{ page.ordering.text }}
         </p>
         <div class="mt-2 flex flex-wrap items-center gap-x-4 gap-y-3">
           <UiButton :to="routes.service(featuredService.slug)">
-            See a service page
+            {{ page.ordering.button }}
           </UiButton>
           <NuxtLink
             :to="`${routes.home}${homeAnchors.monthly}`"
@@ -38,7 +38,7 @@ const { paid } = featuredService.instalments
       <div class="flex flex-col gap-3.5">
         <ol class="flex flex-col gap-3.5">
           <li
-            v-for="(step, i) in orderingSteps"
+            v-for="(step, i) in page.ordering.steps"
             :key="step.title"
             class="flex items-center gap-4.5 rounded-xl border border-line bg-white px-5 py-5 shadow-tile sm:px-6.5 sm:py-6"
           >

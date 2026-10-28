@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { contactFaq } from '~/data/contact'
+const page = useCmsContent('contact')
+const contactFaq = computed(() => page.value.faq)
 
 /**
  * Questions on native <details name>: one open at a time, the first open, no

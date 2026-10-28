@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { caseStudyTeasers, featuredCaseStudy as study } from '~/data/content'
 import { routes } from '~/data/routes'
+
+const home = useCmsContent('home')
 </script>
 
 <template>
@@ -14,15 +16,15 @@ import { routes } from '~/data/routes'
         <div class="max-w-150">
           <UiSectionHeader
             id="work-title"
-            eyebrow="Our work"
-            title="Results we can point at"
+            :eyebrow="home.work.eyebrow"
+            :title="home.work.title"
           />
         </div>
         <NuxtLink
           :to="routes.ourWork"
           class="text-[0.9375rem] font-semibold text-violet-600 hover:underline md:pb-2.5"
         >
-          See all case studies →
+          {{ home.work.all }} →
         </NuxtLink>
       </div>
 
