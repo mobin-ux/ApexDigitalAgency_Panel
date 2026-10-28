@@ -371,6 +371,52 @@ Gate 9 gotchas:
   build externalises the relative form and breaks in Nitro. Only tests use
   the relative `.ts` path.
 
+## Mail provider — in progress (started 2026-10-28)  ⬅ CURRENT WORKSTREAM
+
+The panel gets outgoing email: Resend over REST (the site's contact form
+already uses it), behind a durable outbox. Design and decisions: ADR-022.
+Settled with the user on 2026-10-28: soft email verification at signup
+(nothing blocked), every in-app notification also emailed behind one
+per-account switch, the three missing notifications added (customer reply
+→ assignee, files released → customer, new order → `work.assign` staff),
+and the invite, reset and CMS review flows emailed. Plan file:
+`~/.claude/plans/inherited-prancing-treehouse.md`.
+
+| Gate | Scope | Status |
+|---|---|---|
+| 1 | `MailMessage`, `server/utils/mail/*`, `mail:deliver` task, `runtimeConfig.mail`, startup checks, `features.mail`, `/api/admin/mail` + `/admin/mail`, dev `_test/mail`, ADR-022, DEPLOYMENT §10 | ✅ |
+| 2 | Password reset, soft email verification (banner, page, purpose token), invites emailed with an honest fallback, recover page copy | ☐ |
+| 3 | `notify()` helper over the 16 call sites, `User.emailNotifications` + Settings switch, the three new notifications, copy fixes | ☐ |
+| 4 | CMS review emails (`SiteDocument.submittedById`), docs sweep | ☐ |
+
+**Gate 1 shipped (2026-10-28).** Outbox rows are rendered at enqueue
+(text + escaped HTML from one `MailContent` shape), tried once right after
+the business write and retried by the task every minute (1, 2, 4, 8, 16,
+32 min, six attempts; a stale SENDING row is reclaimed after two minutes;
+SENT rows pruned after 30 days, FAILED after 90). `Idempotency-Key` is the
+row id. With no key every row goes FAILED "Mail is not configured" and the
+Email screen (System → Email, `team.manage`) names the two env keys;
+"Send a test email to me" goes through the real outbox. A reset or
+verification row is never retryable (dead link). Tests: 8 unit (render
+escaping, `absoluteUrl`, backoff, templates), 5 API (403/401, 409
+unconfigured, 404/400, `_test/mail`, `features.mail`). **Production needs
+`docs/migrations/2026-10-mail.sql` and, once the domain is verified in
+Resend, the two keys (DEPLOYMENT §10). Not deployed.**
+
+Gate 1 gotchas:
+- **Nitro auto-imports nested `server/utils/**` files too.** A barrel
+  `index.ts` re-exporting the mail module duplicated every name in
+  `#imports` (a warning per export) and the scanner then served a stale
+  export list ("MAX_ATTEMPTS is not exported by outbox.ts") until the dev
+  server was restarted. No barrels under `server/utils`.
+- **The RTK shell proxy swallowed `pnpm exec prisma db push`** ("Binary
+  'prisma' not found") and reported nothing; the table was missing until
+  `node node_modules/prisma/build/index.js db push` ran. Check with
+  `prisma migrate diff --from-url file:./prisma/dev.db --to-schema-datamodel
+  prisma/schema.prisma --script` (empty = in sync).
+- **A migration SQL file comes from a copy of the pre-change DB:** copy
+  `dev.db` before `db push`, then `migrate diff --from-url file:<copy>`.
+
 ## Production deploy — 2026-10-28 (panel: Panel v2 → CMS; site: CMS)
 
 On the user's go-ahead ("Deploy both"). The live panel had been on the

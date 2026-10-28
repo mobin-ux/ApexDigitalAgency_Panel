@@ -58,6 +58,26 @@ export default defineNitroPlugin(() => {
     message: 'NUXT_PUBLIC_SITE_URL is unset — payment provider return URLs and webhook callbacks may be built incorrectly.',
   })
 
+  // --- Mail (ADR-022) ------------------------------------------------------
+  // Half-configured mail is the shape to catch: a key with no sender means
+  // every message fails at the provider; a sender with no public origin means
+  // every link in every email is relative and points nowhere.
+
+  const mail = (config as any).mail ?? {}
+  checks.push({
+    name: 'mail-pairing',
+    fatal: false,
+    failed: Boolean(mail.resendApiKey) !== Boolean(mail.from),
+    message: 'NUXT_MAIL_RESEND_API_KEY and NUXT_MAIL_FROM must be set together. Emails stay queued as failed until both are.',
+  })
+
+  checks.push({
+    name: 'mail-site-url',
+    fatal: false,
+    failed: Boolean(mail.resendApiKey) && !config.public?.siteUrl,
+    message: 'Mail is configured but NUXT_PUBLIC_SITE_URL is unset, so the links in emails cannot be built.',
+  })
+
   // --- Payment credentials -------------------------------------------------
   // A live key present with an incomplete pair is the dangerous shape: half
   // configured means charges may succeed while webhooks are never verified.

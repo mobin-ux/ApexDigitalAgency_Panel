@@ -247,3 +247,46 @@ Rolling the panel back leaves the five tables in place (the old build
 ignores them) and the site degrades to its baseline on its next cache
 miss. Media files under `NUXT_WEBSITE_MEDIA_DIR` are never deleted by a
 deploy.
+
+---
+
+## 10. Outgoing email (ADR-022)
+
+The panel sends email through Resend, the provider the site's contact form
+already uses; one API key from the same account can serve both apps.
+
+### 10.1 Schema
+
+Additive: the `MailMessage` table (`docs/migrations/2026-10-mail.sql`),
+applied like §9.1 — back up, run the SQL, copy `prisma/schema.prisma` to
+the box. Nothing to backfill.
+
+### 10.2 Keys (`/opt/apex/.env.production`)
+
+| Key | Value | Why |
+|---|---|---|
+| `NUXT_MAIL_RESEND_API_KEY` | from Resend → API keys | the only credential |
+| `NUXT_MAIL_FROM` | `Apex Digital Agency <no-reply@apexdigi.co.uk>` | must be on a domain verified in Resend (DNS records at Cloudflare) |
+| `NUXT_PUBLIC_SITE_URL` | `https://panel.apexdigi.co.uk` | links in emails are built from it; already needed by payments |
+
+Set both mail keys together or neither. The startup check warns about a
+half-set pair.
+
+### 10.3 What happens while the keys are unset
+
+Nothing is sent, and nothing pretends to be. Messages are still recorded
+and shown as failed ("Mail is not configured") under **System → Email**;
+invites hand the operator the link as before and say no email went; the
+recover page says reset-by-email is unavailable; notifications stay in the
+panel. **While `apexdigi.co.uk` is suspended at the registrar the sender
+cannot be verified, so leave the keys unset until the domain is renewed.**
+
+### 10.4 Turning it on
+
+1. Verify the sending domain in Resend (it gives the DNS records to add).
+2. Set the two keys, restart `apex`.
+3. Sign in, open **System → Email**, press **Send a test email to me**. The
+   row turns green with the provider's id once it is accepted.
+4. Retry any failed invite or notification rows worth sending. Reset and
+   verification rows cannot be retried (their links died with their
+   tokens); the person asks for a new one.

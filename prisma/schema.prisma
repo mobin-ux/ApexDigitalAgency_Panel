@@ -1128,3 +1128,32 @@ model SiteMediaRef {
   @@id([mediaId, documentId, slot])
   @@index([documentId])
 }
+
+/// The mail outbox (ADR-022). Every email the panel sends is a row here
+/// first: rendered at enqueue time so a retry re-sends identical bytes, then
+/// handed to the provider by the scheduler or an immediate attempt after the
+/// business write commits. `providerId` is the only proof a message was
+/// sent; nothing in the UI says "emailed" without it. No relation to User:
+/// the record of what was sent outlives a deleted account.
+model MailMessage {
+  id            String    @id @default(uuid())
+  to            String
+  toUserId      String?
+  kind          String
+  subject       String
+  text          String
+  html          String
+  replyTo       String?
+  status        String    @default("QUEUED")
+  attempts      Int       @default(0)
+  lastError     String?
+  providerId    String?
+  nextAttemptAt DateTime  @default(now())
+  sentAt        DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([status, nextAttemptAt])
+  @@index([to, createdAt])
+  @@index([createdAt])
+}

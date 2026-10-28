@@ -3,6 +3,7 @@ import { DEFAULT_REPLY_TARGETS, formatReplyEta, replyTargetKey } from '../../sha
 import { getAuthSession } from '../utils/auth'
 import { DEFAULT_BANK_DETAILS, DEFAULT_FAQ } from '../utils/catalog'
 import { getCatalog } from '../utils/catalog-v2'
+import { mailConfigured } from '../utils/mail/transport'
 import { getSettings } from '../utils/settings'
 import { panelContent } from '../utils/website/content-api'
 
@@ -45,7 +46,10 @@ export default defineEventHandler(async (event) => {
       'general.site-name': 'Apex Digital Agency',
       'general.support-email': 'support@apexdigi.co.uk',
     })
-    return { siteName: pub['general.site-name'], supportEmail: pub['general.support-email'], legal, announcement }
+    // `features.mail` is public because the sign-in and recover pages read it:
+    // with no provider configured they say reset-by-email is unavailable
+    // rather than "check your inbox" (ADR-022).
+    return { siteName: pub['general.site-name'], supportEmail: pub['general.support-email'], legal, announcement, features: { mail: mailConfigured() } }
   }
 
   const s = await getSettings({
@@ -93,6 +97,6 @@ export default defineEventHandler(async (event) => {
     legal,
     announcement,
     dashboardPromo: panel.promo,
-    features: { creditApplications: s['credit.applications-open'] !== false },
+    features: { creditApplications: s['credit.applications-open'] !== false, mail: mailConfigured() },
   }
 })

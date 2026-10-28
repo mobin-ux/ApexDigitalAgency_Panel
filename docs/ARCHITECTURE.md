@@ -166,6 +166,8 @@ JWT secret: `runtimeConfig.jwtSecret` (`NUXT_JWT_SECRET` env override).
 | **`/api/admin/team/invites/:id/resend`** (POST) | `team.manage` — mints a NEW token and restarts the clock, invalidating the previous link |
 | **`/api/admin/website/overview`** (GET) | `website.view` — the Website module's first screen (ADR-021): document counts by display status, the scheduled queue, failed publishes, pending revalidations, media totals, redirect counts, the latest `admin.website.*` audit rows, and `seo` (issue counts) only for a role holding `website.seo` — `null` otherwise, so the screen draws no figure the reader cannot open |
 | POST `/api/_test/reset-rate-limits` | **dev-only (404 in production)** — clears the in-process rate limiter so the API test suites can sign in as every role from one address |
+| GET `/api/_test/mail?to=` | **dev-only (404 in production)** — the newest outbox rows for one address *with their rendered text*, so the API suites read reset, verification and invite links from the message instead of the console (ADR-022) |
+| `/api/admin/mail` (GET) · `/:id/retry` (POST) · `/test` (POST) | `team.manage` — the mail outbox (ADR-022): whether sending is configured, the queued / failed / sent-today counts and a page of messages with status, attempts and the provider's reason, **never the body** (reset and invite emails carry live tokens); retry a failed message now (409 for a reset or verification email, whose link died with its token, and while mail is not configured); send a test email to the caller's own address through the real outbox and provider |
 | GET `/api/site/manifest` · `/api/site/page?path=` · `/api/site/globals` | **public, no auth** (ADR-021): published website content only, never drafts; `Cache-Control: public, max-age=30, stale-while-revalidate=300` and no `Pragma` (the security middleware exempts `/api/site/`). The site's server is the caller and caches on top |
 | GET `/api/site/preview/:token` | a document's current draft behind a 30-minute purpose token (`site-preview`) minted by the panel; `no-store`; anything else is 404 |
 | `/api/admin/website/documents` (GET, POST) · `/:id` (GET, PUT, DELETE) · `/:id/transition` (POST) · `/:id/revisions/:n` (GET) · `/:id/revisions/:n/restore` (POST) · `/:id/preview-link` (POST) | `website.view` to read, `website.edit` to create and save, the action's own permission to transition (`ACTION_PERMISSION` in the shared contract), `website.publish` to delete. Content is validated against the shared template before it is written (400 with `fieldErrors` by dotted path); a save names the draft version it edited and a stale one is a 409 saying who saved first; every transition is one transaction that then tells the site to drop its cache |
@@ -324,7 +326,34 @@ Real money infrastructure, provider-agnostic by construction.
 - **Secrets** live in `runtimeConfig.payments` (server-only) with publishable
   keys under `public.payments`; `.env.example` documents every variable.
 
-## 10. Known issues (technical detail)
+## 10. Outgoing email (ADR-022)
+
+```
+.demo/server/utils/mail/
+  render.ts      MailContent {heading, paragraphs, action?, footer?} → text + escaped HTML;
+                 absoluteUrl() from NUXT_PUBLIC_SITE_URL (throws in production when unset)
+  templates.ts   one pure function per kind: test, password-reset, verify-email,
+                 staff-invite, notification, cms-review
+  transport.ts   sendViaResend(): one POST to Resend, Idempotency-Key = the row id, 10 s
+  outbox.ts      enqueueMail() (inside the caller's transaction when given one),
+                 deliverNow() right after commit, deliverQueued() for the task
+  schedule.ts    1, 2, 4, 8, 16, 32 minutes, six attempts
+.demo/server/tasks/mail/deliver.ts   `mail:deliver`, every minute beside the CMS scheduler
+```
+
+- A message is a `MailMessage` row before anything else, rendered at
+  enqueue time. It is `SENT` only when Resend returned an id, which is
+  stored; nothing in the UI says "emailed" without it.
+- With `NUXT_MAIL_RESEND_API_KEY` or `NUXT_MAIL_FROM` empty rows are marked
+  `FAILED` "Mail is not configured" and `/api/config` carries
+  `features.mail: false`, which the invite, recover and Settings screens
+  read to say what did not happen.
+- Nitro auto-imports every file under `server/utils/**`, nested directories
+  included, so the mail module has no barrel: a re-exporting `index.ts`
+  duplicated every name in `#imports` and left the scanner holding a stale
+  export list.
+
+## 11. Known issues (technical detail)
 
 - ~~**Hydration mismatches**~~ fixed 2026-08-18 (V2 Phase 1). Both causes were in
   `DemoToolbar`: the locale flag image and the `Ctrl`/`⌘` shortcut hint. The hint

@@ -73,6 +73,7 @@ export const ADMIN_NAV: AdminNavGroup[] = [
     items: [
       { label: 'Platform settings', icon: 'solar:settings-linear', to: '/admin/settings', needs: 'platform.settings' },
       { label: 'Audit log', icon: 'solar:clock-circle-linear', to: '/admin/audit', needs: 'team.manage' },
+      { label: 'Email', icon: 'solar:letter-linear', to: '/admin/mail', needs: 'team.manage' },
       { label: 'Tools', icon: 'solar:tuning-2-linear', to: '/admin/tools', needs: 'catalogue.edit' },
     ],
   },

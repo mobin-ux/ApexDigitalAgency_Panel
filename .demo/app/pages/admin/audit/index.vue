@@ -166,6 +166,10 @@ function detailOf(entry: { action: string, metadata: string | null }) {
         : 'Changed site settings'
     case 'admin.website.import':
       return meta?.created !== undefined ? `Imported the site baseline (${meta.created} new documents)` : 'Imported the site baseline'
+    case 'admin.mail.retry':
+      return meta?.to ? `Retried an email to ${meta.to}${meta.result ? ` (${String(meta.result).toLowerCase()})` : ''}` : 'Retried an email'
+    case 'admin.mail.test':
+      return meta?.to ? `Sent a test email to ${meta.to}${meta.result && meta.result !== 'SENT' ? ` (${String(meta.result).toLowerCase()})` : ''}` : 'Sent a test email'
     default:
       return humanise(entry.action)
   }

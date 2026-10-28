@@ -188,6 +188,18 @@ export default defineNuxtConfig({
       /** Where the website media library stores files (NUXT_WEBSITE_MEDIA_DIR); outside the bundle in production. */
       mediaDir: '',
     },
+    /**
+     * Outgoing email (ADR-022): Resend over REST, the same provider the
+     * public site's contact form uses. `from` must be an address on a
+     * domain verified with Resend (NUXT_MAIL_FROM, e.g.
+     * "Apex Digital Agency <no-reply@apexdigi.co.uk>"). With either key
+     * empty nothing is sent: messages are still queued, marked failed with
+     * the reason, and every screen says so instead of claiming an email went.
+     */
+    mail: {
+      resendApiKey: '', // NUXT_MAIL_RESEND_API_KEY
+      from: '', // NUXT_MAIL_FROM
+    },
     payments: {
       stripe: {
         secretKey: '', // NUXT_PAYMENTS_STRIPE_SECRET_KEY (sk_test_… / sk_live_…)
@@ -301,7 +313,7 @@ export default defineNuxtConfig({
       tasks: true,
     },
     scheduledTasks: {
-      '* * * * *': ['website:publish-due'],
+      '* * * * *': ['website:publish-due', 'mail:deliver'],
     },
     // Minifying the server bundle is the peak-memory stage of the build and
     // repeatedly OOM-killed the 4GB production VPS (the rollup pass holds the

@@ -77,7 +77,7 @@ export const AUDIT_KIND_DEFS: Record<AuditKind, AuditKindDef> = {
   config: {
     key: 'config',
     label: 'Config',
-    prefixes: ['admin.settings.', 'admin.services.', 'admin.notification.'],
+    prefixes: ['admin.settings.', 'admin.services.', 'admin.notification.', 'admin.mail.'],
   },
 }
 
