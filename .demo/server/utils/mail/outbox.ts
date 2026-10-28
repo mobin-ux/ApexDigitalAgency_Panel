@@ -40,7 +40,12 @@ export const DEAD_ON_RETRY: ReadonlySet<string> = new Set<MailKind>(['password-r
 
 const RETENTION = { SENT: 30, FAILED: 90 } as const
 
-type Db = Prisma.TransactionClient | typeof prisma
+/**
+ * The client to write with. Pass the transaction's client when queueing
+ * inside one: a query on the main client while a SQLite write transaction
+ * is open waits for its lock until the transaction times out.
+ */
+export type Db = Prisma.TransactionClient | typeof prisma
 
 export interface Brand {
   siteName: string

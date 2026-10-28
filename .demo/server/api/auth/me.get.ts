@@ -18,6 +18,10 @@ export default defineEventHandler(async (event) => {
     select: {
       id: true,
       email: true,
+      phone: true,
+      // Soft email verification (ADR-022): null until the emailed link is
+      // opened; the customer shell shows a banner while it is.
+      verifiedAt: true,
       firstName: true,
       lastName: true,
       role: true,

@@ -135,12 +135,16 @@ const invTouchedEmail = ref(false)
 const inviting = ref(false)
 
 /**
- * The acceptance link, surfaced after an invite is created or resent.
- * There is no mail provider in this stack, so nothing is emailed — and a
- * panel that reported "invite sent" while no message left the building
- * would be the discarded-file defect Phase 6 removed from Support.
+ * The acceptance link, surfaced after an invite is created or resent,
+ * with whether the email carrying it went (ADR-022). `mail.status` is
+ * SENT only when the provider accepted the message; anything else and the
+ * panel hands the link over and says so — a panel that reported "invite
+ * sent" while no message left the building would be the discarded-file
+ * defect Phase 6 removed from Support.
  */
-const inviteLink = ref<{ name: string, url: string } | null>(null)
+const inviteLink = ref<{ name: string, email: string, url: string, mail: { status: string, error: string | null } | null } | null>(null)
+const { data: appConfig } = useApexConfig()
+const mailOn = computed(() => (appConfig.value as any)?.features?.mail === true)
 
 const EMAIL_RE = /^[^@\s]+@[^\s@][^\s.@]*\.[^\s@]{2,}$/
 const invEmailBad = computed(() =>
@@ -168,9 +172,14 @@ async function confirmInvite() {
       body: { name: invName.value.trim(), email: invEmail.value.trim(), role: invRole.value },
     })
     inviteOpen.value = false
-    inviteLink.value = { name: result.invite.name, url: result.acceptUrl }
+    inviteLink.value = { name: result.invite.name, email: result.invite.email, url: result.acceptUrl, mail: result.mail ?? null }
     await refresh()
-    toaster.add({ title: 'Invite created', description: `${result.invite.name} has 7 days to accept.`, icon: 'lucide:mail', progress: true })
+    if (result.mail?.status === 'SENT') {
+      toaster.add({ title: 'Invitation emailed', description: `${result.invite.name} has 7 days to accept.`, icon: 'lucide:mail', progress: true })
+    }
+    else {
+      toaster.add({ title: 'Invite created', description: 'We couldn\'t email it. Copy the link below and send it yourself.', icon: 'lucide:link', progress: true })
+    }
   }
   catch (error: any) {
     toaster.add({ title: 'Invite failed', description: error?.data?.message || 'Please try again.', icon: 'lucide:alert-triangle', progress: true })
@@ -189,9 +198,15 @@ async function resendInvite(id: string, name: string) {
   busyInvite.value = id
   try {
     const result = await $fetch(`/api/admin/team/invites/${id}/resend`, { method: 'POST' })
-    inviteLink.value = { name, url: result.acceptUrl }
+    const email = invites.value.find(i => i.id === id)?.email ?? ''
+    inviteLink.value = { name, email, url: result.acceptUrl, mail: result.mail ?? null }
     await refresh()
-    toaster.add({ title: 'New link issued', description: 'The previous link stopped working.', icon: 'lucide:refresh-cw', progress: true })
+    if (result.mail?.status === 'SENT') {
+      toaster.add({ title: 'New link emailed', description: 'The previous link stopped working.', icon: 'lucide:refresh-cw', progress: true })
+    }
+    else {
+      toaster.add({ title: 'New link issued', description: 'We couldn\'t email it. Copy the link below and send it yourself; the previous one stopped working.', icon: 'lucide:link', progress: true })
+    }
   }
   catch (error: any) {
     toaster.add({ title: 'Could not resend', description: error?.data?.message || 'Please try again.', icon: 'lucide:alert-triangle', progress: true })
@@ -224,7 +239,7 @@ async function copyLink(url: string) {
   const absolute = new URL(url, window.location.origin).toString()
   try {
     await navigator.clipboard.writeText(absolute)
-    toaster.add({ title: 'Link copied', description: 'Send it to them yourself — nothing is emailed.', icon: 'lucide:copy', progress: true })
+    toaster.add({ title: 'Link copied', description: 'Paste it wherever you reach them.', icon: 'lucide:copy', progress: true })
   }
   catch {
     toaster.add({ title: 'Copy failed', description: absolute, icon: 'lucide:alert-triangle', progress: true })
@@ -353,21 +368,28 @@ const INPUT = 'w-full rounded-xl border border-muted-200 bg-white px-3.5 py-3 te
 
       <!--
         The acceptance link, shown once after creating or resending an
-        invite. Nothing emails it — there is no mail provider — so the panel
-        hands it over and says as much rather than implying a message went out.
+        invite, with whether the email carrying it went (ADR-022). When it
+        did not, the panel hands the link over and says as much rather than
+        implying a message went out.
       -->
       <div
         v-if="inviteLink"
         role="status"
-        class="flex flex-wrap items-center gap-3 rounded-2xl border border-[#6EA8FE]/30 bg-[#6EA8FE]/[0.07] p-[18px]"
+        class="flex flex-wrap items-center gap-3 rounded-2xl border p-[18px]"
+        :class="inviteLink.mail?.status === 'SENT' ? 'border-[#22B07D]/30 bg-[#22B07D]/[0.07]' : 'border-[#6EA8FE]/30 bg-[#6EA8FE]/[0.07]'"
       >
-        <Icon name="lucide:link" class="size-5 shrink-0 text-[#6EA8FE]" />
+        <Icon :name="inviteLink.mail?.status === 'SENT' ? 'lucide:mail-check' : 'lucide:link'" class="size-5 shrink-0" :class="inviteLink.mail?.status === 'SENT' ? 'text-[#22B07D]' : 'text-[#6EA8FE]'" />
         <div class="min-w-0 flex-1">
           <div class="text-muted-900 text-sm font-semibold dark:text-white">
-            Send {{ inviteLink.name }} their acceptance link
+            {{ inviteLink.mail?.status === 'SENT' ? `Emailed ${inviteLink.name} their acceptance link` : `Send ${inviteLink.name} their acceptance link` }}
           </div>
           <p class="text-muted-600 dark:text-muted-300 mt-1 text-[13px] leading-[1.55]">
-            No email was sent — this platform has no mail provider yet. Pass the link on yourself; it works once and expires in 7 days.
+            <template v-if="inviteLink.mail?.status === 'SENT'">
+              The invitation went to {{ inviteLink.email }}. This is the same link, in case it does not arrive; it works once and expires in 7 days.
+            </template>
+            <template v-else>
+              {{ inviteLink.mail?.error ? `We couldn't email it (${inviteLink.mail.error}).` : 'No email was sent.' }} Pass the link on yourself; it works once and expires in 7 days.
+            </template>
           </p>
           <code class="bg-muted-100 text-muted-700 dark:text-muted-300 mt-2 block break-all rounded-lg px-3 py-2 font-mono text-xs dark:bg-black/30">{{ inviteLink.url }}</code>
         </div>
@@ -697,7 +719,7 @@ const INPUT = 'w-full rounded-xl border border-muted-200 bg-white px-3.5 py-3 te
         </div>
 
         <div class="border-muted-200 flex shrink-0 flex-wrap items-center gap-2.5 border-t px-6 py-4 dark:border-white/10">
-          <span class="text-muted-500 min-w-0 flex-1 text-[12.5px]">Nothing is emailed — you'll get a link to pass on.</span>
+          <span class="text-muted-500 min-w-0 flex-1 text-[12.5px]">{{ mailOn ? 'They get the link by email; you get a copy to pass on if it does not arrive.' : 'Email is not set up on this panel, so you get a link to pass on.' }}</span>
           <button type="button" :class="GHOST_BTN" @click="inviteOpen = false">
             Cancel
           </button>

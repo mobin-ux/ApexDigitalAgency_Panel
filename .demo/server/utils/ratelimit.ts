@@ -148,6 +148,8 @@ export const RateLimits = {
    */
   inviteRead: { bucket: 'auth:invite:read', limit: 20, windowMs: 15 * 60_000 },
   inviteAccept: { bucket: 'auth:invite:accept', limit: 5, windowMs: 15 * 60_000, blockMs: 15 * 60_000 },
+  /** Re-sending the email verification link (ADR-022): three a quarter hour per account. */
+  verifyEmail: { bucket: 'auth:verify-email', limit: 3, windowMs: 15 * 60_000 },
   /** Anything that moves money or calls a paid provider API. */
   payment: { bucket: 'payment', limit: 10, windowMs: 60_000 },
   /** Writes in general — generous, catches runaway clients not attackers. */

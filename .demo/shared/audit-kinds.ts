@@ -29,7 +29,7 @@ export const AUDIT_KIND_DEFS: Record<AuditKind, AuditKindDef> = {
   access: {
     key: 'access',
     label: 'Access',
-    prefixes: ['admin.team.suspend', 'admin.team.restore', 'admin.user.update', 'admin.company.remove', 'auth.login.failed', 'auth.session.', 'auth.two-factor.', 'admin.user.two-factor.'],
+    prefixes: ['admin.team.suspend', 'admin.team.restore', 'admin.user.update', 'admin.company.remove', 'auth.login.failed', 'auth.session.', 'auth.two-factor.', 'auth.email.', 'admin.user.two-factor.'],
   },
   team: {
     key: 'team',

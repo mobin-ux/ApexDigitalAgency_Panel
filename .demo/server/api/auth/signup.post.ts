@@ -3,6 +3,8 @@ import { createError, defineEventHandler } from 'h3'
 import { z } from 'zod'
 import { startSession } from '../../utils/auth'
 import { identifierWhere, parseIdentifier } from '../../utils/identifier'
+import { queueVerificationMail } from '../../utils/mail/flows'
+import { deliverNow } from '../../utils/mail/outbox'
 import prisma from '../../utils/prisma'
 import { validateBody } from '../../utils/validate'
 
@@ -70,6 +72,20 @@ export default defineEventHandler(async (event) => {
 
   // Sign the new customer in straight away.
   await startSession(event, { id: newUser.id, email: newUser.email, role: newUser.role })
+
+  // Soft verification (ADR-022): the account works now; the link sets
+  // `verifiedAt` and the panel's banner asks until it is clicked. A phone-
+  // only account has no address to confirm. The account exists whatever
+  // happens to the email, so a queue failure is logged, not thrown.
+  if (newUser.email) {
+    try {
+      const { id } = await queueVerificationMail(event, { id: newUser.id, email: newUser.email, firstName: newUser.firstName })
+      void deliverNow([id])
+    }
+    catch (error) {
+      console.error('[signup] could not queue the verification email', (error as Error).message)
+    }
+  }
 
   return { status: 'success', user: newUser }
 })

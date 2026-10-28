@@ -36,6 +36,17 @@ const router = useRouter()
 const token = computed(() => (route.query.token as string) || '')
 const isResetMode = computed(() => Boolean(token.value))
 
+/**
+ * Reset by email needs a mail provider (ADR-022). `/api/config` says
+ * whether one is configured; without it the request form is replaced by
+ * the plain statement and the support address, never by "check your
+ * inbox" for an email that cannot go. Awaited so the server render is
+ * already the right one.
+ */
+const { data: appConfig } = await useApexConfig({ lazy: false })
+const mailAvailable = computed(() => appConfig.value?.features?.mail !== false)
+const supportEmail = computed(() => appConfig.value?.supportEmail ?? '')
+
 const requestSchema = toTypedSchema(
   z.object({
     email: z.string().min(1, 'Enter your email address').email('Enter a valid email address'),
@@ -197,6 +208,30 @@ async function resend() {
         {{ errorMessage }}
       </div>
 
+      <p class="mt-[22px] text-[13.5px]">
+        <NuxtLink to="/auth/login-1" class="apex-focus text-primary-400 hover:text-primary-300 rounded font-semibold">
+          Back to sign in
+        </NuxtLink>
+      </p>
+    </div>
+
+    <!-- ============================================ REQUEST: NO MAIL PROVIDER -->
+    <div v-else-if="!isResetMode && !mailAvailable">
+      <h1 class="font-heading text-3xl font-extrabold leading-[1.1] tracking-[-0.02em] text-muted-900 dark:text-white">
+        Reset your password
+      </h1>
+      <p class="text-muted-400 mt-2.5 text-[14.5px] leading-[1.6]">
+        Password reset by email isn't available on this panel right now.
+      </p>
+      <div class="mt-5 flex items-start gap-2.5 rounded-xl border border-muted-200 dark:border-white/8 bg-muted-100 dark:bg-muted-800 px-[15px] py-[13px] text-start">
+        <Icon name="lucide:life-buoy" class="text-muted-500 mt-px size-[17px] shrink-0" />
+        <span class="text-muted-400 flex-1 text-[13px] leading-[1.5]">
+          Write to
+          <a v-if="supportEmail" :href="`mailto:${supportEmail}`" class="apex-focus text-primary-400 hover:text-primary-300 rounded font-semibold">{{ supportEmail }}</a>
+          <span v-else>the team</span>
+          from the address on your account and we'll help you sign in.
+        </span>
+      </div>
       <p class="mt-[22px] text-[13.5px]">
         <NuxtLink to="/auth/login-1" class="apex-focus text-primary-400 hover:text-primary-300 rounded font-semibold">
           Back to sign in

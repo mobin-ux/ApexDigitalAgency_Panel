@@ -385,7 +385,7 @@ and the invite, reset and CMS review flows emailed. Plan file:
 | Gate | Scope | Status |
 |---|---|---|
 | 1 | `MailMessage`, `server/utils/mail/*`, `mail:deliver` task, `runtimeConfig.mail`, startup checks, `features.mail`, `/api/admin/mail` + `/admin/mail`, dev `_test/mail`, ADR-022, DEPLOYMENT §10 | ✅ |
-| 2 | Password reset, soft email verification (banner, page, purpose token), invites emailed with an honest fallback, recover page copy | ☐ |
+| 2 | Password reset, soft email verification (banner, page, purpose token), invites emailed with an honest fallback, recover page copy | ✅ |
 | 3 | `notify()` helper over the 16 call sites, `User.emailNotifications` + Settings switch, the three new notifications, copy fixes | ☐ |
 | 4 | CMS review emails (`SiteDocument.submittedById`), docs sweep | ☐ |
 
@@ -402,6 +402,41 @@ escaping, `absoluteUrl`, backoff, templates), 5 API (403/401, 409
 unconfigured, 404/400, `_test/mail`, `features.mail`). **Production needs
 `docs/migrations/2026-10-mail.sql` and, once the domain is verified in
 Resend, the two keys (DEPLOYMENT §10). Not deployed.**
+
+**Gate 2 shipped (2026-10-28).** `server/utils/mail/flows.ts` holds the
+three account emails (`queueVerificationMail`, `queuePasswordResetMail`,
+`queueInviteMail`), each taking the caller's transaction client; a link
+that cannot be built (no public origin in production) becomes a FAILED
+row with that reason instead of an exception. Reset: the token is queued
+with the `PasswordResetToken` row and never logged (the console line is
+gone). Verification: a purpose JWT (`verify-email`, 24 h, claims
+`uid` + `email`) — `POST /api/auth/verify-email/request` (signed in, 3 per
+quarter hour) and `POST /api/auth/verify-email` (no session, idempotent,
+`updateMany` on `verifiedAt: null`, audit `auth.email.verify` in the
+Access bucket); signup queues it for email identifiers; `/api/auth/me`
+returns `verifiedAt` and `phone`; `ApexVerifyEmailBanner` in the customer
+shell (only when `features.mail`, hide for the session) and
+`/auth/verify-email`. Invites: the answer carries `mail.status`; the team
+page says "Invitation emailed" or hands the link over with the reason,
+and the modal footer reads `features.mail`. Recover: with `features.mail`
+false the request form is replaced by the support address. Tests: the
+`auth-mail` API suite (signup → link from `_test/mail` → verified once →
+second click still a success; reset → link → new password → sign in,
+unknown address answers identically and queues nothing; invite and
+resend answer FAILED "Mail is not configured" on the keyless server with
+the emailed link equal to the returned one).
+
+Gate 2 gotchas:
+- **Queue inside the caller's transaction with the caller's client.** The
+  first invite run timed out at 5 s: `queueInviteMail` read settings and
+  wrote the outbox row through the main Prisma client while the invite's
+  own transaction held SQLite's write lock. Every flow and `enqueueMail`
+  take a `Db` (the transaction client or `prisma`); `loadBrand(db)` too.
+- **A fire-and-forget delivery leaves the row QUEUED for a moment**; a test
+  polls `_test/mail` until the status settles instead of asserting at once.
+- **A route that answers two shapes breaks the typed `$fetch`**: pages
+  reading `result.mail` failed vue-tsc until the verification request
+  route returned `mail: DeliveryOutcome | null` on both branches.
 
 Gate 1 gotchas:
 - **Nitro auto-imports nested `server/utils/**` files too.** A barrel
