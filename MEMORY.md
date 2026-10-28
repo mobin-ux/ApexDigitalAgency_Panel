@@ -36,7 +36,7 @@ Gates, each one commit (`feat(cms): …`), lint → typecheck vs baseline → te
 | 1 | Baselines, ADR-021, contract stub, cross-tree import proven, `zod@3.25.76` pinned in `web/` | ✅ |
 | 2 | Roles/permissions, audit bucket, sidebar group, `homeFor(role)`, Prisma models + migration SQL, field DSL + templates, settings registry, state machine, purpose tokens, test harness | ✅ |
 | 3 | Site refactor: template-typed copy into data (~25 components), core templates, `cms-baseline.ts`, `GET /api/cms/baseline` | ✅ |
-| 4 | Documents, publish/unpublish, revisions, preview tokens, `/api/site/**`, site `cms.ts` + proxies + revalidate, editor UI, landing renderer, import | ☐ |
+| 4 | Documents, publish/unpublish, revisions, preview tokens, `/api/site/**`, site `cms.ts` + proxies + revalidate, editor UI, landing renderer, import | ✅ |
 | 5 | Review workflow, scheduling task, key change + redirect, navigation globals, announcement bar, panel content, `credit.applications-open` | ☐ |
 | 6 | Media library (sniff, dimensions, GET+HEAD), IPX disk cache, site settings + identity plugin | ☐ |
 | 7 | SEO tab, sitemap source, robots hook, redirects middleware, SEO audit | ☐ |
@@ -86,6 +86,56 @@ by a text-content diff of all eleven pages before and after: identical.
 What is editable per template is copy only — prices, counts, routes and the
 catalogues (plans, projects, articles, people) stay in code; an article's
 body and a case study's chapters are not CMS fields yet.
+
+**Gate 4 shipped (2026-10-28).** The content loop works end to end, over
+HTTP, between the two dev servers: import the baseline (33 documents,
+published as revision 1) → edit in the panel → preview the draft on the site
+behind a 30-minute token → publish → the panel calls the site's revalidate
+route → the site shows the change on the next request, with a fresh CSP
+nonce per response → unpublish → 404. Panel: `server/utils/website/
+{documents,publish,content-api,preview}.ts`, public `/api/site/{manifest,
+page?path=,globals,preview/:token}` (cacheable, no Pragma), admin
+`/api/admin/website/documents/**` (list, create, detail, save with
+optimistic version → 409, transition, revisions, restore, preview-link,
+delete) and `import-baseline`; `/admin/website/pages` (list, filters, New
+page, Import) and `/admin/website/pages/:id` (Content / SEO / Revisions /
+Settings, workflow buttons from `availableActions` filtered by permission,
+409 conflict banner, unsaved-change guard). The form is generated from the
+template (`AdminWebsiteFields`, with `AdminWebsiteLink/Blocks/Sections`).
+Site: `server/utils/cms.ts` (60 s `defineCachedFunction`, disk snapshot in
+`.data/cms`, baseline fallback), same-origin `/api/cms/{page?path=,globals,
+preview/:token}`, `POST /api/cms/revalidate` (bearer, timingSafeEqual, 503
+unset), `useCmsContent/useCmsRecord` now fetch the overlay, `[...slug].vue`
++ `components/cms/*` render landing pages, `preview/[token].vue`,
+`error.vue`; prerender and the static noindex rules are gone. Env:
+panel `NUXT_WEBSITE_SITE_URL` + `NUXT_WEBSITE_REVALIDATE_SECRET`; site
+`NUXT_CMS_URL` + `NUXT_CMS_REVALIDATE_SECRET` (local `.env` files pair the
+two dev servers; never committed). Tests: `test:cms:api` has the lifecycle
+suite (12 API tests incl. the site checks when `SITE_TEST_URL` is set).
+
+Gate 4 gotchas:
+- **A Nitro catch-all route cannot match the root**, so a page's address is
+  a query parameter (`?path=/`) on both the panel route and the site proxy.
+- **A runtime-config key must match its env name**: `cms.secret` read
+  `NUXT_CMS_SECRET`, not `NUXT_CMS_REVALIDATE_SECRET`; the key is
+  `revalidateSecret` now. Symptom: every publish reported
+  `revalidated: false` and the site showed a change only after 60 s.
+- **unstorage's fs driver turns a `/` in a key into a directory** it may not
+  create; snapshot keys are flattened, and a failed snapshot write no longer
+  counts as a failed fetch.
+- **`defineCachedFunction` caches a null** (no document) for its `maxAge`;
+  the revalidate purge is what makes a first publish visible at once.
+- **The landing page must `await` its fetch**: the page decides 404 from the
+  answer, and a composable's `useFetch` is only auto-awaited for the render,
+  not for the setup code after it.
+- **Vue templates cannot hold a TypeScript cast inside an object spread**
+  (vue-tsc stops with TS1109); writes like that live in a method.
+- **`$fetch` with a URL built at runtime blows the typed-route inference**
+  (TS2321 excessive depth); the site's cache module uses native `fetch`.
+- **Deleting is for never-published drafts only, even after an unpublish**:
+  the workflow reads `everPublished` (any revision with `publishedAt`).
+- Dev noise: the panel console shows three 500s on every admin page from the
+  Tairo component-meta loader on Windows — pre-existing, not the CMS.
 
 Gate 3 gotchas:
 - **The baseline endpoint is the mismatch detector.** It validates every

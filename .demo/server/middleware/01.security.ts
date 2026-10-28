@@ -40,8 +40,11 @@ export default defineEventHandler((event) => {
     setHeader(event, 'Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload')
   }
 
-  // Never let an authenticated API response sit in a shared cache.
-  if (path.startsWith('/api/')) {
+  // Never let an authenticated API response sit in a shared cache. The
+  // public content API (/api/site/**, ADR-021) is the one exception: it
+  // serves published website content to the site's server and sets its own
+  // short, public cache headers.
+  if (path.startsWith('/api/') && !path.startsWith('/api/site/')) {
     setHeader(event, 'Cache-Control', 'no-store, no-cache, must-revalidate, private')
     setHeader(event, 'Pragma', 'no-cache')
   }

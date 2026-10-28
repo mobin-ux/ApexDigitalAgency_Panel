@@ -30,6 +30,8 @@ export interface WorkflowDoc {
   scheduledFor: Date | string | null
   /** True when the working draft differs from the published revision. */
   draftChanged: boolean
+  /** True once any revision has ever been published, even if it was unpublished since. */
+  everPublished?: boolean
   lastPublishError?: string | null
 }
 
@@ -210,7 +212,7 @@ export function transition(doc: WorkflowDoc, action: WorkflowAction, input: Tran
       return { ok: true, patch: { status: 'DRAFT', review: 'NONE' }, effect: 'none', auditAction: audit }
 
     case 'delete':
-      if (doc.publishedRevisionId || doc.status !== 'DRAFT') {
+      if (doc.publishedRevisionId || doc.everPublished || doc.status !== 'DRAFT') {
         return refuse('Only a draft that was never published can be deleted. Archive it instead.')
       }
       if (doc.scheduledRevisionId) {

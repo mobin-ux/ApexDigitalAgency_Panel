@@ -59,7 +59,8 @@ export const ADMIN_NAV: AdminNavGroup[] = [
     items: [
       // Rows are added here as their screens land (ADR-021 gates); a link to
       // a page that does not exist yet is the dead control the panel refuses.
-      { label: 'Website', icon: 'solar:global-linear', to: '/admin/website', needs: 'website.view' },
+      { label: 'Overview', icon: 'solar:global-linear', to: '/admin/website', needs: 'website.view' },
+      { label: 'Pages', icon: 'solar:documents-linear', to: '/admin/website/pages', needs: 'website.view' },
     ],
   },
   {

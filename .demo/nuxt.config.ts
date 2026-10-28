@@ -174,6 +174,18 @@ export default defineNuxtConfig({
     uploadDir: '',
     /** Companies House public data API key (NUXT_COMPANIES_HOUSE_KEY). Empty hides the lookup. */
     companiesHouseKey: '',
+    /**
+     * The public website this panel manages (ADR-021). `siteUrl` is where
+     * the site runs as seen from this server (NUXT_WEBSITE_SITE_URL, e.g.
+     * http://127.0.0.1:3100); `revalidateSecret` is the bearer token the
+     * site expects on POST /api/cms/revalidate (NUXT_WEBSITE_REVALIDATE_SECRET,
+     * the same value as the site's NUXT_CMS_REVALIDATE_SECRET). Empty means
+     * no site is attached: previews have no link and publishes skip the call.
+     */
+    website: {
+      siteUrl: '',
+      revalidateSecret: '',
+    },
     payments: {
       stripe: {
         secretKey: '', // NUXT_PAYMENTS_STRIPE_SECRET_KEY (sk_test_… / sk_live_…)
