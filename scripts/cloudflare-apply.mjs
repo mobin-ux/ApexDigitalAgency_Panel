@@ -27,7 +27,7 @@ import {
  * CLOUDFLARE_API_TOKEN_FILE. It belongs to the operator's machine only — never
  * to the server, never to an .env file in the repository, never to chat. A
  * zone-scoped token with these permissions is enough (docs/DEPLOYMENT.md §11):
- * Zone:Read, DNS:Edit, Zone Settings:Edit, Zone WAF:Edit, Cache Rules:Edit,
+ * Zone:Read, DNS:Edit, Zone Settings:Edit, Zone WAF:Edit, Cache Settings:Edit,
  * Bot Management:Edit (optional; the script reports what it cannot reach).
  *
  * Rules the script lives by:

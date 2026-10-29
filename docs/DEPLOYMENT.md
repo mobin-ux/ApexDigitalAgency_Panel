@@ -315,7 +315,7 @@ Tokens → Create Token → Custom**), scoped to the one zone:
 | Zone · DNS · Edit | the three records |
 | Zone · Zone Settings · Edit | TLS, caching, the switched-off features |
 | Zone · Zone WAF · Edit | the webhook skip rule and the flood guard |
-| Zone · Cache Rules · Edit | the three cache rules |
+| Zone · Cache Settings · Edit | the three cache rules (the dashboard has no separate "Cache Rules" entry) |
 | Zone · Bot Management · Edit | turn Bot Fight Mode off (optional; the script says what it could not reach) |
 
 Keep it on the machine you run the script from — in a file outside the
