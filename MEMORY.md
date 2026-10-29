@@ -464,9 +464,15 @@ pre-existing) and the webhook test itself.
 redirect-rules permission (the phase answers "request is not
 authorized"); Caddy's own www redirect covers it, so it is optional.
 **Not verified:** that the apps now record real visitor addresses (needs
-an owner sign-in and the audit log). **Token hygiene:** the token value
-was pasted into chat; roll it in the dashboard (same permissions, new
-secret) and re-save `~/.config/apex/cloudflare-token`.
+an owner sign-in and the audit log). **Token hygiene (done 2026-10-29):** the token value had been pasted
+into chat; a dashboard roll did not take (the old value stayed active for
+minutes), so the token was deleted from the dashboard through the
+built-in browser on the user's instruction, the API now answers
+`1000 Invalid API Token` for it, and `~/.config/apex/cloudflare-token`
+was removed. **No Cloudflare token exists now**; the next plan needs a
+fresh one (DEPLOYMENT §11.1 — same six permissions, server-IP filter if
+it is to be run from the box). The user also pasted their Cloudflare
+account password into chat on the same day; it should be changed.
 
 Gotchas:
 - **Cloudflare's `0rtt` and `tls_1_3` are one setting seen twice**: turning
