@@ -263,7 +263,7 @@ async function resolve(name, type = 'A') {
       signal: AbortSignal.timeout(15_000),
     })
     const json = await res.json()
-    return (json.Answer ?? []).filter(a => (type === 'A' ? a.type === 1 : a.type === 5)).map(a => a.data.replace(/.$/, ''))
+    return (json.Answer ?? []).filter(a => (type === 'A' ? a.type === 1 : a.type === 5)).map(a => (a.data.endsWith('.') ? a.data.slice(0, -1) : a.data))
   }
   catch {
     try {
@@ -361,10 +361,16 @@ async function main() {
     const zone = zones[0]
     log(`Zone: ${zone.name} (${zone.id.slice(0, 8)}…), status ${zone.status}, plan ${zone.plan?.name ?? '?'}, nameservers ${zone.name_servers?.join(' ') ?? '?'}\n`)
 
-    await syncRecords(token, zone.id)
-    await syncSettings(token, zone.id)
-    await syncBotManagement(token, zone.id)
-    await syncRulesets(token, zone.id)
+    // Each section on its own, so one missing permission shows up beside the
+    // others instead of hiding them behind the first failure.
+    for (const [name, step] of [['DNS records', syncRecords], ['Zone settings', syncSettings], ['Bot management', syncBotManagement], ['Rulesets', syncRulesets]]) {
+      try {
+        await step(token, zone.id)
+      }
+      catch (e) {
+        fail(`${name}: ${e.message}${e.status === 403 || /authentication|permission/i.test(e.message) ? ' — the token lacks this permission (docs/DEPLOYMENT.md §11.1)' : ''}`)
+      }
+    }
 
     log(`\n${APPLY ? 'Applied' : 'Planned'} ${changes} change(s)${failures ? `, ${failures} failed` : ''}.`)
     if (!APPLY && changes > 0) {

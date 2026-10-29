@@ -323,6 +323,20 @@ repository (`CLOUDFLARE_API_TOKEN_FILE=~/.config/apex/cloudflare-token`)
 or in the shell for one session (`CLOUDFLARE_API_TOKEN`). It is never
 needed on the server and never belongs in an `.env` file.
 
+A token missing one of these answers `10000: Authentication error` for
+that section; the plan reports every section it cannot reach in one run,
+so fix the token once (its permissions can be edited in place) and rerun.
+
+If the token carries a client-IP filter, run the script from an address on
+it. From the VPS that is a one-off, with the token kept in the process
+environment only (the server never stores it) and IPv4 forced, because the
+box prefers its IPv6 address and Cloudflare sees that one:
+
+```bash
+tar -czf - scripts/cloudflare-apply.mjs deploy/cloudflare-zone.mjs | ssh root@146.19.130.11 'mkdir -p /tmp/apex-cf && tar -xzf - -C /tmp/apex-cf && sed -i "s/\r$//" /tmp/apex-cf/*/*.mjs'
+ssh root@146.19.130.11 'read -r T; cd /tmp/apex-cf && CLOUDFLARE_API_TOKEN="$T" node --dns-result-order=ipv4first scripts/cloudflare-apply.mjs' < ~/.config/apex/cloudflare-token
+```
+
 ### 11.2 Order of operations
 
 1. **Caddy first.** `bash scripts/ship-caddy.sh --check` validates
