@@ -2,7 +2,7 @@
 
 > Handoff doc for continuing work in fresh sessions. Update the relevant section
 > whenever a page ships, a decision lands, or a blocker appears.
-> Last updated: **2026-10-28** (Cloudflare prepared — ADR-023; Mail provider deployed — ADR-022; Website CMS — ADR-021; 2026-10-25 Panel v2: dashboard, New order and My orders revisions; Wallet revision — credit by application, ADR-020; Support revision — call requests and ratings; 2026-10-27 Settings re-check — profile photos, signed-in devices, two-step verification).
+> Last updated: **2026-10-29** (Cloudflare applied — ADR-023; Mail provider deployed — ADR-022; Website CMS — ADR-021; 2026-10-25 Panel v2: dashboard, New order and My orders revisions; Wallet revision — credit by application, ADR-020; Support revision — call requests and ratings; 2026-10-27 Settings re-check — profile photos, signed-in devices, two-step verification).
 
 ## Where things stand
 
@@ -371,7 +371,7 @@ Gate 9 gotchas:
   build externalises the relative form and breaks in Nitro. Only tests use
   the relative `.ts` path.
 
-## Cloudflare — Caddy installed, zone waiting on the token (2026-10-29)  ⬅ WAITING ON THE USER
+## Cloudflare — applied (2026-10-29)  ⬅ LATEST WORKSTREAM
 
 The user asked for the project to be connected to Cloudflare end to end
 (DNS, TLS, caching, security, server and code in step). Design and
@@ -437,16 +437,53 @@ apex journal clean. The only Caddy errors are the pre-existing ACME
 failures for `panel` and `www` (NXDOMAIN — no DNS record; 328 of the same
 in the previous day), which the DNS step removes.
 
-**Still to do, waiting on a token** (none exists on this machine:
-`~/.config/apex/cloudflare-token` was checked, as was the environment):
-2. `node scripts/cloudflare-apply.mjs --apply --dns-only`, wait for Caddy
-   to obtain the panel and www certificates, then `--apply`;
-3. afterwards: Resend's records for the sending domain, then the mail keys
-   (§10.4).
-The token is the user's to create (§11.1) and should reach the script
-through a file outside the repo, never through chat.
+**Applied on the user's go-ahead (2026-10-29).** The user's token
+("Apex", locked to the server's IPv4 address) first held only
+Access-policy and user-level token rights; with the user's permission it
+was rewritten through its own API-Tokens-Write right to exactly Zone Read,
+DNS Write, Zone Settings Write, Zone WAF Write, Cache Settings Write and
+Bot Management Write on the one zone (it can no longer edit itself). Then,
+from the server over IPv4 with the token in the process environment only:
+`--apply --dns-only` (panel A and www CNAME created; 8 settings; 3 cache
+rules, the webhook skip, the flood guard) → Caddy obtained www's
+certificate at once and renewed panel's on its next maintenance tick
+(both to 2027-01-27) → `--apply` flipped the three records to proxied → a
+second apply after two file fixes (`tls_1_3: 'zrt'` so 0-RTT stays on;
+sorted-key comparison so the API's key order no longer reads as a change)
+changed one setting and reported every rule as in the file.
+**Verified through the edge** (`--resolve` to 104.21.61.19, because the
+box's resolver still held the DNS-only answer): every host resolves to
+Cloudflare addresses; panel sign-in and site home 200 with
+`cf-cache-status: DYNAMIC`; `/api/config` `no-store`; a panel `/_nuxt`
+asset MISS then HIT; www → 301 to the apex with the query kept; an
+unsigned POST to `/api/webhooks/stripe` reaches the app (400) instead of
+a challenge; TLS 1.3, HTTP/3 advertised, HSTS and CSP from the origins;
+app journals clean apart from bot probes for WordPress paths (404s,
+pre-existing) and the webhook test itself.
+**Not done:** the edge www redirect rule — the token lacks the
+redirect-rules permission (the phase answers "request is not
+authorized"); Caddy's own www redirect covers it, so it is optional.
+**Not verified:** that the apps now record real visitor addresses (needs
+an owner sign-in and the audit log). **Token hygiene:** the token value
+was pasted into chat; roll it in the dashboard (same permissions, new
+secret) and re-save `~/.config/apex/cloudflare-token`.
 
 Gotchas:
+- **Cloudflare's `0rtt` and `tls_1_3` are one setting seen twice**: turning
+  `0rtt` on makes `tls_1_3` read `zrt`, and setting `tls_1_3: 'on'`
+  afterwards turns 0-RTT back off. List `tls_1_3: 'zrt'` only.
+- **The API returns rule objects with its own key order**; compare rules
+  through a sorted-key serialisation or every apply re-PUTs every phase.
+- **A token with an IP condition answers 9109 from everywhere else**, and
+  the box prefers IPv6, so `node --dns-result-order=ipv4first` (and a
+  `socket.getaddrinfo` filter in Python) are needed there.
+- **The server's resolver cached NXDOMAIN for `panel`** from the months it
+  had no record (upstream 4.2.2.4 / 8.8.8.8, SOA minimum 1800 s);
+  `resolvectl flush-caches` does not clear the upstream; test with
+  `curl --resolve` meanwhile. Let's Encrypt resolves on its own, so
+  issuance was unaffected.
+
+Earlier gotchas:
 - **Cloudflare appends to a client's own `X-Forwarded-For`** rather than
   replacing it, so "first entry = client" is only safe when the hop before
   the app rewrites the header; that is what the Caddyfile does.

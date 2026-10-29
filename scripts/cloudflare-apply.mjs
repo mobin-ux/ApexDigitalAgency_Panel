@@ -85,7 +85,17 @@ async function cf(token, method, path, body) {
   return json.result
 }
 
-const same = (a, b) => JSON.stringify(a) === JSON.stringify(b)
+/** Stable JSON: object keys sorted, so the API's own key order never reads as a change. */
+function canon(v) {
+  if (Array.isArray(v)) {
+    return `[${v.map(canon).join(',')}]`
+  }
+  if (v && typeof v === 'object') {
+    return `{${Object.keys(v).sort().map(k => `${JSON.stringify(k)}:${canon(v[k])}`).join(',')}}`
+  }
+  return JSON.stringify(v)
+}
+const same = (a, b) => canon(a) === canon(b)
 
 // ---------------------------------------------------------------------------
 // DNS

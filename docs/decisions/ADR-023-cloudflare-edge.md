@@ -1,7 +1,7 @@
 # ADR-023 — Cloudflare in front of both apps, with the zone kept as code
 
-**Status:** Accepted (2026-10-28); applied to the live zone only on the
-user's go-ahead.
+**Status:** Accepted (2026-10-28); applied to the live zone and the server
+on the user's go-ahead (2026-10-29).
 **Context:** `apexdigi.co.uk` has been on Cloudflare's nameservers since
 before the site existed, but the zone held a single unproxied A record for
 the apex and nothing for `panel.apexdigi.co.uk` — so the panel's public

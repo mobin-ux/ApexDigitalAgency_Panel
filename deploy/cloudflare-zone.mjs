@@ -49,43 +49,42 @@ export const records = [
  */
 export const settings = {
   // --- TLS ---------------------------------------------------------------
-  'ssl': 'strict', // Full (strict): the origin's Let's Encrypt certs are checked
-  'always_use_https': 'on', // Cloudflare exempts /.well-known/acme-challenge/ itself
-  'automatic_https_rewrites': 'on',
-  'min_tls_version': '1.2',
-  'tls_1_3': 'on',
-  'opportunistic_encryption': 'on',
+  ssl: 'strict', // Full (strict): the origin's Let's Encrypt certs are checked
+  always_use_https: 'on', // Cloudflare exempts /.well-known/acme-challenge/ itself
+  automatic_https_rewrites: 'on',
+  min_tls_version: '1.2',
+  tls_1_3: 'zrt', // TLS 1.3 with 0-RTT; the `0rtt` setting mirrors this value, so it is not listed
+  opportunistic_encryption: 'on',
   // HSTS is sent by both apps (2 years, includeSubDomains, preload); the
   // edge does not add a second one. `security_header` is deliberately absent.
 
   // --- Transport ---------------------------------------------------------
-  'http3': 'on',
-  '0rtt': 'on',
-  'ipv6': 'on',
-  'websockets': 'on',
-  'brotli': 'on',
-  'early_hints': 'on',
+  http3: 'on',
+  ipv6: 'on',
+  websockets: 'on',
+  brotli: 'on',
+  early_hints: 'on',
 
   // --- Nothing injected into pages ----------------------------------------
   // Each of these adds a <script> or rewrites markup; the site's CSP would
   // block it and the panel does not want it either.
-  'rocket_loader': 'off',
-  'email_obfuscation': 'off',
-  'server_side_exclude': 'off',
-  'hotlink_protection': 'off', // social cards must be fetchable by other sites
-  'mirage': 'off', // paid plans only; skipped on free
-  'fonts': 'off', // "Cloudflare Fonts" rewrites <link> tags; fonts are self-hosted
+  rocket_loader: 'off',
+  email_obfuscation: 'off',
+  server_side_exclude: 'off',
+  hotlink_protection: 'off', // social cards must be fetchable by other sites
+  mirage: 'off', // paid plans only; skipped on free
+  fonts: 'off', // "Cloudflare Fonts" rewrites <link> tags; fonts are self-hosted
 
   // --- Caching -------------------------------------------------------------
-  'cache_level': 'aggressive', // default; what is cached is decided by the rules below
-  'browser_cache_ttl': 0, // 0 = respect the origin's Cache-Control
-  'development_mode': 'off',
+  cache_level: 'aggressive', // default; what is cached is decided by the rules below
+  browser_cache_ttl: 0, // 0 = respect the origin's Cache-Control
+  development_mode: 'off',
 
   // --- Security ----------------------------------------------------------
-  'security_level': 'medium',
-  'browser_check': 'on',
-  'challenge_ttl': 1800,
-  'privacy_pass': 'on',
+  security_level: 'medium',
+  browser_check: 'on',
+  challenge_ttl: 1800,
+  privacy_pass: 'on',
 }
 
 /**

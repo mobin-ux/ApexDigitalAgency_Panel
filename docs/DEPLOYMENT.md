@@ -317,6 +317,7 @@ Tokens → Create Token → Custom**), scoped to the one zone:
 | Zone · Zone WAF · Edit | the webhook skip rule and the flood guard |
 | Zone · Cache Settings · Edit | the three cache rules (the dashboard has no separate "Cache Rules" entry) |
 | Zone · Bot Management · Edit | turn Bot Fight Mode off (optional; the script says what it could not reach) |
+| the zone's redirect-rules permission (the "Dynamic URL Redirects"-type entry under Zone) | the www → apex edge redirect; optional, since Caddy redirects www itself. Without it the plan reports that phase as not authorized and applies everything else |
 
 Keep it on the machine you run the script from — in a file outside the
 repository (`CLOUDFLARE_API_TOKEN_FILE=~/.config/apex/cloudflare-token`)
@@ -364,6 +365,8 @@ Run `node scripts/cloudflare-apply.mjs` with no flags at any time for a
 plan (nothing is written), and `--check` with no token for what the public
 internet sees. A phase holding a rule the repository does not own is
 reported and left alone; `--replace-rules` replaces it.
+
+**Applied 2026-10-29** (records proxied, settings, cache rules, WAF skip, flood guard; the edge www redirect waits on the permission above). A token that has been pasted anywhere outside the password store should be rolled in the dashboard afterwards — same permissions, new secret — and the file updated.
 
 ### 11.3 What is deliberately not done at the edge
 
