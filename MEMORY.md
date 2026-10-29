@@ -2,7 +2,7 @@
 
 > Handoff doc for continuing work in fresh sessions. Update the relevant section
 > whenever a page ships, a decision lands, or a blocker appears.
-> Last updated: **2026-10-29** (Cloudflare applied — ADR-023; Mail provider deployed — ADR-022; Website CMS — ADR-021; 2026-10-25 Panel v2: dashboard, New order and My orders revisions; Wallet revision — credit by application, ADR-020; Support revision — call requests and ratings; 2026-10-27 Settings re-check — profile photos, signed-in devices, two-step verification).
+> Last updated: **2026-10-30** (both apps re-deployed from master; Cloudflare applied — ADR-023; Mail provider deployed — ADR-022; Website CMS — ADR-021; 2026-10-25 Panel v2: dashboard, New order and My orders revisions; Wallet revision — credit by application, ADR-020; Support revision — call requests and ratings; 2026-10-27 Settings re-check — profile photos, signed-in devices, two-step verification).
 
 ## Where things stand
 
@@ -510,6 +510,23 @@ Earlier gotchas:
   the import to a scratch copy for `caddy validate`.
 - **`cloudflare-dns.com` is unreachable from this dev machine**; the
   public check falls back to `node:dns`.
+
+## Production deploy — 2026-10-30 (both apps re-shipped from `3e902d5`)
+
+On the user's go-ahead ("commit and deploy to VPS"). Nothing functional
+had changed since the 2026-10-28 deploys (a comment in `ratelimit.ts`,
+`web/.env.example`), so this puts the VPS on exactly master after the
+Cloudflare work. No schema or env change. Before it: the server's
+`/etc/caddy/Caddyfile` and `/usr/local/bin/apex-cloudflare-ips` matched
+the repo's files by sha256. Site: `ship-web.sh` (built on the box, health
+200). Panel: local `pnpm demo:build` (109 MB), `ship-bundle.sh` (Linux
+Prisma engine present, health 200, Stripe live keys intact, previous
+build at `/opt/apex/.output.previous`). Verified through Cloudflare:
+site pages 200, unknown address 404, robots and sitemap 200, www → apex
+301 with the query kept; panel sign-in and recover 200, a guarded page
+302 to sign-in, `/api/config` 200 with `features.mail: false`,
+`/api/admin/mail` 401, `/api/_test/mail` 404, `/api/site/manifest` 200,
+a bad sign-in 401, the sslip host 200; both journals clean.
 
 ## Mail provider — done and deployed (2026-10-28)
 
