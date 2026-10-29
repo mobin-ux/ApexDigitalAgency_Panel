@@ -371,7 +371,7 @@ Gate 9 gotchas:
   build externalises the relative form and breaks in Nitro. Only tests use
   the relative `.ts` path.
 
-## Cloudflare — prepared, not applied (2026-10-28)  ⬅ WAITING ON THE USER
+## Cloudflare — Caddy installed, zone waiting on the token (2026-10-29)  ⬅ WAITING ON THE USER
 
 The user asked for the project to be connected to Cloudflare end to end
 (DNS, TLS, caching, security, server and code in step). Design and
@@ -425,9 +425,20 @@ changes nothing between them.
   contract Caddy now guarantees. The site's strict CSP is why every
   script-injecting edge feature is off.
 
-**Not done, by the standing rule (nothing on production or in the zone
-without the go-ahead), and because no Cloudflare token exists here:**
-1. `bash scripts/ship-caddy.sh` (installs the Caddyfile, reload, timer);
+**Step 1 done on the user's go-ahead (2026-10-29):** `bash scripts/ship-caddy.sh`
+installed `deploy/Caddyfile` (previous file kept at
+`/etc/caddy/Caddyfile.bak.20261029-213125`), 15 IPv4 + 7 IPv6 ranges in
+`/etc/caddy/cloudflare-ips.caddy`, `apex-cloudflare-ips.timer` active (next
+Mon 05:25 UTC). Checked after the reload: the adapted config shows 22
+static trusted ranges, `client_ip_headers` Cf-Connecting-Ip then
+X-Forwarded-For, strict mode, and all three upstreams receive
+`X-Forwarded-For: {client_ip}`; apex direct 200, panel via sslip 200,
+apex journal clean. The only Caddy errors are the pre-existing ACME
+failures for `panel` and `www` (NXDOMAIN — no DNS record; 328 of the same
+in the previous day), which the DNS step removes.
+
+**Still to do, waiting on a token** (none exists on this machine:
+`~/.config/apex/cloudflare-token` was checked, as was the environment):
 2. `node scripts/cloudflare-apply.mjs --apply --dns-only`, wait for Caddy
    to obtain the panel and www certificates, then `--apply`;
 3. afterwards: Resend's records for the sending domain, then the mail keys
