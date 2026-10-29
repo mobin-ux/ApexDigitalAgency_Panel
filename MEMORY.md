@@ -489,6 +489,19 @@ Gotchas:
   `curl --resolve` meanwhile. Let's Encrypt resolves on its own, so
   issuance was unaffected.
 
+**Dev-machine tooling (2026-10-29, at the user's request, from
+`developers.cloudflare.com/agent-setup/prompt.md`):** the `cloudflare`
+Claude Code plugin (user scope: 19 skills, e.g. `cloudflare:cf-cli`, plus
+the Cloudflare MCP server at `mcp.cloudflare.com`, which still needs
+`/mcp` authorisation before its tools work) and the `cf` CLI
+(1.0.0-beta.25, OAuth, signed in as the owner; sees both zones, the three
+proxied records and `ssl: strict`). The user-level `~/.claude/CLAUDE.md`
+says to use `cf` unless a project has a Wrangler config. `cf zones`,
+`cf dns records` and `cf zones settings` can read and change the zone
+from this machine without an API token; `scripts/cloudflare-apply.mjs`
+still needs its own token (DEPLOYMENT §11.1) and is the one that enforces
+the desired state in `deploy/cloudflare-zone.mjs`.
+
 Earlier gotchas:
 - **Cloudflare appends to a client's own `X-Forwarded-For`** rather than
   replacing it, so "first entry = client" is only safe when the hop before
