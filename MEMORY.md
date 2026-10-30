@@ -558,11 +558,17 @@ can send fewer bytes. Changes:
   would download both).
 - `DemoAppLayoutSwitcher` mounted only when opened (out of the entry chunk);
   `@source '../../examples'` dropped (saved only 2 KB of CSS).
-- Not code: Cloudflare Web Analytics auto-injects
+- Cloudflare Web Analytics auto-injected
   `static.cloudflareinsights.com/beacon.min.js` into both hosts' HTML and
-  POSTs `/cdn-cgi/rum` (19 s on this link). `cf rum site-info list` returns
-  `[]` with the OAuth sign-in, so it has to be removed in the dashboard
-  (Web Analytics → Manage site → Delete) — the user's decision.
+  POSTed `/cdn-cgi/rum` on every view (19 s on this link). Removed on the
+  user's yes: the dashboard needs a sign-in and the CLI's OAuth has no RUM
+  scope (`cf rum site-info list` answers `[]`), so a Configuration Rule
+  (`http_config_settings`, `true` → `set_config` `disable_rum: true`,
+  ruleset `c2cc8cee…`) was created with `cf rulesets create` and is now in
+  `deploy/cloudflare-zone.mjs` as an `apex:` rule. Verified: 0 beacon tags
+  on the panel and the site with a Chrome user agent (was 1 each).
+  Gotcha: the `cf rulesets` commands take the zone **ID** (a domain name
+  went into the URL in the dry run) and the ruleset id as a positional.
 
 ## Mail provider — done and deployed (2026-10-28)
 

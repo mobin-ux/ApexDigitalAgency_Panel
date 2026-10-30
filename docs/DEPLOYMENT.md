@@ -316,6 +316,7 @@ Tokens → Create Token → Custom**), scoped to the one zone:
 | Zone · Zone Settings · Edit | TLS, caching, the switched-off features |
 | Zone · Zone WAF · Edit | the webhook skip rule and the flood guard |
 | Zone · Cache Settings · Edit | the three cache rules (the dashboard has no separate "Cache Rules" entry) |
+| Zone · Config Rules · Edit | the rule that keeps Cloudflare's Web Analytics beacon out of every page |
 | Zone · Bot Management · Edit | turn Bot Fight Mode off (optional; the script says what it could not reach) |
 | the zone's redirect-rules permission (the "Dynamic URL Redirects"-type entry under Zone) | the www → apex edge redirect; optional, since Caddy redirects www itself. Without it the plan reports that phase as not authorized and applies everything else |
 

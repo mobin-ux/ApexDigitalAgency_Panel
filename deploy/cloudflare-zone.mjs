@@ -174,6 +174,19 @@ export const rulesets = {
     },
   ],
 
+  // Web Analytics' automatic setup injected a third-party beacon
+  // (static.cloudflareinsights.com) into every HTML page on both hosts and
+  // POSTed /cdn-cgi/rum on every view — 19 s on a slow link. No analytics
+  // site exists in the account to delete, so this switches it off (2026-10-30).
+  http_config_settings: [
+    {
+      description: 'apex: no Web Analytics beacon injected into pages',
+      expression: 'true',
+      action: 'set_config',
+      action_parameters: { disable_rum: true },
+    },
+  ],
+
   // One rule (the free plan's allowance), well above the apps' own limits
   // (sign-in 5/min, contact 5/10 min): it absorbs floods before they reach
   // the in-process limiters, which keep deciding the real policy.
