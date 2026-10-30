@@ -306,6 +306,12 @@ export default defineNuxtConfig({
     logging: {
       compressedSizes: false,
     },
+    // Ship a Brotli and a gzip copy of every client asset beside it, so the
+    // server answers `Accept-Encoding: br` with the precompressed file. Caddy
+    // and Cloudflare only ever compressed these on the fly at a fast level
+    // (gzip ≈ zstd, the entry chunk 184 KB); Brotli at build time is about a
+    // quarter smaller, which is what a slow or lossy connection feels.
+    compressPublicAssets: { gzip: true, brotli: true },
     // The website CMS scheduler (ADR-021): one in-process cron that publishes
     // documents whose time has come. The panel runs as a single node-server
     // process, so there is exactly one.

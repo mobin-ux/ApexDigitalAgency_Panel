@@ -91,8 +91,8 @@ export default defineNuxtConfig({
         { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' },
         { rel: 'apple-touch-icon', href: '/apple-touch-icon.png' },
         // The two display weights used above the fold; everything else loads on demand.
-        { rel: 'preload', as: 'font', type: 'font/woff', href: '/fonts/yellix/Yellix-ExtraBold.woff', crossorigin: 'anonymous' },
-        { rel: 'preload', as: 'font', type: 'font/woff', href: '/fonts/yellix/Yellix-Bold.woff', crossorigin: 'anonymous' },
+        { rel: 'preload', as: 'font', type: 'font/woff2', href: '/fonts/yellix/Yellix-ExtraBold.woff2', crossorigin: 'anonymous' },
+        { rel: 'preload', as: 'font', type: 'font/woff2', href: '/fonts/yellix/Yellix-Bold.woff2', crossorigin: 'anonymous' },
       ],
     },
   },

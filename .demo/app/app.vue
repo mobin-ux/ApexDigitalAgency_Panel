@@ -2,6 +2,7 @@
 const { locale } = useI18n()
 const head = useLocaleHead()
 const route = useRoute()
+const isSwitcherOpen = useColorSwitcherOpen()
 
 /**
  * Global head configuration
@@ -90,10 +91,12 @@ useHead({
     -->
     <DemoAppSearch />
     <!--
-      Global app layout switcher
+      Tairo's colour switcher, opened only from the vendor docs layouts.
+      Mounted (and its chunk fetched) only once something opens it, so the
+      panel's entry bundle does not carry it.
       @see .demo/components/DemoAppLayoutSwitcher.vue
     -->
-    <DemoAppLayoutSwitcher />
+    <LazyDemoAppLayoutSwitcher v-if="isSwitcherOpen" />
 
     <NuxtLayout>
       <NuxtLoadingIndicator color="var(--color-primary-500)" />

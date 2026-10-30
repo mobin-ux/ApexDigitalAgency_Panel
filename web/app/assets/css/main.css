@@ -22,7 +22,7 @@
 
 @font-face {
   font-family: 'Yellix';
-  src: url('/fonts/yellix/Yellix-SemiBold.woff') format('woff');
+  src: url('/fonts/yellix/Yellix-SemiBold.woff2') format('woff2'), url('/fonts/yellix/Yellix-SemiBold.woff') format('woff');
   font-weight: 600;
   font-style: normal;
   font-display: swap;
@@ -30,7 +30,7 @@
 
 @font-face {
   font-family: 'Yellix';
-  src: url('/fonts/yellix/Yellix-Bold.woff') format('woff');
+  src: url('/fonts/yellix/Yellix-Bold.woff2') format('woff2'), url('/fonts/yellix/Yellix-Bold.woff') format('woff');
   font-weight: 700;
   font-style: normal;
   font-display: swap;
@@ -38,7 +38,7 @@
 
 @font-face {
   font-family: 'Yellix';
-  src: url('/fonts/yellix/Yellix-ExtraBold.woff') format('woff');
+  src: url('/fonts/yellix/Yellix-ExtraBold.woff2') format('woff2'), url('/fonts/yellix/Yellix-ExtraBold.woff') format('woff');
   font-weight: 800;
   font-style: normal;
   font-display: swap;

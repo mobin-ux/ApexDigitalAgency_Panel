@@ -528,6 +528,32 @@ site pages 200, unknown address 404, robots and sitemap 200, www → apex
 `/api/admin/mail` 401, `/api/_test/mail` 404, `/api/site/manifest` 200,
 a bad sign-in 401, the sslip host 200; both journals clean.
 
+## Load speed — 2026-10-30 (committed, not deployed)
+
+The user reported the panel "very slow and not loading". Measured: the
+origin answers in 2–40 ms (load 0.2, 3 GB free), so the server is not the
+cause. From the user's network (Cloudflare edge GYD, Baku) the link loses
+packets: one cached 184 KB file took 0.7 s to 12 s, the sign-in page's
+assets landed in two bursts at 14.6 s and 33 s, and straight-to-origin
+requests stalled 13–20 s. Nothing in the code can fix the path; the code
+can send fewer bytes. Changes:
+- Panel `nitro.compressPublicAssets` (Brotli + gzip): Caddy/Cloudflare were
+  serving on-the-fly gzip. Entry JS 184 KB → 148 KB, entry CSS 63 → 44 KB,
+  all client assets 2.69 MB gz → 2.30 MB br. Verified on the built server:
+  `Accept-Encoding: br` gets the `.br` file with `Vary: Accept-Encoding`.
+  **After deploy, check the edge serves `br`** (Cloudflare must ask the
+  origin for it; the cached gzip variants age out).
+- Yellix WOFF → WOFF2 in both apps (≈58 KB → ≈40 KB per weight; WOFF kept
+  as fallback; the site's two preloads now point at the WOFF2, or the page
+  would download both).
+- `DemoAppLayoutSwitcher` mounted only when opened (out of the entry chunk);
+  `@source '../../examples'` dropped (saved only 2 KB of CSS).
+- Not code: Cloudflare Web Analytics auto-injects
+  `static.cloudflareinsights.com/beacon.min.js` into both hosts' HTML and
+  POSTs `/cdn-cgi/rum` (19 s on this link). `cf rum site-info list` returns
+  `[]` with the OAuth sign-in, so it has to be removed in the dashboard
+  (Web Analytics → Manage site → Delete) — the user's decision.
+
 ## Mail provider — done and deployed (2026-10-28)
 
 The panel gets outgoing email: Resend over REST (the site's contact form
