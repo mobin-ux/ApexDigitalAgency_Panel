@@ -145,9 +145,9 @@ const gate = computed(() => {
       key: 'released' as const,
       title: 'Deliverables released to the client',
       body: 'The client can download every file from their project page. Withdrawing access removes the links immediately.',
-      tone: 'border-[#22B07D]/30 bg-[#22B07D]/6',
+      tone: 'border-[#22B07D]/30 bg-st-success-bg',
       icon: 'lucide:unlock',
-      iconTone: 'bg-[#22B07D]/16 text-[#22B07D]',
+      iconTone: 'bg-st-success-bg text-st-success-fg',
     }
   }
   if (d?.held) {
@@ -155,9 +155,9 @@ const gate = computed(() => {
       key: 'held' as const,
       title: 'Deliverables held — balance outstanding',
       body: 'The client sees the file names and sizes but cannot download them. Releasing hands over the source files.',
-      tone: 'border-[#D9A521]/30 bg-[#D9A521]/6',
+      tone: 'border-[#D9A521]/30 bg-st-warning-bg',
       icon: 'lucide:lock',
-      iconTone: 'bg-[#D9A521]/16 text-[#F2C14E]',
+      iconTone: 'bg-st-warning-bg text-st-warning-fg',
     }
   }
   return {
@@ -169,7 +169,7 @@ const gate = computed(() => {
       : 'Holding deliverables until paid is switched off platform-wide, so files are available as soon as they are uploaded.',
     tone: 'border-muted-200 bg-muted-50 dark:border-white/10 dark:bg-white/2',
     icon: 'lucide:unlock',
-    iconTone: 'bg-[#22B07D]/16 text-[#22B07D]',
+    iconTone: 'bg-st-success-bg text-st-success-fg',
   }
 })
 
@@ -846,7 +846,7 @@ const TAB_CLS = 'apex-ring -mb-px inline-flex h-10 shrink-0 cursor-pointer items
       </section>
 
       <div v-if="project.status === 'CANCELLED'" class="bg-st-danger-bg text-fg-heading flex gap-2.5 rounded-xl px-4 py-3 text-[13.5px] leading-normal">
-        <Icon name="lucide:circle-x" class="mt-0.5 size-4 shrink-0 text-[#EC6453]" />This order is cancelled.
+        <Icon name="lucide:circle-x" class="mt-0.5 size-4 shrink-0 text-st-danger-fg" />This order is cancelled.
       </div>
 
       <!-- Tabs -->

@@ -188,7 +188,7 @@ const moneyRows = computed(() => {
     <AdminPageHeader :title="greet" :accent="firstName" :subtitle="subtitle" />
 
     <div v-if="error" role="alert" class="bg-st-danger-bg text-fg-heading flex flex-wrap items-center gap-3 rounded-xl px-4 py-3 text-[13.5px]">
-      <Icon name="lucide:alert-triangle" class="size-4 shrink-0 text-[#EC6453]" />
+      <Icon name="lucide:alert-triangle" class="size-4 shrink-0 text-st-danger-fg" />
       <span class="flex-1">The work queue could not load. {{ error.statusMessage || 'Check your connection and try again.' }}</span>
       <AdminButton size="sm" @click="refresh()">
         Try again

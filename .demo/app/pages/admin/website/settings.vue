@@ -145,7 +145,7 @@ const LABEL = 'text-muted-900 mb-1.5 block text-[13.5px] font-semibold dark:text
               <p v-if="f.hint" class="text-muted-500 mt-1.5 text-xs">
                 {{ f.hint }}
               </p>
-              <p v-for="e in errors[f.key] ?? []" :key="e" class="mt-1.5 text-xs font-semibold text-[#EC6453]" role="alert">
+              <p v-for="e in errors[f.key] ?? []" :key="e" class="mt-1.5 text-xs font-semibold text-st-danger-fg" role="alert">
                 {{ e }}
               </p>
             </div>
@@ -168,7 +168,7 @@ const LABEL = 'text-muted-900 mb-1.5 block text-[13.5px] font-semibold dark:text
               <p class="text-muted-500 mt-1.5 text-xs">
                 One path per line, added to robots.txt as Disallow. The site root, /_nuxt and /api/ can never be hidden.
               </p>
-              <p v-for="e in errors['site.robots.disallow'] ?? []" :key="e" class="mt-1.5 text-xs font-semibold text-[#EC6453]" role="alert">
+              <p v-for="e in errors['site.robots.disallow'] ?? []" :key="e" class="mt-1.5 text-xs font-semibold text-st-danger-fg" role="alert">
                 {{ e }}
               </p>
             </div>

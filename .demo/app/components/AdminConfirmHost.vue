@@ -31,10 +31,10 @@ watch(() => state.value, () => {
 const needsReason = computed(() => Boolean(state.value?.reason?.required) && reason.value.trim().length < 3)
 
 const POINT: Record<AdminConfirmPoint['tone'], { icon: string, cls: string }> = {
-  success: { icon: 'lucide:check', cls: 'text-[#22B07D]' },
-  danger: { icon: 'lucide:x', cls: 'text-[#EC6453]' },
-  warning: { icon: 'lucide:alert-triangle', cls: 'text-[#D9A521]' },
-  info: { icon: 'lucide:info', cls: 'text-[#6EA8FE]' },
+  success: { icon: 'lucide:check', cls: 'text-st-success-fg' },
+  danger: { icon: 'lucide:x', cls: 'text-st-danger-fg' },
+  warning: { icon: 'lucide:alert-triangle', cls: 'text-st-warning-fg' },
+  info: { icon: 'lucide:info', cls: 'text-st-info-fg' },
   accent: { icon: 'lucide:credit-card', cls: 'text-accent-ink' },
 }
 
@@ -71,7 +71,7 @@ function confirm() {
         </ul>
         <label v-if="state.reason" class="flex flex-col gap-[7px] px-6 pt-4">
           <span class="text-fg-heading text-[13px] font-semibold">
-            {{ state.reason.label }}<span v-if="state.reason.required" class="text-[#EC6453]"> *</span>
+            {{ state.reason.label }}<span v-if="state.reason.required" class="text-st-danger-fg"> *</span>
           </span>
           <textarea
             v-model="reason"

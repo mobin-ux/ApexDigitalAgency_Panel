@@ -243,7 +243,7 @@ const LABEL = 'text-fg-heading mb-1.5 block text-xs font-semibold'
 
     <!-- The design's unsaved-changes bar: pinned to the bottom of the desk while there is something to save. -->
     <div v-if="dirty && canEdit" class="apex-rise-in border-line-strong bg-card sticky bottom-4 z-10 flex flex-wrap items-center gap-3 rounded-2xl border px-5 py-3.5 shadow-[0_-20px_48px_rgba(17,31,34,.18)]">
-      <Icon name="lucide:circle-dot" class="size-4 text-[#D9A521]" />
+      <Icon name="lucide:circle-dot" class="size-4 text-st-warning-fg" />
       <span class="text-fg-heading flex-1 text-sm">Unsaved catalogue changes. New orders keep the old prices until you save.</span>
       <AdminButton @click="discard">
         Discard

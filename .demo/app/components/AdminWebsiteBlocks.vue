@@ -68,7 +68,7 @@ const ICON_BTN = 'apex-focus text-muted-500 hover:bg-muted-100 hover:text-muted-
 
 <template>
   <div class="flex flex-col gap-3">
-    <p v-for="e in errors[path] ?? []" :key="e" class="text-xs font-semibold text-[#EC6453]" role="alert">
+    <p v-for="e in errors[path] ?? []" :key="e" class="text-xs font-semibold text-st-danger-fg" role="alert">
       {{ e }}
     </p>
     <ol class="flex flex-col gap-3">
@@ -125,7 +125,7 @@ const ICON_BTN = 'apex-focus text-muted-500 hover:bg-muted-100 hover:text-muted-
             <textarea :id="`rows-${path}-${index}`" :value="block.rows.map(r => `${r.label}${r.detail ? ` / ${r.detail}` : ''} | ${r.values[0]} | ${r.values[1]}`).join('\n')" rows="5" :class="INPUT" class="resize-y leading-[1.55] font-mono" @input="block.rows = ($event.target as HTMLTextAreaElement).value.split('\n').map(l => l.trim()).filter(Boolean).map((l) => { const [head = '', a = '', b = ''] = l.split('|').map(s => s.trim()); const slash = head.indexOf(' / '); return { label: slash > 0 ? head.slice(0, slash) : head, ...(slash > 0 ? { detail: head.slice(slash + 3) } : {}), values: [a, b] as [string, string] } })" />
           </template>
 
-          <p v-for="e in errorsFor(index)" :key="e" class="mt-1.5 text-xs font-semibold text-[#EC6453]" role="alert">
+          <p v-for="e in errorsFor(index)" :key="e" class="mt-1.5 text-xs font-semibold text-st-danger-fg" role="alert">
             {{ e }}
           </p>
         </div>
@@ -136,7 +136,7 @@ const ICON_BTN = 'apex-focus text-muted-500 hover:bg-muted-100 hover:text-muted-
           <button type="button" :class="ICON_BTN" :disabled="index === blocks.length - 1" :aria-label="`Move block ${index + 1} down`" @click="move(index, 1)">
             <Icon name="lucide:chevron-down" class="size-4" />
           </button>
-          <button type="button" :class="ICON_BTN" class="hover:text-[#EC6453]!" :aria-label="`Remove block ${index + 1}`" @click="remove(index)">
+          <button type="button" :class="ICON_BTN" class="hover:text-st-danger-fg!" :aria-label="`Remove block ${index + 1}`" @click="remove(index)">
             <Icon name="lucide:x" class="size-4" />
           </button>
         </div>

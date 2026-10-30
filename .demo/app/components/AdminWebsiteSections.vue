@@ -73,7 +73,7 @@ const ICON_BTN = 'apex-focus text-muted-500 hover:bg-muted-100 hover:text-muted-
     <p v-if="!sections.length" class="text-muted-500 text-[13px]">
       No sections yet. The page is published empty until some are added.
     </p>
-    <p v-for="e in errors[path] ?? []" :key="e" class="text-xs font-semibold text-[#EC6453]" role="alert">
+    <p v-for="e in errors[path] ?? []" :key="e" class="text-xs font-semibold text-st-danger-fg" role="alert">
       {{ e }}
     </p>
     <ol class="flex flex-col gap-3">
@@ -82,7 +82,7 @@ const ICON_BTN = 'apex-focus text-muted-500 hover:bg-muted-100 hover:text-muted-
           <button type="button" class="apex-focus flex min-w-0 flex-1 items-center gap-3 rounded text-start" :aria-expanded="Boolean(open[section.id])" @click="open[section.id] = !open[section.id]">
             <Icon :name="open[section.id] ? 'lucide:chevron-down' : 'lucide:chevron-right'" class="text-muted-500 size-4 shrink-0" />
             <span class="min-w-0">
-              <span class="text-muted-900 block text-sm font-semibold dark:text-white">{{ SECTION_DEFS[section.type].label }}<span v-if="hasErrors(index)" class="ml-2 text-[#EC6453]">needs attention</span></span>
+              <span class="text-muted-900 block text-sm font-semibold dark:text-white">{{ SECTION_DEFS[section.type].label }}<span v-if="hasErrors(index)" class="ml-2 text-st-danger-fg">needs attention</span></span>
               <span class="text-muted-500 block truncate text-xs">{{ summary(section) }}</span>
             </span>
           </button>
@@ -96,7 +96,7 @@ const ICON_BTN = 'apex-focus text-muted-500 hover:bg-muted-100 hover:text-muted-
           <button type="button" :class="ICON_BTN" :disabled="index === sections.length - 1" :aria-label="`Move section ${index + 1} down`" @click="move(index, 1)">
             <Icon name="lucide:chevron-down" class="size-4" />
           </button>
-          <button type="button" :class="ICON_BTN" class="hover:text-[#EC6453]!" :aria-label="`Remove section ${index + 1}`" @click="remove(index)">
+          <button type="button" :class="ICON_BTN" class="hover:text-st-danger-fg!" :aria-label="`Remove section ${index + 1}`" @click="remove(index)">
             <Icon name="lucide:x" class="size-4" />
           </button>
         </div>

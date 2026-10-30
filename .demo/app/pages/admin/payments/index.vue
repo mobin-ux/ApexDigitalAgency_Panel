@@ -86,11 +86,11 @@ function txDisplay(t: { amount: number, type: string }) {
 }
 
 const txTypeMeta: Record<string, { icon: string, class: string }> = {
-  DEPOSIT: { icon: 'lucide:arrow-down-left', class: 'bg-[#22B07D]/14 text-[#22B07D]' },
-  PAYMENT: { icon: 'lucide:shopping-bag', class: 'bg-primary-500/14 text-primary-400' },
-  WITHDRAWAL: { icon: 'lucide:arrow-up-right', class: 'bg-[#EC6453]/14 text-[#EC6453]' },
-  REFUND: { icon: 'lucide:undo-2', class: 'bg-[#6EA8FE]/14 text-[#6EA8FE]' },
-  ADJUSTMENT: { icon: 'lucide:sliders-horizontal', class: 'bg-[#D9A521]/14 text-[#F2C14E]' },
+  DEPOSIT: { icon: 'lucide:arrow-down-left', class: 'bg-st-success-bg text-st-success-fg' },
+  PAYMENT: { icon: 'lucide:shopping-bag', class: 'bg-accent-tint text-primary-400' },
+  WITHDRAWAL: { icon: 'lucide:arrow-up-right', class: 'bg-st-danger-bg text-st-danger-fg' },
+  REFUND: { icon: 'lucide:undo-2', class: 'bg-st-info-bg text-st-info-fg' },
+  ADJUSTMENT: { icon: 'lucide:sliders-horizontal', class: 'bg-st-warning-bg text-st-warning-fg' },
 }
 
 function fmtDateTime(iso: string | Date) {

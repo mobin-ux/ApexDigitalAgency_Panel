@@ -56,10 +56,10 @@ const KIND_LABEL: Record<string, string> = {
 }
 
 const STATUS_TONE: Record<string, string> = {
-  QUEUED: 'bg-[#D9A521]/14 text-[#F2C14E]',
-  SENDING: 'bg-[#6EA8FE]/14 text-[#6EA8FE]',
-  SENT: 'bg-[#22B07D]/14 text-[#22B07D]',
-  FAILED: 'bg-[#EC6453]/14 text-[#EC6453]',
+  QUEUED: 'bg-st-warning-bg text-st-warning-fg',
+  SENDING: 'bg-st-info-bg text-st-info-fg',
+  SENT: 'bg-st-success-bg text-st-success-fg',
+  FAILED: 'bg-st-danger-bg text-st-danger-fg',
 }
 
 const STATUS_LABEL: Record<string, string> = { QUEUED: 'Queued', SENDING: 'Sending', SENT: 'Sent', FAILED: 'Failed' }
@@ -150,11 +150,11 @@ const PILL = 'apex-focus inline-flex min-h-[38px] items-center rounded-full bord
     <template v-else>
       <section :class="CARD" class="p-6">
         <ApexSectionLabel>Sending</ApexSectionLabel>
-        <div v-if="pending && !data" class="text-muted-500 mt-4 text-sm">
+        <div v-if="pending && !data" class="text-fg-muted mt-4 text-sm">
           Loading…
         </div>
         <div v-else-if="data?.configured" class="mt-4 flex items-start gap-3">
-          <span class="inline-flex size-9 shrink-0 items-center justify-center rounded-xl bg-[#22B07D]/14 text-[#22B07D]"><Icon name="lucide:check" class="size-[18px]" aria-hidden="true" /></span>
+          <span class="inline-flex size-9 shrink-0 items-center justify-center rounded-xl bg-st-success-bg text-st-success-fg"><Icon name="lucide:check" class="size-[18px]" aria-hidden="true" /></span>
           <div class="text-sm leading-[1.6]">
             <p class="text-muted-900 m-0 font-semibold dark:text-white">
               Configured
@@ -165,7 +165,7 @@ const PILL = 'apex-focus inline-flex min-h-[38px] items-center rounded-full bord
           </div>
         </div>
         <div v-else class="mt-4 flex items-start gap-3">
-          <span class="inline-flex size-9 shrink-0 items-center justify-center rounded-xl bg-[#D9A521]/14 text-[#F2C14E]"><Icon name="lucide:alert-triangle" class="size-[18px]" aria-hidden="true" /></span>
+          <span class="inline-flex size-9 shrink-0 items-center justify-center rounded-xl bg-st-warning-bg text-st-warning-fg"><Icon name="lucide:alert-triangle" class="size-[18px]" aria-hidden="true" /></span>
           <div class="text-sm leading-[1.6]">
             <p class="text-muted-900 m-0 font-semibold dark:text-white">
               Not configured
@@ -202,7 +202,7 @@ const PILL = 'apex-focus inline-flex min-h-[38px] items-center rounded-full bord
               v-for="f in STATUS_FILTERS"
               :key="f.key"
               type="button"
-              :class="[PILL, status === f.key ? 'border-primary-500 bg-primary-500/10 text-primary-500' : 'border-muted-200 text-muted-700 hover:border-muted-300 dark:border-white/10 dark:text-muted-300']"
+              :class="[PILL, status === f.key ? 'bg-accent border-transparent text-white' : 'border-line-subtle text-fg-heading hover:bg-hover']"
               :aria-pressed="status === f.key"
               @click="status = f.key"
             >
@@ -226,13 +226,13 @@ const PILL = 'apex-focus inline-flex min-h-[38px] items-center rounded-full bord
                 <span class="text-muted-900 text-sm font-semibold dark:text-white">{{ m.subject }}</span>
                 <span class="bg-muted-100 text-muted-600 dark:text-muted-400 inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-bold dark:bg-white/5">{{ KIND_LABEL[m.kind] ?? m.kind }}</span>
               </div>
-              <p class="text-muted-500 m-0 mt-1 text-[13px]">
+              <p class="text-fg-muted m-0 mt-1 text-[13px]">
                 To {{ m.to }} · {{ fmtDate(m.createdAt) }}<span v-if="m.sentAt"> · sent {{ fmtDate(m.sentAt) }}</span><span v-if="m.attempts"> · {{ m.attempts }} {{ m.attempts === 1 ? 'attempt' : 'attempts' }}</span>
               </p>
-              <p v-if="m.lastError" class="m-0 mt-1 text-[13px] text-[#EC6453]">
+              <p v-if="m.lastError" class="m-0 mt-1 text-[13px] text-st-danger-fg">
                 {{ m.lastError }}
               </p>
-              <p v-else-if="m.status === 'QUEUED'" class="text-muted-500 m-0 mt-1 text-[13px]">
+              <p v-else-if="m.status === 'QUEUED'" class="text-fg-muted m-0 mt-1 text-[13px]">
                 Next attempt {{ fmtDate(m.nextAttemptAt) }}
               </p>
             </div>
@@ -241,7 +241,7 @@ const PILL = 'apex-focus inline-flex min-h-[38px] items-center rounded-full bord
               <AdminButton v-if="m.retryable" size="sm" :disabled="Boolean(retrying)" @click="retry(m.id)">
                 Retry
               </AdminButton>
-              <span v-else-if="m.status === 'FAILED'" class="text-muted-500 text-[12px]">Link expired; ask for a new one</span>
+              <span v-else-if="m.status === 'FAILED'" class="text-fg-muted text-[12px]">Link expired; ask for a new one</span>
             </div>
           </li>
         </ul>

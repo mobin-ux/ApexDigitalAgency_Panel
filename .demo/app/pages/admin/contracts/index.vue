@@ -6,7 +6,7 @@
  * contract dossier.
  */
 definePageMeta({
-  title: 'Contracts',
+  title: 'Agreements',
   layout: 'admin',
   middleware: 'admin',
 })
@@ -56,8 +56,8 @@ function fmtDate(iso: string | Date | null) {
 <template>
   <div class="mx-auto flex w-full max-w-[1180px] px-4 pt-5 sm:px-8 sm:pt-7 flex-col gap-6 pb-8 text-fg-body">
     <AdminPageHeader
-      eyebrow="ADMIN · CONTRACTS"
-      title="Contract management"
+      title="Client"
+      accent="agreements"
       subtitle="Every signed financing agreement — terms, repayment plan, signature and status, across all customers."
     />
 
@@ -70,21 +70,21 @@ function fmtDate(iso: string | Date | null) {
     </div>
 
     <!-- owner filter notice (arrived via ?userId= deep link) -->
-    <div v-if="userId" class="flex items-center gap-3 rounded-[14px] border border-primary-500/30 bg-primary-500/10 px-4 py-3 text-[13px] text-primary-200">
+    <div v-if="userId" class="flex items-center gap-3 rounded-[14px] border border-primary-500/30 bg-accent-tint px-4 py-3 text-[13px] text-accent-ink">
       <Icon name="lucide:filter" class="size-4 shrink-0" />
       Showing contracts for one customer only.
-      <button type="button" class="ms-auto inline-flex items-center gap-1.5 font-semibold text-white hover:text-primary-200" @click="userId = ''">
+      <button type="button" class="ms-auto inline-flex items-center gap-1.5 font-semibold text-fg-heading hover:text-accent-ink" @click="userId = ''">
         Clear <Icon name="lucide:x" class="size-3.5" />
       </button>
     </div>
 
     <!-- ========== FILTER BAR ========== -->
-    <div class="grid grid-cols-1 gap-3 rounded-[20px] border border-white/10 bg-muted-800 p-4 sm:grid-cols-[1.8fr_1fr]">
-      <label class="flex items-center gap-2.5 rounded-[11px] border border-white/8 bg-muted-700 px-3.5 py-2.5 focus-within:border-primary-400">
-        <Icon name="lucide:search" class="size-4 shrink-0 text-muted-500" />
-        <input v-model="search" placeholder="Search reference, project or customer email…" class="min-w-0 flex-1 border-none bg-transparent text-[13.5px] text-white outline-none placeholder:text-muted-500">
+    <div class="grid grid-cols-1 gap-3 rounded-[20px] border border-line-subtle bg-card p-4 sm:grid-cols-[1.8fr_1fr]">
+      <label class="flex items-center gap-2.5 rounded-[11px] border border-line-subtle bg-raised px-3.5 py-2.5 focus-within:border-primary-400">
+        <Icon name="lucide:search" class="size-4 shrink-0 text-fg-muted" />
+        <input v-model="search" placeholder="Search reference, project or customer email…" class="min-w-0 flex-1 border-none bg-transparent text-[13.5px] text-fg-heading outline-none placeholder:text-fg-muted">
       </label>
-      <select v-model="status" aria-label="Filter by status" class="w-full cursor-pointer rounded-[11px] border border-white/8 bg-muted-700 px-3.5 py-3 sm:py-2.5 text-[13px] text-white outline-none focus:border-primary-400">
+      <select v-model="status" aria-label="Filter by status" class="w-full cursor-pointer rounded-[11px] border border-line-subtle bg-raised px-3.5 py-3 sm:py-2.5 text-[13px] text-fg-heading outline-none focus:border-primary-400">
         <option value="">
           All statuses
         </option>
@@ -105,20 +105,20 @@ function fmtDate(iso: string | Date | null) {
 
     <!-- ========== LIST ========== -->
     <div v-if="pending" class="flex flex-col gap-2" aria-hidden="true">
-      <div v-for="i in 6" :key="i" class="h-[76px] animate-pulse rounded-[16px] border border-white/5 bg-muted-800/60" />
+      <div v-for="i in 6" :key="i" class="h-[76px] animate-pulse rounded-[16px] border border-line-subtle bg-card" />
     </div>
 
-    <div v-else-if="contracts.length" class="overflow-hidden rounded-[20px] border border-white/10 bg-white/[0.02]" role="list">
+    <div v-else-if="contracts.length" class="overflow-hidden rounded-[20px] border border-line-subtle bg-chip" role="list">
       <template v-for="(c, idx) in contracts" :key="c.id">
-        <div v-if="idx > 0" class="h-px bg-white/10" />
-        <NuxtLink :to="`/admin/contracts/${c.id}`" role="listitem" class="flex items-center gap-4 px-[22px] py-4 transition hover:bg-white/[0.03]">
+        <div v-if="idx > 0" class="h-px bg-chip" />
+        <NuxtLink :to="`/admin/contracts/${c.id}`" role="listitem" class="flex items-center gap-4 px-[22px] py-4 transition hover:bg-chip">
           <div class="min-w-0 flex-1">
             <div class="flex items-center gap-2">
-              <span class="font-mono text-[12px] font-semibold text-primary-300">{{ c.reference }}</span>
-              <span aria-hidden="true" class="text-muted-600">·</span>
-              <span class="truncate text-[14.5px] font-semibold text-white">{{ c.project?.name }}</span>
+              <span class="font-mono text-[12px] font-semibold text-accent-ink">{{ c.reference }}</span>
+              <span aria-hidden="true" class="text-fg-body">·</span>
+              <span class="truncate text-[14.5px] font-semibold text-fg-heading">{{ c.project?.name }}</span>
             </div>
-            <div class="mt-0.5 truncate text-[12.5px] text-muted-500">
+            <div class="mt-0.5 truncate text-[12.5px] text-fg-muted">
               {{ c.project?.category }} · signed {{ fmtDate(c.signedAt) }}
             </div>
           </div>
@@ -127,20 +127,20 @@ function fmtDate(iso: string | Date | null) {
             <AdminUserCell :user="asUser(c.user)" compact />
           </div>
 
-          <span class="hidden w-24 shrink-0 text-right text-[13px] font-semibold text-white tabular-nums md:block">
+          <span class="hidden w-24 shrink-0 text-right text-[13px] font-semibold text-fg-heading tabular-nums md:block">
             {{ formatCurrency(c.amount) }}
           </span>
 
-          <span class="hidden w-[104px] shrink-0 text-right text-[12.5px] text-muted-400 tabular-nums xl:block">
-            {{ formatCurrency(c.monthlyAmount) }}<span class="text-muted-600">/mo</span>
+          <span class="hidden w-[104px] shrink-0 text-right text-[12.5px] text-fg-body tabular-nums xl:block">
+            {{ formatCurrency(c.monthlyAmount) }}<span class="text-fg-body">/mo</span>
           </span>
 
-          <span class="hidden w-16 shrink-0 text-center text-[12px] font-semibold text-muted-300 tabular-nums xl:block">
+          <span class="hidden w-16 shrink-0 text-center text-[12px] font-semibold text-fg-body tabular-nums xl:block">
             {{ c.termMonths }}mo
           </span>
 
           <AdminStatusChip :status="c.status" />
-          <Icon name="lucide:chevron-right" class="size-4 shrink-0 text-muted-500" />
+          <Icon name="lucide:chevron-right" class="size-4 shrink-0 text-fg-muted" />
         </NuxtLink>
       </template>
     </div>

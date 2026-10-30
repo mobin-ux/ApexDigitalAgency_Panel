@@ -130,7 +130,7 @@ const CARD = 'bg-card border-line-subtle rounded-2xl border'
           v-for="action in quickActions" :key="action.to" :to="action.to"
           class="apex-focus border-muted-200 text-muted-900 hover:border-primary-500 inline-flex min-h-10 items-center gap-2 rounded-full border bg-white px-4 text-[13px] font-semibold transition dark:border-white/10 dark:bg-muted-900 dark:text-white"
         >
-          <Icon :name="action.icon" class="size-4 text-primary-500" aria-hidden="true" />
+          <Icon :name="action.icon" class="size-4 text-accent-ink" aria-hidden="true" />
           {{ action.label }}
         </NuxtLink>
       </nav>
@@ -151,14 +151,14 @@ const CARD = 'bg-card border-line-subtle rounded-2xl border'
             </AdminButton>
           </div>
           <ul v-if="data?.failed.length" class="mt-4 flex flex-col gap-3">
-            <li v-for="doc in data.failed" :key="doc.id" class="flex flex-col gap-1 rounded-xl bg-[#EC6453]/8 px-4 py-3">
+            <li v-for="doc in data.failed" :key="doc.id" class="flex flex-col gap-1 rounded-xl bg-st-danger-bg px-4 py-3">
               <NuxtLink :to="`/admin/website/pages/${doc.id}`" class="apex-focus text-muted-900 text-sm font-semibold hover:underline dark:text-white">
                 {{ doc.title }} <span class="text-muted-500 font-mono text-xs">{{ doc.key }}</span>
               </NuxtLink>
-              <span class="text-[13px] text-[#EC6453]">{{ doc.error }}</span>
+              <span class="text-[13px] text-st-danger-fg">{{ doc.error }}</span>
             </li>
           </ul>
-          <p v-if="data?.revalidatePending" class="mt-4 text-[13px] text-[#D9A521] dark:text-[#F2C14E]">
+          <p v-if="data?.revalidatePending" class="mt-4 text-[13px] text-st-warning-fg dark:text-st-warning-fg">
             {{ data.revalidatePending }} published {{ data.revalidatePending === 1 ? 'change has' : 'changes have' }} not reached the site's cache yet; the scheduler retries every minute.
           </p>
         </section>
@@ -205,7 +205,7 @@ const CARD = 'bg-card border-line-subtle rounded-2xl border'
                 SEO issues
               </dt>
               <dd class="text-muted-900 font-semibold tabular-nums dark:text-white">
-                {{ data.seo.issues }}<span v-if="data.seo.errors" class="font-normal text-[#EC6453]"> ({{ data.seo.errors }} to fix)</span>
+                {{ data.seo.issues }}<span v-if="data.seo.errors" class="font-normal text-st-danger-fg"> ({{ data.seo.errors }} to fix)</span>
               </dd>
             </div>
             <div class="flex items-baseline justify-between gap-3">
@@ -218,7 +218,7 @@ const CARD = 'bg-card border-line-subtle rounded-2xl border'
             </div>
           </dl>
           <p v-if="can('website.seo')" class="mt-3 text-[12.5px]">
-            <NuxtLink to="/admin/website/seo" class="apex-focus text-primary-500 hover:underline">
+            <NuxtLink to="/admin/website/seo" class="apex-focus text-accent-ink hover:underline">
               Open SEO & redirects
             </NuxtLink>
           </p>

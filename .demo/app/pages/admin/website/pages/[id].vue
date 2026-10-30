@@ -368,7 +368,7 @@ const INPUT = 'focus:border-primary-400 w-full rounded-xl border border-muted-20
         </AdminButton>
       </div>
       <p v-if="doc.lastPublishError" class="bg-st-danger-bg text-fg-heading flex gap-2.5 rounded-xl px-4 py-3 text-[13.5px]" role="alert">
-        <Icon name="lucide:circle-x" class="mt-0.5 size-4 shrink-0 text-[#EC6453]" />
+        <Icon name="lucide:circle-x" class="mt-0.5 size-4 shrink-0 text-st-danger-fg" />
         The last scheduled publish failed: {{ doc.lastPublishError }} ({{ doc.publishAttempts }} attempt{{ doc.publishAttempts === 1 ? '' : 's' }}). It is retried every minute.
       </p>
       <p v-else-if="doc.state === 'in_review'" class="bg-st-warning-bg text-fg-heading flex gap-2.5 rounded-xl px-4 py-3 text-[13.5px] leading-normal">
@@ -437,10 +437,10 @@ const INPUT = 'focus:border-primary-400 w-full rounded-xl border border-muted-20
         <div :class="CARD" class="overflow-hidden">
           <ol class="divide-muted-200 flex flex-col divide-y dark:divide-white/5">
             <li v-for="rev in doc.revisions" :key="rev.id">
-              <button type="button" class="apex-focus hover:bg-muted-50 flex w-full flex-col gap-0.5 px-4 py-3 text-start dark:hover:bg-white/[0.03]" :class="selectedRevision === rev.number ? 'bg-primary-500/8' : ''" @click="openRevision(rev.number)">
+              <button type="button" class="apex-focus hover:bg-muted-50 flex w-full flex-col gap-0.5 px-4 py-3 text-start dark:hover:bg-white/[0.03]" :class="selectedRevision === rev.number ? 'bg-accent-tint' : ''" @click="openRevision(rev.number)">
                 <span class="text-muted-900 flex items-center gap-2 text-sm font-semibold dark:text-white">
                   Revision {{ rev.number }}
-                  <span v-if="doc.published?.number === rev.number" class="rounded-full bg-[#22B07D]/14 px-2 py-0.5 text-[10.5px] font-bold text-[#22B07D]">Live</span>
+                  <span v-if="doc.published?.number === rev.number" class="rounded-full bg-st-success-bg px-2 py-0.5 text-[10.5px] font-bold text-st-success-fg">Live</span>
                   <span v-else-if="rev.publishedAt" class="text-muted-500 text-[10.5px] font-bold uppercase">was live</span>
                 </span>
                 <span class="text-muted-500 text-xs">{{ fmtDate(rev.createdAt) }} · {{ rev.author }}</span>
@@ -473,10 +473,10 @@ const INPUT = 'focus:border-primary-400 w-full rounded-xl border border-muted-20
                 <dt class="text-muted-500 mb-1 font-mono text-xs">
                   {{ row.path }}
                 </dt>
-                <dd v-if="row.before !== null" class="text-[#EC6453] line-through decoration-[#EC6453]/60">
+                <dd v-if="row.before !== null" class="text-st-danger-fg line-through decoration-[#EC6453]/60">
                   {{ row.before }}
                 </dd>
-                <dd v-if="row.after !== null" class="text-[#22B07D]">
+                <dd v-if="row.after !== null" class="text-st-success-fg">
                   {{ row.after }}
                 </dd>
               </div>
@@ -520,7 +520,7 @@ const INPUT = 'focus:border-primary-400 w-full rounded-xl border border-muted-20
           <p class="text-muted-500 mt-1 text-[12.5px]">
             Only a draft that was never published can be deleted; everything else is archived so its history survives.
           </p>
-          <AdminButton size="sm" class="mt-3 text-[#EC6453]!" :disabled="acting" @click="confirming = 'delete'">
+          <AdminButton size="sm" class="mt-3 text-st-danger-fg!" :disabled="acting" @click="confirming = 'delete'">
             Delete draft
           </AdminButton>
         </div>

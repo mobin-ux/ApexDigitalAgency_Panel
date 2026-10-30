@@ -211,7 +211,8 @@ const form = reactive({ name: '', category: 'Web Development', amount: null as n
 
 // Owner picker: search customers by email/name.
 const ownerSearch = ref('')
-const selectedOwner = ref<{ id: string, email: string, firstName?: string | null, lastName?: string | null, avatar?: string | null } | null>(null)
+// `email` is null for an account registered with a phone number.
+const selectedOwner = ref<{ id: string, email: string | null, firstName?: string | null, lastName?: string | null, avatar?: string | null } | null>(null)
 const ownerQuery = computed(() => ({ page: 1, pageSize: 6, ...(ownerSearch.value.trim() ? { search: ownerSearch.value.trim() } : {}) }))
 const { data: ownerResults } = await useFetch('/api/admin/users', {
   query: ownerQuery,
@@ -243,7 +244,7 @@ async function createProject() {
         deadline: form.deadline || null,
       },
     })
-    toaster.add({ title: 'Project created', description: `${created.name} for ${selectedOwner.value.email}.`, icon: 'lucide:check', progress: true })
+    toaster.add({ title: 'Project created', description: `${created.name} for ${personName(selectedOwner.value) ?? 'the client'}.`, icon: 'lucide:check', progress: true })
     showCreate.value = false
     await refresh()
   }

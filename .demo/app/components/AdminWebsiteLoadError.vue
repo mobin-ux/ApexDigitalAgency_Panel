@@ -16,7 +16,7 @@ const message = computed(() => errorMessage(props.error, 'The panel did not answ
 
 <template>
   <div class="border-muted-200 bg-white dark:border-muted-800 dark:bg-muted-900 flex flex-col items-start gap-3 rounded-2xl border p-6 sm:flex-row sm:items-center" role="alert">
-    <span class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[#EC6453]/14 text-[#EC6453]">
+    <span class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-st-danger-bg text-st-danger-fg">
       <Icon name="lucide:circle-alert" class="size-5" aria-hidden="true" />
     </span>
     <div class="min-w-0 flex-1">

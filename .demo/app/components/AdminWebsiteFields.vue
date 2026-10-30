@@ -99,7 +99,7 @@ function setNumber(key: string, raw: string) {
 const INPUT = 'focus:border-primary-400 w-full rounded-xl border border-muted-200 bg-muted-50 px-3.5 py-2.5 text-sm text-muted-900 outline-none placeholder:text-muted-400 dark:border-white/10 dark:bg-white/5 dark:text-white dark:placeholder:text-muted-500'
 const LABEL = 'text-muted-900 mb-1.5 block text-[13.5px] font-semibold dark:text-white'
 const HINT = 'text-muted-500 mt-1.5 text-xs leading-[1.45]'
-const ERROR = 'mt-1.5 text-xs font-semibold text-[#EC6453]'
+const ERROR = 'mt-1.5 text-xs font-semibold text-st-danger-fg'
 const ICON_BTN = 'apex-focus text-muted-500 hover:bg-muted-100 hover:text-muted-900 dark:hover:bg-white/8 dark:hover:text-white inline-flex size-8 items-center justify-center rounded-lg transition disabled:opacity-40'
 </script>
 
@@ -138,7 +138,7 @@ const ICON_BTN = 'apex-focus text-muted-500 hover:bg-muted-100 hover:text-muted-
 
       <!-- Text -->
       <div v-else-if="def.type === 'text'">
-        <label :for="`in-${pathOf(key)}`" :class="LABEL">{{ def.label }}<span v-if="def.required" class="ml-0.5 text-[#EC6453]" aria-hidden="true">*</span></label>
+        <label :for="`in-${pathOf(key)}`" :class="LABEL">{{ def.label }}<span v-if="def.required" class="ml-0.5 text-st-danger-fg" aria-hidden="true">*</span></label>
         <input
           :id="`in-${pathOf(key)}`"
           :value="(model[key] as string) ?? ''"
@@ -158,7 +158,7 @@ const ICON_BTN = 'apex-focus text-muted-500 hover:bg-muted-100 hover:text-muted-
 
       <!-- Textarea -->
       <div v-else-if="def.type === 'textarea'">
-        <label :for="`in-${pathOf(key)}`" :class="LABEL">{{ def.label }}<span v-if="def.required" class="ml-0.5 text-[#EC6453]" aria-hidden="true">*</span></label>
+        <label :for="`in-${pathOf(key)}`" :class="LABEL">{{ def.label }}<span v-if="def.required" class="ml-0.5 text-st-danger-fg" aria-hidden="true">*</span></label>
         <textarea
           :id="`in-${pathOf(key)}`"
           :value="(model[key] as string) ?? ''"
@@ -320,7 +320,7 @@ const ICON_BTN = 'apex-focus text-muted-500 hover:bg-muted-100 hover:text-muted-
               <button type="button" :class="ICON_BTN" :disabled="index === listOf(key).length - 1" :aria-label="`Move item ${index + 1} down`" @click="moveItem(key, index, 1)">
                 <Icon name="lucide:chevron-down" class="size-4" />
               </button>
-              <button type="button" :class="ICON_BTN" class="hover:text-[#EC6453]!" :disabled="def.min !== undefined && listOf(key).length <= def.min" :aria-label="`Remove item ${index + 1}`" @click="removeItem(key, index)">
+              <button type="button" :class="ICON_BTN" class="hover:text-st-danger-fg!" :disabled="def.min !== undefined && listOf(key).length <= def.min" :aria-label="`Remove item ${index + 1}`" @click="removeItem(key, index)">
                 <Icon name="lucide:x" class="size-4" />
               </button>
             </div>

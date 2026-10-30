@@ -85,7 +85,7 @@ async function runSeed(path: string) {
 }
 
 const CARD = 'bg-card border-line-subtle rounded-2xl border p-6'
-const INPUT = 'w-full rounded-xl border border-muted-200 bg-muted-50 px-3.5 py-3 text-sm text-muted-900 outline-none placeholder:text-muted-400 focus:border-primary-400 sm:py-2.5 dark:border-white/10 dark:bg-white/5 dark:text-white dark:placeholder:text-muted-500'
+const INPUT = 'w-full rounded-xl border border-muted-200 bg-muted-50 px-3.5 py-3 text-sm text-muted-900 outline-none placeholder:text-fg-body focus:border-primary-400 sm:py-2.5 dark:border-white/10 dark:bg-white/5 dark:text-white dark:placeholder:text-muted-500'
 const LABEL = 'mb-2 block text-[12.5px] font-semibold text-fg-heading'
 </script>
 
@@ -100,7 +100,6 @@ const LABEL = 'mb-2 block text-[12.5px] font-semibold text-fg-heading'
 
     <template v-else>
       <AdminPageHeader
-        dense
         title="Tools"
         subtitle="Customer announcements and platform utilities."
       />
@@ -111,7 +110,7 @@ const LABEL = 'mb-2 block text-[12.5px] font-semibold text-fg-heading'
           <div class="font-heading text-muted-900 text-[16.5px] font-bold tracking-[-0.01em] dark:text-white">
             Announcement
           </div>
-          <p class="text-muted-500 mb-5 mt-[7px] text-[13px] leading-[1.55]">
+          <p class="text-fg-muted mb-5 mt-[7px] text-[13px] leading-[1.55]">
             Writes an in-app notification into every active customer's feed, and emails it to those who have kept notification emails on. A broadcast to everyone queues one email each; the outbox sends fifty a minute.
           </p>
           <form class="flex flex-col gap-3.5" @submit.prevent="showBroadcastConfirm = true">
@@ -128,7 +127,7 @@ const LABEL = 'mb-2 block text-[12.5px] font-semibold text-fg-heading'
                 required
                 maxlength="1000"
                 placeholder="Keep it short and benefit-led…"
-                class="border-muted-200 bg-muted-50 text-muted-900 placeholder:text-muted-400 focus:border-primary-400 dark:placeholder:text-muted-500 w-full resize-y rounded-xl border px-3.5 py-2.5 text-sm leading-[1.55] outline-none dark:border-white/10 dark:bg-white/5 dark:text-white"
+                class="border-muted-200 bg-muted-50 text-muted-900 placeholder:text-fg-body focus:border-primary-400 dark:placeholder:text-muted-500 w-full resize-y rounded-xl border px-3.5 py-2.5 text-sm leading-[1.55] outline-none dark:border-white/10 dark:bg-white/5 dark:text-white"
               />
             </div>
             <div class="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
@@ -158,7 +157,7 @@ const LABEL = 'mb-2 block text-[12.5px] font-semibold text-fg-heading'
                 </BaseSelect>
               </div>
               <div>
-                <label for="bc-link" :class="LABEL">In-app link <span class="text-muted-500 font-normal">(optional)</span></label>
+                <label for="bc-link" :class="LABEL">In-app link <span class="text-fg-muted font-normal">(optional)</span></label>
                 <input id="bc-link" v-model="broadcast.link" placeholder="/dashboards/services" :class="INPUT">
               </div>
             </div>
@@ -174,7 +173,7 @@ const LABEL = 'mb-2 block text-[12.5px] font-semibold text-fg-heading'
             <div class="font-heading text-muted-900 text-[16.5px] font-bold tracking-[-0.01em] dark:text-white">
               Audit trail
             </div>
-            <p class="text-muted-500 mb-4 mt-[7px] text-[13px] leading-[1.55]">
+            <p class="text-fg-muted mb-4 mt-[7px] text-[13px] leading-[1.55]">
               Every action that changes access, money or a client's records now has its own screen, with filters by kind and a CSV export.
             </p>
             <AdminButton to="/admin/audit">
@@ -183,11 +182,11 @@ const LABEL = 'mb-2 block text-[12.5px] font-semibold text-fg-heading'
           </section>
 
           <!-- dev utilities -->
-          <section v-if="isDev" class="rounded-2xl border border-[#D9A521]/25 bg-[#D9A521]/[0.04] p-6" aria-label="Developer utilities">
-            <div class="font-heading text-[16.5px] font-bold tracking-[-0.01em] text-[#F2C14E]">
+          <section v-if="isDev" class="rounded-2xl border border-[#D9A521]/25 bg-st-warning-bg p-6" aria-label="Developer utilities">
+            <div class="font-heading text-[16.5px] font-bold tracking-[-0.01em] text-st-warning-fg">
               Dev utilities
             </div>
-            <p class="text-muted-500 mb-4 mt-[7px] text-[13px] leading-[1.55]">
+            <p class="text-fg-muted mb-4 mt-[7px] text-[13px] leading-[1.55]">
               Local development only — these endpoints return 404 in production builds.
             </p>
             <div class="flex flex-col gap-2">
@@ -200,7 +199,7 @@ const LABEL = 'mb-2 block text-[12.5px] font-semibold text-fg-heading'
                   <div class="text-muted-900 text-[13px] font-semibold dark:text-white">
                     {{ seed.label }}
                   </div>
-                  <div class="text-muted-500 truncate text-[11.5px]">
+                  <div class="text-fg-muted truncate text-[11.5px]">
                     {{ seed.desc }}
                   </div>
                 </div>
@@ -223,7 +222,7 @@ const LABEL = 'mb-2 block text-[12.5px] font-semibold text-fg-heading'
     <div v-if="showBroadcastConfirm" class="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Confirm announcement">
       <div class="apex-fade absolute inset-0 bg-black/60 backdrop-blur-sm" @click="showBroadcastConfirm = false" />
       <div class="apex-pop border-muted-200 dark:bg-muted-800 relative w-full max-w-[420px] rounded-2xl border bg-white p-6 shadow-[0_30px_60px_rgba(0,0,0,.5)] dark:border-white/10">
-        <span aria-hidden="true" class="mb-4 flex size-11 items-center justify-center rounded-xl bg-[#6EA8FE]/14 text-[#6EA8FE]">
+        <span aria-hidden="true" class="mb-4 flex size-11 items-center justify-center rounded-xl bg-st-info-bg text-st-info-fg">
           <Icon name="lucide:megaphone" class="size-5" />
         </span>
         <div class="font-heading text-muted-900 text-[19px] font-extrabold tracking-[-0.01em] dark:text-white">

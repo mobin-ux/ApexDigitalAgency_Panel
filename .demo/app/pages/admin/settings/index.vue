@@ -272,10 +272,10 @@ const securityRows = [
 
 const CARD = 'bg-card border-line-subtle rounded-2xl border p-5'
 const CARD_TITLE = 'font-heading text-[16.5px] font-bold tracking-[-0.01em] text-fg-heading'
-const CARD_SUB = 'mt-[7px] mb-4 text-[13px] leading-[1.55] text-muted-500'
+const CARD_SUB = 'mt-[7px] mb-4 text-[13px] leading-[1.55] text-fg-muted'
 const ROW = 'flex items-center gap-3.5 py-3.5'
 const NUM_INPUT = 'font-heading h-11 rounded-xl border border-muted-200 bg-muted-50 px-3 text-right text-[15px] font-bold tabular-nums text-muted-900 outline-none focus:border-primary-400 dark:border-white/10 dark:bg-white/5 dark:text-white'
-const TEXT_INPUT = 'w-full rounded-xl border border-muted-200 bg-muted-50 px-3.5 py-2.5 text-sm text-muted-900 outline-none placeholder:text-muted-400 focus:border-primary-400 dark:border-white/10 dark:bg-white/5 dark:text-white dark:placeholder:text-muted-500'
+const TEXT_INPUT = 'w-full rounded-xl border border-muted-200 bg-muted-50 px-3.5 py-2.5 text-sm text-muted-900 outline-none placeholder:text-fg-body focus:border-primary-400 dark:border-white/10 dark:bg-white/5 dark:text-white dark:placeholder:text-muted-500'
 const GHOST_BTN = 'apex-focus inline-flex min-h-11 cursor-pointer items-center rounded-xl border border-muted-200 bg-muted-100 px-[18px] text-[14.5px] font-semibold text-muted-800 transition-colors hover:bg-muted-200 dark:border-white/10 dark:bg-white/5 dark:text-white dark:hover:bg-white/10'
 </script>
 
@@ -290,8 +290,8 @@ const GHOST_BTN = 'apex-focus inline-flex min-h-11 cursor-pointer items-center r
 
     <template v-else>
       <AdminPageHeader
-        dense
-        title="Platform settings"
+        title="Platform"
+        accent="settings"
         subtitle="Values the client-facing portal reads. Every one in the four panels below is used somewhere a client can see."
       />
 
@@ -309,7 +309,7 @@ const GHOST_BTN = 'apex-focus inline-flex min-h-11 cursor-pointer items-center r
             <div v-for="p in REPLY_PRIORITIES" :key="p" class="flex items-center gap-3.5">
               <span class="min-w-0 flex-1">
                 <label :for="`eta-${p}`" class="text-muted-900 block text-[13.5px] font-semibold dark:text-white">{{ PRIORITY_LABELS[p].label }}</label>
-                <span class="text-muted-500 mt-[3px] block text-xs">{{ PRIORITY_LABELS[p].hint }}</span>
+                <span class="text-fg-muted mt-[3px] block text-xs">{{ PRIORITY_LABELS[p].hint }}</span>
               </span>
               <span class="flex shrink-0 items-center gap-2.5">
                 <input
@@ -320,7 +320,7 @@ const GHOST_BTN = 'apex-focus inline-flex min-h-11 cursor-pointer items-center r
                   :class="NUM_INPUT"
                   @input="setEta(p, ($event.target as HTMLInputElement).value)"
                 >
-                <span class="text-muted-500 w-[38px] text-[13px]">mins</span>
+                <span class="text-fg-muted w-[38px] text-[13px]">mins</span>
               </span>
             </div>
           </div>
@@ -331,7 +331,7 @@ const GHOST_BTN = 'apex-focus inline-flex min-h-11 cursor-pointer items-center r
             will read, not a description of it.
           -->
           <div class="border-muted-200 bg-muted-50 mt-[18px] flex items-start gap-2.5 rounded-xl border p-3.5 dark:border-white/10 dark:bg-white/5">
-            <Icon name="lucide:eye" class="text-primary-500 dark:text-primary-400 mt-px size-[17px] shrink-0" />
+            <Icon name="lucide:eye" class="text-accent-ink mt-px size-[17px] shrink-0" />
             <span class="text-muted-600 dark:text-muted-300 flex-1 text-[13px] leading-[1.6]">
               Clients currently see:
               <strong class="text-muted-900 font-semibold dark:text-white">&ldquo;{{ clientPreview }}&rdquo;</strong>
@@ -352,10 +352,10 @@ const GHOST_BTN = 'apex-focus inline-flex min-h-11 cursor-pointer items-center r
             <div class="flex items-center gap-3.5">
               <span class="min-w-0 flex-1">
                 <label for="credit-limit" class="text-muted-900 block text-[13.5px] font-semibold dark:text-white">Credit ceiling per client</label>
-                <span class="text-muted-500 mt-[3px] block text-xs">The most staff can approve for one client, and the top of what a client can ask for. Lines already approved keep their limit.</span>
+                <span class="text-fg-muted mt-[3px] block text-xs">The most staff can approve for one client, and the top of what a client can ask for. Lines already approved keep their limit.</span>
               </span>
               <span class="flex shrink-0 items-center gap-1.5">
-                <span class="font-heading text-muted-500 text-[15px] font-bold">£</span>
+                <span class="font-heading text-fg-muted text-[15px] font-bold">£</span>
                 <input
                   id="credit-limit"
                   v-model.number="values['credit.max-limit']"
@@ -369,7 +369,7 @@ const GHOST_BTN = 'apex-focus inline-flex min-h-11 cursor-pointer items-center r
             <div class="flex items-center gap-3.5">
               <span class="min-w-0 flex-1">
                 <label for="first-inst" class="text-muted-900 block text-[13.5px] font-semibold dark:text-white">First instalment after</label>
-                <span class="text-muted-500 mt-[3px] block text-xs">Live: sets the first due date on every new financing plan.</span>
+                <span class="text-fg-muted mt-[3px] block text-xs">Live: sets the first due date on every new financing plan.</span>
               </span>
               <span class="flex shrink-0 items-center gap-2.5">
                 <input
@@ -379,7 +379,7 @@ const GHOST_BTN = 'apex-focus inline-flex min-h-11 cursor-pointer items-center r
                   class="w-[78px]"
                   :class="NUM_INPUT"
                 >
-                <span class="text-muted-500 w-[38px] text-[13px]">days</span>
+                <span class="text-fg-muted w-[38px] text-[13px]">days</span>
               </span>
             </div>
 
@@ -396,7 +396,7 @@ const GHOST_BTN = 'apex-focus inline-flex min-h-11 cursor-pointer items-center r
             -->
             <div class="border-muted-200 border-t pt-3.5 dark:border-white/10">
               <span class="text-muted-900 block text-[13.5px] font-semibold dark:text-white">Instalment terms offered</span>
-              <span class="text-muted-500 mb-2.5 mt-[3px] block text-xs leading-[1.45]">
+              <span class="text-fg-muted mb-2.5 mt-[3px] block text-xs leading-[1.45]">
                 Only terms with locked pricing can be offered (ADR-011). A service can offer a subset of these, never more.
               </span>
               <div class="flex flex-wrap items-center gap-2">
@@ -415,7 +415,7 @@ const GHOST_BTN = 'apex-focus inline-flex min-h-11 cursor-pointer items-center r
                   24 months · 1%/mo
                 </button>
               </div>
-              <p class="text-muted-500 mt-2.5 text-xs leading-[1.45]">
+              <p class="text-fg-muted mt-2.5 text-xs leading-[1.45]">
                 12 months is the base product and cannot be switched off — every plan falls back to it.
               </p>
             </div>
@@ -436,7 +436,7 @@ const GHOST_BTN = 'apex-focus inline-flex min-h-11 cursor-pointer items-center r
             <div class="border-muted-200 flex items-center gap-3.5 border-t pt-3.5 dark:border-white/10">
               <span class="min-w-0 flex-1">
                 <span class="text-muted-900 block text-[13.5px] font-semibold dark:text-white">Hold deliverables until fully paid</span>
-                <span class="text-muted-500 mt-[3px] block text-xs leading-[1.45]">
+                <span class="text-fg-muted mt-[3px] block text-xs leading-[1.45]">
                   Live: while a balance is outstanding the client sees the file names but cannot download them. Staff release them from the project, with a stated reason where the balance is unpaid.
                 </span>
               </span>
@@ -452,7 +452,7 @@ const GHOST_BTN = 'apex-focus inline-flex min-h-11 cursor-pointer items-center r
                 <span class="absolute top-0.5 size-5 rounded-full bg-white shadow transition-all" :class="values['deliverables.hold-until-paid'] ? 'left-[22px]' : 'left-0.5'" />
               </button>
             </div>
-            <p v-if="values['deliverables.hold-until-paid']" class="text-muted-500 text-xs leading-[1.5]">
+            <p v-if="values['deliverables.hold-until-paid']" class="text-fg-muted text-xs leading-[1.5]">
               Applies to every project with an outstanding balance, including ones already delivered. Files already released stay released.
             </p>
           </div>
@@ -474,7 +474,7 @@ const GHOST_BTN = 'apex-focus inline-flex min-h-11 cursor-pointer items-center r
             >
               <span class="min-w-0 flex-1">
                 <span class="text-muted-900 block text-[13.5px] font-semibold dark:text-white">{{ row.label }}</span>
-                <span class="text-muted-500 mt-[3px] block text-xs leading-[1.45]">{{ row.hint }}</span>
+                <span class="text-fg-muted mt-[3px] block text-xs leading-[1.45]">{{ row.hint }}</span>
               </span>
               <span
                 v-if="row.chip"
@@ -500,25 +500,25 @@ const GHOST_BTN = 'apex-focus inline-flex min-h-11 cursor-pointer items-center r
             <div>
               <label for="site-name" class="text-muted-900 mb-1.5 block text-[13.5px] font-semibold dark:text-white">Trading name</label>
               <input id="site-name" v-model="values['general.site-name']" :class="TEXT_INPUT">
-              <p class="text-muted-500 mt-1.5 text-xs leading-[1.45]">
+              <p class="text-fg-muted mt-1.5 text-xs leading-[1.45]">
                 Live: printed as the agency on every financing agreement.
               </p>
             </div>
             <div>
               <label for="support-email" class="text-muted-900 mb-1.5 block text-[13.5px] font-semibold dark:text-white">Support email</label>
               <input id="support-email" v-model="values['general.support-email']" type="email" :class="TEXT_INPUT">
-              <p class="text-muted-500 mt-1.5 text-xs leading-[1.45]">
+              <p class="text-fg-muted mt-1.5 text-xs leading-[1.45]">
                 Live: shown to clients on the Support page and on error states.
               </p>
             </div>
             <div>
               <label for="vat-rate" class="text-muted-900 mb-1.5 block text-[13.5px] font-semibold dark:text-white">VAT rate (%)</label>
               <input id="vat-rate" v-model.number="values['business.vat-rate']" inputmode="numeric" class="w-[104px]" :class="NUM_INPUT">
-              <p class="text-muted-500 mt-1.5 text-xs leading-[1.45]">
+              <p class="text-fg-muted mt-1.5 text-xs leading-[1.45]">
                 Live: used in the agreement's totals.
               </p>
             </div>
-            <p class="border-muted-200 text-muted-500 border-t pt-3.5 text-xs leading-[1.5] dark:border-white/10">
+            <p class="border-muted-200 text-fg-muted border-t pt-3.5 text-xs leading-[1.5] dark:border-white/10">
               The registered company name, address and VAT number live in <strong class="text-muted-700 dark:text-muted-300">Company record</strong> below. Nothing prints them yet — there is no invoice document in the platform (REQUIREMENTS §6).
             </p>
           </div>
@@ -530,12 +530,12 @@ const GHOST_BTN = 'apex-focus inline-flex min-h-11 cursor-pointer items-center r
         <div class="mb-3 flex flex-wrap items-center gap-[11px]">
           <ApexSectionLabel>Other configuration</ApexSectionLabel>
           <span class="grow" />
-          <span class="text-muted-500 text-[12.5px]">Not drawn in the design, kept so no existing control is lost</span>
+          <span class="text-fg-muted text-[12.5px]">Not drawn in the design, kept so no existing control is lost</span>
         </div>
 
         <div class="grid grid-cols-1 items-start gap-[18px] lg:grid-cols-2">
           <section v-for="group in otherGroups" :key="group.group" :class="CARD" :aria-label="group.title">
-            <h2 class="text-muted-500 mb-4 flex items-center gap-2.5 text-xs font-bold uppercase tracking-[0.06em]">
+            <h2 class="text-fg-muted mb-4 flex items-center gap-2.5 text-xs font-bold uppercase tracking-[0.06em]">
               <span aria-hidden="true" class="h-[15px] w-[3px] rounded-full" :class="group.accent" />{{ group.title }}
             </h2>
 
@@ -550,7 +550,7 @@ const GHOST_BTN = 'apex-focus inline-flex min-h-11 cursor-pointer items-center r
                     <div class="text-muted-900 text-[13.5px] font-semibold dark:text-white">
                       {{ item.label }}
                     </div>
-                    <div v-if="item.hint" class="text-muted-500 mt-0.5 text-xs leading-[1.45]">
+                    <div v-if="item.hint" class="text-fg-muted mt-0.5 text-xs leading-[1.45]">
                       {{ item.hint }}
                     </div>
                   </div>
@@ -618,7 +618,7 @@ const GHOST_BTN = 'apex-focus inline-flex min-h-11 cursor-pointer items-center r
                     :type="item.type === 'number' ? 'number' : 'text'"
                     :class="TEXT_INPUT"
                   >
-                  <p v-if="item.hint" class="text-muted-500 mt-1.5 text-xs leading-[1.45]">
+                  <p v-if="item.hint" class="text-fg-muted mt-1.5 text-xs leading-[1.45]">
                     {{ item.hint }}
                   </p>
                 </template>
@@ -628,20 +628,20 @@ const GHOST_BTN = 'apex-focus inline-flex min-h-11 cursor-pointer items-center r
 
           <!-- Currency is locked by decision (ADR-005); shown so its absence isn't read as an oversight. -->
           <section :class="CARD" aria-label="Currency">
-            <h2 class="text-muted-500 mb-4 flex items-center gap-2.5 text-xs font-bold uppercase tracking-[0.06em]">
+            <h2 class="text-fg-muted mb-4 flex items-center gap-2.5 text-xs font-bold uppercase tracking-[0.06em]">
               <span aria-hidden="true" class="bg-primary-200 h-[15px] w-[3px] rounded-full" />Currency
             </h2>
             <div class="border-muted-200 bg-muted-50 flex items-center gap-4 rounded-xl border px-4 py-3.5 dark:border-white/10 dark:bg-white/5">
-              <span class="bg-primary-500/14 font-heading text-primary-600 dark:text-primary-400 flex size-10 items-center justify-center rounded-xl text-lg font-extrabold">£</span>
+              <span class="bg-accent-tint font-heading text-accent-ink flex size-10 items-center justify-center rounded-xl text-lg font-extrabold">£</span>
               <div>
                 <div class="text-muted-900 text-[13.5px] font-semibold dark:text-white">
                   GBP — British Pound
                 </div>
-                <div class="text-muted-500 mt-0.5 text-xs">
+                <div class="text-fg-muted mt-0.5 text-xs">
                   Fixed platform-wide (ADR-005). All amounts format through useCurrency().
                 </div>
               </div>
-              <Icon name="lucide:lock" class="text-muted-400 ms-auto size-4 shrink-0" />
+              <Icon name="lucide:lock" class="text-fg-body ms-auto size-4 shrink-0" />
             </div>
           </section>
         </div>

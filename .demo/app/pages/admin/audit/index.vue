@@ -228,12 +228,12 @@ function initials(entry: { actorName: string | null, actorEmail: string | null }
 }
 
 const KIND_TONE: Record<AuditKind, string> = {
-  access: 'bg-[#D9A521]/16 text-[#F2C14E]',
-  team: 'bg-[#6EA8FE]/14 text-[#6EA8FE]',
-  money: 'bg-[#22B07D]/14 text-[#22B07D]',
-  files: 'bg-[#EC6453]/14 text-[#EC6453]',
-  work: 'bg-primary-500/14 text-primary-400',
-  website: 'bg-[#6EA8FE]/14 text-[#6EA8FE]',
+  access: 'bg-st-warning-bg text-st-warning-fg',
+  team: 'bg-st-info-bg text-st-info-fg',
+  money: 'bg-st-success-bg text-st-success-fg',
+  files: 'bg-st-danger-bg text-st-danger-fg',
+  work: 'bg-accent-tint text-primary-400',
+  website: 'bg-st-info-bg text-st-info-fg',
   config: 'bg-muted-200 text-muted-600 dark:bg-white/5 dark:text-muted-400',
 }
 
@@ -327,8 +327,8 @@ const FILTER_OFF = 'border-muted-200 bg-white font-semibold text-muted-700 hover
 
     <template v-else>
       <AdminPageHeader
-        dense
-        title="Audit log"
+        title="Audit"
+        accent="log"
         subtitle="Every action that changes access, money or a client's records. Read-only and append-only."
       >
         <AdminButton size="lg" :disabled="exporting || !rows.length" @click="exportCsv">
@@ -358,12 +358,12 @@ const FILTER_OFF = 'border-muted-200 bg-white font-semibold text-muted-700 hover
         </button>
 
         <label class="border-muted-200 focus-within:border-primary-400 dark:bg-muted-800 ms-auto flex min-w-[240px] items-center gap-2.5 rounded-xl border bg-white px-3.5 py-2 dark:border-white/10">
-          <Icon name="lucide:search" class="text-muted-400 size-4 shrink-0" />
+          <Icon name="lucide:search" class="text-fg-body size-4 shrink-0" />
           <input
             v-model="search"
             aria-label="Search the log"
             placeholder="Search the log"
-            class="text-muted-900 placeholder:text-muted-400 dark:placeholder:text-muted-500 min-w-0 flex-1 border-none bg-transparent text-[13.5px] outline-none dark:text-white"
+            class="text-muted-900 placeholder:text-fg-body dark:placeholder:text-muted-500 min-w-0 flex-1 border-none bg-transparent text-[13.5px] outline-none dark:text-white"
           >
         </label>
       </div>
@@ -374,7 +374,7 @@ const FILTER_OFF = 'border-muted-200 bg-white font-semibold text-muted-700 hover
             Audit entries, newest first. Timestamps are absolute and include the timezone.
           </caption>
           <thead>
-            <tr class="border-muted-200 bg-muted-50 text-muted-500 border-b text-[11px] font-extrabold uppercase tracking-[0.06em] dark:border-white/10 dark:bg-white/[0.02]">
+            <tr class="border-muted-200 bg-muted-50 text-fg-muted border-b text-[11px] font-extrabold uppercase tracking-[0.06em] dark:border-white/10 dark:bg-white/[0.02]">
               <th scope="col" class="w-[190px] px-[18px] py-3 text-start font-extrabold">
                 When
               </th>
@@ -408,7 +408,7 @@ const FILTER_OFF = 'border-muted-200 bg-white font-semibold text-muted-700 hover
               :class="index < rows.length - 1 ? 'border-muted-200 border-b dark:border-white/5' : ''"
             >
               <!-- Badge 31: absolute, with the timezone. -->
-              <td class="text-muted-500 px-[18px] py-3.5 align-top text-[12.5px] tabular-nums">
+              <td class="text-fg-muted px-[18px] py-3.5 align-top text-[12.5px] tabular-nums">
                 {{ absoluteTime(entry.createdAt) }}
               </td>
 
@@ -428,7 +428,7 @@ const FILTER_OFF = 'border-muted-200 bg-white font-semibold text-muted-700 hover
                       back-filled from the account's role today, which would
                       state something the log never recorded.
                     -->
-                    <span class="text-muted-500 mt-0.5 block text-[11.5px]">{{ roleLabel(entry.roleAtTime) || '—' }}</span>
+                    <span class="text-fg-muted mt-0.5 block text-[11.5px]">{{ roleLabel(entry.roleAtTime) || '—' }}</span>
                   </span>
                 </div>
               </td>
@@ -442,7 +442,7 @@ const FILTER_OFF = 'border-muted-200 bg-white font-semibold text-muted-700 hover
 
               <td class="px-3 py-3.5 align-top">
                 <span class="text-muted-900 block text-[13.5px] leading-[1.45] dark:text-white">{{ detailOf(entry) }}</span>
-                <span v-if="entry.reason" class="text-muted-500 mt-1 block text-[12.5px] leading-[1.45]">
+                <span v-if="entry.reason" class="text-fg-muted mt-1 block text-[12.5px] leading-[1.45]">
                   Reason: {{ entry.reason }}
                 </span>
               </td>
@@ -463,7 +463,7 @@ const FILTER_OFF = 'border-muted-200 bg-white font-semibold text-muted-700 hover
       </div>
 
       <div class="flex flex-wrap items-center gap-3">
-        <span class="text-muted-500 text-[12.5px]">{{ footer }}</span>
+        <span class="text-fg-muted text-[12.5px]">{{ footer }}</span>
         <span class="grow" />
         <AdminPager
           v-if="data"

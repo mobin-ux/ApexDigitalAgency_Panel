@@ -158,7 +158,7 @@ function fmtDate(iso: string | Date | null) {
 }
 
 const CARD = 'bg-card border-line-subtle rounded-2xl border'
-const INPUT = 'focus:border-primary-400 w-full rounded-xl border border-muted-200 bg-muted-50 px-3.5 py-2.5 text-sm text-muted-900 outline-none placeholder:text-muted-400 dark:border-white/10 dark:bg-white/5 dark:text-white dark:placeholder:text-muted-500'
+const INPUT = 'focus:border-primary-400 w-full rounded-xl border border-muted-200 bg-muted-50 px-3.5 py-2.5 text-sm text-muted-900 outline-none placeholder:text-fg-body dark:border-white/10 dark:bg-white/5 dark:text-white dark:placeholder:text-muted-500'
 const LABEL = 'text-muted-900 mb-1.5 block text-[13.5px] font-semibold dark:text-white'
 </script>
 
@@ -199,7 +199,7 @@ const LABEL = 'text-muted-900 mb-1.5 block text-[13.5px] font-semibold dark:text
               PDFs
             </BaseSelectItem>
           </BaseSelect>
-          <span v-if="data" class="text-muted-500 text-[12.5px]">{{ data.total }} file{{ data.total === 1 ? '' : 's' }}</span>
+          <span v-if="data" class="text-fg-muted text-[12.5px]">{{ data.total }} file{{ data.total === 1 ? '' : 's' }}</span>
         </div>
 
         <AdminEmptyState v-if="!pending && !items.length" icon="lucide:image" title="No files yet" :subtitle="canEdit ? 'Upload JPEG, PNG, GIF, WebP or PDF files up to 10 MB each.' : 'Nothing has been uploaded yet.'" />
@@ -215,12 +215,12 @@ const LABEL = 'text-muted-900 mb-1.5 block text-[13.5px] font-semibold dark:text
             >
               <span class="bg-muted-100 flex aspect-[4/3] items-center justify-center overflow-hidden dark:bg-white/5">
                 <img v-if="m.mime.startsWith('image/')" :src="m.src" :alt="m.alt" :width="m.width ?? undefined" :height="m.height ?? undefined" loading="lazy" class="size-full object-cover">
-                <Icon v-else name="lucide:file-text" class="text-muted-400 size-8" />
+                <Icon v-else name="lucide:file-text" class="text-fg-body size-8" />
               </span>
               <span class="flex flex-col gap-0.5 px-3 py-2">
                 <span class="text-muted-900 truncate text-[12.5px] font-semibold dark:text-white">{{ m.filename }}</span>
-                <span class="text-muted-500 text-[11px]">{{ fmtBytes(m.bytes) }}<template v-if="m.width"> · {{ m.width }}×{{ m.height }}</template> · {{ m.uses ? `${m.uses} use${m.uses === 1 ? '' : 's'}` : 'unused' }}</span>
-                <span v-if="m.mime.startsWith('image/') && !m.alt" class="text-[11px] font-semibold text-[#F2C14E]">No alt text</span>
+                <span class="text-fg-muted text-[11px]">{{ fmtBytes(m.bytes) }}<template v-if="m.width"> · {{ m.width }}×{{ m.height }}</template> · {{ m.uses ? `${m.uses} use${m.uses === 1 ? '' : 's'}` : 'unused' }}</span>
+                <span v-if="m.mime.startsWith('image/') && !m.alt" class="text-[11px] font-semibold text-st-warning-fg">No alt text</span>
               </span>
             </button>
           </li>
@@ -230,18 +230,18 @@ const LABEL = 'text-muted-900 mb-1.5 block text-[13.5px] font-semibold dark:text
       </div>
 
       <aside :class="CARD" class="h-fit p-5 lg:sticky lg:top-24">
-        <p v-if="!selected" class="text-muted-500 text-sm">
+        <p v-if="!selected" class="text-fg-muted text-sm">
           Choose a file to see where it is used and edit its alt text.
         </p>
         <template v-else>
           <div class="bg-muted-100 mb-4 flex max-h-56 items-center justify-center overflow-hidden rounded-xl dark:bg-white/5">
             <img v-if="selected.mime.startsWith('image/')" :src="selected.src" :alt="selected.alt" class="max-h-56 w-auto max-w-full">
-            <Icon v-else name="lucide:file-text" class="text-muted-400 my-10 size-10" />
+            <Icon v-else name="lucide:file-text" class="text-fg-body my-10 size-10" />
           </div>
           <p class="text-muted-900 break-all text-sm font-semibold dark:text-white">
             {{ selected.filename }}
           </p>
-          <p class="text-muted-500 mt-1 text-xs">
+          <p class="text-fg-muted mt-1 text-xs">
             {{ selected.mime }} · {{ fmtBytes(selected.bytes) }}<template v-if="selected.width">
               · {{ selected.width }}×{{ selected.height }}
             </template> · v{{ selected.version }} · {{ fmtDate(selected.createdAt) }}
@@ -252,7 +252,7 @@ const LABEL = 'text-muted-900 mb-1.5 block text-[13.5px] font-semibold dark:text
               <input id="media-alt" v-model="alt" maxlength="300" :disabled="!canEdit" placeholder="What the picture shows, for people who cannot see it" :class="INPUT">
             </div>
             <div>
-              <label for="media-caption" :class="LABEL">Caption <span class="text-muted-500 font-normal">optional</span></label>
+              <label for="media-caption" :class="LABEL">Caption <span class="text-fg-muted font-normal">optional</span></label>
               <input id="media-caption" v-model="caption" maxlength="300" :disabled="!canEdit" :class="INPUT">
             </div>
             <AdminButton v-if="canEdit" size="sm" variant="primary" :disabled="saving || !detailDirty" @click="saveDetail">
@@ -260,18 +260,18 @@ const LABEL = 'text-muted-900 mb-1.5 block text-[13.5px] font-semibold dark:text
             </AdminButton>
           </div>
           <div class="mt-5 border-t border-muted-200 pt-4 dark:border-white/10">
-            <p class="text-muted-500 text-[11px] font-extrabold uppercase tracking-[0.06em]">
+            <p class="text-fg-muted text-[11px] font-extrabold uppercase tracking-[0.06em]">
               Used by
             </p>
-            <p v-if="!selected.usage?.length" class="text-muted-500 mt-2 text-[12.5px]">
+            <p v-if="!selected.usage?.length" class="text-fg-muted mt-2 text-[12.5px]">
               No document uses this file.
             </p>
             <ul v-else class="mt-2 flex flex-col gap-1.5">
               <li v-for="u in selected.usage" :key="u.id" class="text-[12.5px]">
-                <NuxtLink :to="`/admin/website/pages/${u.id}`" class="apex-focus text-primary-500 dark:text-primary-400 rounded font-semibold hover:underline">
+                <NuxtLink :to="`/admin/website/pages/${u.id}`" class="apex-focus text-accent-ink rounded font-semibold hover:underline">
                   {{ u.title }}
                 </NuxtLink>
-                <span class="text-muted-500"> · {{ u.slots.join(', ') }}</span>
+                <span class="text-fg-muted"> · {{ u.slots.join(', ') }}</span>
               </li>
             </ul>
           </div>
@@ -280,7 +280,7 @@ const LABEL = 'text-muted-900 mb-1.5 block text-[13.5px] font-semibold dark:text
             <AdminButton size="sm" :disabled="replacing" @click="replaceInput?.click()">
               Replace file
             </AdminButton>
-            <AdminButton v-if="!confirmingDelete" size="sm" class="text-[#EC6453]!" :disabled="Boolean(selected.usage?.length)" :title="selected.usage?.length ? 'Remove it from the pages that use it first' : undefined" @click="confirmingDelete = true">
+            <AdminButton v-if="!confirmingDelete" size="sm" variant="danger-text" :disabled="Boolean(selected.usage?.length)" :title="selected.usage?.length ? 'Remove it from the pages that use it first' : undefined" @click="confirmingDelete = true">
               Delete
             </AdminButton>
             <template v-else>
@@ -291,7 +291,7 @@ const LABEL = 'text-muted-900 mb-1.5 block text-[13.5px] font-semibold dark:text
                 Keep
               </AdminButton>
             </template>
-            <p v-if="selected.usage?.length" class="text-muted-500 w-full text-[12px]">
+            <p v-if="selected.usage?.length" class="text-fg-muted w-full text-[12px]">
               A file in use cannot be deleted; replace it instead.
             </p>
           </div>

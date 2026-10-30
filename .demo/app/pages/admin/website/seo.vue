@@ -141,9 +141,9 @@ async function remove(row: Redirect) {
 
 /* ------------------------------------------------------------ audit */
 const SEVERITY: Record<Issue['severity'], { label: string, cls: string }> = {
-  error: { label: 'Fix', cls: 'bg-[#EC6453]/15 text-[#EC6453]' },
-  warning: { label: 'Check', cls: 'bg-[#F2C14E]/15 text-[#D9A521] dark:text-[#F2C14E]' },
-  info: { label: 'Note', cls: 'bg-primary-500/10 text-primary-600 dark:text-primary-400' },
+  error: { label: 'Fix', cls: 'bg-st-danger-bg text-st-danger-fg' },
+  warning: { label: 'Check', cls: 'bg-st-warning-bg text-st-warning-fg dark:text-st-warning-fg' },
+  info: { label: 'Note', cls: 'bg-accent-tint text-accent-ink' },
 }
 const counts = computed(() => {
   const out = { error: 0, warning: 0, info: 0 }
@@ -158,7 +158,7 @@ function fmtDate(iso: string | Date | null) {
 }
 
 const CARD = 'bg-card border-line-subtle rounded-2xl border'
-const INPUT = 'focus:border-primary-400 w-full rounded-xl border border-muted-200 bg-muted-50 px-3.5 py-2.5 text-sm text-muted-900 outline-none placeholder:text-muted-400 dark:border-white/10 dark:bg-white/5 dark:text-white dark:placeholder:text-muted-500'
+const INPUT = 'focus:border-primary-400 w-full rounded-xl border border-muted-200 bg-muted-50 px-3.5 py-2.5 text-sm text-muted-900 outline-none placeholder:text-fg-body dark:border-white/10 dark:bg-white/5 dark:text-white dark:placeholder:text-muted-500'
 const LABEL = 'text-muted-900 mb-1.5 block text-[13.5px] font-semibold dark:text-white'
 </script>
 
@@ -192,7 +192,7 @@ const LABEL = 'text-muted-900 mb-1.5 block text-[13.5px] font-semibold dark:text
           <h2 id="redirects-heading" class="text-muted-900 font-heading text-lg font-extrabold tracking-[-0.02em] dark:text-white">
             Redirects
           </h2>
-          <p class="text-muted-500 text-[12.5px]">
+          <p class="text-fg-muted text-[12.5px]">
             Answered before any page, on the site's next request. A moved page gets one of these automatically; add your own for an old campaign address or a printed URL.
           </p>
         </div>
@@ -202,20 +202,20 @@ const LABEL = 'text-muted-900 mb-1.5 block text-[13.5px] font-semibold dark:text
             <div>
               <label :class="LABEL" for="rd-from">Old address</label>
               <input id="rd-from" v-model="form.fromPath" :class="INPUT" placeholder="/old-page" autocomplete="off" :aria-invalid="Boolean(fieldErrors.fromPath)" :aria-describedby="fieldErrors.fromPath ? 'rd-from-err' : undefined">
-              <p v-if="fieldErrors.fromPath" id="rd-from-err" class="mt-1 text-[12px] text-[#EC6453]">
+              <p v-if="fieldErrors.fromPath" id="rd-from-err" class="mt-1 text-[12px] text-st-danger-fg">
                 {{ fieldErrors.fromPath }}
               </p>
-              <p v-else class="text-muted-500 mt-1 text-[12px]">
+              <p v-else class="text-fg-muted mt-1 text-[12px]">
                 A path on this site, lower case, no query string.
               </p>
             </div>
             <div>
               <label :class="LABEL" for="rd-to">New address</label>
               <input id="rd-to" v-model="form.toPath" :class="INPUT" placeholder="/services/website-design or https://…" autocomplete="off" :aria-invalid="Boolean(fieldErrors.toPath)" :aria-describedby="fieldErrors.toPath ? 'rd-to-err' : undefined">
-              <p v-if="fieldErrors.toPath" id="rd-to-err" class="mt-1 text-[12px] text-[#EC6453]">
+              <p v-if="fieldErrors.toPath" id="rd-to-err" class="mt-1 text-[12px] text-st-danger-fg">
                 {{ fieldErrors.toPath }}
               </p>
-              <p v-else class="text-muted-500 mt-1 text-[12px]">
+              <p v-else class="text-fg-muted mt-1 text-[12px]">
                 A path on this site or a full https:// address.
               </p>
             </div>
@@ -225,14 +225,14 @@ const LABEL = 'text-muted-900 mb-1.5 block text-[13.5px] font-semibold dark:text
                 <button
                   v-for="code in [301, 302] as const" :key="code" type="button"
                   class="rounded-xl border px-3.5 py-2 text-[13px] font-semibold transition"
-                  :class="form.statusCode === code ? 'border-primary-500 bg-primary-500/10 text-fg-heading' : 'border-muted-200 text-muted-500 hover:text-muted-900 dark:border-white/10 dark:hover:text-white'"
+                  :class="form.statusCode === code ? 'border-primary-500 bg-accent-tint text-fg-heading' : 'border-muted-200 text-fg-muted hover:text-muted-900 dark:border-white/10 dark:hover:text-white'"
                   :aria-pressed="form.statusCode === code"
                   @click="form.statusCode = code"
                 >
                   {{ code === 301 ? '301 · Permanent' : '302 · Temporary' }}
                 </button>
               </div>
-              <p class="text-muted-500 mt-1 text-[12px]">
+              <p class="text-fg-muted mt-1 text-[12px]">
                 Permanent passes the old address's search ranking on. Temporary keeps it where it is.
               </p>
             </div>
@@ -241,10 +241,10 @@ const LABEL = 'text-muted-900 mb-1.5 block text-[13.5px] font-semibold dark:text
               <input id="rd-note" v-model="form.note" :class="INPUT" placeholder="Why this exists" maxlength="200">
             </div>
             <div v-if="check" class="md:col-span-2" aria-live="polite">
-              <p v-if="check.error" class="text-[12.5px] text-[#EC6453]">
+              <p v-if="check.error" class="text-[12.5px] text-st-danger-fg">
                 {{ check.error }}
               </p>
-              <p v-for="w in check.warnings" :key="w" class="flex items-start gap-2 text-[12.5px] text-[#D9A521] dark:text-[#F2C14E]">
+              <p v-for="w in check.warnings" :key="w" class="flex items-start gap-2 text-[12.5px] text-st-warning-fg dark:text-st-warning-fg">
                 <Icon name="lucide:info" class="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
                 <span>{{ w }}</span>
               </p>
@@ -260,7 +260,7 @@ const LABEL = 'text-muted-900 mb-1.5 block text-[13.5px] font-semibold dark:text
               <AdminButton type="button" size="sm" @click="closeForm">
                 Cancel
               </AdminButton>
-              <label v-if="editing" class="text-muted-500 ms-auto flex items-center gap-2 text-[12.5px]">
+              <label v-if="editing" class="text-fg-muted ms-auto flex items-center gap-2 text-[12.5px]">
                 <input v-model="form.enabled" type="checkbox" class="accent-primary-500 size-4">
                 Enabled
               </label>
@@ -274,17 +274,17 @@ const LABEL = 'text-muted-900 mb-1.5 block text-[13.5px] font-semibold dark:text
             <div class="min-w-0 flex-1">
               <p class="text-muted-900 flex flex-wrap items-center gap-x-2 text-sm font-semibold dark:text-white">
                 <code class="font-mono text-[13px]">{{ row.fromPath }}</code>
-                <Icon name="lucide:arrow-right" class="text-muted-400 size-3.5" aria-hidden="true" />
+                <Icon name="lucide:arrow-right" class="text-fg-body size-3.5" aria-hidden="true" />
                 <code class="font-mono text-[13px] break-all">{{ row.toPath }}</code>
               </p>
-              <p class="text-muted-500 mt-0.5 text-[12px]">
+              <p class="text-fg-muted mt-0.5 text-[12px]">
                 {{ row.statusCode === 302 ? 'Temporary' : 'Permanent' }}<template v-if="row.note">
                   · {{ row.note }}
                 </template> · changed {{ fmtDate(row.updatedAt) }}
               </p>
             </div>
             <div class="flex shrink-0 items-center gap-2">
-              <span class="rounded-full px-2.5 py-0.5 text-[11.5px] font-semibold" :class="row.enabled ? 'bg-[#22B07D]/15 text-[#137050] dark:text-[#2BC48D]' : 'bg-muted-500/15 text-muted-500'">
+              <span class="rounded-full px-2.5 py-0.5 text-[11.5px] font-semibold" :class="row.enabled ? 'bg-st-success-bg text-[#137050] dark:text-[#2BC48D]' : 'bg-muted-500/15 text-fg-muted'">
                 {{ row.enabled ? 'On' : 'Off' }}
               </span>
               <template v-if="canEdit">
@@ -302,7 +302,7 @@ const LABEL = 'text-muted-900 mb-1.5 block text-[13.5px] font-semibold dark:text
                     Keep
                   </AdminButton>
                 </template>
-                <AdminButton v-else size="sm" class="text-[#EC6453]!" @click="confirmingDelete = row.id">
+                <AdminButton v-else size="sm" variant="danger-text" @click="confirmingDelete = row.id">
                   Remove
                 </AdminButton>
               </template>
@@ -318,7 +318,7 @@ const LABEL = 'text-muted-900 mb-1.5 block text-[13.5px] font-semibold dark:text
             <h2 id="audit-heading" class="text-muted-900 font-heading text-lg font-extrabold tracking-[-0.02em] dark:text-white">
               SEO audit
             </h2>
-            <p class="text-muted-500 text-[12.5px]">
+            <p class="text-fg-muted text-[12.5px]">
               <template v-if="audit">
                 {{ audit.checked.documents }} published page{{ audit.checked.documents === 1 ? '' : 's' }} and {{ audit.checked.redirects }} redirect{{ audit.checked.redirects === 1 ? '' : 's' }} checked against what Google documents. Advice, not a gate.
               </template>
@@ -344,8 +344,8 @@ const LABEL = 'text-muted-900 mb-1.5 block text-[13.5px] font-semibold dark:text
               <p class="text-muted-900 text-[13.5px] dark:text-white">
                 {{ issue.message }}
               </p>
-              <p v-if="issue.documentId || issue.key" class="text-muted-500 mt-0.5 text-[12px]">
-                <NuxtLink v-if="issue.documentId" :to="`/admin/website/pages/${issue.documentId}`" class="text-primary-500 hover:underline">
+              <p v-if="issue.documentId || issue.key" class="text-fg-muted mt-0.5 text-[12px]">
+                <NuxtLink v-if="issue.documentId" :to="`/admin/website/pages/${issue.documentId}`" class="text-accent-ink hover:underline">
                   {{ issue.documentTitle }} · {{ issue.key }}
                 </NuxtLink>
                 <code v-else class="font-mono">{{ issue.key }}</code>
@@ -354,7 +354,7 @@ const LABEL = 'text-muted-900 mb-1.5 block text-[13.5px] font-semibold dark:text
           </li>
         </ul>
       </section>
-      <p v-else class="text-muted-500 text-[12.5px]">
+      <p v-else class="text-fg-muted text-[12.5px]">
         The SEO audit is shown to roles that hold <code>website.seo</code> (Owner, Admin and Publisher).
       </p>
     </template>

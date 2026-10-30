@@ -74,7 +74,7 @@ const INPUT = 'focus:border-primary-400 w-full rounded-xl border border-muted-20
         class="font-mono"
         @input="setValue(($event.target as HTMLInputElement).value)"
       >
-      <p v-for="e in fieldErrors" :key="e" class="mt-1.5 text-xs font-semibold text-[#EC6453]" role="alert">
+      <p v-for="e in fieldErrors" :key="e" class="mt-1.5 text-xs font-semibold text-st-danger-fg" role="alert">
         {{ e }}
       </p>
     </div>

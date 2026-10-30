@@ -60,7 +60,7 @@ const listQuery = computed(() => ({
 
 const { data: listData, pending: listPending, error: listError, refresh: refreshList } = await useFetch('/api/admin/tickets', { query: listQuery })
 
-const PRIORITY: Record<string, { label: string, tone: ApexTone }> = {
+const PRIORITY: Record<ReplyPriority, { label: string, tone: ApexTone }> = {
   urgent: { label: 'Urgent', tone: 'danger' },
   high: { label: 'High', tone: 'warning' },
   normal: { label: 'Normal', tone: 'neutral' },
@@ -243,7 +243,7 @@ const SELECT = 'apex-ring border-line-rule bg-shell text-fg-heading h-[38px] w-f
             class="apex-ring border-line-soft hover:bg-raised grid w-full grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3.5 gap-y-1.5 border-t px-[18px] py-[13px] text-start sm:px-[22px]"
             @click="selectedId = t.id"
           >
-            <AdminStatusChip :tone="PRIORITY[t.pk].tone" :label="PRIORITY[t.pk].label" />
+            <AdminStatusChip :tone="PRIORITY[t.pk as ReplyPriority].tone" :label="PRIORITY[t.pk as ReplyPriority].label" />
             <span class="min-w-0">
               <span class="text-fg-heading block truncate text-sm font-semibold">{{ t.subject }}</span>
               <span class="text-fg-muted mt-0.5 block truncate text-[12.5px]">{{ personName(t.user, 'Client') }} · {{ ticketRef(t.id) }}</span>
