@@ -585,6 +585,16 @@
   --surface-chip: rgba(255, 255, 255, 0.05);
 }
 
+/*
+ * The console's drawer draws native selects, as the design does. A native
+ * popup is an OS menu that CSS cannot style, which is why the customer
+ * panel banned them on dark surfaces; `color-scheme: dark` is the one
+ * property the OS menu does follow, so in the dark theme it renders dark.
+ */
+.dark select {
+  color-scheme: dark;
+}
+
 /* Admin console overlays: entry-only keyframes, like `apex-pop-in`. */
 @keyframes apexRise {
   from {

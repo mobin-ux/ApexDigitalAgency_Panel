@@ -1,12 +1,15 @@
 <script setup lang="ts">
+import { personName, ukDateTime } from '~/utils/adminFormat'
+import { ADMIN_INPUT, ADMIN_LABEL, ADMIN_TH } from '~/utils/adminUi'
+
 /**
- * Admin — Users directory. Paginated, searchable, filterable by role /
+ * Admin console — Clients (`Admin Console.dc.html`). Formerly the Users directory. Paginated, searchable, filterable by role /
  * status / account type (individual vs company — derived from the
  * Company relation). Row click opens the user detail page. "Add user"
  * creates staff accounts via POST /api/admin/users.
  */
 definePageMeta({
-  title: 'Users',
+  title: 'Clients',
   layout: 'admin',
   middleware: 'admin',
 })
@@ -18,7 +21,7 @@ const route = useRoute()
 // --- Filters (status deep-linkable from the Overview page) ---
 const search = ref('')
 const debouncedSearch = ref('')
-const role = ref<string>('')
+const role = ref<string>(typeof route.query.role === 'string' ? route.query.role : 'CUSTOMER')
 const status = ref<string>(typeof route.query.status === 'string' ? route.query.status : '')
 const accountType = ref<string>('')
 const page = ref(1)
@@ -95,228 +98,153 @@ async function createUser() {
     creating.value = false
   }
 }
+
+/*
+ * The design's columns: client, company, projects, credit line, portal
+ * status and last active (the newest signed-in session). The design's
+ * "Awaiting approval" panel is not drawn: accounts are active from signup
+ * and there is no approval step to act on. A row opens the client's full
+ * record (profile, company, wallet, credit, two-step reset, suspension)
+ * rather than the design's drawer, because that record is a page today.
+ */
+const canMoney = computed(() => Boolean(data.value?.canMoney))
+function creditText(u: any) {
+  if (!canMoney.value) {
+    return 'Hidden for your role'
+  }
+  const line = u.creditLine
+  if (!line || line.status === 'REJECTED' || !line.limit) {
+    return line?.status === 'PENDING' ? 'Under review' : 'No credit line'
+  }
+  return `${formatCurrency(line.used)} of ${formatCurrency(line.limit)}${line.status === 'FROZEN' ? ' · frozen' : ''}`
+}
+const ROLE_FILTERS: [string, string][] = [['CUSTOMER', 'Clients'], ['ADMIN', 'Staff'], ['', 'All accounts']]
+const STATUS_FILTERS: [string, string][] = [['', 'Any status'], ['ACTIVE', 'Active'], ['SUSPENDED', 'Suspended']]
+const PILL = 'apex-ring inline-flex h-8 cursor-pointer items-center whitespace-nowrap rounded-full border px-[13px] text-[13px]'
+const GRID = 'xl:grid-cols-[minmax(0,1fr)_180px_80px_190px_120px_130px]'
 </script>
 
 <template>
-  <div class="mx-auto flex w-full max-w-[1180px] px-4 pt-5 sm:px-8 sm:pt-7 flex-col gap-6 pb-8 text-fg-body">
-    <AdminPageHeader
-      eyebrow="ADMIN · USERS"
-      title="Users"
-      subtitle="Every account on the platform — customers, companies and staff."
-    >
-      <BaseButton rounded="full" variant="primary" @click="openCreate">
-        <Icon name="lucide:user-plus" class="size-4" />
-        <span>Add user</span>
-      </BaseButton>
+  <AdminPage gap="md">
+    <AdminPageHeader title="Portal" accent="clients" subtitle="Accounts on the customer portal. Open one to see its projects, wallet, credit and access.">
+      <AdminButton @click="openCreate">
+        <Icon name="lucide:user-plus" class="size-[15px]" />Add account
+      </AdminButton>
     </AdminPageHeader>
 
-    <!-- ========== FILTER BAR ========== -->
-    <div class="grid grid-cols-1 gap-3 rounded-[20px] border border-white/10 bg-muted-800 p-4 sm:grid-cols-2 xl:grid-cols-[1.6fr_1fr_1fr_1fr]">
-      <label class="flex items-center gap-2.5 rounded-[11px] border border-white/8 bg-muted-700 px-3.5 py-2.5 focus-within:border-primary-400">
-        <Icon name="lucide:search" class="size-4 shrink-0 text-muted-500" />
-        <input v-model="search" placeholder="Search name, email or company…" class="min-w-0 flex-1 border-none bg-transparent text-[13.5px] text-white outline-none placeholder:text-muted-500">
-      </label>
-      <select v-model="role" aria-label="Filter by role" class="w-full cursor-pointer rounded-[11px] border border-white/8 bg-muted-700 px-3.5 py-3 sm:py-2.5 text-[13px] text-white outline-none focus:border-primary-400">
-        <option value="">
-          All roles
-        </option>
-        <option value="CUSTOMER">
-          Customers
-        </option>
-        <option value="EMPLOYEE">
-          Employees
-        </option>
-        <option value="ADMIN">
-          Admins
-        </option>
-      </select>
-      <select v-model="status" aria-label="Filter by status" class="w-full cursor-pointer rounded-[11px] border border-white/8 bg-muted-700 px-3.5 py-3 sm:py-2.5 text-[13px] text-white outline-none focus:border-primary-400">
-        <option value="">
-          All statuses
-        </option>
-        <option value="ACTIVE">
-          Active
-        </option>
-        <option value="SUSPENDED">
-          Suspended
-        </option>
-      </select>
-      <select v-model="accountType" aria-label="Filter by account type" class="w-full cursor-pointer rounded-[11px] border border-white/8 bg-muted-700 px-3.5 py-3 sm:py-2.5 text-[13px] text-white outline-none focus:border-primary-400">
-        <option value="">
-          All account types
-        </option>
-        <option value="individual">
-          Individuals
-        </option>
-        <option value="company">
-          Companies
-        </option>
-      </select>
-    </div>
-
-    <!-- ========== LIST ========== -->
-    <div v-if="pending" class="flex flex-col gap-2" aria-hidden="true">
-      <div v-for="i in 6" :key="i" class="h-[72px] animate-pulse rounded-[16px] border border-white/5 bg-muted-800/60" />
-    </div>
-
-    <div v-else-if="users.length" class="overflow-hidden rounded-[20px] border border-white/10 bg-white/[0.02]" role="list">
-      <template v-for="(u, idx) in users" :key="u.id">
-        <div v-if="idx > 0" class="h-px bg-white/10" />
-        <NuxtLink :to="`/admin/users/${u.id}`" role="listitem" class="flex items-center gap-4 px-[22px] py-4 transition hover:bg-white/[0.03]">
-          <div class="min-w-0 flex-1">
-            <AdminUserCell :user="u" />
-          </div>
-
-          <!-- account type -->
-          <span v-if="u.company" class="hidden w-36 shrink-0 items-center gap-1.5 truncate text-[12.5px] font-semibold text-white lg:inline-flex">
-            <Icon name="lucide:building-2" class="size-3.5 shrink-0 text-primary-400" />
-            <span class="truncate">{{ u.company.name }}</span>
-          </span>
-          <span v-else class="hidden w-36 shrink-0 items-center gap-1.5 text-[12.5px] text-muted-500 lg:inline-flex">
-            <Icon name="lucide:user" class="size-3.5 shrink-0" />Individual
-          </span>
-
-          <!-- role -->
-          <AdminStatusChip class="hidden sm:inline-flex" :status="u.role" :tone="u.role === 'ADMIN' ? 'violet' : u.role === 'EMPLOYEE' ? 'blue' : 'muted'" />
-
-          <!-- wallet -->
-          <span class="hidden w-24 shrink-0 text-right text-[13px] font-semibold text-white tabular-nums md:block">
-            {{ formatCurrency(u.walletBalance) }}
-          </span>
-
-          <!-- projects / joined -->
-          <span class="hidden w-20 shrink-0 text-center text-[12.5px] text-muted-500 xl:block tabular-nums">
-            {{ u._count.projects }} proj.
-          </span>
-          <span class="hidden w-28 shrink-0 text-[12.5px] text-muted-500 xl:block">
-            {{ joined(u.createdAt) }}
-          </span>
-
-          <!-- status + verified -->
-          <span class="flex shrink-0 items-center gap-2">
-            <Icon
-              v-if="u.verifiedAt" name="lucide:badge-check" class="size-4 text-[#6EA8FE]"
-              aria-label="Verified account"
-            />
-            <AdminStatusChip :status="u.status" />
-          </span>
-          <Icon name="lucide:chevron-right" class="size-4 shrink-0 text-muted-500" />
-        </NuxtLink>
-      </template>
-    </div>
-
-    <AdminEmptyState
-      v-else icon="lucide:users" title="No users match"
-      subtitle="Try a different search or clear the filters."
-    />
-
-    <AdminPager
-      v-if="data" :page="data.page" :page-count="data.pageCount" :total="data.total" noun="users"
-      @update:page="page = $event"
-    />
-
-    <!-- ========== CREATE USER MODAL ========== -->
-    <div v-if="showCreate" class="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Add user">
-      <div class="apex-fade absolute inset-0 bg-black/60 backdrop-blur-sm" @click="showCreate = false" />
-      <div class="apex-pop relative w-full max-w-[480px] rounded-[20px] border border-white/10 bg-muted-800 p-6 shadow-[0_30px_60px_rgba(0,0,0,.5)]">
-        <div class="mb-5 flex items-start justify-between gap-4">
-          <div>
-            <div class="font-heading text-[20px] font-extrabold tracking-[-0.01em] text-white">
-              Add user
-            </div>
-            <p class="mt-1 text-[13px] text-muted-400">
-              Typically staff accounts — customers sign up themselves.
-            </p>
-          </div>
-          <button type="button" aria-label="Close" class="flex size-8 items-center justify-center rounded-[9px] border border-white/10 bg-white/5 text-muted-400 transition hover:bg-white/10 hover:text-white" @click="showCreate = false">
-            <Icon name="lucide:x" class="size-4" />
-          </button>
-        </div>
-
-        <form class="flex flex-col gap-3.5" @submit.prevent="createUser">
-          <div class="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
-            <div>
-              <label for="new-user-first" class="mb-2 block text-[12.5px] font-semibold text-white">First name</label>
-              <input id="new-user-first" v-model="form.firstName" required class="w-full rounded-[11px] border border-white/8 bg-muted-700 px-3.5 py-2.5 text-sm text-white outline-none placeholder:text-muted-500 focus:border-primary-400">
-            </div>
-            <div>
-              <label for="new-user-last" class="mb-2 block text-[12.5px] font-semibold text-white">Last name <span class="font-normal text-muted-500">(optional)</span></label>
-              <input id="new-user-last" v-model="form.lastName" class="w-full rounded-[11px] border border-white/8 bg-muted-700 px-3.5 py-2.5 text-sm text-white outline-none placeholder:text-muted-500 focus:border-primary-400">
-            </div>
-          </div>
-          <div>
-            <label for="new-user-email" class="mb-2 block text-[12.5px] font-semibold text-white">Email</label>
-            <input id="new-user-email" v-model="form.email" type="email" required class="w-full rounded-[11px] border border-white/8 bg-muted-700 px-3.5 py-2.5 text-sm text-white outline-none placeholder:text-muted-500 focus:border-primary-400">
-          </div>
-          <div class="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
-            <div>
-              <label for="new-user-password" class="mb-2 block text-[12.5px] font-semibold text-white">Temporary password</label>
-              <input id="new-user-password" v-model="form.password" type="password" required minlength="8" autocomplete="new-password" class="w-full rounded-[11px] border border-white/8 bg-muted-700 px-3.5 py-2.5 text-sm text-white outline-none placeholder:text-muted-500 focus:border-primary-400">
-            </div>
-            <div>
-              <label for="new-user-role" class="mb-2 block text-[12.5px] font-semibold text-white">Role</label>
-              <select id="new-user-role" v-model="form.role" class="w-full cursor-pointer rounded-[11px] border border-white/8 bg-muted-700 px-3.5 py-3 sm:py-2.5 text-sm text-white outline-none focus:border-primary-400">
-                <option value="EMPLOYEE">
-                  Employee
-                </option>
-                <option value="ADMIN">
-                  Admin
-                </option>
-                <option value="CUSTOMER">
-                  Customer
-                </option>
-              </select>
-            </div>
-          </div>
-          <div>
-            <label for="new-user-phone" class="mb-2 block text-[12.5px] font-semibold text-white">Phone <span class="font-normal text-muted-500">(optional)</span></label>
-            <input id="new-user-phone" v-model="form.phone" class="w-full rounded-[11px] border border-white/8 bg-muted-700 px-3.5 py-2.5 text-sm text-white outline-none placeholder:text-muted-500 focus:border-primary-400">
-          </div>
-
-          <div class="mt-2 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-            <BaseButton rounded="full" class="border border-white/10 bg-muted-700 !text-white hover:bg-muted-600" @click="showCreate = false">
-              Cancel
-            </BaseButton>
-            <BaseButton type="submit" rounded="full" variant="primary" :disabled="creating" :loading="creating">
-              <Icon name="lucide:user-plus" class="size-4" />
-              Create account
-            </BaseButton>
-          </div>
-        </form>
+    <div class="flex flex-wrap items-center gap-2">
+      <div class="flex flex-wrap gap-2" role="group" aria-label="Filter by account type">
+        <button
+          v-for="[key, label] in ROLE_FILTERS" :key="key || 'all'" type="button" :aria-pressed="role === key"
+          :class="[PILL, role === key ? 'bg-accent border-transparent font-semibold text-white' : 'border-line-subtle text-fg-heading hover:bg-hover font-medium']"
+          @click="role = key"
+        >
+          {{ label }}
+        </button>
       </div>
+      <div class="border-line-subtle flex rounded-full border p-[3px]" role="group" aria-label="Filter by status">
+        <button
+          v-for="[key, label] in STATUS_FILTERS" :key="key || 'any'" type="button" :aria-pressed="status === key"
+          class="apex-ring h-[26px] rounded-full px-3 text-[12.5px]"
+          :class="status === key ? 'bg-accent font-semibold text-white' : 'text-fg-heading font-medium'"
+          @click="status = key"
+        >
+          {{ label }}
+        </button>
+      </div>
+      <span class="hidden flex-1 xl:block" />
+      <input v-model="search" type="search" placeholder="Search name, email or company" aria-label="Search clients" :class="ADMIN_INPUT" class="h-9! min-w-0 flex-1 xl:w-[260px]! xl:flex-none">
     </div>
-  </div>
-</template>
 
-<style scoped>
-@keyframes apex-fade {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-@keyframes apex-pop {
-  from {
-    opacity: 0;
-    transform: translateY(10px) scale(0.98);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-.apex-fade {
-  animation: apex-fade 0.2s ease-out both;
-}
-.apex-pop {
-  animation: apex-pop 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-@media (prefers-reduced-motion: reduce) {
-  .apex-fade,
-  .apex-pop {
-    animation: none;
-  }
-}
-</style>
+    <section class="bg-card border-line-subtle overflow-hidden rounded-2xl border">
+      <div :class="[GRID, ADMIN_TH]" class="hidden gap-3.5 px-[22px] py-3.5 xl:grid">
+        <span>Client</span><span>Company</span><span class="text-end">Projects</span><span>Credit line</span><span>Portal</span><span>Last active</span>
+      </div>
+      <div v-if="pending" aria-hidden="true">
+        <div v-for="i in 6" :key="i" class="border-line-soft h-[60px] animate-pulse border-t" />
+      </div>
+      <ul v-else-if="users.length">
+        <li v-for="u in users" :key="u.id">
+          <NuxtLink
+            :to="`/admin/users/${u.id}`"
+            :class="GRID"
+            class="apex-ring border-line-soft hover:bg-raised grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3.5 gap-y-1 border-t px-[18px] py-3 sm:px-[22px]"
+          >
+            <span class="flex min-w-0 items-center gap-3">
+              <ApexPanelAvatar :person="u" :size="32" />
+              <span class="min-w-0">
+                <span class="text-fg-heading block truncate text-sm font-semibold">{{ personName(u) }}</span>
+                <span class="text-fg-muted mt-0.5 block truncate text-[12.5px]">{{ u.email || u.phone }}</span>
+              </span>
+            </span>
+            <span class="text-fg-body hidden truncate text-[13px] xl:block">{{ u.company?.name || 'Individual' }}</span>
+            <span class="text-fg-heading hidden text-end text-[13.5px] tabular-nums xl:block">{{ u._count.projects }}</span>
+            <span class="text-fg-body hidden truncate text-[13px] tabular-nums xl:block">{{ creditText(u) }}</span>
+            <AdminStatusChip
+              :tone="u.status === 'SUSPENDED' ? 'danger' : 'success'"
+              :label="u.status === 'SUSPENDED' ? 'Suspended' : u.role === 'CUSTOMER' ? 'Active' : 'Staff'"
+              dot
+              class="justify-self-end xl:justify-self-start"
+            />
+            <span class="text-fg-muted col-span-2 text-[12.5px] xl:col-span-1">
+              <span class="xl:hidden">{{ u.company?.name || 'Individual' }} · {{ u._count.projects }} project{{ u._count.projects === 1 ? '' : 's' }} · </span>
+              <ClientOnly>{{ u.sessions?.[0] ? ukDateTime(u.sessions[0].lastSeenAt) : 'Never signed in' }}</ClientOnly>
+            </span>
+          </NuxtLink>
+        </li>
+      </ul>
+      <div v-else class="border-line-soft text-fg-body border-t px-6 py-11 text-center text-sm">
+        {{ debouncedSearch ? `Nothing matches “${debouncedSearch}”.` : 'No accounts match these filters.' }}
+      </div>
+    </section>
+
+    <AdminPager v-if="data && data.pageCount > 1" :page="data.page" :page-count="data.pageCount" :total="data.total" noun="accounts" @update:page="page = $event" />
+
+    <AdminDialog v-model:open="showCreate" title="Add an account" description="Creates an account that can sign in straight away. Staff are better invited from Team & roles, which lets them set their own password.">
+      <form id="new-account" class="grid grid-cols-1 gap-3.5 pb-1 sm:grid-cols-2" @submit.prevent="createUser">
+        <div>
+          <label for="nu-first" :class="ADMIN_LABEL">First name</label>
+          <input id="nu-first" v-model="form.firstName" required :class="ADMIN_INPUT">
+        </div>
+        <div>
+          <label for="nu-last" :class="ADMIN_LABEL">Last name <span class="text-fg-muted font-normal">(optional)</span></label>
+          <input id="nu-last" v-model="form.lastName" :class="ADMIN_INPUT">
+        </div>
+        <div class="sm:col-span-2">
+          <label for="nu-email" :class="ADMIN_LABEL">Email</label>
+          <input id="nu-email" v-model="form.email" type="email" required autocomplete="off" :class="ADMIN_INPUT">
+        </div>
+        <div>
+          <label for="nu-password" :class="ADMIN_LABEL">Temporary password</label>
+          <input id="nu-password" v-model="form.password" type="password" required minlength="12" autocomplete="new-password" :class="ADMIN_INPUT">
+        </div>
+        <div>
+          <label for="nu-phone" :class="ADMIN_LABEL">Phone <span class="text-fg-muted font-normal">(optional)</span></label>
+          <input id="nu-phone" v-model="form.phone" type="tel" :class="ADMIN_INPUT">
+        </div>
+        <div class="sm:col-span-2">
+          <span :class="ADMIN_LABEL">Account type</span>
+          <BaseSelect v-model="form.role" rounded="lg" aria-label="Account type">
+            <BaseSelectItem value="CUSTOMER">
+              Client
+            </BaseSelectItem>
+            <BaseSelectItem value="EMPLOYEE">
+              Employee (assignment only)
+            </BaseSelectItem>
+            <BaseSelectItem value="ADMIN">
+              Staff (Owner role until changed in Team & roles)
+            </BaseSelectItem>
+          </BaseSelect>
+        </div>
+      </form>
+      <template #actions>
+        <AdminButton @click="showCreate = false">
+          Cancel
+        </AdminButton>
+        <AdminButton type="submit" form="new-account" variant="primary" :disabled="creating">
+          Create account
+        </AdminButton>
+      </template>
+    </AdminDialog>
+  </AdminPage>
+</template>

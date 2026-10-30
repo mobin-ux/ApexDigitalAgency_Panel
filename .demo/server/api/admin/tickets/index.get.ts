@@ -1,5 +1,7 @@
+import type { ReplyPriority } from '../../../../shared/support-eta'
 import { defineEventHandler } from 'h3'
 import { z } from 'zod'
+import { DEFAULT_REPLY_TARGETS, REPLY_PRIORITIES, replyTargetKey } from '../../../../shared/support-eta'
 import { paginated, paginationQuerySchema, toSkipTake } from '../../../utils/http'
 import { requireStaffPermission } from '../../../utils/permissions'
 import prisma from '../../../utils/prisma'
@@ -64,5 +66,30 @@ export default defineEventHandler(async (event) => {
     prisma.ticket.count({ where }),
   ])
 
-  return paginated(items, total, { page, pageSize })
+  /*
+   * Admin console (2026-10-31): the inbox measures each open request
+   * against the reply promise for its priority, so the list carries the
+   * targets (Platform settings, else the defaults) and, per ticket, when
+   * the customer's unanswered message arrived. Internal notes are not an
+   * answer, so they are skipped when finding the latest public message.
+   */
+  const [targetRows, latest] = await Promise.all([
+    prisma.setting.findMany({ where: { key: { in: REPLY_PRIORITIES.map(replyTargetKey) } } }),
+    Promise.all(items.map(t => prisma.ticketMessage.findFirst({
+      where: { ticketId: t.id, isInternal: false },
+      orderBy: { createdAt: 'desc' },
+      select: { isAdmin: true, createdAt: true },
+    }))),
+  ])
+  const replyTargets = Object.fromEntries(REPLY_PRIORITIES.map((p) => {
+    const row = targetRows.find(r => r.key === replyTargetKey(p))
+    return [p, Number(row?.value) || DEFAULT_REPLY_TARGETS[p]]
+  })) as Record<ReplyPriority, number>
+
+  const rows = items.map((t, i) => ({
+    ...t,
+    waitingSince: latest[i] && !latest[i]!.isAdmin ? latest[i]!.createdAt : null,
+  }))
+
+  return { ...paginated(rows, total, { page, pageSize }), replyTargets }
 })
