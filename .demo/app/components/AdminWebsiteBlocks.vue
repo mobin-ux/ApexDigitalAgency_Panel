@@ -144,10 +144,10 @@ const ICON_BTN = 'apex-focus text-muted-500 hover:bg-muted-100 hover:text-muted-
     </ol>
 
     <div v-if="max === undefined || blocks.length < max" class="relative">
-      <BaseButton size="sm" rounded="lg" variant="muted" :aria-expanded="adding" @click="adding = !adding">
+      <AdminButton size="sm" :aria-expanded="adding" @click="adding = !adding">
         <Icon name="lucide:plus" class="size-3.5" />
         Add a block
-      </BaseButton>
+      </AdminButton>
       <div v-if="adding" class="border-muted-200 mt-2 flex flex-wrap gap-2 rounded-xl border bg-white p-3 dark:border-white/10 dark:bg-muted-800">
         <button v-for="kind in BLOCK_KINDS" :key="kind" type="button" class="apex-focus bg-muted-100 text-muted-900 hover:bg-muted-200 dark:bg-white/5 dark:text-white dark:hover:bg-white/10 rounded-lg px-3 py-1.5 text-[12.5px] font-semibold" @click="add(kind)">
           {{ KIND_LABEL[kind] }}

@@ -13,7 +13,7 @@ import { TEMPLATES } from '~~/shared/cms'
  * ignore.
  */
 definePageMeta({
-  title: 'Website navigation',
+  title: 'Navigation & footer',
   layout: 'admin',
   middleware: 'admin',
 })
@@ -33,13 +33,13 @@ function fmtDate(iso: string | Date | null) {
   return iso ? new Date(iso).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—'
 }
 
-const CARD = 'border-muted-200 bg-white dark:border-muted-800 dark:bg-muted-900 rounded-2xl border'
+const CARD = 'bg-card border-line-subtle rounded-2xl border'
 </script>
 
 <template>
   <div class="mx-auto flex w-full max-w-[1180px] px-4 pt-5 sm:px-8 sm:pt-7 flex-col gap-8 pb-10">
     <AdminPageHeader
-      title="Navigation and chrome"
+      title="Navigation &" accent="footer"
       subtitle="The menu, the footer, the announcement bar and the words every service, case-study and article page shares."
     />
 
@@ -70,9 +70,9 @@ const CARD = 'border-muted-200 bg-white dark:border-muted-800 dark:bg-muted-900 
         <div class="flex shrink-0 items-center gap-3">
           <template v-if="row.doc">
             <AdminWebsiteStatusChip :state="row.doc.state as DisplayStatus" :error="row.doc.lastPublishError" />
-            <BaseButton size="sm" rounded="lg" variant="muted" :to="`/admin/website/pages/${row.doc.id}`">
+            <AdminButton size="sm" :to="`/admin/website/pages/${row.doc.id}`">
               {{ can('website.edit') ? 'Edit' : 'View' }}
-            </BaseButton>
+            </AdminButton>
           </template>
           <span v-else-if="!pending" class="text-muted-500 text-[12.5px]">
             Not imported yet. The site renders its code until the baseline is imported from the Pages screen.

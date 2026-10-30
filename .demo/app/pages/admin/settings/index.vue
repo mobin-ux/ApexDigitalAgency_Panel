@@ -270,8 +270,8 @@ const securityRows = [
   { label: 'Two-factor authentication', hint: 'Authenticator app for staff and clients', value: 'Not built', chip: true },
 ]
 
-const CARD = 'rounded-2xl border border-muted-200 bg-white p-5 dark:border-white/10 dark:bg-muted-800'
-const CARD_TITLE = 'font-heading text-[16.5px] font-bold tracking-[-0.01em] text-muted-900 dark:text-white'
+const CARD = 'bg-card border-line-subtle rounded-2xl border p-5'
+const CARD_TITLE = 'font-heading text-[16.5px] font-bold tracking-[-0.01em] text-fg-heading'
 const CARD_SUB = 'mt-[7px] mb-4 text-[13px] leading-[1.55] text-muted-500'
 const ROW = 'flex items-center gap-3.5 py-3.5'
 const NUM_INPUT = 'font-heading h-11 rounded-xl border border-muted-200 bg-muted-50 px-3 text-right text-[15px] font-bold tabular-nums text-muted-900 outline-none focus:border-primary-400 dark:border-white/10 dark:bg-white/5 dark:text-white'
@@ -653,9 +653,9 @@ const GHOST_BTN = 'apex-focus inline-flex min-h-11 cursor-pointer items-center r
         <button v-if="isDirty" type="button" :class="GHOST_BTN" @click="discard">
           Discard
         </button>
-        <BaseButton rounded="lg" size="lg" variant="primary" :disabled="!isDirty || saving" :loading="saving" @click="saveAll">
+        <AdminButton size="lg" variant="primary" :disabled="!isDirty || saving" @click="saveAll">
           Save settings
-        </BaseButton>
+        </AdminButton>
       </div>
     </template>
   </div>

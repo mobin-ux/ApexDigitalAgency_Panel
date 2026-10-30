@@ -116,7 +116,7 @@ function fmtDate(iso: string | Date | null) {
   return iso ? new Date(iso).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—'
 }
 
-const CARD = 'border-muted-200 bg-white dark:border-muted-800 dark:bg-muted-900 rounded-2xl border'
+const CARD = 'bg-card border-line-subtle rounded-2xl border'
 const PILL = 'apex-focus inline-flex min-h-[38px] items-center rounded-full border px-4 text-[13px] font-semibold transition'
 </script>
 
@@ -126,18 +126,16 @@ const PILL = 'apex-focus inline-flex min-h-[38px] items-center rounded-full bord
       title="Email"
       subtitle="Every email the panel sends: whether it went, and why not."
     >
-      <BaseButton
+      <AdminButton
         v-if="allowed && data"
         variant="primary"
-        rounded="full"
         size="lg"
-        :loading="testing"
         :disabled="testing || !data.configured"
         @click="sendTest"
       >
         <Icon name="lucide:send" class="me-2 size-4" aria-hidden="true" />
         Send a test email to me
-      </BaseButton>
+      </AdminButton>
     </AdminPageHeader>
 
     <AdminAccessWall
@@ -162,7 +160,7 @@ const PILL = 'apex-focus inline-flex min-h-[38px] items-center rounded-full bord
               Configured
             </p>
             <p class="text-muted-600 dark:text-muted-300 m-0">
-              Messages are sent from <strong class="text-muted-900 dark:text-white">{{ data.from }}</strong>. Replies go to the support address under Platform settings. The scheduler retries anything the provider does not accept, every minute with a growing wait, six times.
+              Messages are sent from <strong class="text-fg-heading">{{ data.from }}</strong>. Replies go to the support address under Platform settings. The scheduler retries anything the provider does not accept, every minute with a growing wait, six times.
             </p>
           </div>
         </div>
@@ -240,9 +238,9 @@ const PILL = 'apex-focus inline-flex min-h-[38px] items-center rounded-full bord
             </div>
             <div class="flex shrink-0 items-center gap-3">
               <span class="inline-flex items-center rounded-full px-2.5 py-1 text-[11.5px] font-bold" :class="STATUS_TONE[m.status]">{{ STATUS_LABEL[m.status] ?? m.status }}</span>
-              <BaseButton v-if="m.retryable" size="sm" rounded="lg" variant="muted" :loading="retrying === m.id" :disabled="Boolean(retrying)" @click="retry(m.id)">
+              <AdminButton v-if="m.retryable" size="sm" :disabled="Boolean(retrying)" @click="retry(m.id)">
                 Retry
-              </BaseButton>
+              </AdminButton>
               <span v-else-if="m.status === 'FAILED'" class="text-muted-500 text-[12px]">Link expired; ask for a new one</span>
             </div>
           </li>

@@ -27,8 +27,8 @@ const message = computed(() => errorMessage(props.error, 'The panel did not answ
         {{ message }}
       </p>
     </div>
-    <BaseButton size="sm" rounded="lg" variant="muted" @click="$emit('retry')">
+    <AdminButton size="sm" @click="$emit('retry')">
       Try again
-    </BaseButton>
+    </AdminButton>
   </div>
 </template>

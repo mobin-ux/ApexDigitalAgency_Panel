@@ -33,6 +33,10 @@ const id = String(route.params.id)
 
 const { data: doc, pending, refresh, error } = await useFetch<any>(`/api/admin/website/documents/${id}`, { immediate: allowed.value })
 
+// Admin console: the breadcrumb names the document, and the back arrow
+// returns to the list it belongs to (articles and case studies have their own).
+useAdminCrumb(() => doc.value?.title ?? null, doc.value?.template === 'article' ? '/admin/website/insights' : doc.value?.template === 'case-study' ? '/admin/website/case-studies' : '/admin/website/pages')
+
 const template = computed<TemplateKey | null>(() => (doc.value?.template && doc.value.template in TEMPLATES ? doc.value.template : null))
 const def = computed(() => (template.value ? TEMPLATES[template.value] : null))
 const contentFields = computed<FieldMap>(() => {
@@ -294,7 +298,7 @@ function statusLabel(state: DisplayStatus) {
 }
 const minSchedule = computed(() => new Date(Date.now() + 5 * 60_000).toISOString().slice(0, 16))
 
-const CARD = 'border-muted-200 bg-white dark:border-muted-800 dark:bg-muted-900 rounded-2xl border'
+const CARD = 'bg-card border-line-subtle rounded-2xl border'
 const INPUT = 'focus:border-primary-400 w-full rounded-xl border border-muted-200 bg-muted-50 px-3.5 py-2.5 text-sm text-muted-900 outline-none placeholder:text-muted-400 dark:border-white/10 dark:bg-white/5 dark:text-white dark:placeholder:text-muted-500'
 </script>
 
@@ -310,72 +314,81 @@ const INPUT = 'focus:border-primary-400 w-full rounded-xl border border-muted-20
     <AdminEmptyState v-else-if="error" icon="lucide:file-x" title="Document not found" subtitle="It may have been deleted. The pages list shows what exists." />
 
     <template v-else-if="doc">
-      <!-- ========== HEADER ========== -->
-      <div class="flex flex-col gap-4">
-        <NuxtLink to="/admin/website/pages" class="apex-focus text-primary-500 dark:text-primary-400 inline-flex w-fit items-center gap-1 rounded text-[12.5px] font-semibold hover:underline">
-          <Icon name="lucide:arrow-left" class="size-3.5" />
-          All pages
-        </NuxtLink>
-        <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div class="min-w-0 flex-1">
-            <label for="doc-title" class="sr-only">Document name</label>
-            <input
-              id="doc-title"
-              v-model="title"
-              :readonly="!canEdit"
-              maxlength="120"
-              class="font-heading text-muted-900 w-full border-0 bg-transparent text-[26px] font-extrabold tracking-[-0.02em] outline-none focus:ring-0 dark:text-white"
-            >
-            <p class="text-muted-500 mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12.5px]">
-              <span>{{ def?.label }}</span>
-              <span v-if="doc.kind === 'page'" class="font-mono">{{ doc.key }}</span>
+      <!-- ========== HEADER (the design's editor bar) ========== -->
+      <div class="bg-card border-line-subtle flex flex-col gap-3 rounded-2xl border px-[18px] py-3.5 sm:px-6">
+        <div class="flex flex-wrap items-center gap-3">
+          <div class="min-w-0 flex-1 basis-[280px]">
+            <div class="flex flex-wrap items-center gap-2.5">
+              <label for="doc-title" class="sr-only">Document name</label>
+              <input
+                id="doc-title"
+                v-model="title"
+                :readonly="!canEdit"
+                maxlength="120"
+                class="apex-ring font-heading text-fg-heading min-w-0 flex-1 rounded-lg border-0 bg-transparent text-[19px] font-extrabold tracking-[-0.015em] outline-none"
+              >
               <AdminWebsiteStatusChip :state="doc.state" :error="doc.lastPublishError" />
-              <span>Draft v{{ doc.draftVersion }} · saved {{ fmtDate(doc.draftUpdatedAt) }}<template v-if="doc.people?.[doc.draftUpdatedById]"> by {{ doc.people[doc.draftUpdatedById] }}</template></span>
-              <span v-if="doc.scheduled">Scheduled for {{ fmtDate(doc.scheduled.scheduledFor) }} (revision {{ doc.scheduled.number }})</span>
+            </div>
+            <p class="text-fg-muted mt-[3px] flex flex-wrap gap-x-2 text-[12.5px]">
+              <span>{{ def?.label }}<template v-if="doc.kind === 'page'"> · apexdigi.co.uk{{ doc.key }}</template></span>
+              <span>· {{ dirty ? 'Unsaved changes' : `Draft v${doc.draftVersion}, saved` }} <ClientOnly>{{ dirty ? '' : fmtDate(doc.draftUpdatedAt) }}</ClientOnly><template v-if="!dirty && doc.people?.[doc.draftUpdatedById]"> by {{ doc.people[doc.draftUpdatedById] }}</template></span>
+              <span v-if="doc.scheduled">· Scheduled for <ClientOnly>{{ fmtDate(doc.scheduled.scheduledFor) }}</ClientOnly> (revision {{ doc.scheduled.number }})</span>
             </p>
           </div>
           <div class="flex flex-wrap items-center gap-2">
-            <BaseButton variant="muted" rounded="lg" :loading="previewing" :disabled="previewing" @click="preview">
-              <Icon name="lucide:eye" class="size-4" />
-              Preview draft
-            </BaseButton>
-            <BaseButton v-if="canEdit" variant="primary" rounded="lg" :loading="saving" :disabled="saving || !dirty || doc.state === 'archived'" @click="save">
+            <AdminButton :disabled="previewing" @click="preview">
+              <Icon name="lucide:eye" class="size-[15px]" />Preview draft
+            </AdminButton>
+            <AdminButton v-if="canEdit" :variant="dirty ? 'primary' : 'light'" :disabled="saving || !dirty || doc.state === 'archived'" @click="save">
               {{ dirty ? 'Save draft' : 'Saved' }}
-            </BaseButton>
+            </AdminButton>
           </div>
         </div>
-
-        <div v-if="actions.length" class="flex flex-wrap items-center gap-2 border-t border-muted-200 pt-4 dark:border-white/10">
-          <span class="text-muted-500 text-[11px] font-extrabold uppercase tracking-[0.06em]">Workflow</span>
-          <BaseButton
+        <div v-if="actions.length" class="border-line-soft flex flex-wrap items-center gap-2 border-t pt-3">
+          <span class="text-fg-muted text-[11.5px] font-bold uppercase tracking-[0.06em]">Workflow</span>
+          <AdminButton
             v-for="action in actions" :key="action"
-            size="sm" rounded="lg" :variant="action === 'publish' ? 'primary' : 'muted'"
+            size="sm" :variant="action === 'publish' ? 'primary' : 'light'"
             :disabled="acting || dirty"
             :title="dirty ? 'Save your changes first' : undefined"
             @click="run(action)"
           >
             {{ ACTION_LABEL[action] }}
-          </BaseButton>
-          <span v-if="dirty" class="text-muted-500 text-[12.5px]">Save first: unsaved changes are not part of a publish.</span>
+          </AdminButton>
+          <span v-if="dirty" class="text-fg-muted text-[12.5px]">Save first: unsaved changes are not part of a publish.</span>
         </div>
-
-        <div v-if="conflict" class="flex flex-col gap-2 rounded-xl border border-[#F2C14E]/40 bg-[#D9A521]/10 px-4 py-3 text-[13px] sm:flex-row sm:items-center" role="alert">
-          <span class="text-muted-900 flex-1 dark:text-white">{{ conflict.by }} saved a newer draft at {{ conflict.at }}. Reload to see it; your changes stay in this screen until you leave.</span>
-          <BaseButton size="sm" rounded="lg" variant="muted" @click="reloadAfterConflict">
-            Reload the latest draft
-          </BaseButton>
-        </div>
-        <p v-if="doc.lastPublishError" class="rounded-xl bg-[#EC6453]/10 px-4 py-3 text-[13px] text-[#EC6453]" role="alert">
-          The last scheduled publish failed: {{ doc.lastPublishError }} ({{ doc.publishAttempts }} attempt{{ doc.publishAttempts === 1 ? '' : 's' }}). It is retried every minute.
-        </p>
       </div>
 
+      <!-- The design's banner row: one state at a time, toned by what it asks of the reader. -->
+      <div v-if="conflict" class="bg-st-warning-bg text-fg-heading flex flex-col gap-2 rounded-xl px-4 py-3 text-[13.5px] sm:flex-row sm:items-center" role="alert">
+        <Icon name="lucide:git-merge" class="size-4 shrink-0" />
+        <span class="flex-1">{{ conflict.by }} saved a newer draft at {{ conflict.at }}. Reload to see it; your changes stay in this screen until you leave.</span>
+        <AdminButton size="sm" @click="reloadAfterConflict">
+          Reload the latest draft
+        </AdminButton>
+      </div>
+      <p v-if="doc.lastPublishError" class="bg-st-danger-bg text-fg-heading flex gap-2.5 rounded-xl px-4 py-3 text-[13.5px]" role="alert">
+        <Icon name="lucide:circle-x" class="mt-0.5 size-4 shrink-0 text-[#EC6453]" />
+        The last scheduled publish failed: {{ doc.lastPublishError }} ({{ doc.publishAttempts }} attempt{{ doc.publishAttempts === 1 ? '' : 's' }}). It is retried every minute.
+      </p>
+      <p v-else-if="doc.state === 'in_review'" class="bg-st-warning-bg text-fg-heading flex gap-2.5 rounded-xl px-4 py-3 text-[13.5px] leading-normal">
+        <Icon name="lucide:clipboard-check" class="mt-0.5 size-4 shrink-0" />
+        {{ can('website.publish') ? 'This was submitted for review. Preview the draft, then approve and publish, or send it back.' : 'Waiting for a Publisher, Admin or Owner to review it.' }}
+      </p>
+      <p v-else-if="doc.state === 'published_changes'" class="bg-st-info-bg text-fg-heading flex gap-2.5 rounded-xl px-4 py-3 text-[13.5px] leading-normal">
+        <Icon name="lucide:info" class="mt-0.5 size-4 shrink-0" />
+        The live page is the last published revision. Your edits stay in this draft until {{ can('website.publish') ? 'you publish them.' : 'they are approved and published.' }}
+      </p>
+      <p v-else-if="!canEdit" class="bg-chip text-fg-heading flex gap-2.5 rounded-xl px-4 py-3 text-[13.5px]">
+        <Icon name="lucide:eye" class="mt-0.5 size-4 shrink-0" />You can view this document. Drafting needs Owner, Admin, Publisher or Editor.
+      </p>
+
       <!-- ========== TABS ========== -->
-      <div role="group" aria-label="Editor sections" class="flex flex-wrap gap-1 border-b border-muted-200 dark:border-white/10">
+      <div role="group" aria-label="Editor sections" class="border-line-subtle flex gap-6 overflow-x-auto border-b">
         <button
           v-for="t in tabs" :key="t.id" type="button"
-          class="apex-focus -mb-px rounded-t-lg border-b-2 px-3.5 py-2.5 text-[13.5px] font-semibold transition"
-          :class="tab === t.id ? 'border-primary-500 text-muted-900 dark:text-white' : 'text-muted-500 hover:text-muted-900 border-transparent dark:hover:text-white'"
+          class="apex-ring -mb-px inline-flex h-10 shrink-0 cursor-pointer items-center border-b-2 text-sm"
+          :class="tab === t.id ? 'border-accent text-fg-heading font-semibold' : 'text-fg-muted border-transparent font-medium'"
           :aria-pressed="tab === t.id"
           @click="tab = t.id"
         >
@@ -445,9 +458,9 @@ const INPUT = 'focus:border-primary-400 w-full rounded-xl border border-muted-20
               <h2 class="text-muted-900 text-sm font-semibold dark:text-white">
                 Revision {{ selectedRevision }} against the working draft
               </h2>
-              <BaseButton v-if="canEdit && doc.state !== 'archived'" size="sm" rounded="lg" variant="muted" :loading="acting" :disabled="acting || dirty" @click="restore(selectedRevision!)">
+              <AdminButton v-if="canEdit && doc.state !== 'archived'" size="sm" :disabled="acting || dirty" @click="restore(selectedRevision!)">
                 Restore into the draft
-              </BaseButton>
+              </AdminButton>
             </div>
             <p v-if="loadingRevision" class="text-muted-500 mt-4 text-sm">
               Loading…
@@ -478,7 +491,7 @@ const INPUT = 'focus:border-primary-400 w-full rounded-xl border border-muted-20
           <dt class="text-muted-500">
             Template
           </dt>
-          <dd class="text-muted-900 dark:text-white">
+          <dd class="text-fg-heading">
             {{ def?.label }} <span class="text-muted-500">· {{ def?.detail }}</span>
           </dd>
           <dt class="text-muted-500">
@@ -490,13 +503,13 @@ const INPUT = 'focus:border-primary-400 w-full rounded-xl border border-muted-20
           <dt class="text-muted-500">
             Created
           </dt>
-          <dd class="text-muted-900 dark:text-white">
+          <dd class="text-fg-heading">
             {{ fmtDate(doc.createdAt) }}
           </dd>
           <dt class="text-muted-500">
             Published
           </dt>
-          <dd class="text-muted-900 dark:text-white">
+          <dd class="text-fg-heading">
             {{ doc.published ? `Revision ${doc.published.number}, ${fmtDate(doc.published.publishedAt)}` : 'Not published' }}
           </dd>
         </dl>
@@ -507,9 +520,9 @@ const INPUT = 'focus:border-primary-400 w-full rounded-xl border border-muted-20
           <p class="text-muted-500 mt-1 text-[12.5px]">
             Only a draft that was never published can be deleted; everything else is archived so its history survives.
           </p>
-          <BaseButton size="sm" rounded="lg" variant="muted" class="mt-3 text-[#EC6453]!" :disabled="acting" @click="confirming = 'delete'">
+          <AdminButton size="sm" class="mt-3 text-[#EC6453]!" :disabled="acting" @click="confirming = 'delete'">
             Delete draft
-          </BaseButton>
+          </AdminButton>
         </div>
       </div>
     </template>
@@ -521,12 +534,12 @@ const INPUT = 'focus:border-primary-400 w-full rounded-xl border border-muted-20
     <!-- ========== LEAVE WITH UNSAVED CHANGES ========== -->
     <AdminWebsiteDialog v-model:open="leaveOpen" title="Leave without saving?" description="Your unsaved changes to this draft will be lost.">
       <template #actions>
-        <BaseButton variant="muted" rounded="lg" @click="pendingLeave = null">
+        <AdminButton @click="pendingLeave = null">
           Stay
-        </BaseButton>
-        <BaseButton variant="primary" rounded="lg" @click="leaveAnyway">
+        </AdminButton>
+        <AdminButton variant="primary" @click="leaveAnyway">
           Leave
-        </BaseButton>
+        </AdminButton>
       </template>
     </AdminWebsiteDialog>
 
@@ -541,16 +554,16 @@ const INPUT = 'focus:border-primary-400 w-full rounded-xl border border-muted-20
         <input id="schedule-at" v-model="scheduleAt" type="datetime-local" :min="minSchedule" :class="INPUT">
       </div>
       <template #actions>
-        <BaseButton variant="muted" rounded="lg" @click="confirming = null">
+        <AdminButton @click="confirming = null">
           Cancel
-        </BaseButton>
-        <BaseButton
-          variant="primary" rounded="lg" :loading="acting"
+        </AdminButton>
+        <AdminButton
+          variant="primary"
           :disabled="acting || (confirming === 'schedule' && !scheduleAt)"
           @click="confirming === 'delete' ? deleteDraft() : run(confirming!)"
         >
           {{ confirming === 'delete' ? 'Delete' : (confirming && CONFIRM_COPY[confirming]?.button) || 'Confirm' }}
-        </BaseButton>
+        </AdminButton>
       </template>
     </AdminWebsiteDialog>
   </div>

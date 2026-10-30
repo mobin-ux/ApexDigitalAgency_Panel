@@ -75,6 +75,8 @@ export const ADMIN_NAV: AdminNavGroup[] = [
     items: [
       { key: 'publishing', label: 'Publishing', icon: 'solar:global-linear', to: '/admin/website', needs: 'website.view', exact: true },
       { key: 'pages', label: 'Pages', icon: 'solar:document-text-linear', to: '/admin/website/pages', needs: 'website.view', count: 'pages' },
+      { key: 'insights', label: 'Insights', icon: 'solar:notebook-linear', to: '/admin/website/insights', needs: 'website.view', count: 'insights' },
+      { key: 'work', label: 'Case studies', icon: 'solar:case-round-linear', to: '/admin/website/case-studies', needs: 'website.view', count: 'work' },
       { key: 'media', label: 'Media library', icon: 'solar:gallery-linear', to: '/admin/website/media', needs: 'website.view' },
       { key: 'nav', label: 'Navigation & footer', icon: 'solar:list-linear', to: '/admin/website/navigation', needs: 'website.view' },
       { key: 'seo', label: 'SEO & redirects', icon: 'solar:magnifer-linear', to: '/admin/website/seo', needs: 'website.seo' },

@@ -331,10 +331,10 @@ const FILTER_OFF = 'border-muted-200 bg-white font-semibold text-muted-700 hover
         title="Audit log"
         subtitle="Every action that changes access, money or a client's records. Read-only and append-only."
       >
-        <BaseButton rounded="lg" size="lg" :loading="exporting" :disabled="exporting || !rows.length" @click="exportCsv">
+        <AdminButton size="lg" :disabled="exporting || !rows.length" @click="exportCsv">
           <Icon name="lucide:download" class="size-4" />
           <span>Export CSV</span>
-        </BaseButton>
+        </AdminButton>
       </AdminPageHeader>
 
       <div class="flex flex-wrap items-center gap-2">

@@ -113,7 +113,7 @@ function beforeUnload(e: BeforeUnloadEvent) {
 onMounted(() => window.addEventListener('beforeunload', beforeUnload))
 onBeforeUnmount(() => window.removeEventListener('beforeunload', beforeUnload))
 
-const CARD = 'border-muted-200 bg-white dark:border-muted-800 dark:bg-muted-900 rounded-2xl border'
+const CARD = 'bg-card border-line-subtle rounded-2xl border'
 const INPUT = 'focus:border-primary-400 w-full rounded-xl border border-muted-200 bg-muted-50 px-3.5 py-2.5 text-sm text-muted-900 outline-none placeholder:text-muted-400 dark:border-white/10 dark:bg-white/5 dark:text-white dark:placeholder:text-muted-500'
 const LABEL = 'text-muted-900 mb-1.5 block text-[13.5px] font-semibold dark:text-white'
 </script>
@@ -121,7 +121,7 @@ const LABEL = 'text-muted-900 mb-1.5 block text-[13.5px] font-semibold dark:text
 <template>
   <div class="mx-auto flex w-full max-w-[1180px] px-4 pt-5 sm:px-8 sm:pt-7 flex-col gap-8 pb-24">
     <AdminPageHeader
-      title="Site settings"
+      title="Site" accent="settings"
       subtitle="Company facts, contact details, social profiles and search defaults the public site reads. Empty keeps what the site code says, and the site hides anything that stays empty."
     />
 
@@ -177,12 +177,12 @@ const LABEL = 'text-muted-900 mb-1.5 block text-[13.5px] font-semibold dark:text
       </fieldset>
 
       <div v-if="canSave" class="border-muted-200 bg-white/90 dark:border-muted-800 dark:bg-muted-900/90 sticky bottom-0 flex items-center gap-3 border-t py-4 backdrop-blur">
-        <BaseButton type="submit" variant="primary" rounded="lg" :loading="savingNow" :disabled="savingNow || !dirty">
+        <AdminButton type="submit" variant="primary" :disabled="savingNow || !dirty">
           {{ dirty ? 'Save settings' : 'Saved' }}
-        </BaseButton>
-        <BaseButton type="button" variant="muted" rounded="lg" :disabled="!dirty" @click="discard">
+        </AdminButton>
+        <AdminButton type="button" :disabled="!dirty" @click="discard">
           Discard
-        </BaseButton>
+        </AdminButton>
         <span class="text-muted-500 text-[12.5px]">Changes are audited and reach the site within a minute.</span>
       </div>
       <p v-else class="text-muted-500 text-[12.5px]">
@@ -192,12 +192,12 @@ const LABEL = 'text-muted-900 mb-1.5 block text-[13.5px] font-semibold dark:text
 
     <AdminWebsiteDialog v-model:open="leaveOpen" title="Leave without saving?" description="Your unsaved changes to the site settings will be lost.">
       <template #actions>
-        <BaseButton variant="muted" rounded="lg" @click="pendingLeave = null">
+        <AdminButton @click="pendingLeave = null">
           Stay
-        </BaseButton>
-        <BaseButton variant="primary" rounded="lg" @click="leaveAnyway">
+        </AdminButton>
+        <AdminButton variant="primary" @click="leaveAnyway">
           Leave
-        </BaseButton>
+        </AdminButton>
       </template>
     </AdminWebsiteDialog>
   </div>

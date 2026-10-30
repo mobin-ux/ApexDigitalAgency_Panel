@@ -10,7 +10,7 @@
  * `website.view` may look; `website.media` may change.
  */
 definePageMeta({
-  title: 'Website media',
+  title: 'Media library',
   layout: 'admin',
   middleware: 'admin',
 })
@@ -157,7 +157,7 @@ function fmtDate(iso: string | Date | null) {
   return iso ? new Date(iso).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'
 }
 
-const CARD = 'border-muted-200 bg-white dark:border-muted-800 dark:bg-muted-900 rounded-2xl border'
+const CARD = 'bg-card border-line-subtle rounded-2xl border'
 const INPUT = 'focus:border-primary-400 w-full rounded-xl border border-muted-200 bg-muted-50 px-3.5 py-2.5 text-sm text-muted-900 outline-none placeholder:text-muted-400 dark:border-white/10 dark:bg-white/5 dark:text-white dark:placeholder:text-muted-500'
 const LABEL = 'text-muted-900 mb-1.5 block text-[13.5px] font-semibold dark:text-white'
 </script>
@@ -165,15 +165,15 @@ const LABEL = 'text-muted-900 mb-1.5 block text-[13.5px] font-semibold dark:text
 <template>
   <div class="mx-auto flex w-full max-w-[1180px] px-4 pt-5 sm:px-8 sm:pt-7 flex-col gap-8 pb-10">
     <AdminPageHeader
-      title="Media"
+      title="Media" accent="library"
       subtitle="Images and PDFs the public pages use. Each file is checked by its contents, sized from its header and served with a year's cache."
     >
       <template v-if="allowed && canEdit">
         <input ref="fileInput" type="file" class="sr-only" accept="image/jpeg,image/png,image/gif,image/webp,application/pdf" multiple @change="upload(($event.target as HTMLInputElement).files)">
-        <BaseButton variant="primary" rounded="full" :loading="uploading" :disabled="uploading" @click="fileInput?.click()">
+        <AdminButton variant="primary" :disabled="uploading" @click="fileInput?.click()">
           <Icon name="lucide:upload" class="size-4" />
           Upload
-        </BaseButton>
+        </AdminButton>
       </template>
     </AdminPageHeader>
 
@@ -255,9 +255,9 @@ const LABEL = 'text-muted-900 mb-1.5 block text-[13.5px] font-semibold dark:text
               <label for="media-caption" :class="LABEL">Caption <span class="text-muted-500 font-normal">optional</span></label>
               <input id="media-caption" v-model="caption" maxlength="300" :disabled="!canEdit" :class="INPUT">
             </div>
-            <BaseButton v-if="canEdit" size="sm" rounded="lg" variant="primary" :loading="saving" :disabled="saving || !detailDirty" @click="saveDetail">
+            <AdminButton v-if="canEdit" size="sm" variant="primary" :disabled="saving || !detailDirty" @click="saveDetail">
               Save details
-            </BaseButton>
+            </AdminButton>
           </div>
           <div class="mt-5 border-t border-muted-200 pt-4 dark:border-white/10">
             <p class="text-muted-500 text-[11px] font-extrabold uppercase tracking-[0.06em]">
@@ -277,19 +277,19 @@ const LABEL = 'text-muted-900 mb-1.5 block text-[13.5px] font-semibold dark:text
           </div>
           <div v-if="canEdit" class="mt-5 flex flex-wrap gap-2 border-t border-muted-200 pt-4 dark:border-white/10">
             <input ref="replaceInput" type="file" class="sr-only" :accept="selected.mime === 'application/pdf' ? 'application/pdf' : 'image/jpeg,image/png,image/gif,image/webp'" @change="replaceFile(($event.target as HTMLInputElement).files)">
-            <BaseButton size="sm" rounded="lg" variant="muted" :loading="replacing" :disabled="replacing" @click="replaceInput?.click()">
+            <AdminButton size="sm" :disabled="replacing" @click="replaceInput?.click()">
               Replace file
-            </BaseButton>
-            <BaseButton v-if="!confirmingDelete" size="sm" rounded="lg" variant="muted" class="text-[#EC6453]!" :disabled="Boolean(selected.usage?.length)" :title="selected.usage?.length ? 'Remove it from the pages that use it first' : undefined" @click="confirmingDelete = true">
+            </AdminButton>
+            <AdminButton v-if="!confirmingDelete" size="sm" class="text-[#EC6453]!" :disabled="Boolean(selected.usage?.length)" :title="selected.usage?.length ? 'Remove it from the pages that use it first' : undefined" @click="confirmingDelete = true">
               Delete
-            </BaseButton>
+            </AdminButton>
             <template v-else>
-              <BaseButton size="sm" rounded="lg" variant="primary" class="bg-[#EC6453]! border-[#EC6453]!" @click="remove">
+              <AdminButton size="sm" variant="primary" class="bg-[#EC6453]! border-[#EC6453]!" @click="remove">
                 Confirm delete
-              </BaseButton>
-              <BaseButton size="sm" rounded="lg" variant="muted" @click="confirmingDelete = false">
+              </AdminButton>
+              <AdminButton size="sm" @click="confirmingDelete = false">
                 Keep
-              </BaseButton>
+              </AdminButton>
             </template>
             <p v-if="selected.usage?.length" class="text-muted-500 w-full text-[12px]">
               A file in use cannot be deleted; replace it instead.

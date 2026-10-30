@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import type { DisplayStatus, TemplateKey } from '~~/shared/cms'
-import { creatableTemplates, DISPLAY_STATUS_LABEL, DISPLAY_STATUSES, TEMPLATES } from '~~/shared/cms'
+import { creatableTemplates, TEMPLATES } from '~~/shared/cms'
+import { ukDateTime } from '~/utils/adminFormat'
+import { ADMIN_HINT, ADMIN_INPUT, ADMIN_LABEL, ADMIN_TH } from '~/utils/adminUi'
 
 /**
  * Website — pages (ADR-021). Every managed document in one list: the
@@ -14,7 +16,7 @@ import { creatableTemplates, DISPLAY_STATUS_LABEL, DISPLAY_STATUSES, TEMPLATES }
  * per page from the site's own words and changes nothing on the site.
  */
 definePageMeta({
-  title: 'Website pages',
+  title: 'Pages',
   layout: 'admin',
   middleware: 'admin',
 })
@@ -119,129 +121,179 @@ async function create() {
   }
 }
 
-const CARD = 'border-muted-200 bg-white dark:border-muted-800 dark:bg-muted-900 rounded-2xl border'
-const TEXT_INPUT = 'focus:border-primary-400 w-full rounded-xl border border-muted-200 bg-muted-50 px-3.5 py-2.5 text-sm text-muted-900 outline-none placeholder:text-muted-400 dark:border-white/10 dark:bg-white/5 dark:text-white dark:placeholder:text-muted-500'
+/* ------------------------------------------------- console layout --- */
+
+/**
+ * Admin console (`Admin Console.dc.html`): the design's state pills with
+ * counts, its table, and a Publish history tab. The counts come from the
+ * website overview (every document by display state), so they are shown
+ * only while no kind filter narrows the list they would not match. The
+ * history is the overview's latest `admin.website.*` audit rows; the full
+ * trail is the Audit log.
+ */
+const view = ref<'all' | 'history'>('all')
+const { data: overview } = useFetch<any>('/api/admin/website/overview', { server: false, immediate: allowed.value })
+
+const stateFilters = computed(() => {
+  const by = overview.value?.documents?.byStatus
+  const n = (k: string) => (by && !kind.value ? by[k] ?? 0 : null)
+  return [
+    { key: '', label: 'All', n: by && !kind.value ? overview.value.documents.total : null },
+    { key: 'published', label: 'Published', n: n('published') },
+    { key: 'published_changes', label: 'Draft changes', n: n('published_changes') },
+    { key: 'in_review', label: 'In review', n: n('in_review') },
+    { key: 'scheduled', label: 'Scheduled', n: n('scheduled') },
+    { key: 'draft', label: 'Drafts', n: n('draft') },
+    { key: 'archived', label: 'Archived', n: n('archived') },
+  ]
+})
+
+function auditMeta(raw: unknown): Record<string, any> {
+  if (typeof raw !== 'string') {
+    return (raw as Record<string, any>) ?? {}
+  }
+  try {
+    return JSON.parse(raw)
+  }
+  catch {
+    return {}
+  }
+}
+const history = computed(() => (overview.value?.recent ?? []).map((r: any) => {
+  const verb = String(r.action).replace('admin.website.', '').split('.').pop() ?? ''
+  const meta = auditMeta(r.metadata)
+  const tone = /publish/.test(verb) ? 'success' : /fail/.test(verb) ? 'danger' : /submit|review/.test(verb) ? 'warning' : 'neutral'
+  return {
+    id: r.id,
+    createdAt: r.createdAt,
+    actorEmail: r.actorEmail,
+    label: verb ? verb.charAt(0).toUpperCase() + verb.slice(1).replaceAll('-', ' ') : 'Changed',
+    tone,
+    title: meta.title ?? meta.key ?? meta.from ?? r.action.replace('admin.website.', ''),
+  }
+}))
+
+const PILL = 'apex-ring inline-flex h-8 cursor-pointer items-center gap-[7px] whitespace-nowrap rounded-full border px-[13px] text-[13px]'
+const TAB_CLS = 'apex-ring -mb-px inline-flex h-10 shrink-0 cursor-pointer items-center border-b-2 text-sm'
 </script>
 
 <template>
-  <div class="mx-auto flex w-full max-w-[1180px] px-4 pt-5 sm:px-8 sm:pt-7 flex-col gap-8 pb-10">
-    <AdminPageHeader
-      title="Pages"
-      subtitle="Every managed document: the public pages, the site chrome and the panel's customer-facing text."
-    >
-      <template v-if="allowed && can('website.edit')">
-        <BaseButton variant="primary" rounded="full" @click="showCreate = true">
-          <Icon name="lucide:plus" class="size-4" />
-          New page
-        </BaseButton>
-      </template>
+  <AdminPage gap="md">
+    <AdminPageHeader title="Website" accent="pages" subtitle="Every page on apexdigi.co.uk, the site chrome and the panel’s customer-facing text. Service pages take their prices from Services & pricing.">
+      <AdminButton v-if="allowed && can('website.edit')" variant="primary" @click="showCreate = true">
+        <Icon name="lucide:plus" class="size-[15px]" />New page
+      </AdminButton>
     </AdminPageHeader>
 
-    <AdminAccessWall
-      v-if="!allowed"
-      permission="website.view"
-      title="Website content is not part of your role"
-      body="The pages list shows every document the website is built from."
-    />
+    <div class="border-line-subtle flex gap-6 overflow-x-auto border-b" role="tablist" aria-label="Pages sections">
+      <button
+        v-for="[k, l] in ([['all', 'All pages'], ['history', 'Publish history']] as const)" :key="k"
+        type="button" role="tab" :aria-selected="view === k"
+        :class="[TAB_CLS, view === k ? 'border-accent text-fg-heading font-semibold' : 'text-fg-muted border-transparent font-medium']"
+        @click="view = k"
+      >
+        {{ l }}
+      </button>
+    </div>
 
-    <AdminWebsiteLoadError v-else-if="error" :error="error" title="Could not load the pages" @retry="refresh()" />
+    <AdminWebsiteLoadError v-if="error" :error="error" title="Could not load the pages" @retry="refresh()" />
 
+    <!-- ================================================= Publish history -->
+    <AdminCard v-else-if="view === 'history'" role="tabpanel">
+      <p class="text-fg-muted px-[22px] py-3.5 text-[13px]">
+        The latest saves, submissions and publishes across the website. Every published version can be restored from the editor’s Revisions tab; the full trail is in the Audit log.
+      </p>
+      <ul v-if="history.length">
+        <li v-for="h in history" :key="h.id" class="border-line-soft grid grid-cols-1 items-start gap-x-3.5 gap-y-1 border-t px-[18px] py-3 sm:px-[22px] lg:grid-cols-[150px_180px_minmax(0,1fr)_220px]">
+          <span class="text-fg-muted text-[12.5px] tabular-nums"><ClientOnly>{{ ukDateTime(h.createdAt) }}</ClientOnly></span>
+          <AdminStatusChip :tone="h.tone" :label="h.label" />
+          <span class="text-fg-heading min-w-0 truncate text-sm">{{ h.title }}</span>
+          <span class="text-fg-body truncate text-[13px]">{{ h.actorEmail }}</span>
+        </li>
+      </ul>
+      <p v-else class="border-line-soft text-fg-body border-t px-[22px] py-6 text-sm">
+        Nothing has been changed from the console yet.
+      </p>
+    </AdminCard>
+
+    <!-- ===================================================== All pages -->
     <template v-else>
-      <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
-        <label class="sr-only" for="pages-search">Search pages</label>
-        <input id="pages-search" v-model="search" type="search" placeholder="Search by title or address" :class="TEXT_INPUT" class="sm:max-w-xs">
-        <BaseSelect v-model="kind" rounded="lg" aria-label="Filter by kind" placeholder="All kinds">
-          <BaseSelectItem value="page">
-            Pages
-          </BaseSelectItem>
-          <BaseSelectItem value="global">
-            Chrome
-          </BaseSelectItem>
-          <BaseSelectItem value="panel">
-            Panel documents
-          </BaseSelectItem>
-        </BaseSelect>
-        <BaseSelect v-model="state" rounded="lg" aria-label="Filter by state" placeholder="Any state">
-          <BaseSelectItem v-for="s in DISPLAY_STATUSES" :key="s" :value="s">
-            {{ DISPLAY_STATUS_LABEL[s] }}
-          </BaseSelectItem>
-        </BaseSelect>
-        <button
-          v-if="filtered"
-          type="button"
-          class="apex-focus text-primary-500 dark:text-primary-400 rounded text-[12.5px] font-semibold hover:underline"
-          @click="search = ''; kind = ''; state = ''"
-        >
-          Clear filters
-        </button>
+      <div class="flex flex-wrap items-center gap-2">
+        <div class="flex flex-wrap gap-2" role="group" aria-label="Filter by state">
+          <button
+            v-for="f in stateFilters" :key="f.key || 'all'" type="button" :aria-pressed="state === f.key"
+            :class="[PILL, state === f.key ? 'bg-accent border-transparent font-semibold text-white' : 'border-line-subtle text-fg-heading hover:bg-hover font-medium']"
+            @click="state = f.key"
+          >
+            {{ f.label }} <span v-if="f.n !== null" class="tabular-nums opacity-70">{{ f.n }}</span>
+          </button>
+        </div>
+        <span class="hidden flex-1 xl:block" />
+        <div class="flex w-full flex-wrap gap-2 xl:w-auto">
+          <label class="sr-only" for="pages-search">Search pages</label>
+          <input id="pages-search" v-model="search" type="search" placeholder="Search by title or address" :class="ADMIN_INPUT" class="h-9! min-w-0 flex-1 xl:w-[240px]! xl:flex-none">
+          <div class="w-full sm:w-[180px]">
+            <BaseSelect v-model="kind" rounded="lg" size="sm" aria-label="Filter by kind" placeholder="All kinds">
+              <BaseSelectItem value="page">
+                Pages
+              </BaseSelectItem>
+              <BaseSelectItem value="global">
+                Chrome
+              </BaseSelectItem>
+              <BaseSelectItem value="panel">
+                Panel documents
+              </BaseSelectItem>
+            </BaseSelect>
+          </div>
+          <button v-if="filtered" type="button" class="apex-ring text-accent-ink rounded text-[13px] font-semibold" @click="search = ''; kind = ''; state = ''">
+            Clear filters
+          </button>
+        </div>
       </div>
 
-      <div v-if="!pending && !items.length && !filtered" :class="CARD" class="flex flex-col items-start gap-4 p-6">
+      <AdminCard v-if="!pending && !items.length && !filtered" padded>
         <AdminEmptyState
           icon="lucide:file-text"
           title="Nothing is managed yet"
           subtitle="The site renders from its code until its pages are imported. Importing creates one document per page and per piece of chrome, published exactly as the site shows them today."
-        />
-        <BaseButton v-if="can('website.settings')" variant="primary" rounded="lg" :loading="importing" :disabled="importing" @click="importBaseline">
-          Import current site content
-        </BaseButton>
-        <p v-else class="text-muted-500 text-[12.5px]">
-          An Owner or Admin runs the import.
-        </p>
-      </div>
+        >
+          <AdminButton v-if="can('website.settings')" variant="primary" :disabled="importing" @click="importBaseline">
+            Import current site content
+          </AdminButton>
+          <p v-else class="text-fg-muted text-[12.5px]">
+            An Owner or Admin runs the import.
+          </p>
+        </AdminEmptyState>
+      </AdminCard>
 
-      <AdminEmptyState
-        v-else-if="!pending && !items.length"
-        icon="lucide:search-x"
-        title="No documents match"
-        subtitle="Try another word, or clear the filters."
-      />
+      <AdminEmptyState v-else-if="!pending && !items.length" icon="lucide:search-x" title="No documents match" subtitle="Try another word, or clear the filters." />
 
-      <div v-else :class="CARD" class="overflow-x-auto">
-        <table class="w-full min-w-[760px] border-collapse text-sm">
-          <thead>
-            <tr class="border-muted-200 bg-muted-50 border-b text-[11px] font-extrabold uppercase tracking-[0.06em] text-muted-500 dark:border-white/10 dark:bg-white/[0.02]">
-              <th scope="col" class="px-[18px] py-3 text-start">
-                Document
-              </th>
-              <th scope="col" class="px-3 py-3 text-start">
-                Kind
-              </th>
-              <th scope="col" class="px-3 py-3 text-start">
-                State
-              </th>
-              <th scope="col" class="px-3 py-3 text-start">
-                Last edited
-              </th>
-              <th scope="col" class="px-[18px] py-3 text-end">
-                Published
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="doc in items" :key="doc.id" class="border-muted-200 border-b last:border-b-0 hover:bg-muted-50 dark:border-white/5 dark:hover:bg-white/[0.03]">
-              <td class="px-[18px] py-3.5">
-                <NuxtLink :to="`/admin/website/pages/${doc.id}`" class="apex-focus block rounded">
-                  <span class="text-muted-900 block font-semibold dark:text-white">{{ doc.title }}</span>
-                  <span class="text-muted-500 mt-0.5 block font-mono text-xs">{{ doc.kind === 'page' ? doc.key : doc.templateLabel }}</span>
-                </NuxtLink>
-              </td>
-              <td class="text-muted-500 px-3 py-3.5">
-                {{ KIND_LABEL[doc.kind] ?? doc.kind }}
-              </td>
-              <td class="px-3 py-3.5">
-                <AdminWebsiteStatusChip :state="doc.state as DisplayStatus" :error="doc.lastPublishError" />
-              </td>
-              <td class="text-muted-500 px-3 py-3.5 tabular-nums">
-                {{ fmtDate(doc.draftUpdatedAt) }}
-              </td>
-              <td class="text-muted-500 px-[18px] py-3.5 text-end tabular-nums">
-                {{ fmtDate(doc.publishedAt) }}
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+      <section v-else class="bg-card border-line-subtle overflow-hidden rounded-2xl border">
+        <div class="hidden grid-cols-[minmax(0,1fr)_140px_170px_130px_130px_70px] gap-3.5 px-[22px] py-3.5 xl:grid" :class="ADMIN_TH">
+          <span>Title</span><span>Type</span><span>Status</span><span>Last edited</span><span>Published</span><span />
+        </div>
+        <div v-if="pending" aria-hidden="true">
+          <div v-for="i in 6" :key="i" class="border-line-soft h-[58px] animate-pulse border-t" />
+        </div>
+        <ul v-else>
+          <li v-for="doc in items" :key="doc.id">
+            <NuxtLink
+              :to="`/admin/website/pages/${doc.id}`"
+              class="apex-ring border-line-soft hover:bg-raised grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3.5 gap-y-1 border-t px-[18px] py-3 sm:px-[22px] xl:grid-cols-[minmax(0,1fr)_140px_170px_130px_130px_70px]"
+            >
+              <span class="min-w-0">
+                <span class="text-fg-heading block truncate text-sm font-semibold">{{ doc.title }}</span>
+                <span class="text-fg-muted mt-0.5 block truncate font-mono text-xs">{{ doc.kind === 'page' ? doc.key : doc.templateLabel }}</span>
+              </span>
+              <span class="text-fg-body hidden truncate text-[13px] xl:block">{{ doc.templateLabel }}</span>
+              <AdminWebsiteStatusChip :state="doc.state as DisplayStatus" :error="doc.lastPublishError" class="justify-self-end xl:justify-self-start" />
+              <span class="text-fg-muted hidden text-[12.5px] tabular-nums xl:block"><ClientOnly>{{ fmtDate(doc.draftUpdatedAt) }}</ClientOnly></span>
+              <span class="text-fg-muted hidden text-[12.5px] tabular-nums xl:block"><ClientOnly>{{ fmtDate(doc.publishedAt) }}</ClientOnly></span>
+              <span class="text-accent-ink hidden text-end text-[13px] font-semibold xl:block">{{ can('website.edit') ? 'Edit' : 'View' }} →</span>
+            </NuxtLink>
+          </li>
+        </ul>
+      </section>
 
       <AdminPager
         v-if="data && data.pageCount > 1" :page="data.page" :page-count="data.pageCount" :total="data.total" noun="documents"
@@ -249,52 +301,40 @@ const TEXT_INPUT = 'focus:border-primary-400 w-full rounded-xl border border-mut
       />
     </template>
 
-    <!-- ========== NEW PAGE ========== -->
-    <div v-if="showCreate" class="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="create-title">
-      <div class="apex-fade absolute inset-0 bg-black/60 backdrop-blur-sm" @click="showCreate = false" />
-      <form class="apex-pop relative flex max-h-[calc(100dvh-2rem)] w-full max-w-[520px] flex-col gap-5 overflow-y-auto rounded-2xl border border-muted-200 bg-white p-6 shadow-[0_30px_60px_rgba(0,0,0,.5)] dark:border-white/10 dark:bg-muted-800" @submit.prevent="create">
-        <div>
-          <h2 id="create-title" class="font-heading text-muted-900 text-[18px] font-extrabold tracking-[-0.01em] dark:text-white">
-            New document
-          </h2>
-          <p class="text-muted-500 mt-1.5 text-[12.5px]">
-            It starts as a draft; nothing shows on the site until it is published.
-          </p>
-        </div>
-        <div role="group" aria-label="Template" class="flex flex-col gap-2">
+    <AdminDialog v-model:open="showCreate" title="New page" description="It starts as a draft; nothing shows on the site until it is published.">
+      <form id="create-doc" class="flex flex-col gap-4 pb-1" @submit.prevent="create">
+        <div role="radiogroup" aria-label="Template" class="flex flex-col gap-2">
           <label
             v-for="option in createOptions"
             :key="option.key"
-            class="flex cursor-pointer items-start gap-3 rounded-xl border px-4 py-3 transition"
-            :class="createTemplate === option.key ? 'border-primary-500 bg-primary-500/8' : 'border-muted-200 hover:bg-muted-50 dark:border-white/10 dark:hover:bg-white/5'"
+            class="flex cursor-pointer items-start gap-3 rounded-xl border px-4 py-3"
+            :class="createTemplate === option.key ? 'border-accent bg-accent-tint' : 'border-line-subtle hover:bg-raised'"
           >
-            <input v-model="createTemplate" type="radio" name="template" :value="option.key" class="mt-1">
+            <input v-model="createTemplate" type="radio" name="template" :value="option.key" class="accent-[#7D53F2] mt-1">
             <span>
-              <span class="text-muted-900 block text-sm font-semibold dark:text-white">{{ option.label }}</span>
-              <span class="text-muted-500 block text-xs">{{ option.detail }}</span>
+              <span class="text-fg-heading block text-sm font-semibold">{{ option.label }}</span>
+              <span class="text-fg-muted block text-xs">{{ option.detail }}</span>
             </span>
           </label>
         </div>
         <div>
-          <label for="create-name" class="text-muted-900 mb-1.5 block text-[13.5px] font-semibold dark:text-white">Name</label>
-          <input id="create-name" v-model="createTitle" required maxlength="120" :class="TEXT_INPUT">
+          <label for="create-name" :class="ADMIN_LABEL">Name</label>
+          <input id="create-name" v-model="createTitle" required maxlength="120" :class="ADMIN_INPUT">
         </div>
         <div v-if="createNeedsKey">
-          <label for="create-key" class="text-muted-900 mb-1.5 block text-[13.5px] font-semibold dark:text-white">Address</label>
-          <input id="create-key" v-model="createKey" required placeholder="/offers/spring" :class="TEXT_INPUT" class="font-mono" @input="keyTouched = true">
-          <p class="text-muted-500 mt-1.5 text-xs">
-            A path on the site. Addresses the site already renders from code cannot be taken.
-          </p>
-        </div>
-        <div class="flex justify-end gap-2">
-          <BaseButton type="button" variant="muted" rounded="lg" @click="showCreate = false">
-            Cancel
-          </BaseButton>
-          <BaseButton type="submit" variant="primary" rounded="lg" :loading="creating" :disabled="creating || !createTitle.trim() || (createNeedsKey && !createKey.trim())">
-            Create draft
-          </BaseButton>
+          <label for="create-key" :class="ADMIN_LABEL">Address</label>
+          <input id="create-key" v-model="createKey" required placeholder="/offers/spring" :class="ADMIN_INPUT" class="font-mono" @input="keyTouched = true">
+          <span :class="ADMIN_HINT">A path on the site. Addresses the site already renders from code cannot be taken.</span>
         </div>
       </form>
-    </div>
-  </div>
+      <template #actions>
+        <AdminButton @click="showCreate = false">
+          Cancel
+        </AdminButton>
+        <AdminButton type="submit" form="create-doc" variant="primary" :disabled="creating || !createTitle.trim() || (createNeedsKey && !createKey.trim())">
+          Create draft
+        </AdminButton>
+      </template>
+    </AdminDialog>
+  </AdminPage>
 </template>

@@ -326,10 +326,10 @@ const ICON_BTN = 'apex-focus text-muted-500 hover:bg-muted-100 hover:text-muted-
             </div>
           </li>
         </ol>
-        <BaseButton v-if="def.max === undefined || listOf(key).length < def.max" size="sm" rounded="lg" variant="muted" class="mt-3" @click="addItem(key, def)">
+        <AdminButton v-if="def.max === undefined || listOf(key).length < def.max" size="sm" class="mt-3" @click="addItem(key, def)">
           <Icon name="lucide:plus" class="size-3.5" />
           Add
-        </BaseButton>
+        </AdminButton>
       </fieldset>
     </div>
   </div>

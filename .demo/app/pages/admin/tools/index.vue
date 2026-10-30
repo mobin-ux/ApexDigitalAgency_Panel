@@ -84,9 +84,9 @@ async function runSeed(path: string) {
   }
 }
 
-const CARD = 'rounded-2xl border border-muted-200 bg-white p-6 dark:border-white/10 dark:bg-muted-800'
+const CARD = 'bg-card border-line-subtle rounded-2xl border p-6'
 const INPUT = 'w-full rounded-xl border border-muted-200 bg-muted-50 px-3.5 py-3 text-sm text-muted-900 outline-none placeholder:text-muted-400 focus:border-primary-400 sm:py-2.5 dark:border-white/10 dark:bg-white/5 dark:text-white dark:placeholder:text-muted-500'
-const LABEL = 'mb-2 block text-[12.5px] font-semibold text-muted-900 dark:text-white'
+const LABEL = 'mb-2 block text-[12.5px] font-semibold text-fg-heading'
 </script>
 
 <template>
@@ -162,9 +162,9 @@ const LABEL = 'mb-2 block text-[12.5px] font-semibold text-muted-900 dark:text-w
                 <input id="bc-link" v-model="broadcast.link" placeholder="/dashboards/services" :class="INPUT">
               </div>
             </div>
-            <BaseButton type="submit" rounded="lg" variant="primary" class="self-end" :disabled="!broadcast.title.trim() || !broadcast.message.trim()">
+            <AdminButton type="submit" variant="primary" class="self-end" :disabled="!broadcast.title.trim() || !broadcast.message.trim()">
               <Icon name="lucide:megaphone" class="size-4" />Send announcement
-            </BaseButton>
+            </AdminButton>
           </form>
         </section>
 
@@ -177,9 +177,9 @@ const LABEL = 'mb-2 block text-[12.5px] font-semibold text-muted-900 dark:text-w
             <p class="text-muted-500 mb-4 mt-[7px] text-[13px] leading-[1.55]">
               Every action that changes access, money or a client's records now has its own screen, with filters by kind and a CSV export.
             </p>
-            <BaseButton to="/admin/audit" rounded="lg">
+            <AdminButton to="/admin/audit">
               <Icon name="lucide:scroll-text" class="size-4" />Open the audit log
-            </BaseButton>
+            </AdminButton>
           </section>
 
           <!-- dev utilities -->
@@ -204,16 +204,14 @@ const LABEL = 'mb-2 block text-[12.5px] font-semibold text-muted-900 dark:text-w
                     {{ seed.desc }}
                   </div>
                 </div>
-                <BaseButton
+                <AdminButton
                   size="sm"
-                  rounded="lg"
                   class="shrink-0"
-                  :loading="seeding === seed.path"
                   :disabled="Boolean(seeding)"
                   @click="runSeed(seed.path)"
                 >
                   Run
-                </BaseButton>
+                </AdminButton>
               </div>
             </div>
           </section>
@@ -232,15 +230,15 @@ const LABEL = 'mb-2 block text-[12.5px] font-semibold text-muted-900 dark:text-w
           Send to every active customer?
         </div>
         <p class="text-muted-600 dark:text-muted-300 mt-2 text-[13.5px] leading-[1.55]">
-          "<strong class="text-muted-900 dark:text-white">{{ broadcast.title }}</strong>" will appear in every active customer's notification feed. This can't be recalled.
+          "<strong class="text-fg-heading">{{ broadcast.title }}</strong>" will appear in every active customer's notification feed. This can't be recalled.
         </p>
         <div class="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-          <BaseButton rounded="lg" @click="showBroadcastConfirm = false">
+          <AdminButton @click="showBroadcastConfirm = false">
             Cancel
-          </BaseButton>
-          <BaseButton rounded="lg" variant="primary" :loading="broadcasting" :disabled="broadcasting" @click="sendBroadcast">
+          </AdminButton>
+          <AdminButton variant="primary" :disabled="broadcasting" @click="sendBroadcast">
             <Icon name="lucide:send" class="size-4" />Send announcement
-          </BaseButton>
+          </AdminButton>
         </div>
       </div>
     </div>

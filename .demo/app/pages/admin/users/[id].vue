@@ -262,14 +262,14 @@ const labelClass = 'mb-2 block text-[12.5px] font-semibold text-white'
           </div>
         </div>
         <div class="flex flex-wrap items-center gap-3">
-          <BaseButton
-            v-if="!isSelf" rounded="full"
+          <AdminButton
+            v-if="!isSelf"
             :class="detail.status === 'SUSPENDED' ? 'border border-[#22B07D]/30 bg-[#22B07D]/14 !text-[#22B07D] hover:bg-[#22B07D]/20' : 'border border-[#EC6453]/30 bg-[#EC6453]/14 !text-[#EC6453] hover:bg-[#EC6453]/20'"
             @click="showSuspend = true"
           >
             <Icon :name="detail.status === 'SUSPENDED' ? 'lucide:user-check' : 'lucide:user-x'" class="size-4" />
             {{ detail.status === 'SUSPENDED' ? 'Reactivate' : 'Suspend' }}
-          </BaseButton>
+          </AdminButton>
         </div>
       </div>
 
@@ -303,9 +303,9 @@ const labelClass = 'mb-2 block text-[12.5px] font-semibold text-white'
                 <input id="pf-country" v-model="profile.country" :class="inputClass">
               </div>
               <div class="flex items-end justify-end">
-                <BaseButton type="submit" rounded="full" variant="primary" :loading="savingProfile" :disabled="savingProfile">
+                <AdminButton type="submit" variant="primary" :disabled="savingProfile">
                   <Icon name="lucide:check" class="size-4" />Save profile
-                </BaseButton>
+                </AdminButton>
               </div>
             </form>
           </section>
@@ -330,9 +330,9 @@ const labelClass = 'mb-2 block text-[12.5px] font-semibold text-white'
               <p class="text-[13.5px] text-muted-400">
                 This is an individual account. Attach a company profile to treat it as a business customer.
               </p>
-              <BaseButton rounded="full" class="border border-white/10 bg-muted-700 !text-white hover:bg-muted-600" @click="showCompanyForm = true">
+              <AdminButton class="border border-white/10 bg-muted-700 !text-white hover:bg-muted-600" @click="showCompanyForm = true">
                 <Icon name="lucide:building-2" class="size-4" />Attach company profile
-              </BaseButton>
+              </AdminButton>
             </div>
 
             <form v-else class="grid grid-cols-1 gap-4 sm:grid-cols-2" @submit.prevent="saveCompany">
@@ -384,9 +384,9 @@ const labelClass = 'mb-2 block text-[12.5px] font-semibold text-white'
                 <textarea id="co-notes" v-model="companyForm.notes" rows="3" class="w-full resize-y rounded-[11px] border border-white/8 bg-muted-700 px-3.5 py-2.5 text-sm leading-[1.55] text-white outline-none placeholder:text-muted-500 focus:border-primary-400" />
               </div>
               <div class="flex items-end justify-end sm:col-span-2">
-                <BaseButton type="submit" rounded="full" variant="primary" :loading="savingCompany" :disabled="savingCompany || !companyForm.name.trim()">
+                <AdminButton type="submit" variant="primary" :disabled="savingCompany || !companyForm.name.trim()">
                   <Icon name="lucide:check" class="size-4" />Save company
-                </BaseButton>
+                </AdminButton>
               </div>
             </form>
           </section>
@@ -486,9 +486,9 @@ const labelClass = 'mb-2 block text-[12.5px] font-semibold text-white'
               Ad credits: <span class="font-semibold text-white tabular-nums">{{ formatCurrency(detail.adCredits) }}</span>
             </div>
             <div class="mt-5">
-              <BaseButton rounded="full" class="!bg-white !text-muted-900 hover:!bg-primary-50" @click="openWallet">
+              <AdminButton class="!bg-white !text-muted-900 hover:!bg-primary-50" @click="openWallet">
                 <Icon name="lucide:arrow-up-down" class="size-4" />Adjust balance
-              </BaseButton>
+              </AdminButton>
             </div>
           </section>
 
@@ -580,9 +580,9 @@ const labelClass = 'mb-2 block text-[12.5px] font-semibold text-white'
                     <button type="button" class="apex-tap rounded-full px-3 py-1.5 text-xs font-semibold text-muted-400 hover:text-white" @click="tfResetOpen = false">
                       Cancel
                     </button>
-                    <BaseButton type="submit" rounded="full" size="sm" variant="primary" :loading="tfResetting" :disabled="tfReason.trim().length < 5">
+                    <AdminButton type="submit" size="sm" variant="primary" :disabled="tfReason.trim().length < 5">
                       Turn off two-step
-                    </BaseButton>
+                    </AdminButton>
                   </div>
                 </form>
               </div>
@@ -642,9 +642,9 @@ const labelClass = 'mb-2 block text-[12.5px] font-semibold text-white'
     </div>
 
     <AdminEmptyState v-else icon="lucide:user-x" title="User not found" subtitle="This account may have been deleted.">
-      <BaseButton rounded="full" variant="primary" to="/admin/users">
+      <AdminButton variant="primary" to="/admin/users">
         Back to users
-      </BaseButton>
+      </AdminButton>
     </AdminEmptyState>
 
     <!-- ========== SUSPEND CONFIRM MODAL ========== -->
@@ -663,16 +663,15 @@ const labelClass = 'mb-2 block text-[12.5px] font-semibold text-white'
             : `${displayName} will be signed out at the next request and refused at login until reactivated.` }}
         </p>
         <div class="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-          <BaseButton rounded="full" class="border border-white/10 bg-muted-700 !text-white hover:bg-muted-600" @click="showSuspend = false">
+          <AdminButton class="border border-white/10 bg-muted-700 !text-white hover:bg-muted-600" @click="showSuspend = false">
             Cancel
-          </BaseButton>
-          <BaseButton
-            rounded="full"
+          </AdminButton>
+          <AdminButton
             :class="detail.status === 'SUSPENDED' ? '!bg-[#22B07D] !text-white hover:!bg-[#22B07D]/85' : '!bg-[#EC6453] !text-white hover:!bg-[#EC6453]/85'"
             @click="confirmSuspendToggle"
           >
             {{ detail.status === 'SUSPENDED' ? 'Reactivate account' : 'Suspend account' }}
-          </BaseButton>
+          </AdminButton>
         </div>
       </div>
     </div>
@@ -691,12 +690,12 @@ const labelClass = 'mb-2 block text-[12.5px] font-semibold text-white'
           The company details will be deleted and this becomes an individual account. This can't be undone.
         </p>
         <div class="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-          <BaseButton rounded="full" class="border border-white/10 bg-muted-700 !text-white hover:bg-muted-600" @click="showRemoveCompany = false">
+          <AdminButton class="border border-white/10 bg-muted-700 !text-white hover:bg-muted-600" @click="showRemoveCompany = false">
             Cancel
-          </BaseButton>
-          <BaseButton rounded="full" class="!bg-[#EC6453] !text-white hover:!bg-[#EC6453]/85" @click="removeCompany">
+          </AdminButton>
+          <AdminButton class="!bg-[#EC6453] !text-white hover:!bg-[#EC6453]/85" @click="removeCompany">
             Remove profile
-          </BaseButton>
+          </AdminButton>
         </div>
       </div>
     </div>
@@ -748,12 +747,12 @@ const labelClass = 'mb-2 block text-[12.5px] font-semibold text-white'
           </div>
 
           <div class="mt-1 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-            <BaseButton rounded="full" class="border border-white/10 bg-muted-700 !text-white hover:bg-muted-600" @click="showWallet = false">
+            <AdminButton class="border border-white/10 bg-muted-700 !text-white hover:bg-muted-600" @click="showWallet = false">
               Cancel
-            </BaseButton>
-            <BaseButton type="submit" rounded="full" variant="primary" :loading="adjusting" :disabled="adjusting || !walletAmount || walletAmount <= 0 || walletReason.trim().length < 3">
+            </AdminButton>
+            <AdminButton type="submit" variant="primary" :disabled="adjusting || !walletAmount || walletAmount <= 0 || walletReason.trim().length < 3">
               <Icon name="lucide:check" class="size-4" />Apply adjustment
-            </BaseButton>
+            </AdminButton>
           </div>
         </form>
       </div>

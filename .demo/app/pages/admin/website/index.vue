@@ -16,7 +16,7 @@ import { DISPLAY_STATUS_LABEL } from '~~/shared/cms'
  * minute, for a failed publish or a change the site's cache has not taken.
  */
 definePageMeta({
-  title: 'Website',
+  title: 'Publishing',
   layout: 'admin',
   middleware: 'admin',
 })
@@ -92,13 +92,13 @@ function humanise(action: string) {
   return action.replace(/^admin\.website\./, '').replace(/[.-]/g, ' ')
 }
 
-const CARD = 'border-muted-200 bg-white dark:border-muted-800 dark:bg-muted-900 rounded-2xl border'
+const CARD = 'bg-card border-line-subtle rounded-2xl border'
 </script>
 
 <template>
   <div class="mx-auto flex w-full max-w-[1180px] px-4 pt-5 sm:px-8 sm:pt-7 flex-col gap-8 pb-10">
     <AdminPageHeader
-      title="Website"
+      title="Website" accent="publishing"
       subtitle="Pages, menus, media and SEO for the public site, and the customer-facing documents in this panel."
     />
 
@@ -146,9 +146,9 @@ const CARD = 'border-muted-200 bg-white dark:border-muted-800 dark:bg-muted-900 
         <section v-if="data?.failed.length || data?.revalidatePending" :class="CARD" class="p-6">
           <div class="flex flex-wrap items-center justify-between gap-3">
             <ApexSectionLabel>{{ data?.failed.length ? 'Failed to publish' : 'Waiting for the site' }}</ApexSectionLabel>
-            <BaseButton v-if="can('website.publish')" size="sm" rounded="lg" variant="muted" :loading="retrying" :disabled="retrying" @click="retryNow">
+            <AdminButton v-if="can('website.publish')" size="sm" :disabled="retrying" @click="retryNow">
               Retry now
-            </BaseButton>
+            </AdminButton>
           </div>
           <ul v-if="data?.failed.length" class="mt-4 flex flex-col gap-3">
             <li v-for="doc in data.failed" :key="doc.id" class="flex flex-col gap-1 rounded-xl bg-[#EC6453]/8 px-4 py-3">

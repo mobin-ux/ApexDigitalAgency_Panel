@@ -77,13 +77,13 @@ function fmtDate(iso: string | Date | null) {
   return iso ? new Date(iso).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—'
 }
 
-const CARD = 'border-muted-200 bg-white dark:border-muted-800 dark:bg-muted-900 rounded-2xl border'
+const CARD = 'bg-card border-line-subtle rounded-2xl border'
 </script>
 
 <template>
   <div class="mx-auto flex w-full max-w-[1180px] px-4 pt-5 sm:px-8 sm:pt-7 flex-col gap-8 pb-10">
     <AdminPageHeader
-      title="Panel content"
+      title="Panel" accent="content"
       subtitle="The documents customers read inside this panel: legal pages, the dashboard promo and the announcement bar."
     />
 
@@ -115,15 +115,15 @@ const CARD = 'border-muted-200 bg-white dark:border-muted-800 dark:bg-muted-900 
           <div class="flex shrink-0 items-center gap-3">
             <template v-if="row.doc">
               <AdminWebsiteStatusChip :state="row.doc.state as DisplayStatus" :error="row.doc.lastPublishError" />
-              <BaseButton size="sm" rounded="lg" variant="muted" :to="`/admin/website/pages/${row.doc.id}`">
+              <AdminButton size="sm" :to="`/admin/website/pages/${row.doc.id}`">
                 {{ can('website.edit') ? 'Edit' : 'View' }}
-              </BaseButton>
+              </AdminButton>
             </template>
             <template v-else-if="!pending">
               <span class="text-muted-500 text-[12.5px]">Not created yet</span>
-              <BaseButton v-if="can('website.edit')" size="sm" rounded="lg" variant="primary" :loading="creating === row.key" :disabled="creating !== null" @click="create(row)">
+              <AdminButton v-if="can('website.edit')" size="sm" variant="primary" :disabled="creating !== null" @click="create(row)">
                 Create draft
-              </BaseButton>
+              </AdminButton>
             </template>
           </div>
         </div>
@@ -140,9 +140,9 @@ const CARD = 'border-muted-200 bg-white dark:border-muted-800 dark:bg-muted-900 
         </div>
         <div class="flex shrink-0 items-center gap-3">
           <AdminStatusChip :status="creditOpen ? 'open' : 'closed'" :tone="creditOpen ? 'green' : 'muted'" :label="creditOpen ? 'Open' : 'Closed'" />
-          <BaseButton v-if="can('website.settings')" size="sm" rounded="lg" variant="muted" :loading="switching" :disabled="switching" @click="setCredit(!creditOpen)">
+          <AdminButton v-if="can('website.settings')" size="sm" :disabled="switching" @click="setCredit(!creditOpen)">
             {{ creditOpen ? 'Close applications' : 'Open applications' }}
-          </BaseButton>
+          </AdminButton>
           <span v-else class="text-muted-500 text-[12.5px]">Owner or Admin changes this.</span>
         </div>
       </section>

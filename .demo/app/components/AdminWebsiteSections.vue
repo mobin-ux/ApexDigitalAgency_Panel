@@ -113,10 +113,10 @@ const ICON_BTN = 'apex-focus text-muted-500 hover:bg-muted-100 hover:text-muted-
     </ol>
 
     <div v-if="sections.length < 40" class="relative">
-      <BaseButton size="sm" rounded="lg" variant="muted" :aria-expanded="adding" @click="adding = !adding">
+      <AdminButton size="sm" :aria-expanded="adding" @click="adding = !adding">
         <Icon name="lucide:plus" class="size-3.5" />
         Add a section
-      </BaseButton>
+      </AdminButton>
       <div v-if="adding" class="border-muted-200 mt-2 grid gap-2 rounded-xl border bg-white p-3 sm:grid-cols-2 dark:border-white/10 dark:bg-muted-800">
         <button v-for="type in SECTION_TYPES" :key="type" type="button" class="apex-focus hover:bg-muted-100 dark:hover:bg-white/5 flex flex-col items-start rounded-lg px-3 py-2 text-start" @click="add(type)">
           <span class="text-muted-900 text-[13px] font-semibold dark:text-white">{{ SECTION_DEFS[type].label }}</span>

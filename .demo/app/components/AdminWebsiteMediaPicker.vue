@@ -63,12 +63,12 @@ const INPUT = 'focus:border-primary-400 w-full rounded-xl border border-muted-20
         <span v-else class="text-muted-500 block text-sm">No file chosen</span>
         <span v-if="chosen" class="text-muted-500 block text-xs">{{ fmtBytes(chosen.bytes) }}<template v-if="chosen.width"> · {{ chosen.width }}×{{ chosen.height }}</template></span>
       </span>
-      <BaseButton size="sm" rounded="lg" variant="muted" :disabled="disabled" @click="open = true">
+      <AdminButton size="sm" :disabled="disabled" @click="open = true">
         {{ modelValue ? 'Change' : 'Choose' }}
-      </BaseButton>
-      <BaseButton v-if="modelValue" size="sm" rounded="lg" variant="muted" :disabled="disabled" aria-label="Remove file" @click="clear">
+      </AdminButton>
+      <AdminButton v-if="modelValue" size="sm" :disabled="disabled" aria-label="Remove file" @click="clear">
         <Icon name="lucide:x" class="size-4" />
-      </BaseButton>
+      </AdminButton>
     </div>
     <div v-if="modelValue && accept !== 'pdf'">
       <label class="text-muted-500 mb-1 block text-xs font-semibold">Alt text for this use</label>

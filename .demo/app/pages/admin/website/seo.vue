@@ -12,7 +12,7 @@
  * `website.view` may look; `website.seo` may change.
  */
 definePageMeta({
-  title: 'Website SEO',
+  title: 'SEO & redirects',
   layout: 'admin',
   middleware: 'admin',
 })
@@ -157,7 +157,7 @@ function fmtDate(iso: string | Date | null) {
   return iso ? new Date(iso).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—'
 }
 
-const CARD = 'border-muted-200 bg-white dark:border-muted-800 dark:bg-muted-900 rounded-2xl border'
+const CARD = 'bg-card border-line-subtle rounded-2xl border'
 const INPUT = 'focus:border-primary-400 w-full rounded-xl border border-muted-200 bg-muted-50 px-3.5 py-2.5 text-sm text-muted-900 outline-none placeholder:text-muted-400 dark:border-white/10 dark:bg-white/5 dark:text-white dark:placeholder:text-muted-500'
 const LABEL = 'text-muted-900 mb-1.5 block text-[13.5px] font-semibold dark:text-white'
 </script>
@@ -165,14 +165,14 @@ const LABEL = 'text-muted-900 mb-1.5 block text-[13.5px] font-semibold dark:text
 <template>
   <div class="mx-auto flex w-full max-w-[1180px] px-4 pt-5 sm:px-8 sm:pt-7 flex-col gap-8 pb-10">
     <AdminPageHeader
-      title="SEO and redirects"
+      title="SEO &" accent="redirects"
       subtitle="Old addresses that should send visitors somewhere else, and what search engines will see on the published pages."
     >
       <template v-if="allowed && canEdit">
-        <BaseButton variant="primary" rounded="full" @click="openNew">
+        <AdminButton variant="primary" @click="openNew">
           <Icon name="lucide:plus" class="size-4" />
           Add redirect
-        </BaseButton>
+        </AdminButton>
       </template>
     </AdminPageHeader>
 
@@ -225,7 +225,7 @@ const LABEL = 'text-muted-900 mb-1.5 block text-[13.5px] font-semibold dark:text
                 <button
                   v-for="code in [301, 302] as const" :key="code" type="button"
                   class="rounded-xl border px-3.5 py-2 text-[13px] font-semibold transition"
-                  :class="form.statusCode === code ? 'border-primary-500 bg-primary-500/10 text-muted-900 dark:text-white' : 'border-muted-200 text-muted-500 hover:text-muted-900 dark:border-white/10 dark:hover:text-white'"
+                  :class="form.statusCode === code ? 'border-primary-500 bg-primary-500/10 text-fg-heading' : 'border-muted-200 text-muted-500 hover:text-muted-900 dark:border-white/10 dark:hover:text-white'"
                   :aria-pressed="form.statusCode === code"
                   @click="form.statusCode = code"
                 >
@@ -254,12 +254,12 @@ const LABEL = 'text-muted-900 mb-1.5 block text-[13.5px] font-semibold dark:text
               </p>
             </div>
             <div class="flex items-center gap-3 md:col-span-2">
-              <BaseButton type="submit" variant="primary" rounded="lg" size="sm" :loading="saving" :disabled="saving || !form.fromPath.trim() || !form.toPath.trim() || Boolean(check?.error)">
+              <AdminButton type="submit" variant="primary" size="sm" :disabled="saving || !form.fromPath.trim() || !form.toPath.trim() || Boolean(check?.error)">
                 {{ editing ? 'Save changes' : 'Add redirect' }}
-              </BaseButton>
-              <BaseButton type="button" variant="muted" rounded="lg" size="sm" @click="closeForm">
+              </AdminButton>
+              <AdminButton type="button" size="sm" @click="closeForm">
                 Cancel
-              </BaseButton>
+              </AdminButton>
               <label v-if="editing" class="text-muted-500 ms-auto flex items-center gap-2 text-[12.5px]">
                 <input v-model="form.enabled" type="checkbox" class="accent-primary-500 size-4">
                 Enabled
@@ -288,23 +288,23 @@ const LABEL = 'text-muted-900 mb-1.5 block text-[13.5px] font-semibold dark:text
                 {{ row.enabled ? 'On' : 'Off' }}
               </span>
               <template v-if="canEdit">
-                <BaseButton size="sm" rounded="lg" variant="muted" @click="toggle(row)">
+                <AdminButton size="sm" @click="toggle(row)">
                   {{ row.enabled ? 'Turn off' : 'Turn on' }}
-                </BaseButton>
-                <BaseButton size="sm" rounded="lg" variant="muted" @click="openEdit(row)">
+                </AdminButton>
+                <AdminButton size="sm" @click="openEdit(row)">
                   Edit
-                </BaseButton>
+                </AdminButton>
                 <template v-if="confirmingDelete === row.id">
-                  <BaseButton size="sm" rounded="lg" variant="primary" class="bg-[#EC6453]! border-[#EC6453]!" @click="remove(row)">
+                  <AdminButton size="sm" variant="primary" class="bg-[#EC6453]! border-[#EC6453]!" @click="remove(row)">
                     Confirm remove
-                  </BaseButton>
-                  <BaseButton size="sm" rounded="lg" variant="muted" @click="confirmingDelete = null">
+                  </AdminButton>
+                  <AdminButton size="sm" @click="confirmingDelete = null">
                     Keep
-                  </BaseButton>
+                  </AdminButton>
                 </template>
-                <BaseButton v-else size="sm" rounded="lg" variant="muted" class="text-[#EC6453]!" @click="confirmingDelete = row.id">
+                <AdminButton v-else size="sm" class="text-[#EC6453]!" @click="confirmingDelete = row.id">
                   Remove
-                </BaseButton>
+                </AdminButton>
               </template>
             </div>
           </div>
@@ -331,9 +331,9 @@ const LABEL = 'text-muted-900 mb-1.5 block text-[13.5px] font-semibold dark:text
             <span v-for="(meta, sev) in SEVERITY" :key="sev" class="rounded-full px-2.5 py-0.5 text-[11.5px] font-semibold" :class="meta.cls">
               {{ counts[sev] }} {{ meta.label.toLowerCase() }}
             </span>
-            <BaseButton size="sm" rounded="lg" variant="muted" :loading="auditPending" @click="refreshAudit()">
+            <AdminButton size="sm" @click="refreshAudit()">
               Re-run
-            </BaseButton>
+            </AdminButton>
           </div>
         </div>
         <AdminEmptyState v-if="audit && !audit.issues.length" icon="lucide:badge-check" title="Nothing to report" subtitle="Every published page has a title and a description within Google's limits, no two share a title, and every redirect lands in one hop." />

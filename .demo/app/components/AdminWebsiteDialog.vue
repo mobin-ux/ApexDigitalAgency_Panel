@@ -23,18 +23,18 @@ const open = defineModel<boolean>('open', { required: true })
 <template>
   <DialogRoot v-model:open="open">
     <DialogPortal>
-      <DialogOverlay class="apex-fade fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm" />
+      <DialogOverlay class="apex-scrim-in fixed inset-0 z-[80] bg-[rgba(3,10,12,.6)]" />
       <DialogContent
-        class="apex-pop fixed left-1/2 top-1/2 z-[61] flex w-[calc(100%-2rem)] max-w-[480px] -translate-x-1/2 -translate-y-1/2 flex-col gap-4 rounded-2xl border border-muted-200 bg-white p-6 shadow-[0_30px_60px_rgba(0,0,0,.5)] focus:outline-none dark:border-white/10 dark:bg-muted-800"
+        class="apex-rise-in bg-card border-line-strong fixed left-1/2 top-1/2 z-[81] flex max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-[560px] -translate-x-1/2 -translate-y-1/2 flex-col gap-4 overflow-y-auto rounded-[18px] border px-6 py-[22px] shadow-[0_40px_90px_rgba(17,31,34,.4)] focus:outline-none"
       >
-        <DialogTitle class="font-heading text-muted-900 text-[18px] font-extrabold tracking-[-0.01em] dark:text-white">
+        <DialogTitle class="font-heading text-fg-heading text-xl font-extrabold tracking-[-0.015em]">
           {{ title }}
         </DialogTitle>
-        <DialogDescription class="text-muted-500 text-[13px] leading-[1.5]">
+        <DialogDescription class="text-fg-body text-sm leading-[1.6]">
           {{ description }}
         </DialogDescription>
         <slot />
-        <div class="flex justify-end gap-2">
+        <div class="flex flex-wrap justify-end gap-2.5">
           <slot name="actions" />
         </div>
       </DialogContent>

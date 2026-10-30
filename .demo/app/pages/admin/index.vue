@@ -149,7 +149,12 @@ const lastPublished = computed(() => {
   if (!row) {
     return 'Nothing has been published from the console yet.'
   }
-  const title = row.metadata?.title ?? row.metadata?.key ?? 'A document'
+  let meta: Record<string, any> = {}
+  try {
+    meta = typeof row.metadata === 'string' ? JSON.parse(row.metadata) : row.metadata ?? {}
+  }
+  catch {}
+  const title = meta.title ?? meta.key ?? 'A document'
   return `Last published: ${title} · ${ukDateTime(row.createdAt)} by ${row.actorEmail}.`
 })
 
