@@ -28,7 +28,8 @@ Tairo components and is extended by `.demo/nuxt.config.ts`.
     pages/dashboards/        customer pages (balance, orders, services, wallet, support, settings)
     pages/auth/              login-1 (active login), signup-1, recover — still template-era
     layouts/sidenav.vue      customer shell: brand band, ApexSidebarNav, ApexAccountMenu
-    layouts/admin.vue        admin shell — same components, ADMIN chip
+    layouts/admin.vue        admin console shell (`Admin Console.dc.html`): sidebar, top bar,
+                             ⌘K palette, confirmation host; light and dark
     components/Apex*.vue     shared shell vocabulary (V2 Phase 1):
                              ApexSidebarNav, ApexAccountMenu, ApexNotificationsMenu,
                              ApexPageHeader, ApexSectionLabel
@@ -148,6 +149,9 @@ JWT secret: `runtimeConfig.jwtSecret` (`NUXT_JWT_SECRET` env override).
 | POST `/api/orders/pay` | pays FULL amount, activates PENDING project — ownership-checked, atomic conditional debit (no double-spend). **Not** an installment charge (ADR-010) |
 | GET `/api/finance/dashboard` | wallet overview. `balanceOverview.cash` **is** `User.walletBalance` (it used to be the sum of the ten newest transactions) |
 | GET `/api/config` | the customer-safe Setting slice. Signed out: `siteName`, `supportEmail`, plus the published `legal.{terms,privacy}` documents and a live `announcement` (ADR-021); signed in adds `dashboardPromo` (resolved over `shared/panel-baseline.ts`) and `features.creditApplications`. Client code reads it through `useApexConfig()`, one shared key per page |
+| GET `/api/admin/tickets` | `support.answer` — the inbox; since 2026-10-31 also `replyTargets` (minutes per priority, Platform settings over `shared/support-eta` defaults) and each request's `waitingSince` (the customer's latest public message when unanswered; internal notes are not an answer) |
+| GET `/api/admin/services` | `work.view` — the catalogue and defaults; since 2026-10-31 also `live` project counts per service |
+| GET `/api/admin/users` | `work.view` — the directory; since 2026-10-31 also the credit line (selected only for `money.view` roles; `canMoney` in the answer) and the newest session's `lastSeenAt` |
 | `/api/support/*` | ticket create/list zod-validated; thread read/reply **ownership-checked** (were fully unauthenticated) |
 | `/api/settings/*` | schema-valid field names; `get-all` no longer returns the password hash. `update-all` accepts only the fields a customer may set — not the company's status, manager, income or headcount, and no image URLs |
 | **`/api/admin/users`** (GET) | ADMIN only — paginated/searchable/role-filterable directory (`?page&pageSize&search&role`) |
@@ -160,7 +164,7 @@ JWT secret: `runtimeConfig.jwtSecret` (`NUXT_JWT_SECRET` env override).
 | **`/api/admin/{projects,finance,tickets,settings,audit,milestones,notifications}`** | ADMIN only — full management surface (list/detail/create/patch/delete per module; finance = summary/transactions/refund/withdrawals/installments; tickets incl. internal notes + reply; settings key/value upsert; broadcast notifications). Same ADR-013 conventions: `requireAdmin`, zod, `paginated()`, `recordAudit()` |
 | POST `/api/finance/topup` | **real gateway top-up** (ADR-015). Creates a `PaymentIntent` *before* calling the provider, returns redirect/clientSecret; the wallet moves only in `settleIntent`. Supersedes `/api/finance/deposit` for the UI |
 | POST `/api/webhooks/:provider` | **the only unauthenticated writes** — the HMAC signature is the auth. Raw body → constant-time verify → unique `(provider, providerEventId)` insert → 200. `stripe`\|`gocardless`\|`paypal`\|`mock` |
-| GET `/api/admin/payments/health` | ADMIN — rails status: configured providers + mode, trial balance, stuck intents, webhook failures, provider balances |
+| GET `/api/admin/payments/health` | `money.view` — rails status: configured providers + mode, trial balance, stuck intents, webhook failures, provider balances. Shown as the Rails tab of Payments & credit |
 | **`/api/admin/team`** (GET) | `team.manage` — staff members (role ADMIN) with their `staffRole`, project load and most recent audited action, **plus** pending invites as a separate list (badge 24) |
 | **`/api/admin/team/:id`** (PATCH) | `team.manage` — change `staffRole` or suspend/restore. Refuses self-edits and last-owner demotion/suspension with the sentence the UI shows; writes an audit row with the typed reason |
 | **`/api/admin/team/invites`** (POST) | `team.manage` — create a `StaffInvite` (single-use token, 7-day expiry). Grants nothing. The acceptance link is emailed through the outbox (ADR-022) and the answer carries `mail.status`, SENT only when the provider accepted it; the link is returned as well so the operator can pass it on when the email did not go |
@@ -244,6 +248,14 @@ All customer pages: `definePageMeta({ layout: 'sidenav', middleware: 'auth' })`.
   `/dashboards/support` (real page, not the design's stub).
 - **Old-style pages awaiting redesign**: settings.vue, auth pages — still hardcoded
   hex/USD/native alerts; rebuild only on design arrival.
+- **Admin console (2026-10-31, `Admin Console.dc.html`)**: every `/admin/**`
+  screen sits in `layouts/admin.vue` (236px sidebar from `lg`, drawer below,
+  64px top bar with breadcrumb, ⌘K search, theme switch), light and dark.
+  The nav table is `app/utils/adminNav.ts`; a destination whose permission
+  the role lacks renders `AdminAccessWall` from the layout. Shared pieces
+  live in `app/components/Admin*.vue`, `app/composables/useAdminConsole.ts`
+  (breadcrumb, confirmation, palette, nav counts), `app/utils/adminUi.ts`
+  and `app/utils/adminFormat.ts`. See DESIGN_SYSTEM.md "Admin console".
 - **Admin — Team & platform (V2 Phase 9)**: `/admin/team` (staff, invites and the
   role matrix), `/admin/settings` rebuilt as the design's four platform panels
   with the rest of the catalogue below it, `/admin/audit` (the log, lifted out of

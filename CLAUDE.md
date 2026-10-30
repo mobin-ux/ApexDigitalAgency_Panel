@@ -52,9 +52,12 @@ Detail lives in the docs — read on demand, don't guess:
   `text-fg-muted`, `border-line-subtle`, `text-accent-ink`, `bg-st-<tone>-bg`…
   (main.css). Components: `ApexButton`, `ApexStatusChip`, `ApexField`, `ApexGlyph`.
   Status labels come from `projectStatus()` and schedules from `orderSchedule()`.
-- **Admin keeps the V2 Phase 1 shell vocabulary** (`<ApexPageHeader>`,
-  `<ApexSectionLabel>`, `<ApexSidebarNav>`, `<ApexAccountMenu>`, `DemoToolbar`) and
-  the dark theme — admin, auth and legal routes are pinned dark in `nuxt.config.ts`.
+- **Admin is the Admin Console** (`Admin Console.dc.html`, 2026-10-31): light and
+  dark, `layouts/admin.vue` + `AdminConsoleSidebar`, nav table `utils/adminNav.ts`.
+  Build screens from `AdminPage`, `AdminPageHeader` (title + accent), `AdminCard`,
+  `AdminButton`, `AdminStatusChip`, `AdminDialog`, `AdminDrawer` and
+  `useAdminConfirm().ask()` (reason required wherever the API stores one); tables
+  switch to fixed columns at `xl`. Auth and legal routes stay pinned dark.
 - Radius scale: surfaces `rounded-2xl`, inner rows/inputs/icon buttons `rounded-xl`,
   pills `rounded-full`. No new arbitrary `rounded-[Npx]` for either.
 - Static assets go in **`.demo/public/`**. `.demo/app/public/` is not served.

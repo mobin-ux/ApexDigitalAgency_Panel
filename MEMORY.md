@@ -2,7 +2,7 @@
 
 > Handoff doc for continuing work in fresh sessions. Update the relevant section
 > whenever a page ships, a decision lands, or a blocker appears.
-> Last updated: **2026-10-30** (both apps re-deployed from master; Cloudflare applied — ADR-023; Mail provider deployed — ADR-022; Website CMS — ADR-021; 2026-10-25 Panel v2: dashboard, New order and My orders revisions; Wallet revision — credit by application, ADR-020; Support revision — call requests and ratings; 2026-10-27 Settings re-check — profile photos, signed-in devices, two-step verification).
+> Last updated: **2026-10-31** (admin console replaced by `Admin Console.dc.html`; both apps re-deployed from master; Cloudflare applied — ADR-023; Mail provider deployed — ADR-022; Website CMS — ADR-021; 2026-10-25 Panel v2: dashboard, New order and My orders revisions; Wallet revision — credit by application, ADR-020; Support revision — call requests and ratings; 2026-10-27 Settings re-check — profile photos, signed-in devices, two-step verification).
 
 ## Where things stand
 
@@ -16,7 +16,61 @@
 - Stale branch `refactor/apex-dashboard` (local + origin) is superseded by master;
   deletable, but ask the user first.
 
-## Website CMS — in progress (started 2026-10-28)  ⬅ CURRENT WORKSTREAM
+## Admin console — done (2026-10-31)  ⬅ LATEST WORKSTREAM
+
+The admin interface was replaced by the Claude Design "Admin Console"
+(project `eb7c3341-4385-4c1d-85a6-bf80958b6398`, `Admin Console.dc.html`,
+3,528 lines: markup 40–2008, prototype logic 2009–3528). Six gates on
+master: `5cc9069` shell + Overview, `9fc7ce7` projects, `9030291` support,
+services, clients, `63d89be` team, payments, credit, `5c8ee7c` website
+screens, gate 6 system screens + AA in both themes; docs after. Standards,
+the real-or-absent list and the verification are in DESIGN_SYSTEM.md
+"Admin console". Not deployed.
+
+- **Shell**: `layouts/admin.vue`, `AdminConsoleSidebar`, nav table
+  `utils/adminNav.ts` (Overview · Work · People · Money · Website · System;
+  padlock rows; live counts read client-side), ⌘K `AdminCommandPalette`,
+  layout-level `AdminAccessWall`. Admin is no longer pinned dark; it shares
+  the panel's `useApexTheme` switch.
+- **Building blocks**: `AdminPage`, `AdminPageHeader` (title + accent),
+  `AdminCard`, `AdminButton`, `AdminStatusChip`, `AdminDialog`,
+  `AdminDrawer`, `AdminConfirmHost` + `useAdminConfirm().ask()`,
+  `useAdminCrumb()`, `AdminWebsiteDocList`, `utils/adminUi.ts`,
+  `utils/adminFormat.ts`. `BaseButton` is gone from the admin.
+- **New screens**: `/admin/website/insights`, `/admin/website/case-studies`;
+  Payments gained Credit lines and Rails (payments health) tabs; credit
+  applications open one per screen at `?application=`.
+- **Backend (additive)**: tickets list `replyTargets` + `waitingSince`;
+  services `live` counts; users list `creditLine` (money roles) + newest
+  session.
+- **Tokens changed for AA**: dark `--status-danger-fg` #F27D6E, dark
+  `--text-muted` #8B98A1 (both shared with the customer panel), new
+  `--apex-danger-strong` #C2412F for the danger button, `bg-shell` /
+  `bg-desk` / `bg-chip`.
+- **Verified 2026-10-31**: 26 routes × 8 roles SSR (walls match the
+  matrix), no overflow at 375/768/1024/1440, no console errors or hydration
+  mismatches, AA probe clean in both themes, lint clean, `test:tsc-demo`
+  below the 56 baseline, CMS unit 42/42.
+
+Gotchas:
+- **A select's `:value` is not rendered on the server**: options need
+  `:selected`, or every row shows the first option until hydration (the
+  Team role selects all read "Owner").
+- **The stored theme is a browser fact**: an icon or label computed from
+  `colorMode.value` mismatches on hydration; render both and let `dark:`
+  choose.
+- **Fixed-column tables at `lg` collide** with the 236px rail at 1024px;
+  switch them on at `xl`.
+- **The security headers forbid framing**, so a same-origin iframe sweep
+  of the admin sees nothing; measure by navigating the tab.
+- **A class-string sweep must skip `:class`**: a regex on `class="` also
+  matches `:class="`, and de-duplicating tokens there deletes `===` and
+  `?` from the expression (two screens broke until restored).
+- **The preview pane runs hidden**: in-page timers are throttled, so a
+  router loop inside one `javascript_tool` call times out; use navigation
+  batches.
+
+## Website CMS — done (started 2026-10-28)
 
 The panel becomes the content management system for the public website and
 for a few customer-facing panel documents. Design and decisions: ADR-021.
@@ -371,7 +425,7 @@ Gate 9 gotchas:
   build externalises the relative form and breaks in Nitro. Only tests use
   the relative `.ts` path.
 
-## Cloudflare — applied (2026-10-29)  ⬅ LATEST WORKSTREAM
+## Cloudflare — applied (2026-10-29)
 
 The user asked for the project to be connected to Cloudflare end to end
 (DNS, TLS, caching, security, server and code in step). Design and

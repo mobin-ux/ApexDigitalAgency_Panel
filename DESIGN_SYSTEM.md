@@ -94,6 +94,7 @@ ships as a `.dc.html` mockup plus a `PHASE-N-*.md` implementation spec.
 | 9A | **Admin — Team & platform** — six staff roles, one enforced matrix, invites, platform settings, audit log | ✅ Done |
 | 9B | **Admin — Overview & work** — a work queue, an orders table with counts, the deliverable release gate | ✅ Done |
 | CMS | **Admin — Website module** (ADR-021) — pages, editor, navigation, media, SEO & redirects, site settings, panel content; the public site renders published documents over its code baseline | ✅ Done |
+| AC | **Admin console** (`Admin Console.dc.html`) — new shell for every `/admin/**` screen, light and dark, ⌘K search, confirmations with reasons, record drawers; see "Admin console" below | ✅ Done |
 
 #### Phase 1 — the shell standard (applies to every page from here on)
 
@@ -1294,6 +1295,121 @@ What the module adds to the standards:
 - Measured: zero horizontal overflow at 375 and 768 on every screen (the
   pages table scrolls inside its card); the dialogs were checked for name,
   description, focus, Escape and focus return in the browser.
+
+### Admin console (`Admin Console.dc.html`, 2026-10-31)
+
+The admin interface was replaced by the Claude Design "Admin Console"
+(project `eb7c3341-…`): one shell for the client portal and apexdigi.co.uk,
+light and dark both, with a theme switch in the top bar. It supersedes the
+V2 Phase 9 admin shell (`DemoToolbar`, `ApexSidebarNav` in the admin layout)
+and the admin's dark-only pin in `nuxt.config.ts`; the screens behind it kept
+every feature they had.
+
+**Shell** (`layouts/admin.vue`, `AdminConsoleSidebar`): a 236px sidebar on the
+shell plane from `lg`, a drawer below it (invisible when closed, Escape
+closes, route change closes); a 64px top bar with the breadcrumb — group ›
+screen, or screen › record with a back arrow on a detail page — the ⌘K
+search, a link to apexdigi.co.uk (from `xl`) and the theme switch. Six
+groups: Overview · Work · People · Money · Website · System, from
+`utils/adminNav.ts`. A row the role cannot open carries a padlock and leads
+to the access wall, which the layout renders for any destination whose
+permission the role lacks ("<area> needs <roles>", what your role covers,
+back to overview). Live counts on rows (open support requests, credit
+applications to decide, documents in review) come client-side from
+endpoints the role can already read.
+
+**Tokens.** The design's variables are the Panel v2 tokens already in
+`main.css`, plus three planes it names: `bg-shell` (`--bg-page`, sidebar and
+top bar), `bg-desk` (`--bg-subtle`, under the cards) and `bg-chip`. Light
+muted text is the AA-tuned #5C646B, not the design system's 45% ink.
+Two dark values moved for AA while measuring the console, and both are
+shared with the customer panel: `--status-danger-fg` #F27D6E (the coral was
+4.0:1 on its own tint over the card) and `--text-muted` #8B98A1 (#89959E was
+4.46:1 on raised rows). Shuriken's select placeholder takes `--text-muted`;
+it resolved to the re-tuned muted-700 and read 1.3:1 in dark.
+
+**Vocabulary** (all in `components/`): `AdminPage` (1180px column, 28/32/40
+padding), `AdminPageHeader` (30px/800 title with an accent word, 15px
+sub-line, actions), `AdminCard` (section label row, padded or row-holding),
+`AdminButton` (38px pills: primary, light, danger, danger-text; sm 34, lg
+42), `AdminStatusChip` (24px tone chip, optional dot), `AdminStatTile`,
+`AdminDialog` (forms), `AdminDrawer` (480px record drawer with a pinned
+footer), `AdminConfirmHost` + `useAdminConfirm().ask()` (title, body,
+consequence points, optional or required reason; resolves to the reason or
+null), `AdminCommandPalette` (destinations plus clients, projects and
+website documents, each searched only if the role can read it),
+`AdminWebsiteDocList`. Form classes in `utils/adminUi.ts`, time and name
+formatters in `utils/adminFormat.ts`, the breadcrumb record name through
+`useAdminCrumb()`.
+
+**Standards the console adds:**
+- A record's name reaches the top bar after hydration (`useAdminCrumb` sets
+  it in `onMounted`); the route alone decides the first render.
+- The stored theme is a browser fact, so the theme button renders both icons
+  and lets `dark:` pick one, with a label that names the action.
+- A native `<select>` renders its value on the server only through
+  `selected` on the option; `:value` on the select is client-only. Every
+  console select carries `selected`. `.dark select { color-scheme: dark }`
+  makes the OS popup dark.
+- Fixed-column tables switch on at `xl`, not `lg`: with the 236px rail a
+  1024px window leaves ~720px, where `minmax(0,1fr)` columns collapse to
+  nothing and overlap. Below `xl` rows stack into two lines.
+- Relative times ("6h", "3 days") render inside `<ClientOnly>`.
+- Every destructive or audited action goes through `useAdminConfirm`; a
+  reason is required wherever the API stores one (role change, suspension,
+  refund, early release of deliverables, declining credit).
+- The danger button is #C2412F (`--apex-danger-strong`): white on the
+  design's #EC6453 is 3.2:1.
+
+**Real or absent — what the design draws that was not built:**
+- *Signups awaiting approval* (Overview tile, Clients panel): accounts are
+  active from signup; there is no approval step.
+- *Enquiries* and *Latest enquiries*: the site's contact form emails the
+  team and stores nothing.
+- *Analytics* and the Overview's *Website visits* bars: no analytics is
+  connected (the design itself labels them example data).
+- *Project lifecycle* steps the platform does not record: countersigning,
+  void and reissue, the brief checklist and accepting it, booking the
+  kickoff call, putting a project on hold. The rail shows order placed,
+  client signed, owner assigned, kickoff collected, in progress, client
+  review and delivered, and dates only what has a timestamp.
+- *Credit checks* (Companies House status, identity and bank-data checks
+  with an agency), the second review, the client offer and the generated
+  credit agreement.
+- *Service "Available" switch*: the catalogue has no retire flag, so the
+  wizard would keep offering a service the switch claimed to hide. The
+  "from" price is derived from the plans rather than typed.
+- *The editor's in-panel live preview*: the real draft preview link renders
+  the actual site instead; fields stay generated from the template contract.
+- *New article / New case study*: those records live in the site's code
+  catalogue, which the panel overlays (ADR-021).
+- *Case-study cover band*: documents carry no cover image to show.
+- *Team "Active now"*: nothing records a sign-in; the column is the member's
+  last audited action, as before.
+- *Waiting in stage* on Projects: no stage-entry time is stored; the column
+  is "Updated".
+
+**Kept although the design does not draw them:** Publishing (the website
+overview), Panel content, Agreements, Email, Tools, the delivery pipeline and
+money cards on the Overview, Instalments and Withdrawals tabs, and a new
+Rails tab on Payments for `GET /api/admin/payments/health`, which had no
+screen. Client records open as a page (wallet, credit, two-step reset,
+suspension) rather than the design's drawer.
+
+**Backend added for the design, all additive and on existing permissions:**
+`GET /api/admin/tickets` returns `replyTargets` per priority and each
+request's `waitingSince`; `GET /api/admin/services` returns live project
+counts per service; `GET /api/admin/users` returns the credit line (money
+roles only) and the newest session's last-seen time.
+
+**Verified** (2026-10-31): all 26 `/admin/**` routes render for each of the
+eight staff roles, with the access wall exactly where the matrix withholds
+the permission; no horizontal overflow at 375, 768, 1024 and 1440px; no
+console errors or hydration mismatches; the contrast probe finds no sub-AA
+text on any admin screen in either theme; lint clean on every touched file;
+`pnpm test:tsc-demo` below its 56-error baseline (none of the remaining
+errors is in a file the console touched, bar three pre-existing ones in
+Agreements); CMS unit tests 42/42.
 
 ### Panel v2 (`Panel Breakpoints.dc.html`, 2026-10-24)
 
