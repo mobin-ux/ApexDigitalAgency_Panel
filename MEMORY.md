@@ -528,7 +528,17 @@ site pages 200, unknown address 404, robots and sitemap 200, www → apex
 `/api/admin/mail` 401, `/api/_test/mail` 404, `/api/site/manifest` 200,
 a bad sign-in 401, the sslip host 200; both journals clean.
 
-## Load speed — 2026-10-30 (committed, not deployed)
+## Load speed — 2026-10-30 (deployed, `524f596`)
+
+**Deployed on the user's go-ahead ("Deploy both"):** `ship-web.sh` (built on
+the box, health 200) and `ship-bundle.sh` (local build, health 200, Stripe
+keys intact, previous build kept). Verified through Cloudflare: the panel
+entry script arrives as `br`, 147,723 bytes (was 184,179 gzip), MISS then
+HIT; the stylesheet `br` 44,348 bytes; Yellix served as `font/woff2` on
+both hosts and the site's preloads name the WOFF2; pages 200, a guarded
+page 302; journals have no warnings. One `/services` request took 11.6 s
+from the dev machine while the origin answered it in 34 ms: the link,
+not the app.
 
 The user reported the panel "very slow and not loading". Measured: the
 origin answers in 2–40 ms (load 0.2, 3 GB free), so the server is not the
