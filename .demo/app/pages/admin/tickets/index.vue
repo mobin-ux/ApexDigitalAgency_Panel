@@ -283,19 +283,19 @@ const SELECT = 'apex-ring border-line-rule bg-shell text-fg-heading h-[38px] w-f
             <option value="">
               Unassigned
             </option>
-            <option v-for="s in staff" :key="s.id" :value="s.id">
+            <option v-for="s in staff" :key="s.id" :value="s.id" :selected="s.id === ticket.assigneeId">
               {{ personName(s) }}{{ s.id === me?.id ? ' (you)' : '' }}
             </option>
           </select>
           <label for="tk-priority" class="text-fg-muted text-[13px]">Priority</label>
           <select id="tk-priority" :class="SELECT" :value="priorityKey(ticket.priority).toUpperCase()" :disabled="triaging" @change="patchTicket({ priority: ($event.target as HTMLSelectElement).value }, 'Priority updated')">
-            <option v-for="(v, k) in PRIORITY" :key="k" :value="k.toUpperCase()">
+            <option v-for="(v, k) in PRIORITY" :key="k" :value="k.toUpperCase()" :selected="k === priorityKey(ticket.priority)">
               {{ v.label }}
             </option>
           </select>
           <label for="tk-status" class="text-fg-muted text-[13px]">Status</label>
           <select id="tk-status" :class="SELECT" :value="ticket.status" :disabled="triaging" @change="patchTicket({ status: ($event.target as HTMLSelectElement).value }, 'Status updated')">
-            <option v-for="(v, k) in STATUS" :key="k" :value="k">
+            <option v-for="(v, k) in STATUS" :key="k" :value="k" :selected="k === ticket.status">
               {{ v.label }}
             </option>
           </select>

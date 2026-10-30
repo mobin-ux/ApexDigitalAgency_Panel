@@ -27,7 +27,9 @@ watch(() => route.fullPath, () => {
 
 const item = computed(() => navItemFor(route.path))
 /** A detail page is any route below its row's list (`/admin/projects/:id`). */
-const isDetail = computed(() => Boolean(item.value && route.path.replace(/\/$/, '') !== item.value.to))
+// A record opened by query (`/admin/credit?application=`) is a detail too;
+// its crumb title only exists after hydration, so the first render agrees.
+const isDetail = computed(() => Boolean(item.value && (route.path.replace(/\/$/, '') !== item.value.to || crumb.value.title)))
 
 const crumbGroup = computed(() => {
   if (isDetail.value) {

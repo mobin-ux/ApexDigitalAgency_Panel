@@ -1,4 +1,20 @@
 <script setup lang="ts">
+import { personName, ukDateTime } from '~/utils/adminFormat'
+import { ADMIN_INPUT, ADMIN_TH } from '~/utils/adminUi'
+
+/**
+ * Admin console — Payments & credit (`Admin Console.dc.html`).
+ *
+ * The design's two tabs, Payments (the ledger, with refunds for the roles
+ * that may give one) and Credit lines (every line in place: limit,
+ * committed, available), plus the three money screens the console already
+ * had and the design does not draw: the instalment plans (charge or
+ * waive the next payment), the withdrawal queue, and Rails — the payment
+ * providers' health (configured rails and mode, whether the ledger
+ * balances, stuck intents and failed webhooks), which had an endpoint and
+ * no screen. Every action goes through the console's confirmation; a
+ * refund asks for the reason the receipt and the audit log carry.
+ */
 /**
  * Admin — Payments. Financial control centre: platform aggregates on
  * top, then three tabs — the transaction ledger (with once-only wallet
@@ -9,7 +25,7 @@
  * Deep links: ?tab=withdrawals, ?userId=<id> (from user detail).
  */
 definePageMeta({
-  title: 'Payments',
+  title: 'Payments & credit',
   layout: 'admin',
   middleware: 'admin',
 })
@@ -18,13 +34,16 @@ const { formatCurrency } = useCurrency()
 const toaster = useNuiToasts()
 const route = useRoute()
 
-type Tab = 'transactions' | 'withdrawals' | 'installments'
-const tab = ref<Tab>(route.query.tab === 'withdrawals' ? 'withdrawals' : route.query.tab === 'installments' ? 'installments' : 'transactions')
+type Tab = 'transactions' | 'credit' | 'installments' | 'withdrawals' | 'rails'
+const TAB_KEYS: Tab[] = ['transactions', 'credit', 'installments', 'withdrawals', 'rails']
+const tab = ref<Tab>(TAB_KEYS.includes(route.query.tab as Tab) ? route.query.tab as Tab : 'transactions')
 
-const tabs: { key: Tab, label: string, icon: string }[] = [
-  { key: 'transactions', label: 'Transactions', icon: 'lucide:arrow-left-right' },
-  { key: 'withdrawals', label: 'Withdrawals', icon: 'lucide:banknote' },
-  { key: 'installments', label: 'Installments', icon: 'lucide:calendar-clock' },
+const tabs: { key: Tab, label: string }[] = [
+  { key: 'transactions', label: 'Payments' },
+  { key: 'credit', label: 'Credit lines' },
+  { key: 'installments', label: 'Instalments' },
+  { key: 'withdrawals', label: 'Withdrawals' },
+  { key: 'rails', label: 'Rails' },
 ]
 
 // --- Summary tiles ---
@@ -189,371 +208,318 @@ async function instAction(inst: any, action: 'charge' | 'waive') {
 function fmtDate(iso: string | Date) {
   return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
 }
+
+/* ------------------------------------------------- console additions --- */
+
+const { can } = useStaffAccess()
+const { ask } = useAdminConfirm()
+const canRefund = computed(() => can('money.refund'))
+
+// Credit lines and rails load when their tab is first opened.
+const { data: creditData, pending: creditPending, execute: loadCredit } = useFetch<any>('/api/admin/credit/applications', { immediate: false, server: false })
+const { data: health, pending: healthPending, error: healthError, execute: loadHealth } = useFetch<any>('/api/admin/payments/health', { immediate: false, server: false })
+watch(tab, (t) => {
+  if (t === 'credit' && !creditData.value) {
+    loadCredit()
+  }
+  if (t === 'rails' && !health.value) {
+    loadHealth()
+  }
+}, { immediate: true })
+
+const TX_LABEL: Record<string, string> = { DEPOSIT: 'Top-up', PAYMENT: 'Payment', WITHDRAWAL: 'Withdrawal', REFUND: 'Refund', ADJUSTMENT: 'Adjustment', AD_CREDIT: 'Ad credit', CREDIT_REPAY: 'Credit repayment', INSTALLMENT: 'Instalment' }
+function txStatusTone(status: string) {
+  const s = (status ?? '').toUpperCase()
+  return s === 'REFUNDED' ? 'neutral' : s === 'FAILED' ? 'danger' : s === 'PENDING' ? 'warning' : 'success'
+}
+
+async function askRefund(t: any) {
+  const reason = await ask({
+    title: `Refund ${formatCurrency(Math.abs(t.amount))} to ${personName(t.user, 'the client')}?`,
+    body: `${t.description || 'Payment'}. The money returns to the client’s wallet now.`,
+    points: [{ tone: 'info', text: 'The payment is marked refunded in the ledger and on the client’s receipts.' }],
+    reason: { required: true, label: 'Reason', placeholder: 'e.g. Duplicate charge', hint: 'Stored with the audit entry and shown on the client’s receipt.' },
+    confirmLabel: 'Refund payment',
+    danger: true,
+  })
+  if (reason === null) {
+    return
+  }
+  refundTarget.value = t
+  refundReason.value = reason
+  await submitRefund()
+}
+
+async function askWithdrawal(w: any, action: 'approve' | 'reject') {
+  const reason = await ask(action === 'approve'
+    ? { title: `Approve ${formatCurrency(w.amount)} to ${w.user.email}?`, body: 'The amount is debited from the client’s wallet and recorded in the ledger.', points: [{ tone: 'info', text: `Wallet balance now ${formatCurrency(w.user.walletBalance)}.` }], confirmLabel: 'Approve and debit' }
+    : { title: `Reject the withdrawal of ${formatCurrency(w.amount)}?`, body: 'No money moves. The client sees the request as rejected.', confirmLabel: 'Reject request', danger: true })
+  if (reason === null) {
+    return
+  }
+  wdConfirm.value = { id: w.id, amount: w.amount, action, email: w.user.email }
+  await resolveWithdrawal()
+}
+
+async function askInstalment(inst: any, action: 'charge' | 'waive') {
+  const reason = await ask(action === 'charge'
+    ? { title: `Collect instalment ${inst.monthsPaid + 1} of ${inst.monthsTotal}?`, body: `${formatCurrency(inst.amountDue)} is taken from ${inst.user.email}’s wallet for ${inst.project}. If the wallet is short, nothing is charged.`, confirmLabel: 'Collect now' }
+    : { title: `Waive instalment ${inst.monthsPaid + 1} of ${inst.monthsTotal}?`, body: `The client is not charged for this instalment of ${inst.project}. It is recorded as waived.`, points: [{ tone: 'warning', text: 'This reduces what the client owes; it cannot be undone from here.' }], confirmLabel: 'Waive instalment', danger: true })
+  if (reason !== null) {
+    await instAction(inst, action)
+  }
+}
+
+const PILL = 'apex-ring inline-flex h-8 cursor-pointer items-center whitespace-nowrap rounded-full border px-[13px] text-[13px]'
+const TAB_CLS = 'apex-ring -mb-px inline-flex h-10 shrink-0 cursor-pointer items-center border-b-2 text-sm'
 </script>
 
 <template>
-  <div class="mx-auto flex w-full max-w-[1180px] px-4 pt-5 sm:px-8 sm:pt-7 flex-col gap-6 pb-8 text-fg-body">
-    <AdminPageHeader
-      eyebrow="ADMIN · PAYMENTS"
-      title="Payments"
-      subtitle="The platform ledger, withdrawal queue and installment plans — every money movement in one place."
-    />
+  <AdminPage gap="md">
+    <AdminPageHeader title="Payments &" accent="credit" subtitle="Instalments collected through the portal. Figures include VAT. Failed payments stay visible until resolved." />
 
-    <!-- ========== SUMMARY TILES ========== -->
-    <section class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-label="Financial summary">
-      <AdminStatTile
-        label="Total revenue" :value="formatCurrency(summary?.totalRevenue ?? 0)" icon="lucide:trending-up" accent="green"
-        :hint="`${formatCurrency(summary?.revenue30d ?? 0)} in the last 30 days`"
-      />
-      <AdminStatTile
-        label="Wallet liability" :value="formatCurrency(summary?.walletLiability ?? 0)" icon="lucide:wallet" accent="violet"
-        hint="Held across all customer wallets"
-      />
-      <AdminStatTile
-        label="Pending withdrawals" :value="formatCurrency(summary?.pendingWithdrawalAmount ?? 0)" icon="lucide:banknote" accent="amber"
-        :hint="`${summary?.pendingWithdrawalCount ?? 0} request(s) to review`"
-      />
-      <AdminStatTile
-        label="Installments outstanding" :value="formatCurrency(summary?.installmentOutstanding ?? 0)" icon="lucide:calendar-clock" accent="blue"
-        :hint="`${summary?.installmentCount ?? 0} active plan(s)`"
-      />
+    <section class="grid grid-cols-2 gap-3.5 xl:grid-cols-4" aria-label="Summary">
+      <AdminStatTile label="Collected, all time" :value="formatCurrency(summary?.totalRevenue ?? 0)" :hint="`${formatCurrency(summary?.revenue30d ?? 0)} in the last 30 days`" />
+      <AdminStatTile label="Held in client wallets" :value="formatCurrency(summary?.walletLiability ?? 0)" />
+      <AdminStatTile label="Outstanding on plans" :value="formatCurrency(summary?.installmentOutstanding ?? 0)" :hint="`${summary?.installmentCount ?? 0} active plans`" />
+      <AdminStatTile label="Withdrawals to review" :value="summary?.pendingWithdrawalCount ?? 0" :hint="formatCurrency(summary?.pendingWithdrawalAmount ?? 0)" />
     </section>
 
-    <!-- ========== TAB BAR ========== -->
-    <div class="flex items-center gap-2 overflow-x-auto rounded-full border border-white/8 bg-muted-800 p-[3px]" role="tablist" aria-label="Payments sections">
+    <div class="border-line-subtle flex gap-6 overflow-x-auto border-b" role="tablist" aria-label="Money sections">
       <button
-        v-for="t in tabs" :key="t.key"
-        type="button"
-        role="tab"
-        :aria-selected="tab === t.key"
-        class="inline-flex shrink-0 items-center gap-2 rounded-full px-4 py-2.5 text-[13px] font-bold transition sm:py-2"
-        :class="tab === t.key ? 'bg-primary-500 text-white shadow-[0_6px_16px_rgba(125,83,242,0.32)]' : 'text-muted-400 hover:text-white'"
+        v-for="t in tabs" :key="t.key" type="button" role="tab" :aria-selected="tab === t.key"
+        :class="[TAB_CLS, tab === t.key ? 'border-accent text-fg-heading font-semibold' : 'text-fg-muted border-transparent font-medium']"
         @click="tab = t.key"
       >
-        <Icon :name="t.icon" class="size-4" />{{ t.label }}
+        {{ t.label }}
       </button>
     </div>
 
-    <!-- ========== TRANSACTIONS ========== -->
-    <section v-if="tab === 'transactions'" class="flex flex-col gap-4" aria-label="Transactions">
-      <div v-if="txUserId" class="flex items-center gap-3 rounded-[14px] border border-primary-500/30 bg-primary-500/10 px-4 py-3 text-[13px] text-primary-200">
-        <Icon name="lucide:filter" class="size-4 shrink-0" />
-        Showing one customer's transactions only.
-        <button type="button" class="ms-auto inline-flex items-center gap-1.5 font-semibold text-white hover:text-primary-200" @click="txUserId = ''">
-          Clear <Icon name="lucide:x" class="size-3.5" />
-        </button>
-      </div>
-
-      <div class="grid grid-cols-1 gap-3 rounded-[20px] border border-white/10 bg-muted-800 p-4 sm:grid-cols-2 xl:grid-cols-[1.8fr_1fr_1fr]">
-        <label class="flex items-center gap-2.5 rounded-[11px] border border-white/8 bg-muted-700 px-3.5 py-2.5 focus-within:border-primary-400">
-          <Icon name="lucide:search" class="size-4 shrink-0 text-muted-500" />
-          <input v-model="txSearch" placeholder="Search description, id or customer email…" class="min-w-0 flex-1 border-none bg-transparent text-[13.5px] text-white outline-none placeholder:text-muted-500">
-        </label>
-        <select v-model="txType" aria-label="Filter by type" class="w-full cursor-pointer rounded-[11px] border border-white/8 bg-muted-700 px-3.5 py-3 sm:py-2.5 text-[13px] text-white outline-none focus:border-primary-400">
-          <option value="">
-            All types
-          </option>
-          <option value="DEPOSIT">
-            Deposits
-          </option>
-          <option value="PAYMENT">
-            Payments
-          </option>
-          <option value="WITHDRAWAL">
-            Withdrawals
-          </option>
-          <option value="REFUND">
-            Refunds
-          </option>
-          <option value="ADJUSTMENT">
-            Adjustments
-          </option>
-        </select>
-        <select v-model="txStatus" aria-label="Filter by status" class="w-full cursor-pointer rounded-[11px] border border-white/8 bg-muted-700 px-3.5 py-3 sm:py-2.5 text-[13px] text-white outline-none focus:border-primary-400">
-          <option value="">
-            All statuses
-          </option>
-          <option value="COMPLETED">
-            Completed
-          </option>
-          <option value="PENDING">
-            Pending
-          </option>
-          <option value="REFUNDED">
-            Refunded
-          </option>
-        </select>
-      </div>
-
-      <div v-if="txPending" class="flex flex-col gap-2" aria-hidden="true">
-        <div v-for="i in 6" :key="i" class="h-[68px] animate-pulse rounded-[16px] border border-white/5 bg-muted-800/60" />
-      </div>
-
-      <div v-else-if="txData?.items?.length" class="overflow-hidden rounded-[20px] border border-white/10 bg-white/[0.02]" role="list">
-        <template v-for="(t, idx) in txData.items" :key="t.id">
-          <div v-if="idx > 0" class="h-px bg-white/10" />
-          <div role="listitem" class="flex items-center gap-4 px-[22px] py-4">
-            <span class="flex size-[38px] shrink-0 items-center justify-center rounded-[10px]" :class="txTypeMeta[t.type]?.class ?? 'bg-white/5 text-muted-400'">
-              <Icon :name="txTypeMeta[t.type]?.icon ?? 'lucide:circle'" class="size-[17px]" />
-            </span>
-            <div class="min-w-0 flex-1">
-              <div class="truncate text-[13.5px] font-semibold text-white">
-                {{ t.description || t.type }}
-              </div>
-              <div class="mt-0.5 truncate text-[12.5px] text-muted-500">
-                {{ t.user.email }} · {{ fmtDateTime(t.createdAt) }}
-              </div>
-            </div>
-            <AdminStatusChip class="hidden sm:inline-flex" :status="t.status" />
-            <span class="w-24 shrink-0 text-right text-[14px] font-bold tabular-nums" :class="txDisplay(t).negative ? 'text-[#EC6453]' : 'text-[#22B07D]'">
-              {{ txDisplay(t).text }}
-            </span>
-            <button
-              v-if="t.type === 'PAYMENT' && t.status !== 'REFUNDED'"
-              type="button"
-              class="hidden shrink-0 items-center gap-1.5 rounded-full border border-white/10 bg-muted-800 px-3 py-1.5 text-[12px] font-semibold text-muted-400 transition hover:border-[#6EA8FE]/40 hover:text-[#6EA8FE] md:inline-flex"
-              @click="openRefund(t)"
-            >
-              <Icon name="lucide:undo-2" class="size-3.5" />Refund
-            </button>
-          </div>
-        </template>
-      </div>
-
-      <AdminEmptyState v-else icon="lucide:receipt" title="No transactions match" subtitle="Try different filters." />
-
-      <AdminPager
-        v-if="txData" :page="txData.page" :page-count="txData.pageCount" :total="txData.total" noun="transactions"
-        @update:page="txPage = $event"
-      />
-    </section>
-
-    <!-- ========== WITHDRAWALS ========== -->
-    <section v-else-if="tab === 'withdrawals'" class="flex flex-col gap-4" aria-label="Withdrawal requests">
-      <div class="flex items-center gap-2 overflow-x-auto rounded-full border border-white/8 bg-muted-800 p-[3px] self-start" role="radiogroup" aria-label="Withdrawal status">
-        <button
-          v-for="s in ['Processing', 'Completed', 'Rejected', '']" :key="s || 'all'"
-          type="button"
-          role="radio"
-          :aria-checked="wdStatus === s"
-          class="shrink-0 rounded-full px-4 py-1.5 text-[13px] font-bold transition"
-          :class="wdStatus === s ? 'bg-white/10 text-white' : 'text-muted-400 hover:text-white'"
-          @click="wdStatus = s"
-        >
-          {{ s || 'All' }}
-        </button>
-      </div>
-
-      <div v-if="wdPending" class="flex flex-col gap-2" aria-hidden="true">
-        <div v-for="i in 4" :key="i" class="h-[68px] animate-pulse rounded-[16px] border border-white/5 bg-muted-800/60" />
-      </div>
-
-      <div v-else-if="wdData?.items?.length" class="overflow-hidden rounded-[20px] border border-white/10 bg-white/[0.02]" role="list">
-        <template v-for="(w, idx) in wdData.items" :key="w.id">
-          <div v-if="idx > 0" class="h-px bg-white/10" />
-          <div role="listitem" class="flex flex-wrap items-center gap-x-4 gap-y-2 px-[22px] py-4">
-            <div class="min-w-0 flex-1 basis-52">
-              <AdminUserCell :user="w.user" />
-            </div>
-            <span class="hidden text-[12.5px] text-muted-500 lg:block">
-              Requested {{ fmtDate(w.createdAt) }}
-            </span>
-            <span class="hidden text-[12.5px] text-muted-500 md:block">
-              Wallet: <span class="font-semibold text-white tabular-nums">{{ formatCurrency(w.user.walletBalance) }}</span>
-            </span>
-            <span class="w-24 shrink-0 text-right text-[14.5px] font-bold text-white tabular-nums">
-              {{ formatCurrency(w.amount) }}
-            </span>
-            <template v-if="w.status === 'Processing'">
-              <div class="flex shrink-0 items-center gap-2">
-                <BaseButton
-                  size="sm" rounded="full" class="!bg-[#22B07D] !text-white hover:!bg-[#22B07D]/85"
-                  @click="wdConfirm = { id: w.id, amount: w.amount, action: 'approve', email: w.user.email }"
-                >
-                  <Icon name="lucide:check" class="size-3.5" />Approve
-                </BaseButton>
-                <BaseButton
-                  size="sm" rounded="full" class="border border-[#EC6453]/30 bg-[#EC6453]/14 !text-[#EC6453] hover:bg-[#EC6453]/20"
-                  @click="wdConfirm = { id: w.id, amount: w.amount, action: 'reject', email: w.user.email }"
-                >
-                  <Icon name="lucide:x" class="size-3.5" />Reject
-                </BaseButton>
-              </div>
-            </template>
-            <AdminStatusChip v-else :status="w.status" />
-          </div>
-        </template>
-      </div>
-
-      <AdminEmptyState v-else icon="lucide:banknote" title="No withdrawal requests" subtitle="Requests in this state will appear here." />
-
-      <AdminPager
-        v-if="wdData" :page="wdData.page" :page-count="wdData.pageCount" :total="wdData.total" noun="requests"
-        @update:page="wdPage = $event"
-      />
-    </section>
-
-    <!-- ========== INSTALLMENTS ========== -->
-    <section v-else class="flex flex-col gap-4" aria-label="Installment plans">
-      <div class="flex items-start gap-3 rounded-[14px] border border-white/10 bg-white/[0.02] px-4 py-3 text-[13px] leading-[1.5] text-muted-400">
-        <Icon name="lucide:info" class="mt-0.5 size-4 shrink-0 text-[#6EA8FE]" />
-        <span><strong class="text-white">Charge</strong> collects the due installment from the customer's wallet (fails safely if funds are short). <strong class="text-white">Waive</strong> advances the schedule with nothing to pay — the amount is deducted from the plan total. Every action is audited.</span>
-      </div>
-
-      <div v-if="instPending" class="flex flex-col gap-2" aria-hidden="true">
-        <div v-for="i in 4" :key="i" class="h-[68px] animate-pulse rounded-[16px] border border-white/5 bg-muted-800/60" />
-      </div>
-
-      <div v-else-if="instData?.items?.length" class="overflow-hidden rounded-[20px] border border-white/10 bg-white/[0.02]" role="list">
-        <template v-for="(inst, idx) in instData.items" :key="inst.id">
-          <div v-if="idx > 0" class="h-px bg-white/10" />
-          <div role="listitem" class="flex flex-wrap items-center gap-x-4 gap-y-2 px-[22px] py-4">
-            <div class="min-w-0 flex-1 basis-52">
-              <div class="truncate text-[13.5px] font-semibold text-white">
-                {{ inst.project }}
-              </div>
-              <div class="mt-0.5 truncate text-[12.5px] text-muted-500">
-                {{ inst.user.email }}
-              </div>
-            </div>
-            <div class="hidden w-[150px] shrink-0 items-center gap-2 md:flex">
-              <div class="h-1.5 flex-1 overflow-hidden rounded-full bg-white/5">
-                <div class="h-full rounded-full bg-primary-500" :style="{ width: `${inst.monthsTotal ? Math.round((inst.monthsPaid / inst.monthsTotal) * 100) : 0}%` }" />
-              </div>
-              <span class="text-xs font-bold text-white tabular-nums">{{ inst.monthsPaid }}/{{ inst.monthsTotal }}</span>
-            </div>
-            <span class="hidden text-[12.5px] text-muted-500 lg:block">
-              Next due {{ fmtDate(inst.nextDue) }}
-            </span>
-            <span class="w-28 shrink-0 text-right text-[13.5px] font-bold text-white tabular-nums">
-              {{ formatCurrency(inst.paid) }} <span class="font-normal text-muted-500">of {{ formatCurrency(inst.total) }}</span>
-            </span>
-            <AdminStatusChip :status="inst.status" :tone="inst.status === 'urgent' ? 'coral' : inst.status === 'settled' ? 'blue' : 'green'" />
-            <div v-if="inst.status !== 'settled'" class="flex shrink-0 items-center gap-2">
-              <button
-                type="button"
-                class="rounded-full bg-primary-500 px-3.5 py-1.5 text-xs font-bold text-white transition-colors hover:bg-primary-600 disabled:cursor-not-allowed disabled:opacity-50"
-                :disabled="instBusy === inst.id"
-                @click="instAction(inst, 'charge')"
-              >
-                {{ instBusy === inst.id ? 'Working…' : 'Charge' }}
-              </button>
-              <button
-                type="button"
-                class="rounded-full border border-white/10 px-3.5 py-1.5 text-xs font-bold text-muted-400 transition-colors hover:border-white/20 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
-                :disabled="instBusy === inst.id"
-                @click="instAction(inst, 'waive')"
-              >
-                Waive
-              </button>
-            </div>
-          </div>
-        </template>
-      </div>
-
-      <AdminEmptyState v-else icon="lucide:calendar-clock" title="No installment plans" subtitle="Plans appear here once customers finance a project." />
-
-      <AdminPager
-        v-if="instData" :page="instData.page" :page-count="instData.pageCount" :total="instData.total" noun="plans"
-        @update:page="instPage = $event"
-      />
-    </section>
-
-    <!-- ========== REFUND MODAL ========== -->
-    <div v-if="refundTarget" class="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Issue refund">
-      <div class="apex-fade absolute inset-0 bg-black/60 backdrop-blur-sm" @click="refundTarget = null" />
-      <div class="apex-pop relative w-full max-w-[440px] rounded-[20px] border border-white/10 bg-muted-800 p-6 shadow-[0_30px_60px_rgba(0,0,0,.5)]">
-        <span class="mb-4 flex size-11 items-center justify-center rounded-xl bg-[#6EA8FE]/14 text-[#6EA8FE]">
-          <Icon name="lucide:undo-2" class="size-5" />
-        </span>
-        <div class="font-heading text-[19px] font-extrabold tracking-[-0.01em] text-white">
-          Refund {{ formatCurrency(Math.abs(refundTarget.amount)) }}?
-        </div>
-        <p class="mt-2 text-[13.5px] leading-[1.55] text-muted-400">
-          The amount goes back to <strong class="text-white">{{ refundTarget.user.email }}</strong>'s wallet and a refund entry is written to the ledger. A payment can be refunded only once.
-        </p>
-        <form class="mt-4 flex flex-col gap-4" @submit.prevent="submitRefund">
-          <div>
-            <label for="refund-reason" class="mb-2 block text-[12.5px] font-semibold text-white">Reason <span class="font-normal text-muted-500">(recorded in the audit trail)</span></label>
-            <textarea id="refund-reason" v-model="refundReason" rows="2" required minlength="3" placeholder="e.g. Project cancelled before kickoff" class="w-full resize-y rounded-[11px] border border-white/8 bg-muted-700 px-3.5 py-2.5 text-sm leading-[1.55] text-white outline-none placeholder:text-muted-500 focus:border-primary-400" />
-          </div>
-          <div class="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-            <BaseButton rounded="full" class="border border-white/10 bg-muted-700 !text-white hover:bg-muted-600" @click="refundTarget = null">
-              Cancel
-            </BaseButton>
-            <BaseButton type="submit" rounded="full" variant="primary" :loading="refunding" :disabled="refunding || refundReason.trim().length < 3">
-              <Icon name="lucide:undo-2" class="size-4" />Issue refund
-            </BaseButton>
-          </div>
-        </form>
-      </div>
-    </div>
-
-    <!-- ========== WITHDRAWAL CONFIRM MODAL ========== -->
-    <div v-if="wdConfirm" class="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Confirm withdrawal decision">
-      <div class="apex-fade absolute inset-0 bg-black/60 backdrop-blur-sm" @click="wdConfirm = null" />
-      <div class="apex-pop relative w-full max-w-[420px] rounded-[20px] border border-white/10 bg-muted-800 p-6 shadow-[0_30px_60px_rgba(0,0,0,.5)]">
-        <span class="mb-4 flex size-11 items-center justify-center rounded-xl" :class="wdConfirm.action === 'approve' ? 'bg-[#22B07D]/14 text-[#22B07D]' : 'bg-[#EC6453]/14 text-[#EC6453]'">
-          <Icon :name="wdConfirm.action === 'approve' ? 'lucide:check' : 'lucide:x'" class="size-5" />
-        </span>
-        <div class="font-heading text-[19px] font-extrabold tracking-[-0.01em] text-white">
-          {{ wdConfirm.action === 'approve' ? 'Approve' : 'Reject' }} this withdrawal?
-        </div>
-        <p class="mt-2 text-[13.5px] leading-[1.55] text-muted-400">
-          <template v-if="wdConfirm.action === 'approve'">
-            <strong class="text-white tabular-nums">{{ formatCurrency(wdConfirm.amount) }}</strong> will be debited from {{ wdConfirm.email }}'s wallet and recorded in the ledger.
-          </template>
-          <template v-else>
-            The request from {{ wdConfirm.email }} will be marked rejected — no money moves.
-          </template>
-        </p>
-        <div class="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-          <BaseButton rounded="full" class="border border-white/10 bg-muted-700 !text-white hover:bg-muted-600" @click="wdConfirm = null">
-            Cancel
-          </BaseButton>
-          <BaseButton
-            rounded="full"
-            :class="wdConfirm.action === 'approve' ? '!bg-[#22B07D] !text-white hover:!bg-[#22B07D]/85' : '!bg-[#EC6453] !text-white hover:!bg-[#EC6453]/85'"
-            :loading="resolving" :disabled="resolving"
-            @click="resolveWithdrawal"
+    <!-- ===================================================== Payments -->
+    <template v-if="tab === 'transactions'">
+      <div class="flex flex-wrap items-center gap-2" role="tabpanel">
+        <div class="flex flex-wrap gap-2" role="group" aria-label="Filter by status">
+          <button
+            v-for="[k, l] in ([['', 'All'], ['COMPLETED', 'Completed'], ['PENDING', 'Pending'], ['FAILED', 'Failed'], ['REFUNDED', 'Refunded']] as const)" :key="k || 'all'"
+            type="button" :aria-pressed="txStatus === k"
+            :class="[PILL, txStatus === k ? 'bg-accent border-transparent font-semibold text-white' : 'border-line-subtle text-fg-heading hover:bg-hover font-medium']"
+            @click="txStatus = k"
           >
-            {{ wdConfirm.action === 'approve' ? 'Approve & debit' : 'Reject request' }}
-          </BaseButton>
+            {{ l }}
+          </button>
         </div>
+        <span class="hidden flex-1 xl:block" />
+        <input v-model="txSearch" type="search" placeholder="Search client or description" aria-label="Search payments" :class="ADMIN_INPUT" class="h-9! min-w-0 flex-1 xl:w-[260px]! xl:flex-none">
       </div>
-    </div>
-  </div>
-</template>
+      <div v-if="txUserId" class="bg-accent-tint text-fg-heading flex items-center gap-3 rounded-xl px-4 py-3 text-[13.5px]">
+        Showing one client’s payments.
+        <button type="button" class="apex-ring text-accent-ink ms-auto rounded font-semibold" @click="txUserId = ''">
+          Show everyone
+        </button>
+      </div>
+      <section class="bg-card border-line-subtle overflow-hidden rounded-2xl border">
+        <div class="hidden grid-cols-[150px_170px_minmax(0,1fr)_110px_120px_100px] gap-3.5 px-[22px] py-3.5 xl:grid" :class="ADMIN_TH">
+          <span>Date</span><span>Client</span><span>Description</span><span class="text-end">Amount</span><span>Status</span><span />
+        </div>
+        <div v-if="txPending" aria-hidden="true">
+          <div v-for="i in 6" :key="i" class="border-line-soft h-[52px] animate-pulse border-t" />
+        </div>
+        <ul v-else-if="txData?.items?.length">
+          <li v-for="t in txData.items" :key="t.id" class="border-line-soft grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3.5 gap-y-1 border-t px-[18px] py-3 sm:px-[22px] xl:grid-cols-[150px_170px_minmax(0,1fr)_110px_120px_100px]">
+            <span class="text-fg-muted order-3 text-[12.5px] tabular-nums xl:order-none"><ClientOnly>{{ ukDateTime(t.createdAt) }}</ClientOnly></span>
+            <span class="text-fg-heading truncate text-[13.5px] font-semibold">{{ personName(t.user) }}</span>
+            <span class="text-fg-body order-4 col-span-2 truncate text-[13px] xl:order-none xl:col-span-1">{{ TX_LABEL[t.type] ?? t.type }} · {{ t.description || '—' }}</span>
+            <span class="text-fg-heading text-end text-sm tabular-nums">{{ txDisplay(t).text }}</span>
+            <AdminStatusChip :tone="txStatusTone(t.status)" :status="t.status" dot class="hidden xl:inline-flex" />
+            <span class="hidden text-end xl:block">
+              <button v-if="canRefund && t.type === 'PAYMENT' && t.status !== 'REFUNDED'" type="button" class="apex-ring text-accent-ink rounded text-[13px] font-semibold" :disabled="refunding" @click="askRefund(t)">Refund</button>
+            </span>
+          </li>
+        </ul>
+        <p v-else class="border-line-soft text-fg-body border-t px-[22px] py-8 text-center text-sm">
+          No payments match these filters.
+        </p>
+      </section>
+      <AdminPager v-if="txData && txData.pageCount > 1" :page="txData.page" :page-count="txData.pageCount" :total="txData.total" noun="payments" @update:page="txPage = $event" />
+      <p class="text-fg-muted text-[12.5px]">
+        {{ canRefund ? 'A refund returns the payment to the client’s wallet and marks it refunded.' : 'Refunds need Owner or Finance, so the control is not shown for your role.' }}
+      </p>
+    </template>
 
-<style scoped>
-@keyframes apex-fade {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-@keyframes apex-pop {
-  from {
-    opacity: 0;
-    transform: translateY(10px) scale(0.98);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-.apex-fade {
-  animation: apex-fade 0.2s ease-out both;
-}
-.apex-pop {
-  animation: apex-pop 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-@media (prefers-reduced-motion: reduce) {
-  .apex-fade,
-  .apex-pop {
-    animation: none;
-  }
-}
-</style>
+    <!-- ================================================== Credit lines -->
+    <section v-else-if="tab === 'credit'" role="tabpanel" class="bg-card border-line-subtle overflow-hidden rounded-2xl border">
+      <div class="hidden grid-cols-[minmax(0,1fr)_150px_150px_150px_170px] gap-3.5 px-[22px] py-3.5 lg:grid" :class="ADMIN_TH">
+        <span>Client</span><span class="text-end">Limit</span><span class="text-end">Committed</span><span class="text-end">Available</span><span>Credit line</span>
+      </div>
+      <div v-if="creditPending && !creditData" aria-hidden="true">
+        <div v-for="i in 4" :key="i" class="border-line-soft h-[52px] animate-pulse border-t" />
+      </div>
+      <ul v-else-if="creditData?.lines?.length">
+        <li v-for="l in creditData.lines" :key="l.id" class="border-line-soft grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3.5 gap-y-1 border-t px-[18px] py-3 sm:px-[22px] lg:grid-cols-[minmax(0,1fr)_150px_150px_150px_170px]">
+          <NuxtLink :to="`/admin/users/${l.user.id}`" class="apex-ring text-fg-heading truncate rounded text-sm font-semibold">
+            {{ personName(l.user) }}
+          </NuxtLink>
+          <span class="text-fg-heading text-end text-[13.5px] tabular-nums"><span class="text-fg-muted lg:hidden">Limit </span>{{ formatCurrency(l.limit) }}</span>
+          <span class="text-fg-body text-[13.5px] tabular-nums lg:text-end"><span class="text-fg-muted lg:hidden">Committed </span>{{ formatCurrency(l.used) }}</span>
+          <span class="text-fg-body text-end text-[13.5px] tabular-nums"><span class="text-fg-muted lg:hidden">Available </span>{{ formatCurrency(Math.max(0, l.limit - l.used)) }}</span>
+          <AdminStatusChip :tone="l.status === 'FROZEN' ? 'danger' : 'success'" :label="l.status === 'FROZEN' ? 'Frozen' : 'Active'" dot />
+        </li>
+      </ul>
+      <p v-else class="border-line-soft text-fg-body border-t px-[22px] py-8 text-center text-sm">
+        No credit lines are in place. Lines are created when an application is approved.
+      </p>
+      <p class="border-line-soft text-fg-muted border-t px-[22px] py-3 text-[12.5px]">
+        Applications are decided in <NuxtLink to="/admin/credit" class="apex-ring text-accent-ink rounded font-semibold">
+          Credit applications
+        </NuxtLink>.
+      </p>
+    </section>
+
+    <!-- =================================================== Instalments -->
+    <section v-else-if="tab === 'installments'" role="tabpanel" class="bg-card border-line-subtle overflow-hidden rounded-2xl border">
+      <div class="hidden grid-cols-[minmax(0,1fr)_150px_120px_130px_190px] gap-3.5 px-[22px] py-3.5 lg:grid" :class="ADMIN_TH">
+        <span>Plan</span><span>Paid</span><span class="text-end">Next payment</span><span>Due</span><span />
+      </div>
+      <div v-if="instPending" aria-hidden="true">
+        <div v-for="i in 4" :key="i" class="border-line-soft h-[56px] animate-pulse border-t" />
+      </div>
+      <ul v-else-if="instData?.items?.length">
+        <li v-for="inst in instData.items" :key="inst.id" class="border-line-soft grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3.5 gap-y-1.5 border-t px-[18px] py-3 sm:px-[22px] lg:grid-cols-[minmax(0,1fr)_150px_120px_130px_190px]">
+          <span class="min-w-0">
+            <span class="text-fg-heading block truncate text-sm font-semibold">{{ inst.project }}</span>
+            <span class="text-fg-muted mt-0.5 block truncate text-[12.5px]">{{ personName(inst.user) }}</span>
+          </span>
+          <span class="text-fg-body text-[13px] tabular-nums">{{ inst.monthsPaid }} of {{ inst.monthsTotal }} · {{ formatCurrency(inst.paid) }}</span>
+          <span class="text-fg-heading text-[13.5px] tabular-nums lg:text-end">{{ formatCurrency(inst.amountDue) }}</span>
+          <span class="text-fg-muted text-[12.5px]"><ClientOnly>{{ inst.status === 'settled' ? 'Settled' : inst.status === 'pending' ? 'After kickoff' : fmtDate(inst.nextDue) }}</ClientOnly></span>
+          <span class="flex gap-2 lg:justify-end">
+            <template v-if="inst.status !== 'settled' && inst.status !== 'pending' && inst.monthsPaid < inst.monthsTotal">
+              <AdminButton size="sm" :disabled="instBusy === inst.id" @click="askInstalment(inst, 'charge')">Collect</AdminButton>
+              <AdminButton size="sm" variant="danger-text" :disabled="instBusy === inst.id" @click="askInstalment(inst, 'waive')">Waive</AdminButton>
+            </template>
+            <AdminStatusChip v-else :tone="inst.status === 'settled' ? 'violet' : 'neutral'" :label="inst.status === 'settled' ? 'Complete' : 'Not started'" />
+          </span>
+        </li>
+      </ul>
+      <p v-else class="border-line-soft text-fg-body border-t px-[22px] py-8 text-center text-sm">
+        No instalment plans yet.
+      </p>
+      <AdminPager v-if="instData && instData.pageCount > 1" :page="instData.page" :page-count="instData.pageCount" :total="instData.total" noun="plans" class="px-[22px] pb-3" @update:page="instPage = $event" />
+    </section>
+
+    <!-- =================================================== Withdrawals -->
+    <template v-else-if="tab === 'withdrawals'">
+      <div class="flex flex-wrap gap-2" role="group" aria-label="Filter by status">
+        <button
+          v-for="[k, l] in ([['Processing', 'To review'], ['Completed', 'Approved'], ['Rejected', 'Rejected'], ['', 'All']] as const)" :key="k || 'all'"
+          type="button" :aria-pressed="wdStatus === k"
+          :class="[PILL, wdStatus === k ? 'bg-accent border-transparent font-semibold text-white' : 'border-line-subtle text-fg-heading hover:bg-hover font-medium']"
+          @click="wdStatus = k"
+        >
+          {{ l }}
+        </button>
+      </div>
+      <section role="tabpanel" class="bg-card border-line-subtle overflow-hidden rounded-2xl border">
+        <div v-if="wdPending" aria-hidden="true">
+          <div v-for="i in 3" :key="i" class="border-line-soft h-[56px] animate-pulse border-t first:border-t-0" />
+        </div>
+        <ul v-else-if="wdData?.items?.length">
+          <li v-for="w in wdData.items" :key="w.id" class="border-line-soft flex flex-wrap items-center gap-3.5 border-t px-[18px] py-3 first:border-t-0 sm:px-[22px]">
+            <span class="min-w-[180px] flex-1">
+              <span class="text-fg-heading block truncate text-sm font-semibold">{{ personName(w.user) }}</span>
+              <span class="text-fg-muted mt-0.5 block text-[12.5px]"><ClientOnly>Requested {{ fmtDate(w.createdAt) }}</ClientOnly> · wallet {{ formatCurrency(w.user.walletBalance) }}</span>
+            </span>
+            <span class="text-fg-heading text-sm font-semibold tabular-nums">{{ formatCurrency(w.amount) }}</span>
+            <template v-if="w.status === 'Processing'">
+              <AdminButton size="sm" variant="danger-text" :disabled="resolving" @click="askWithdrawal(w, 'reject')">
+                Reject
+              </AdminButton>
+              <AdminButton size="sm" variant="primary" :disabled="resolving" @click="askWithdrawal(w, 'approve')">
+                Approve
+              </AdminButton>
+            </template>
+            <AdminStatusChip v-else :status="w.status" dot />
+          </li>
+        </ul>
+        <p v-else class="text-fg-body px-[22px] py-8 text-center text-sm">
+          Nothing here.
+        </p>
+      </section>
+      <AdminPager v-if="wdData && wdData.pageCount > 1" :page="wdData.page" :page-count="wdData.pageCount" :total="wdData.total" noun="requests" @update:page="wdPage = $event" />
+    </template>
+
+    <!-- ========================================================= Rails -->
+    <div v-else role="tabpanel" class="flex flex-col gap-5">
+      <div v-if="healthError" role="alert" class="bg-st-danger-bg text-fg-heading rounded-xl px-4 py-3 text-[13.5px]">
+        The rails’ health could not be read. {{ healthError.statusMessage }}
+      </div>
+      <div v-else-if="healthPending || !health" class="bg-card border-line-subtle h-40 animate-pulse rounded-2xl border" aria-hidden="true" />
+      <template v-else>
+        <div class="flex flex-wrap gap-2.5 rounded-xl px-4 py-3 text-[13.5px]" :class="health.status === 'healthy' ? 'bg-st-success-bg' : 'bg-st-warning-bg'">
+          <Icon :name="health.status === 'healthy' ? 'lucide:check-circle' : 'lucide:alert-triangle'" class="text-fg-heading mt-0.5 size-4 shrink-0" />
+          <span class="text-fg-heading flex-1">
+            <template v-if="health.status === 'healthy'">The rails are healthy: the ledger balances and nothing is stuck.</template>
+            <template v-else>
+              <span v-for="w in health.warnings" :key="w" class="block">{{ w }}</span>
+            </template>
+          </span>
+        </div>
+        <div class="grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
+          <AdminCard label="Providers" padded>
+            <ul class="flex flex-col">
+              <li v-for="p in health.providers" :key="p.name" class="border-line-soft flex flex-wrap items-center gap-2.5 border-t py-2.5 first:border-t-0">
+                <span class="text-fg-heading flex-1 text-sm font-semibold capitalize">{{ p.name }}</span>
+                <span class="text-fg-muted text-[12.5px]">{{ p.capabilities.join(', ') }}</span>
+                <AdminStatusChip :tone="p.mode === 'live' ? 'success' : 'neutral'" :label="p.mode === 'live' ? 'Live' : 'Sandbox'" />
+              </li>
+            </ul>
+          </AdminCard>
+          <AdminCard label="Ledger" :meta="health.ledger.balanced ? 'Balanced' : 'Does not balance'" padded>
+            <dl class="flex flex-col">
+              <div v-for="a in health.ledger.accounts" :key="a.account" class="border-line-soft flex items-center gap-3 border-t py-2 first:border-t-0">
+                <dt class="text-fg-body flex-1 font-mono text-xs">
+                  {{ a.account }}
+                </dt>
+                <dd class="text-fg-heading text-[13.5px] tabular-nums">
+                  {{ formatCurrency(a.balance) }}
+                </dd>
+              </div>
+            </dl>
+          </AdminCard>
+          <AdminCard label="Intents and webhooks" padded>
+            <dl class="grid grid-cols-2 gap-x-5 gap-y-3">
+              <div>
+                <dt class="text-fg-muted text-xs">
+                  Stuck over an hour
+                </dt><dd class="text-fg-heading text-sm tabular-nums">
+                  {{ health.stuckIntents }}
+                </dd>
+              </div>
+              <div>
+                <dt class="text-fg-muted text-xs">
+                  Refunds processing
+                </dt><dd class="text-fg-heading text-sm tabular-nums">
+                  {{ health.refundsPending }}
+                </dd>
+              </div>
+              <div>
+                <dt class="text-fg-muted text-xs">
+                  Failed webhooks (all time)
+                </dt><dd class="text-fg-heading text-sm tabular-nums">
+                  {{ health.webhooks.failedTotal }}
+                </dd>
+              </div>
+              <div>
+                <dt class="text-fg-muted text-xs">
+                  Webhooks, last 24h
+                </dt><dd class="text-fg-heading text-sm tabular-nums">
+                  {{ health.webhooks.last24h.reduce((n: number, r: any) => n + r.count, 0) }}
+                </dd>
+              </div>
+            </dl>
+          </AdminCard>
+        </div>
+      </template>
+    </div>
+  </AdminPage>
+</template>
