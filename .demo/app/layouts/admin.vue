@@ -15,7 +15,7 @@ import { navItemFor } from '~/utils/adminNav'
  * (`useAdminCrumb`), so the server and the first client render agree.
  */
 const route = useRoute()
-const { toggleTheme, toggleLabel, toggleIcon } = useApexTheme()
+const { toggleTheme } = useApexTheme()
 const { show: openPalette } = useAdminPalette()
 const crumb = useAdminCrumb()
 useAdminNavCounts()
@@ -131,13 +131,19 @@ function onDrawerKey(event: KeyboardEvent) {
           apexdigi.co.uk <Icon name="lucide:arrow-up-right" class="size-3.5" />
           <span class="sr-only">(opens in a new tab)</span>
         </a>
+        <!--
+          The stored theme lives in the browser, so the server cannot know it:
+          both icons render and CSS shows the right one, and the label names
+          the action without depending on the current state.
+        -->
         <button
           type="button"
           class="apex-ring border-line-subtle text-fg-heading inline-flex size-[38px] shrink-0 items-center justify-center rounded-[10px] border"
-          :aria-label="toggleLabel"
+          aria-label="Switch between light and dark theme"
           @click="toggleTheme"
         >
-          <Icon :name="toggleIcon" class="size-[17px]" />
+          <Icon name="solar:moon-linear" class="size-[17px] dark:hidden" />
+          <Icon name="solar:sun-2-linear" class="hidden size-[17px] dark:block" />
         </button>
       </header>
 

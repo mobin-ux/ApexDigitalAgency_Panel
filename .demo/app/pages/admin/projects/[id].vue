@@ -26,6 +26,9 @@
  *   the timeline cannot disagree.
  */
 import { isStaffRole, ROLES } from '~~/shared/permissions'
+import { orderRef } from '~~/shared/refs'
+import { ukDateTime } from '~/utils/adminFormat'
+import { ADMIN_INPUT, ADMIN_LABEL, ADMIN_TEXTAREA, ADMIN_TH } from '~/utils/adminUi'
 
 definePageMeta({
   title: 'Project detail',
@@ -73,10 +76,6 @@ const brief = computed<{ label: string, value: string }[]>(() => {
 const signature = computed<string | null>(() => contract.value?.signature ?? project.value?.signature ?? null)
 const signatureIsImage = computed(() => typeof signature.value === 'string' && signature.value.startsWith('data:image'))
 
-function shortRef(id: string) {
-  return `APX-${id.replaceAll('-', '').slice(0, 8).toUpperCase()}`
-}
-
 function fmtDate(iso: string | Date | null | undefined) {
   if (!iso)
     return '—'
@@ -99,26 +98,22 @@ function staffLabel(s: { staffRole?: string | null, role?: string | null }) {
   return isStaffRole(s.staffRole) ? ROLES[s.staffRole].label : 'Employee'
 }
 
-function initialsOf(name: string | null) {
-  return (name ?? '?').split(' ').filter(Boolean).map(w => w[0]).slice(0, 2).join('').toUpperCase()
-}
-
 function toastError(error: any, fallback: string) {
   const fieldErrors = error?.data?.data?.fieldErrors as Record<string, string[]> | undefined
   const firstFieldError = fieldErrors ? Object.values(fieldErrors)[0]?.[0] : undefined
   toaster.add({ title: 'Something went wrong', description: firstFieldError || error?.data?.message || fallback, icon: 'lucide:alert-triangle', progress: true })
 }
 
-/** Badge 5's map, shared with the Orders list. */
-const STAGE_CHIP: Record<string, { label: string, chip: string }> = {
-  PENDING: { label: 'Awaiting kickoff', chip: 'bg-[#D9A521]/16 text-[#F2C14E]' },
-  IN_PROGRESS: { label: 'In progress', chip: 'bg-primary-500/14 text-primary-400' },
-  IN_REVIEW: { label: 'In review', chip: 'bg-[#6EA8FE]/14 text-[#6EA8FE]' },
-  COMPLETED: { label: 'Completed', chip: 'bg-[#22B07D]/14 text-[#22B07D]' },
-  CANCELLED: { label: 'Cancelled', chip: 'bg-[#EC6453]/16 text-[#EC6453]' },
-}
+/** Badge 5's map, shared with the Projects list. */
+const STAGES = [
+  { key: 'PENDING', label: 'Awaiting kickoff', tone: 'warning' },
+  { key: 'IN_PROGRESS', label: 'In progress', tone: 'success' },
+  { key: 'IN_REVIEW', label: 'In review', tone: 'info' },
+  { key: 'COMPLETED', label: 'Delivered', tone: 'violet' },
+  { key: 'CANCELLED', label: 'Cancelled', tone: 'danger' },
+] as const
 function stageOf(key: string) {
-  return STAGE_CHIP[key] ?? { label: key, chip: 'bg-muted-200 text-muted-600 dark:bg-white/5 dark:text-muted-400' }
+  return STAGES.find(s => s.key === key) ?? { key, label: key, tone: 'neutral' as const }
 }
 
 /* ------------------------------------------------ the deliverable gate --- */
@@ -178,14 +173,6 @@ const gate = computed(() => {
   }
 })
 
-/** Per-instalment segments up to 24, a single bar beyond (Phase 5's rule). */
-const segments = computed(() => {
-  if (!plan.value || plan.value.monthsTotal > 24) {
-    return null
-  }
-  return Array.from({ length: plan.value.monthsTotal }, (_, i) => i < plan.value.monthsPaid)
-})
-
 const releaseOpen = ref(false)
 const withdrawOpen = ref(false)
 const releaseReason = ref('')
@@ -193,11 +180,6 @@ const withdrawReason = ref('')
 const releasing = ref(false)
 
 const reasonRequired = computed(() => outstanding.value > 0.005)
-
-function openRelease() {
-  releaseReason.value = ''
-  releaseOpen.value = true
-}
 
 async function confirmRelease() {
   if (releasing.value || (reasonRequired.value && !releaseReason.value.trim())) {
@@ -296,6 +278,10 @@ const ACTIVITY_TEXT: Record<string, (meta: any) => string> = {
   'admin.project.deliverables.withdraw': () => 'Withdrew client access to deliverables',
   'admin.project.stage-advance': meta => (meta?.completed ? `Completed stage “${meta.completed}”` : 'Advanced the stage'),
   'admin.project.update': () => 'Updated the project record',
+  'admin.project.create': () => 'Created the order for the client',
+  'admin.project.kickoff': () => 'Collected the kickoff payment and started the work',
+  'admin.project.action-request': meta => (meta?.title ? `Asked the client: “${meta.title}”` : 'Asked the client for something'),
+  'admin.project.action-cancel': () => 'Withdrew a request to the client',
   'admin.milestone.update': () => 'Updated a milestone',
   'admin.milestone.delete': () => 'Removed a milestone',
   'admin.milestone.create': () => 'Added a milestone',
@@ -562,14 +548,6 @@ async function deleteMilestone(id: string) {
   }
 }
 
-function milestoneMeta(status: string) {
-  if (status === 'COMPLETED')
-    return { icon: 'lucide:check-circle-2', class: 'text-[#22B07D]', label: 'Completed' }
-  if (status === 'CURRENT')
-    return { icon: 'lucide:loader-circle', class: 'text-primary-400', label: 'In progress' }
-  return { icon: 'lucide:circle-dashed', class: 'text-muted-500', label: 'Pending' }
-}
-
 // --- Delete project ---
 const showDelete = ref(false)
 const deleting = ref(false)
@@ -590,831 +568,738 @@ async function deleteProject() {
   }
 }
 
-const inputClass = 'w-full rounded-xl border border-muted-200 bg-muted-50 px-3.5 py-3 text-sm text-muted-900 outline-none placeholder:text-muted-400 focus:border-primary-400 sm:py-2.5 dark:border-white/8 dark:bg-muted-700 dark:text-white dark:placeholder:text-muted-500'
-const labelClass = 'mb-2 block text-[12.5px] font-semibold text-muted-900 dark:text-white'
-const CARD = 'rounded-2xl border border-muted-200 bg-white p-[18px] dark:border-white/10 dark:bg-muted-800'
-const CARD_TITLE = 'font-heading text-[15.5px] font-bold text-muted-900 dark:text-white'
-const MODAL_SHELL = 'apex-pop relative flex max-h-[calc(100dvh-2rem)] w-full flex-col overflow-hidden rounded-2xl border border-muted-200 bg-white shadow-[0_30px_60px_rgba(0,0,0,.5)] dark:border-white/10 dark:bg-muted-800'
+/* ================================================== Admin console layout === */
+
+const { ask } = useAdminConfirm()
+useAdminCrumb(() => (project.value ? `${orderRef(project.value.id)} · ${project.value.name}` : null), '/admin/projects')
+
+/** Every row of the activity feed, newest first (the Overview shows five). */
+const activityAll = computed(() => activity.value)
+
+type Tab = 'overview' | 'order' | 'agreement' | 'payments' | 'delivery' | 'activity' | 'settings'
+const tab = ref<Tab>('overview')
+const tabs = computed(() => [
+  { key: 'overview', label: 'Overview' },
+  { key: 'order', label: 'Order & brief' },
+  { key: 'agreement', label: 'Agreement' },
+  ...(canMoney.value ? [{ key: 'payments', label: 'Payments' }] : []),
+  { key: 'delivery', label: 'Delivery' },
+  { key: 'activity', label: `Activity · ${activityAll.value.length}` },
+  ...(canAssign.value ? [{ key: 'settings', label: 'Settings' }] : []),
+] as { key: Tab, label: string }[])
+
+const p = computed<any>(() => project.value)
+const ownerName = computed(() => personName(p.value?.manager))
+const clientName = computed(() => personName(p.value?.user) ?? 'Client')
+const signed = computed(() => Boolean(contract.value?.signedAt || signature.value))
+const kickoffDone = computed(() => Boolean(p.value?.kickoffPaidAt) || !p.value?.serviceId)
+const status = computed<string>(() => p.value?.status ?? 'PENDING')
+
+/**
+ * The design's lifecycle rail, cut to the steps this platform records. The
+ * prototype draws countersigning, a brief checklist and a booked kickoff
+ * call; none of those exist here (orders are signed by the client alone,
+ * the brief is the order form, kickoff is the payment staff collect), so
+ * the rail shows what is real and dates only what carries a timestamp.
+ */
+const rail = computed(() => {
+  const s = status.value
+  const after = (k: string) => ['IN_PROGRESS', 'IN_REVIEW', 'COMPLETED'].includes(s) && (k !== 'IN_REVIEW' || ['IN_REVIEW', 'COMPLETED'].includes(s)) && (k !== 'COMPLETED' || s === 'COMPLETED')
+  const steps = [
+    { label: 'Order placed', ok: true, at: p.value?.createdAt, to: 'order' },
+    { label: 'Client signed', ok: signed.value, at: contract.value?.signedAt, to: 'agreement' },
+    { label: 'Owner assigned', ok: Boolean(p.value?.managerId), at: null, to: 'overview' },
+    { label: 'Kickoff collected', ok: kickoffDone.value && s !== 'PENDING' ? true : Boolean(p.value?.kickoffPaidAt), at: p.value?.kickoffPaidAt, to: 'payments' },
+    { label: 'In progress', ok: after('IN_PROGRESS'), at: null, to: 'delivery' },
+    { label: 'Client review', ok: after('IN_REVIEW'), at: null, to: 'delivery' },
+    { label: 'Delivered', ok: after('COMPLETED'), at: null, to: 'delivery' },
+  ] as { label: string, ok: boolean, at: string | null | undefined, to: Tab }[]
+  const cur = s === 'CANCELLED' ? -1 : steps.findIndex(x => !x.ok)
+  return steps.map((x, i) => ({ ...x, cur: i === cur, last: i === steps.length - 1, when: x.ok ? (x.at ? ukDateTime(x.at) : 'Done') : i === cur ? 'Now' : '—' }))
+})
+
+/** "Next step · <who>": the one thing that moves this project on. */
+const next = computed(() => {
+  const s = status.value
+  if (s === 'CANCELLED') {
+    return { who: '—', title: 'Cancelled', body: 'This order was cancelled. Nothing further is collected.' }
+  }
+  if (s === 'PENDING' && !p.value?.managerId) {
+    return { who: 'Owner or Admin', title: 'Assign a project owner', body: 'Choose who runs this project in the checklist below. They are named to the client on their order.' }
+  }
+  if (s === 'PENDING' && !kickoffDone.value) {
+    return { who: 'Project owner', title: `Collect the ${kickoffLabel.value.toLowerCase()}`, body: `${canMoney.value ? `${gbp(p.value?.kickoffAmount ?? 0)} is` : 'The kickoff payment is'} taken from the client’s wallet after the kickoff call, as the agreement states. Collecting it starts the work.` }
+  }
+  if (s === 'PENDING') {
+    return { who: 'Project owner', title: 'Start the project', body: 'Everything is in place. Starting shows “In progress” to the client and opens the milestone plan.' }
+  }
+  if (s === 'IN_PROGRESS') {
+    return nextStage.value
+      ? { who: ownerName.value ?? 'Owner', title: `Deliver “${nextStage.value.title}”`, body: `Milestone ${currentIndex.value + 1} of ${milestones.value.length}. Completing it moves the client’s timeline on and recomputes progress.` }
+      : { who: ownerName.value ?? 'Owner', title: 'All milestones complete', body: 'Send it to the client for review, or mark it as delivered in Settings.' }
+  }
+  if (s === 'IN_REVIEW') {
+    return { who: 'Client', title: `Waiting for ${clientName.value}’s approval`, body: `The client is reviewing the work in My orders. Deliverables are ${deliverables.value?.released ? 'released.' : 'held until paid unless you release them.'}` }
+  }
+  return { who: '—', title: 'Delivered', body: plan.value ? `${plan.value.monthsPaid} of ${plan.value.monthsTotal} instalments paid. ${plan.value.monthsPaid >= plan.value.monthsTotal ? 'The plan is complete.' : 'The plan continues on schedule.'}` : 'The work is complete.' }
+})
+
+/** The checks this platform can actually make before work starts. */
+const gates = computed(() => [
+  { key: 'signed', label: 'Client signed the agreement', ok: signed.value, detail: signed.value ? `${contract.value?.signerName || clientName.value}${contract.value?.signedAt ? ` · ${ukDateTime(contract.value.signedAt)}` : ''}${contract.value?.signedIp ? ` · IP ${contract.value.signedIp}` : ''}` : 'No signed agreement is attached to this order.' },
+  { key: 'owner', label: 'Project owner assigned', ok: Boolean(p.value?.managerId), detail: ownerName.value ?? 'Unassigned' },
+  { key: 'kickoff', label: 'Kickoff payment collected', ok: Boolean(p.value?.kickoffPaidAt), detail: p.value?.kickoffPaidAt ? `${canMoney.value ? `${gbp(p.value.kickoffAmount ?? 0)} · ` : ''}${ukDateTime(p.value.kickoffPaidAt)}` : p.value?.serviceId ? 'Collected by staff after the kickoff call; it starts the work.' : 'This order has no kickoff payment.' },
+])
+const gatesDone = computed(() => gates.value.filter(g => g.ok).length)
+
+const facts = computed(() => {
+  const pl = plan.value
+  const rows = [
+    { k: 'Service', v: p.value?.category ?? '—' },
+    { k: 'Plan', v: pl ? (canMoney.value ? `${pl.monthsTotal} × ${formatCurrency(pl.monthlyAmount || pl.amountDue)} = ${formatCurrency(pl.total)}` : `${pl.monthsTotal} monthly payments`) : (canMoney.value ? formatCurrency(p.value?.amount ?? 0) : 'One payment') },
+    { k: 'Paid so far', v: pl ? (canMoney.value ? `${formatCurrency(pl.paid)} (${pl.monthsPaid} of ${pl.monthsTotal})` : `${pl.monthsPaid} of ${pl.monthsTotal} instalments`) : '—' },
+    { k: 'Next instalment', v: pl ? (pl.monthsPaid >= pl.monthsTotal ? 'None, plan complete' : `${canMoney.value ? `${formatCurrency(pl.amountDue)} · ` : ''}${p.value?.kickoffPaidAt ? ukDate(pl.nextDue) : 'After kickoff'}`) : '—' },
+    { k: 'Target launch', v: p.value?.deadline ? ukDate(p.value.deadline) : 'Not provided' },
+    { k: 'Agreement', v: contract.value ? `${contract.value.reference} · ${contract.value.status.toLowerCase()}` : 'None attached' },
+    { k: 'Ordered', v: ukDateTime(p.value?.createdAt) },
+    { k: 'Progress', v: `${p.value?.progress ?? 0}%` },
+    { k: 'Last updated', v: ukDateTime(p.value?.updatedAt) },
+  ]
+  return rows
+})
+
+/** The instalment schedule: paid rows from the ledger count, the rest from `nextDue`. */
+const schedule = computed(() => {
+  const pl = plan.value
+  if (!pl) {
+    return []
+  }
+  return Array.from({ length: pl.monthsTotal }, (_, k) => {
+    const paid = k < pl.monthsPaid
+    const isNext = k === pl.monthsPaid && Boolean(p.value?.kickoffPaidAt)
+    let due = 'After kickoff'
+    if (p.value?.kickoffPaidAt && !paid) {
+      const d = new Date(pl.nextDue)
+      d.setMonth(d.getMonth() + (k - pl.monthsPaid))
+      due = ukDate(d)
+    }
+    else if (paid) {
+      due = 'Collected'
+    }
+    return { n: `${k + 1} / ${pl.monthsTotal}`, due, amount: formatCurrency(pl.monthlyAmount || pl.amountDue), status: paid ? 'Paid' : isNext ? 'Next' : p.value?.kickoffPaidAt ? 'Scheduled' : 'Not yet due', tone: paid ? 'success' : isNext ? 'info' : 'neutral' } as const
+  })
+})
+
+async function confirmKickoff() {
+  const reason = await ask({
+    title: `Collect the ${kickoffLabel.value.toLowerCase()}?`,
+    body: `This confirms the kickoff call was held and starts the work. ${clientName.value} sees “In progress” in My orders.`,
+    points: [{ tone: 'accent', text: `${canMoney.value ? gbp(p.value?.kickoffAmount ?? 0) : 'The kickoff payment'} is taken from the client’s wallet now. If the wallet is short, nothing is charged and the reason is shown.` }],
+    confirmLabel: 'Collect and start',
+  })
+  if (reason !== null) {
+    await collectKickoff()
+  }
+}
+
+async function startProject() {
+  const reason = await ask({
+    title: `Start ${p.value?.name}?`,
+    body: `The client’s order moves to “In progress” in My orders and the milestone plan opens.${ownerName.value ? ` ${ownerName.value} is the owner.` : ''}`,
+    confirmLabel: 'Start project',
+  })
+  if (reason === null) {
+    return
+  }
+  try {
+    await $fetch(`/api/admin/projects/${projectId}`, { method: 'PATCH', body: { status: 'IN_PROGRESS' } })
+    toaster.add({ title: `${p.value?.name} has started`, icon: 'lucide:check', progress: true })
+    await refresh()
+  }
+  catch (error: any) {
+    toastError(error, 'The project could not be started.')
+  }
+}
+
+async function setStatus(next: string, label: string) {
+  try {
+    await $fetch(`/api/admin/projects/${projectId}`, { method: 'PATCH', body: { status: next } })
+    toaster.add({ title: label, icon: 'lucide:check', progress: true })
+    await refresh()
+  }
+  catch (error: any) {
+    toastError(error, 'The stage could not be changed.')
+  }
+}
+
+async function askRelease() {
+  const owed = reasonRequired.value
+  const reason = await ask({
+    title: `Release deliverables to ${clientName.value}?`,
+    body: `${fileCount.value} file${fileCount.value === 1 ? '' : 's'} become downloadable in the client’s My orders.`,
+    points: owed && plan.value ? [{ tone: 'warning', text: `${plan.value.monthsPaid} of ${plan.value.monthsTotal} instalments paid (${formatCurrency(paidSoFar.value)} of ${formatCurrency(planTotal.value)}). Releasing hands over the files before the balance is settled.` }] : [],
+    reason: owed ? { required: true, label: 'Why release before payment?', placeholder: 'e.g. Balance continues on the agreed schedule', hint: 'Stored with the audit entry.' } : undefined,
+    confirmLabel: 'Release files',
+  })
+  if (reason === null) {
+    return
+  }
+  releaseReason.value = reason
+  await confirmRelease()
+}
+
+async function askWithdraw() {
+  const reason = await ask({
+    title: 'Withdraw download access?',
+    body: 'The client keeps seeing the file names but can no longer download them. You can release them again later.',
+    reason: { required: false, label: 'Reason (optional)', placeholder: 'e.g. Released to the wrong client', hint: 'Stored with the audit entry.' },
+    confirmLabel: 'Withdraw access',
+    danger: true,
+  })
+  if (reason === null) {
+    return
+  }
+  withdrawReason.value = reason
+  await confirmWithdraw()
+}
+
+async function askDelete() {
+  const reason = await ask({
+    title: `Delete ${p.value?.name}?`,
+    body: 'The project, its milestones and its files are removed for good. Payments already taken stay in the ledger.',
+    points: [{ tone: 'danger', text: 'This cannot be undone.' }],
+    confirmLabel: 'Delete project',
+    danger: true,
+  })
+  if (reason !== null) {
+    await deleteProject()
+  }
+}
+
+async function askWithdrawAction(id: string, title: string) {
+  const reason = await ask({ title: `Withdraw “${title}”?`, body: 'The request disappears from the client’s list. It is kept on record as withdrawn.', confirmLabel: 'Withdraw request' })
+  if (reason !== null) {
+    await withdrawAsk(id)
+  }
+}
+
+const TAB_CLS = 'apex-ring -mb-px inline-flex h-10 shrink-0 cursor-pointer items-center gap-[7px] border-b-2 text-sm'
 </script>
 
 <template>
-  <div class="mx-auto flex w-full max-w-[1180px] px-4 pt-5 sm:px-8 sm:pt-7 flex-col gap-5 pb-8">
-    <NuxtLink to="/admin/projects" class="apex-focus -my-2 inline-flex min-h-11 w-fit items-center gap-1.5 rounded-lg py-2 text-[13.5px] font-semibold text-primary-500 transition hover:underline sm:my-0 sm:min-h-0 sm:py-0 dark:text-primary-400">
-      <Icon name="lucide:arrow-left" class="size-3.5" />Orders
-    </NuxtLink>
+  <AdminPage gap="md">
+    <div v-if="!project" class="py-16 text-center">
+      <AdminEmptyState icon="lucide:folder-x" title="Project not found" subtitle="It may have been deleted, or the link is wrong.">
+        <AdminButton to="/admin/projects">
+          Back to projects
+        </AdminButton>
+      </AdminEmptyState>
+    </div>
 
-    <div v-if="project" class="flex flex-col gap-5">
-      <!-- ========== HEADER ========== -->
-      <div class="flex flex-wrap items-start gap-4">
-        <span class="bg-primary-500/14 text-primary-400 flex size-[52px] shrink-0 items-center justify-center rounded-[14px]">
-          <Icon name="lucide:code-2" class="size-6" />
-        </span>
-        <div class="min-w-0 flex-1">
-          <div class="flex flex-wrap items-center gap-2.5">
-            <h1 class="font-heading text-2xl font-extrabold leading-[1.15] tracking-[-0.02em] text-muted-900 dark:text-white">
-              {{ project.name }}
-            </h1>
-            <span
-              class="inline-flex items-center rounded-full px-2.5 py-[5px] text-[10.5px] font-extrabold uppercase tracking-[0.04em]"
-              :class="stageOf(project.status).chip"
-            >{{ stageOf(project.status).label }}</span>
+    <template v-else>
+      <!-- Identity -->
+      <div class="flex flex-wrap items-start gap-3.5">
+        <div class="flex min-w-0 flex-1 basis-[320px] flex-col gap-1.5">
+          <div class="text-fg-muted flex flex-wrap items-center gap-2.5 text-[13px]">
+            <span class="bg-chip border-line-subtle text-fg-heading rounded-[7px] border px-2 py-[3px] font-mono text-xs">{{ orderRef(project.id) }}</span>
+            <span>{{ project.category }}<template v-if="plan"> · {{ plan.monthsTotal }} payments</template></span>
           </div>
-          <div class="mt-[7px] flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[13.5px] text-muted-500">
-            <NuxtLink :to="`/admin/users/${project.user.id}`" class="text-primary-500 dark:text-primary-400 font-semibold hover:underline">
-              {{ personName(project.user) }}
-            </NuxtLink>
-            <span aria-hidden="true" class="size-1 rounded-full bg-muted-400" />
-            <span>{{ project.category }}</span>
-            <span aria-hidden="true" class="size-1 rounded-full bg-muted-400" />
-            <span class="font-mono text-[12.5px]">{{ shortRef(project.id) }}</span>
-            <span aria-hidden="true" class="size-1 rounded-full bg-muted-400" />
-            <span>Started {{ fmtDate(project.startDate) }}</span>
-          </div>
+          <h1 class="font-heading text-fg-heading text-[23px] font-extrabold leading-[1.1] tracking-[-0.025em] sm:text-[30px]">
+            {{ project.name }}
+          </h1>
+          <p class="text-fg-body text-sm">
+            {{ clientName }}<template v-if="project.user?.company?.name">
+              · {{ project.user.company.name }}
+            </template> · ordered {{ ukDateTime(project.createdAt) }}
+          </p>
         </div>
-        <div class="flex shrink-0 flex-wrap items-center gap-2.5">
-          <BaseButton v-if="canAssign" rounded="lg" @click="showAssign = true">
-            <Icon name="lucide:user-plus" class="size-4" />Assign
-          </BaseButton>
-          <BaseButton
-            v-if="canRelease && gate.key === 'held'" rounded="lg" variant="primary"
-            @click="openRelease"
-          >
-            <Icon name="lucide:unlock" class="size-4" />Release deliverables
-          </BaseButton>
+        <div class="flex flex-wrap items-center gap-2.5 pt-1">
+          <AdminStatusChip :tone="stageOf(project.status).tone" :label="stageOf(project.status).label" dot />
+          <AdminButton v-if="contract" :to="`/admin/contracts/${contract.id}`">
+            Agreement <Icon name="lucide:arrow-up-right" class="size-3.5" />
+          </AdminButton>
+          <AdminButton v-if="canAssign && project.status === 'IN_PROGRESS'" @click="setStatus('IN_REVIEW', 'Sent to the client for review')">
+            Send for review
+          </AdminButton>
         </div>
       </div>
 
-      <div class="grid grid-cols-1 items-start gap-[18px] xl:grid-cols-[1fr_380px]">
-        <!-- ========== LEFT COLUMN ========== -->
-        <div class="flex flex-col gap-[18px]">
-          <!-- ---------- DELIVERABLES GATE (badge 6) ---------- -->
-          <section class="rounded-2xl border p-5" :class="gate.tone" aria-label="Deliverables">
-            <div class="flex items-start gap-3">
-              <span class="flex size-[38px] shrink-0 items-center justify-center rounded-[11px]" :class="gate.iconTone">
-                <Icon :name="gate.icon" class="size-[19px]" />
-              </span>
-              <div class="min-w-0 flex-1">
-                <div class="font-heading text-[17px] font-bold tracking-[-0.01em] text-muted-900 dark:text-white">
-                  {{ gate.title }}
-                </div>
-                <p class="mt-1 text-[13px] leading-[1.5] text-muted-600 dark:text-muted-300">
-                  {{ gate.body }}
-                </p>
-              </div>
-            </div>
-
-            <!-- What has actually been paid — the figure the decision rests on. -->
-            <div
-              v-if="canMoney && plan"
-              class="mt-[18px] flex flex-wrap items-center gap-4 rounded-xl border border-muted-200 bg-white px-4 py-3.5 dark:border-white/10 dark:bg-white/3"
-            >
-              <span class="min-w-0 flex-1">
-                <span class="block text-[11px] font-bold uppercase tracking-[0.05em] text-muted-500">Paid so far</span>
-                <span class="font-heading mt-1 block text-[20px] font-extrabold tabular-nums text-muted-900 dark:text-white">
-                  {{ formatCurrency(paidSoFar) }}
-                  <span class="text-[13.5px] font-semibold text-muted-500">of {{ formatCurrency(planTotal) }}</span>
-                </span>
-              </span>
-              <span class="w-[200px] shrink-0">
-                <span v-if="segments" class="flex gap-0.5" aria-hidden="true">
-                  <span
-                    v-for="(paid, i) in segments" :key="i"
-                    class="h-1.5 min-w-0 flex-1 rounded-[2px]"
-                    :class="paid ? 'bg-primary-500' : 'bg-muted-200 dark:bg-white/8'"
-                  />
-                </span>
-                <span v-else class="block h-1.5 overflow-hidden rounded-full bg-muted-200 dark:bg-white/8" aria-hidden="true">
-                  <span class="block h-full rounded-full bg-primary-500" :style="{ width: `${planTotal ? Math.round((paidSoFar / planTotal) * 100) : 0}%` }" />
-                </span>
-                <span class="mt-[7px] block text-[12px] text-muted-500">
-                  {{ plan.monthsPaid }} of {{ plan.monthsTotal }} instalments · next {{ fmtDate(plan.nextDue) }}
-                </span>
-              </span>
-              <NuxtLink to="/admin/payments?tab=installments" class="text-primary-500 dark:text-primary-400 shrink-0 text-[13px] font-semibold hover:underline">
-                Plan
-              </NuxtLink>
-            </div>
-
-            <div class="mt-[18px] flex items-center gap-2.5">
-              <span class="text-[11px] font-bold uppercase tracking-[0.05em] text-muted-500">Deliverables</span>
-              <span class="h-px flex-1 bg-muted-200 dark:bg-white/10" />
-              <span class="text-[12.5px] text-muted-500">
-                {{ deliverables?.released ? `${fileCount} of ${fileCount} released` : `0 of ${fileCount} released` }}
-              </span>
-            </div>
-
-            <div v-if="fileCount" class="mt-3 rounded-xl border border-muted-200 bg-white px-4 dark:border-white/10 dark:bg-muted-800" role="list">
-              <div
-                v-for="(f, index) in project.files" :key="f.id"
-                role="listitem"
-                class="flex items-center gap-3 py-3"
-                :class="index < project.files.length - 1 ? 'border-b border-muted-200 dark:border-white/5' : ''"
-              >
-                <span class="flex size-[34px] shrink-0 items-center justify-center rounded-[9px] bg-muted-100 text-muted-500 dark:bg-white/5 dark:text-muted-400">
-                  <Icon :name="f.type === 'zip' ? 'lucide:folder-archive' : 'lucide:file-text'" class="size-[17px]" />
-                </span>
-                <span class="min-w-0 flex-1">
-                  <span class="block truncate text-sm font-semibold text-muted-900 dark:text-white">{{ f.name }}</span>
-                  <span class="mt-[3px] block text-[12px] text-muted-500">{{ f.type }} · {{ f.size }}</span>
-                </span>
+      <!-- Lifecycle rail -->
+      <section class="bg-card border-line-subtle overflow-x-auto rounded-2xl border px-[18px] pb-[18px] pt-5 sm:px-[22px]" aria-label="Project lifecycle">
+        <ol class="grid min-w-[640px] grid-cols-7">
+          <li v-for="r in rail" :key="r.label">
+            <button type="button" class="apex-ring flex w-full min-w-0 cursor-pointer flex-col gap-2 rounded-lg pe-2 text-start" @click="tab = r.to">
+              <span class="flex items-center">
                 <span
-                  class="inline-flex shrink-0 items-center rounded-full px-2.5 py-[5px] text-[10.5px] font-extrabold uppercase tracking-[0.04em]"
-                  :class="deliverables?.held ? 'bg-[#D9A521]/16 text-[#F2C14E]' : 'bg-[#22B07D]/14 text-[#22B07D]'"
-                >{{ deliverables?.held ? 'Held' : 'Available' }}</span>
-              </div>
-            </div>
-            <p v-else class="mt-3 text-[13px] text-muted-500">
-              <!-- TODO(api): no upload endpoint yet — files arrive through seeds or direct records. -->
-              No files attached to this project.
-            </p>
-
-            <div v-if="canRelease && fileCount" class="mt-4 flex flex-wrap items-center gap-2.5">
-              <BaseButton v-if="gate.key === 'held'" rounded="lg" variant="primary" @click="openRelease">
-                <Icon name="lucide:unlock" class="size-4" />Release {{ fileCount }} file{{ fileCount === 1 ? '' : 's' }}
-              </BaseButton>
-              <BaseButton
-                v-if="deliverables?.released" rounded="lg"
-                class="!text-[#EC6453] border border-[#EC6453]/35"
-                @click="withdrawOpen = true"
-              >
-                Withdraw access
-              </BaseButton>
-              <p v-if="deliverables?.released && deliverables.releasedBy" class="text-[12.5px] text-muted-500">
-                Released by {{ deliverables.releasedBy }} on {{ fmtDate(deliverables.releasedAt) }}.
-              </p>
-            </div>
-            <!-- Badge 6 again: never a disabled button with no explanation. -->
-            <p v-else-if="!canRelease && fileCount" class="mt-4 text-[13px] leading-[1.6] text-muted-500">
-              Releasing files is limited to the Owner, Admin and Project manager roles.
-              <template v-if="roleDef">
-                Your role, {{ roleDef.label }}, covers {{ roleDef.covers }}.
-              </template>
-            </p>
-          </section>
-
-          <!-- ---------- STAGE ---------- -->
-          <section aria-label="Stage">
-            <ApexSectionLabel class="mb-3" label="Stage" />
-            <div :class="CARD">
-              <div v-if="milestones.length" class="flex items-start">
-                <div
-                  v-for="(m, index) in milestones" :key="m.id"
-                  class="relative flex min-w-0 flex-1 flex-col items-center"
+                  class="inline-flex size-7 shrink-0 items-center justify-center rounded-full"
+                  :class="r.ok ? 'bg-[#22B07D] text-white' : r.cur ? 'bg-accent shadow-[0_0_0_4px_var(--accent-tint)] text-white' : 'border-line-strong text-fg-muted border-2'"
                 >
-                  <span
-                    class="z-10 flex size-[26px] items-center justify-center rounded-full"
-                    :class="m.status === 'COMPLETED'
-                      ? 'bg-primary-500 text-white'
-                      : m.status === 'CURRENT'
-                        ? 'border-2 border-primary-500 bg-primary-500/20'
-                        : 'border border-muted-300 bg-muted-100 dark:border-white/15 dark:bg-white/5'"
-                  >
-                    <Icon v-if="m.status === 'COMPLETED'" name="lucide:check" class="size-3.5" />
-                  </span>
-                  <span
-                    class="mt-2.5 px-1 text-center text-[12.5px] font-semibold"
-                    :class="m.status === 'PENDING' ? 'text-muted-500' : 'text-muted-900 dark:text-white'"
-                  >{{ m.title }}</span>
-                  <span
-                    v-if="index < milestones.length - 1"
-                    aria-hidden="true"
-                    class="absolute left-1/2 top-[13px] h-0.5 w-full"
-                    :class="m.status === 'COMPLETED' ? 'bg-primary-500' : 'bg-muted-200 dark:bg-white/10'"
-                  />
-                </div>
-              </div>
-              <p v-else class="text-[13px] text-muted-500">
-                No stages yet. Add the first milestone below and the timeline appears here and on the client's project page.
-              </p>
-
-              <div v-if="canAssign && milestones.length" class="mt-5 flex flex-wrap items-center gap-2.5 border-t border-muted-200 pt-4 dark:border-white/10">
-                <span class="min-w-0 flex-1 text-[13.5px] text-muted-600 dark:text-muted-300">
-                  Moving the stage updates the timeline on the client's project page and recalculates progress.
+                  <Icon :name="r.ok ? 'lucide:check' : r.cur ? 'lucide:circle-dot' : 'lucide:circle'" class="size-3.5" />
                 </span>
-                <BaseButton
-                  size="sm" rounded="lg" class="shrink-0"
-                  :loading="advancing" :disabled="advancing || !nextStage"
-                  @click="advanceStage"
-                >
-                  {{ nextStage ? `Complete “${nextStage.title}”` : 'Every stage complete' }}
-                </BaseButton>
-              </div>
+                <span v-if="!r.last" class="mx-1.5 h-0.5 flex-1 rounded" :class="r.ok ? 'bg-[#22B07D]' : 'bg-line-subtle'" />
+              </span>
+              <span class="text-[13px] font-semibold leading-[1.3]" :class="r.ok || r.cur ? 'text-fg-heading' : 'text-fg-muted'">{{ r.label }}</span>
+              <span class="text-fg-muted text-[11.5px] leading-[1.35]"><ClientOnly>{{ r.when }}</ClientOnly></span>
+            </button>
+          </li>
+        </ol>
+      </section>
+
+      <div v-if="project.status === 'CANCELLED'" class="bg-st-danger-bg text-fg-heading flex gap-2.5 rounded-xl px-4 py-3 text-[13.5px] leading-normal">
+        <Icon name="lucide:circle-x" class="mt-0.5 size-4 shrink-0 text-[#EC6453]" />This order is cancelled.
+      </div>
+
+      <!-- Tabs -->
+      <div class="border-line-subtle flex gap-6 overflow-x-auto border-b" role="tablist" aria-label="Project sections">
+        <button
+          v-for="t in tabs" :key="t.key" type="button" role="tab" :aria-selected="tab === t.key" :aria-controls="`pj-${t.key}`"
+          :class="[TAB_CLS, tab === t.key ? 'border-accent text-fg-heading font-semibold' : 'text-fg-muted border-transparent font-medium']"
+          @click="tab = t.key"
+        >
+          {{ t.label }}
+        </button>
+      </div>
+
+      <!-- ===================================================== Overview -->
+      <div v-if="tab === 'overview'" id="pj-overview" role="tabpanel" class="grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,1.55fr)_minmax(0,1fr)]">
+        <div class="flex min-w-0 flex-col gap-5">
+          <section class="border-accent/40 bg-accent-tint flex flex-col gap-2.5 rounded-2xl border px-[22px] py-5">
+            <span class="text-accent-ink text-[11.5px] font-bold uppercase tracking-[0.07em]">Next step · {{ next.who }}</span>
+            <span class="font-heading text-fg-heading text-[21px] font-bold tracking-[-0.02em]">{{ next.title }}</span>
+            <span class="text-fg-heading text-sm leading-[1.6] opacity-85">{{ next.body }}</span>
+            <div class="mt-1 flex flex-wrap items-center gap-2.5">
+              <template v-if="canAssign">
+                <AdminButton v-if="project.status === 'PENDING' && !kickoffDone && project.managerId" variant="primary" :disabled="collecting" @click="confirmKickoff">
+                  Collect {{ kickoffLabel.toLowerCase() }}
+                </AdminButton>
+                <AdminButton v-else-if="project.status === 'PENDING' && kickoffDone && project.managerId" variant="primary" @click="startProject">
+                  <Icon name="lucide:play" class="size-3.5" />Start project
+                </AdminButton>
+                <AdminButton v-if="project.status === 'IN_PROGRESS' && nextStage" variant="primary" :disabled="advancing" @click="advanceStage">
+                  Complete “{{ nextStage.title }}”
+                </AdminButton>
+                <AdminButton v-if="project.status === 'IN_REVIEW'" variant="primary" @click="setStatus('COMPLETED', 'Marked as delivered')">
+                  Mark as delivered
+                </AdminButton>
+              </template>
+              <AdminButton v-if="canRelease && fileCount && !deliverables?.released && ['IN_REVIEW', 'COMPLETED'].includes(project.status)" @click="askRelease">
+                Release deliverables
+              </AdminButton>
+              <span v-if="!canAssign && project.status !== 'COMPLETED' && project.status !== 'CANCELLED'" class="text-fg-muted text-[12.5px]">Moving a project on needs Owner, Admin or Project manager.</span>
             </div>
           </section>
 
-          <!-- ---------- BRIEF ---------- -->
-          <section aria-label="Client brief">
-            <ApexSectionLabel class="mb-3" label="Brief" />
-            <div :class="CARD">
-              <dl v-if="brief.length" class="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
-                <div v-for="item in brief" :key="item.label" class="min-w-0">
-                  <dt class="text-[11px] font-bold uppercase tracking-[0.05em] text-muted-500">
-                    {{ item.label }}
-                  </dt>
-                  <dd class="mt-1 break-words text-sm leading-[1.5] text-muted-900 dark:text-white">
-                    {{ item.value }}
-                  </dd>
-                </div>
-              </dl>
-              <p v-else class="text-[13px] text-muted-500">
-                No brief was captured for this project. Orders placed through the New Order wizard include the client's requirements here.
-              </p>
+          <AdminCard label="Ready to start" :meta="`${gatesDone} of ${gates.length} done`">
+            <ul>
+              <li v-for="g in gates" :key="g.key" class="border-line-soft grid grid-cols-[28px_minmax(0,1fr)] items-center gap-3 border-t px-[18px] py-3 sm:grid-cols-[28px_minmax(0,1fr)_auto] sm:px-[22px]">
+                <span class="inline-flex size-[26px] items-center justify-center rounded-full" :class="g.ok ? 'bg-[#22B07D] text-white' : 'border-line-strong text-fg-muted border-2 border-dashed'">
+                  <Icon :name="g.ok ? 'lucide:check' : 'lucide:minus'" class="size-3.5" />
+                </span>
+                <span class="min-w-0">
+                  <span class="text-fg-heading block text-sm font-semibold">{{ g.label }}</span>
+                  <span class="mt-0.5 block text-[12.5px] leading-[1.45]" :class="g.ok ? 'text-fg-muted' : 'text-fg-body'"><ClientOnly>{{ g.detail }}</ClientOnly></span>
+                </span>
+                <span v-if="g.key === 'owner' && canAssign && project.status !== 'COMPLETED'" class="col-span-2 sm:col-span-1">
+                  <AdminButton size="sm" @click="showAssign = true">{{ project.managerId ? 'Change' : 'Assign owner' }}</AdminButton>
+                </span>
+              </li>
+            </ul>
+            <div class="border-line-subtle flex flex-wrap items-center gap-3 border-t px-[18px] pb-[18px] pt-3.5 sm:px-[22px]">
+              <span class="text-fg-muted min-w-[200px] flex-1 text-[13px] leading-normal">
+                {{ project.status !== 'PENDING' ? 'This project has started.' : gatesDone === gates.length ? 'Everything is in place. Starting shows “In progress” to the client.' : `${gates.length - gatesDone} check${gates.length - gatesDone === 1 ? '' : 's'} outstanding.` }}
+              </span>
+              <AdminButton v-if="project.status === 'PENDING' && canAssign" variant="primary" :disabled="!kickoffDone || !project.managerId" @click="startProject">
+                <Icon name="lucide:play" class="size-3.5" />Start project
+              </AdminButton>
             </div>
-          </section>
+          </AdminCard>
 
-          <!-- ---------- DETAILS FORM ---------- -->
-          <section aria-label="Project details">
-            <ApexSectionLabel class="mb-3" label="Details" />
-            <div :class="CARD">
-              <form class="grid grid-cols-1 gap-4 sm:grid-cols-2" @submit.prevent="saveDetails">
-                <div class="sm:col-span-2">
-                  <label for="pj-name" :class="labelClass">Project name</label>
-                  <input id="pj-name" v-model="form.name" required :class="inputClass">
-                </div>
-                <div>
-                  <label for="pj-category" :class="labelClass">Service</label>
-                  <input id="pj-category" v-model="form.category" required :class="inputClass">
-                </div>
-                <div v-if="canMoney">
-                  <label for="pj-amount" :class="labelClass">Contract value (GBP)</label>
-                  <input id="pj-amount" v-model.number="form.amount" type="number" min="0" step="0.01" :class="inputClass">
-                </div>
-                <div>
-                  <span :class="labelClass">Stage</span>
-                  <BaseSelect v-model="form.status" rounded="lg" aria-label="Stage">
-                    <BaseSelectItem value="PENDING">
-                      Awaiting kickoff
-                    </BaseSelectItem>
-                    <BaseSelectItem value="IN_PROGRESS">
-                      In progress
-                    </BaseSelectItem>
-                    <BaseSelectItem value="IN_REVIEW">
-                      In review
-                    </BaseSelectItem>
-                    <BaseSelectItem value="COMPLETED">
-                      Completed
-                    </BaseSelectItem>
-                    <BaseSelectItem value="CANCELLED">
-                      Cancelled
-                    </BaseSelectItem>
-                  </BaseSelect>
-                </div>
-                <div>
-                  <label for="pj-deadline" :class="labelClass">Deadline</label>
-                  <input id="pj-deadline" v-model="form.deadline" type="date" :class="inputClass">
-                </div>
-                <div>
-                  <span :class="labelClass">Owner</span>
-                  <BaseSelect v-model="form.managerId" rounded="lg" aria-label="Project owner" placeholder="Unassigned">
-                    <BaseSelectItem v-for="s in staff" :key="s.id" :value="s.id">
-                      {{ personName(s) }} · {{ staffLabel(s) }}
-                    </BaseSelectItem>
-                  </BaseSelect>
-                </div>
-                <div>
-                  <label for="pj-progress" :class="labelClass">Progress — <span class="text-primary-400 tabular-nums">{{ form.progress }}%</span></label>
-                  <input
-                    id="pj-progress" v-model.number="form.progress" type="range" min="0" max="100" step="5"
-                    class="accent-primary-500 w-full"
-                  >
-                  <p class="mt-1.5 text-xs text-muted-500">
-                    Advancing a stage recalculates this from the timeline.
-                  </p>
-                </div>
-                <div class="flex items-end justify-end sm:col-span-2">
-                  <BaseButton type="submit" rounded="full" variant="primary" :loading="saving" :disabled="saving">
-                    <Icon name="lucide:check" class="size-4" />Save changes
-                  </BaseButton>
-                </div>
-              </form>
-            </div>
-          </section>
-
-          <!-- ---------- MILESTONE EDITING ---------- -->
-          <section v-if="canAssign" aria-label="Milestones">
-            <ApexSectionLabel class="mb-3" label="Milestones" />
-            <div :class="CARD">
-              <div v-if="milestones.length" class="mb-4 overflow-hidden rounded-xl border border-muted-200 dark:border-white/8" role="list">
-                <template v-for="(m, idx) in milestones" :key="m.id">
-                  <div v-if="idx > 0" class="h-px bg-muted-200 dark:bg-white/8" />
-                  <div role="listitem" class="flex items-center gap-3 px-4 py-3">
-                    <button
-                      type="button"
-                      :aria-label="`Milestone ${m.title}: ${milestoneMeta(m.status).label}. Activate to advance.`"
-                      class="apex-focus -my-2 flex size-11 shrink-0 items-center justify-center rounded-lg transition hover:scale-110 sm:my-0 sm:size-6"
-                      @click="cycleMilestone(m)"
-                    >
-                      <Icon :name="milestoneMeta(m.status).icon" class="size-5" :class="milestoneMeta(m.status).class" />
-                    </button>
-                    <span class="min-w-0 flex-1 truncate text-[13.5px] font-semibold" :class="m.status === 'COMPLETED' ? 'text-muted-500 line-through' : 'text-muted-900 dark:text-white'">
-                      {{ m.title }}
-                    </span>
-                    <span class="hidden text-[12px] text-muted-500 sm:block">{{ milestoneMeta(m.status).label }}</span>
-                    <button type="button" :aria-label="`Remove milestone ${m.title}`" class="apex-focus -my-2 flex size-11 shrink-0 items-center justify-center rounded-lg text-muted-500 transition hover:bg-[#EC6453]/14 hover:text-[#EC6453] sm:my-0 sm:size-8" @click="deleteMilestone(m.id)">
-                      <Icon name="lucide:trash-2" class="size-3.5" />
-                    </button>
-                  </div>
-                </template>
-              </div>
-              <p v-else class="mb-4 text-[13px] text-muted-500">
-                No milestones yet — add the first one below.
-              </p>
-
-              <form class="flex items-center gap-2.5" @submit.prevent="addMilestone">
-                <label for="pj-new-milestone" class="sr-only">New milestone title</label>
-                <input id="pj-new-milestone" v-model="newMilestone" placeholder="New milestone title…" :class="inputClass" class="flex-1">
-                <BaseButton type="submit" rounded="full" class="shrink-0" :disabled="!newMilestone.trim() || addingMilestone">
-                  <Icon name="lucide:plus" class="size-4" />Add
-                </BaseButton>
-              </form>
-            </div>
-          </section>
-        </div>
-
-        <!-- ========== RIGHT RAIL ========== -->
-        <div class="flex flex-col gap-[18px]">
-          <!-- client -->
-          <section :class="CARD" aria-label="Client">
-            <div :class="CARD_TITLE">
-              Client
-            </div>
-            <NuxtLink :to="`/admin/users/${project.user.id}`" class="apex-focus group mt-3 flex items-center gap-3 rounded-xl border border-muted-200 bg-muted-50 p-3.5 transition hover:border-primary-500/40 dark:border-white/8 dark:bg-muted-700/60">
-              <div class="min-w-0 flex-1">
-                <AdminUserCell :user="project.user" />
-              </div>
-              <Icon name="lucide:arrow-right" class="size-4 shrink-0 text-muted-500 transition-transform group-hover:translate-x-0.5" />
-            </NuxtLink>
-            <dl class="mt-4 flex flex-col gap-2.5 text-[13px]">
-              <div v-if="project.user.company" class="flex items-center justify-between gap-3">
-                <dt class="text-muted-500">
-                  Company
+          <AdminCard label="At a glance" padded>
+            <dl class="grid grid-cols-2 gap-x-5 gap-y-4 sm:grid-cols-3">
+              <div v-for="f in facts" :key="f.k" class="flex min-w-0 flex-col gap-[3px]">
+                <dt class="text-fg-muted text-xs">
+                  {{ f.k }}
                 </dt>
-                <dd class="inline-flex items-center gap-1.5 font-semibold text-muted-900 dark:text-white">
-                  <Icon name="lucide:building-2" class="text-primary-400 size-3.5" />{{ project.user.company.name }}
-                </dd>
-              </div>
-              <div v-if="canMoney" class="flex items-center justify-between gap-3">
-                <dt class="text-muted-500">
-                  Wallet balance
-                </dt>
-                <dd class="font-semibold tabular-nums text-muted-900 dark:text-white">
-                  {{ formatCurrency(project.user.walletBalance) }}
-                </dd>
-              </div>
-              <div v-if="project.user.phone" class="flex items-center justify-between gap-3">
-                <dt class="text-muted-500">
-                  Phone
-                </dt>
-                <dd class="text-muted-900 dark:text-white">
-                  {{ project.user.phone }}
+                <dd class="text-fg-heading break-words text-sm tabular-nums">
+                  <ClientOnly>{{ f.v }}</ClientOnly>
                 </dd>
               </div>
             </dl>
-          </section>
+          </AdminCard>
+        </div>
 
-          <!-- team -->
-          <section :class="CARD" aria-label="Team">
+        <div class="flex min-w-0 flex-col gap-5">
+          <AdminCard label="People" padded>
+            <div class="flex items-start gap-3">
+              <ApexPanelAvatar :person="project.user" :size="38" />
+              <span class="flex min-w-0 flex-1 flex-col gap-0.5">
+                <span class="text-fg-heading text-sm font-semibold">{{ clientName }}</span>
+                <span class="text-fg-muted text-[12.5px]">Client contact<template v-if="project.user?.company?.name"> · {{ project.user.company.name }}</template></span>
+                <span class="text-fg-body truncate text-[12.5px]">{{ [project.user?.email, project.user?.phone].filter(Boolean).join(' · ') }}</span>
+              </span>
+            </div>
+            <div class="flex items-start gap-3">
+              <ApexPanelAvatar v-if="project.manager" :person="project.manager" :size="38" />
+              <span v-else class="inline-flex size-[38px] shrink-0 items-center justify-center rounded-full bg-[#D9A521] text-[12.5px] font-bold text-white">?</span>
+              <span class="flex min-w-0 flex-1 flex-col gap-0.5">
+                <span class="text-fg-heading text-sm font-semibold">{{ ownerName ?? 'Unassigned' }}</span>
+                <span class="text-fg-muted text-[12.5px]">Project owner<template v-if="project.manager"> · {{ staffLabel(project.manager) }}</template></span>
+                <span class="text-fg-body truncate text-[12.5px]">{{ project.manager?.email ?? 'Assign one in Ready to start' }}</span>
+              </span>
+            </div>
+          </AdminCard>
+
+          <AdminCard padded>
             <div class="flex items-center gap-2.5">
-              <span :class="CARD_TITLE">Team</span>
-              <span class="grow" />
-              <button v-if="canAssign" type="button" class="apex-focus text-primary-500 dark:text-primary-400 rounded text-[12.5px] font-semibold hover:underline" @click="showAssign = true">
-                Change
+              <ApexSectionLabel>Staff notes</ApexSectionLabel>
+              <AdminStatusChip tone="warning" label="Staff only" class="h-[22px]!" />
+            </div>
+            <div v-for="n in notes" :key="n.id" class="bg-st-warning-bg text-fg-heading rounded-[10px] border border-dashed border-[#D9A521] px-3 py-2.5 text-[13.5px] leading-normal">
+              <span class="text-fg-muted mb-[3px] block text-xs">{{ n.authorEmail ?? 'Staff' }} · <ClientOnly>{{ ukDateTime(n.createdAt) }}</ClientOnly></span>
+              {{ n.body }}
+            </div>
+            <span v-if="!notes.length" class="text-fg-muted text-[13px]">No notes yet. Clients never see these.</span>
+            <form v-if="canAssign" class="flex gap-2" @submit.prevent="addNote">
+              <label class="sr-only" for="pj-note">Add a note for the team</label>
+              <input id="pj-note" v-model="noteDraft" placeholder="Add a note for the team" :class="ADMIN_INPUT" class="border-dashed border-[#D9A521]">
+              <AdminButton type="submit" :disabled="savingNote || !noteDraft.trim()">
+                Add
+              </AdminButton>
+            </form>
+          </AdminCard>
+
+          <AdminCard label="Latest activity">
+            <template #aside>
+              <button type="button" class="apex-ring text-accent-ink rounded text-[13px] font-semibold" @click="tab = 'activity'">
+                All {{ activityAll.length }} →
               </button>
-            </div>
-            <div v-if="project.manager" class="mt-3 flex items-center gap-3">
-              <span aria-hidden="true" class="flex size-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#9B79F6] to-[#6C40E8] text-[11.5px] font-bold text-white">
-                {{ initialsOf(personName(project.manager)) }}
-              </span>
-              <span class="min-w-0 flex-1">
-                <span class="block truncate text-[13.5px] font-semibold text-muted-900 dark:text-white">{{ personName(project.manager) }}</span>
-                <span class="mt-0.5 block text-[12px] text-muted-500">{{ staffLabel(project.manager) }}</span>
-              </span>
-            </div>
-            <!-- Badge 5's amber, again: this is why the project is in the queue. -->
-            <p v-else class="mt-3 text-[13px] leading-[1.55] text-muted-900 dark:text-[#F2C14E]">
-              Nobody assigned yet — this is why the project shows in the waiting queue.
-            </p>
-          </section>
-
-          <!-- activity (badge 7) -->
-          <section :class="CARD" aria-label="Activity">
-            <div class="flex items-center gap-2.5">
-              <span :class="CARD_TITLE">Activity</span>
-              <span class="grow" />
-              <NuxtLink v-if="can('team.manage')" to="/admin/audit" class="text-primary-500 dark:text-primary-400 text-[12.5px] font-semibold hover:underline">
-                Audit log
-              </NuxtLink>
-            </div>
-            <div v-if="activity.length" class="mt-3.5 flex flex-col">
-              <div v-for="(a, index) in activity" :key="`${a.when}-${a.text}-${index}`" class="flex gap-3">
-                <span class="flex shrink-0 flex-col items-center">
-                  <span class="mt-[5px] size-[9px] shrink-0 rounded-full" :class="a.tone" />
-                  <span v-if="index < activity.length - 1" class="w-px flex-1 bg-muted-200 dark:bg-white/10" />
-                </span>
-                <span class="min-w-0 flex-1 pb-4">
-                  <span class="block text-[13.5px] leading-[1.45] text-muted-900 dark:text-white">{{ a.text }}</span>
-                  <span class="mt-[3px] block text-[12px] text-muted-500">{{ a.who }} · {{ a.when }}</span>
-                </span>
-              </div>
-            </div>
-            <p v-else class="mt-3 text-[13px] text-muted-500">
-              Nothing recorded yet.
-            </p>
-          </section>
-
-          <!-- Panel v2: kickoff payment (ADR-019) -->
-          <section v-if="awaitingKickoff" :class="CARD" aria-label="Kickoff">
-            <span :class="CARD_TITLE">Kickoff</span>
-            <p class="mb-3 mt-2 text-[13px] leading-[1.55] text-muted-500">
-              After the kickoff call, collect the {{ kickoffLabel.toLowerCase() }} ({{ gbp((project as any).kickoffAmount) }}) from the client's wallet. Work starts and monthly payments are scheduled from today.
-            </p>
-            <BaseButton v-if="canAssign" size="sm" rounded="lg" variant="primary" :loading="collecting" :disabled="collecting" @click="collectKickoff">
-              Kickoff done · collect {{ gbp((project as any).kickoffAmount) }}
-            </BaseButton>
-          </section>
-
-          <!-- Panel v2: what the client is asked to do ("Waiting on you") -->
-          <section :class="CARD" aria-label="Client requests">
-            <span :class="CARD_TITLE">Asked of the client</span>
-            <p class="mb-3 mt-2 text-[12.5px] leading-[1.55] text-muted-500">
-              Shown on the client's dashboard and order until they answer.
-            </p>
-            <div v-if="clientActions.length" class="mb-3 flex flex-col gap-2">
-              <div v-for="a in clientActions" :key="a.id" class="flex items-start gap-2.5 rounded-xl border border-muted-200 bg-muted-50 p-3 dark:border-white/8 dark:bg-white/3">
-                <span class="grow">
-                  <span class="block text-[13px] font-semibold text-muted-900 dark:text-white">{{ a.title }}</span>
-                  <span class="text-[11.5px] text-muted-500">{{ a.status === 'OPEN' ? 'Waiting' : a.status === 'DONE' ? `Done ${fmtDate(a.resolvedAt)}` : 'Withdrawn' }} · asked {{ fmtDate(a.createdAt) }}</span>
-                </span>
-                <button v-if="a.status === 'OPEN' && canAssign" type="button" class="apex-focus rounded-md text-[12px] font-semibold text-[#EC6453]" @click="withdrawAsk(a.id)">
-                  Withdraw
-                </button>
-              </div>
-            </div>
-            <form v-if="canAssign" class="flex flex-col gap-2" @submit.prevent="sendAsk">
-              <label for="ask-title" class="sr-only">What the client needs to do</label>
-              <input id="ask-title" v-model="askTitle" maxlength="120" placeholder="e.g. Approve the homepage design" :class="inputClass">
-              <label for="ask-body" class="sr-only">Detail</label>
-              <input id="ask-body" v-model="askBody" maxlength="400" placeholder="Detail (optional)" :class="inputClass">
-              <div class="flex gap-2">
-                <label for="ask-cta" class="sr-only">Button label</label>
-                <input id="ask-cta" v-model="askCta" maxlength="24" placeholder="Button label" :class="inputClass">
-                <label for="ask-done" class="sr-only">Line shown after</label>
-                <input id="ask-done" v-model="askDone" maxlength="200" placeholder="Shown after (optional)" :class="inputClass">
-              </div>
-              <div class="flex justify-end">
-                <BaseButton type="submit" size="sm" rounded="lg" :loading="asking" :disabled="asking || askTitle.trim().length < 3">
-                  Ask the client
-                </BaseButton>
-              </div>
-            </form>
-          </section>
-
-          <!-- Panel v2: files the client uploaded -->
-          <section v-if="clientFiles.length" :class="CARD" aria-label="Client files">
-            <span :class="CARD_TITLE">From the client</span>
-            <div class="mt-3 flex flex-col gap-2">
-              <a v-for="f in clientFiles" :key="f.id" :href="`/api/attachments/${f.id}`" download class="apex-focus flex items-center gap-2.5 rounded-xl border border-muted-200 px-3 py-2.5 text-[13px] dark:border-white/8">
-                <Icon name="solar:file-download-linear" class="size-4 text-primary-500 dark:text-primary-400" />
-                <span class="grow truncate font-semibold text-muted-900 dark:text-white">{{ f.name }}</span>
-                <span class="text-[11.5px] text-muted-500">{{ fmtDate(f.createdAt) }}</span>
-              </a>
-            </div>
-          </section>
-
-          <!-- internal notes (badge 8) -->
-          <section :class="CARD" aria-label="Internal notes">
-            <div class="flex flex-wrap items-center gap-2.5">
-              <span :class="CARD_TITLE">Internal notes</span>
-              <span class="shrink-0 rounded-full bg-muted-100 px-2.5 py-[5px] text-[10.5px] font-extrabold uppercase tracking-[0.05em] text-muted-600 dark:bg-white/5 dark:text-muted-400">
-                Staff only
-              </span>
-            </div>
-            <p class="mb-3 mt-2 text-[12.5px] leading-[1.55] text-muted-500">
-              Never shown to the client. Client-facing messages go through Support.
-            </p>
-
-            <div v-if="notes.length" class="mb-3 flex flex-col gap-2.5">
-              <div v-for="n in notes" :key="n.id" class="rounded-xl border border-muted-200 bg-muted-50 p-3 dark:border-white/8 dark:bg-white/3">
-                <p class="whitespace-pre-wrap text-[13px] leading-[1.55] text-muted-900 dark:text-white">
-                  {{ n.body }}
-                </p>
-                <p class="mt-2 text-[11.5px] text-muted-500">
-                  {{ n.authorEmail }} · {{ fmtDate(n.createdAt) }}
-                </p>
-              </div>
-            </div>
-
-            <form v-if="canAssign" @submit.prevent="addNote">
-              <label for="pj-note" class="sr-only">Add an internal note</label>
-              <textarea
-                id="pj-note" v-model="noteDraft" rows="3" placeholder="Add a note for the team…"
-                class="focus:border-primary-400 w-full resize-y rounded-xl border border-muted-200 bg-muted-50 px-3.5 py-3 text-sm leading-[1.55] text-muted-900 outline-none placeholder:text-muted-400 dark:border-white/10 dark:bg-white/5 dark:text-white dark:placeholder:text-muted-500"
-              />
-              <div class="mt-2.5 flex justify-end">
-                <BaseButton type="submit" size="sm" rounded="lg" :loading="savingNote" :disabled="savingNote || !noteDraft.trim()">
-                  Add note
-                </BaseButton>
-              </div>
-            </form>
-            <p v-else-if="!notes.length" class="text-[13px] text-muted-500">
-              No notes yet.
-            </p>
-          </section>
-
-          <!-- contract & signature -->
-          <section v-if="canMoney" :class="CARD" aria-label="Contract and signature">
-            <div :class="CARD_TITLE">
-              Contract &amp; signature
-            </div>
-            <template v-if="contract">
-              <div class="mb-3 mt-3 flex items-center gap-2.5">
-                <span class="text-primary-500 dark:text-primary-300 font-mono text-[13px] font-bold">{{ contract.reference }}</span>
-                <AdminStatusChip :status="contract.status" />
-              </div>
             </template>
-
-            <div v-if="signature" class="mt-3 rounded-xl border border-muted-200 bg-white p-3.5 dark:border-white/10">
-              <img v-if="signatureIsImage" :src="signature" alt="Client signature" class="mx-auto max-h-24 w-auto">
-              <div v-else class="py-3 text-center font-[cursive] text-[22px] text-muted-950">
-                {{ signature }}
-              </div>
-            </div>
-            <div v-else class="mt-3 rounded-xl border border-dashed border-muted-300 p-5 text-center text-[13px] text-muted-500 dark:border-white/15">
-              No signature captured
-            </div>
-
-            <div class="mt-3 flex flex-col gap-1.5 text-[12.5px] text-muted-500">
-              <div v-if="contract?.signerName" class="flex items-center gap-2">
-                <Icon name="lucide:pen-line" class="size-3.5" />Signed by <span class="font-semibold text-muted-900 dark:text-white">{{ contract.signerName }}</span>
-              </div>
-              <div v-if="contract?.signedAt" class="flex items-center gap-2">
-                <Icon name="lucide:calendar-check" class="size-3.5" />{{ fmtDate(contract.signedAt) }}
-              </div>
-            </div>
-
-            <NuxtLink
-              v-if="contract"
-              :to="`/admin/contracts/${contract.id}`"
-              class="text-primary-500 dark:text-primary-300 mt-4 inline-flex items-center gap-1.5 text-[12.5px] font-semibold hover:underline"
-            >
-              View full contract &amp; legal record <Icon name="lucide:arrow-right" class="size-3.5" />
-            </NuxtLink>
-            <p v-else class="mt-1 text-[12.5px] text-muted-500">
-              No financing contract — this project was created without a financed amount.
-            </p>
-          </section>
-
-          <!-- danger zone -->
-          <section v-if="canAssign" class="rounded-2xl border border-[#EC6453]/25 bg-[#EC6453]/4 p-[18px]" aria-label="Danger zone">
-            <div class="font-heading text-[15.5px] font-bold text-muted-900 dark:text-[#EC6453]">
-              Danger zone
-            </div>
-            <p class="mb-4 mt-2 text-[13px] leading-[1.55] text-muted-600 dark:text-muted-300">
-              Deleting removes the project, its milestones and file records permanently. For a project that fell through, set the stage to <strong class="text-muted-900 dark:text-white">Cancelled</strong> instead.
-            </p>
-            <BaseButton rounded="lg" class="!text-[#EC6453] border border-[#EC6453]/30" @click="showDelete = true">
-              <Icon name="lucide:trash-2" class="size-4" />Delete project
-            </BaseButton>
-          </section>
+            <ul>
+              <li v-for="(e, i) in activityAll.slice(0, 5)" :key="i" class="border-line-soft flex gap-2.5 border-t px-5 py-2.5">
+                <span class="mt-1.5 size-2 shrink-0 rounded-full" :class="e.tone" aria-hidden="true" />
+                <span class="min-w-0 flex-1">
+                  <span class="text-fg-heading block text-[13.5px]">{{ e.text }}</span>
+                  <span class="text-fg-muted mt-0.5 block text-xs">{{ e.who }} · {{ e.when }}</span>
+                </span>
+              </li>
+            </ul>
+          </AdminCard>
         </div>
       </div>
-    </div>
 
-    <AdminEmptyState v-else icon="lucide:folder-x" title="Project not found" subtitle="It may have been deleted.">
-      <BaseButton rounded="full" variant="primary" to="/admin/projects">
-        Back to orders
-      </BaseButton>
-    </AdminEmptyState>
+      <!-- ================================================ Order & brief -->
+      <div v-else-if="tab === 'order'" id="pj-order" role="tabpanel" class="grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
+        <AdminCard label="Client’s request" padded>
+          <dl v-if="brief.length" class="bg-raised grid grid-cols-1 gap-x-3 gap-y-2 rounded-xl px-4 py-3.5 sm:grid-cols-[150px_minmax(0,1fr)]">
+            <template v-for="b in brief" :key="b.label">
+              <dt class="text-fg-muted text-[12.5px]">
+                {{ b.label }}
+              </dt>
+              <dd class="text-fg-heading text-[13.5px] leading-normal">
+                {{ b.value }}
+              </dd>
+            </template>
+          </dl>
+          <p v-else class="text-fg-body text-[13.5px]">
+            This order was created without a brief.
+          </p>
+          <span class="text-fg-muted text-xs">In the client’s words, from the order form. Read-only here.</span>
+          <div class="flex flex-col gap-1.5">
+            <span class="text-fg-muted text-xs font-bold uppercase tracking-[0.05em]">Files from the client</span>
+            <a v-for="f in clientFiles" :key="f.id" :href="`/api/attachments/${f.id}`" target="_blank" class="apex-ring border-line-subtle hover:bg-raised flex items-center gap-2.5 rounded-[10px] border px-3 py-[9px]">
+              <Icon name="lucide:paperclip" class="text-fg-muted size-3.5" />
+              <span class="text-fg-heading min-w-0 flex-1 truncate text-[13.5px]">{{ f.name }}</span>
+              <span class="text-fg-muted text-xs">{{ Math.max(1, Math.round(f.size / 1024)) }} KB</span>
+            </a>
+            <span v-if="!clientFiles.length" class="text-fg-body text-[13px]">None attached.</span>
+          </div>
+        </AdminCard>
 
-    <!-- ========== RELEASE MODAL (badge 6) ========== -->
-    <div v-if="releaseOpen && project" class="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Release deliverables">
-      <div class="apex-fade absolute inset-0 bg-black/60 backdrop-blur-sm" @click="releaseOpen = false" />
-      <div :class="MODAL_SHELL" class="max-w-[640px]">
-        <div class="shrink-0 border-b border-muted-200 px-6 pb-4 pt-5 dark:border-white/10">
-          <div class="font-heading text-xl font-extrabold tracking-[-0.01em] text-muted-900 dark:text-white">
-            Release deliverables to the client
-          </div>
-          <div class="mt-1.5 text-[13.5px] text-muted-500">
-            {{ project.name }} · {{ personName(project.user) }} · {{ fileCount }} file{{ fileCount === 1 ? '' : 's' }}
-          </div>
-        </div>
+        <AdminCard label="Waiting on the client" padded>
+          <p class="text-fg-body text-[13px] leading-normal">
+            Things you have asked the client to do. They answer in My orders; anything open shows on their dashboard.
+          </p>
+          <ul v-if="clientActions.length">
+            <li v-for="a in clientActions" :key="a.id" class="border-line-soft flex flex-col gap-1 border-t py-2.5">
+              <span class="text-fg-heading text-[13.5px] font-semibold">{{ a.title }}</span>
+              <span v-if="a.body" class="text-fg-body text-[13px]">{{ a.body }}</span>
+              <span class="flex flex-wrap items-center gap-2">
+                <AdminStatusChip :tone="a.status === 'DONE' ? 'success' : a.status === 'CANCELLED' ? 'neutral' : 'warning'" :label="a.status === 'DONE' ? 'Done' : a.status === 'CANCELLED' ? 'Withdrawn' : 'Waiting'" class="h-[22px]!" />
+                <span class="text-fg-muted text-xs"><ClientOnly>{{ ukDateTime(a.resolvedAt ?? a.createdAt) }}</ClientOnly></span>
+                <button v-if="canAssign && a.status === 'OPEN'" type="button" class="apex-ring text-st-danger-fg ms-auto rounded text-[12.5px] font-semibold" @click="askWithdrawAction(a.id, a.title)">Withdraw</button>
+              </span>
+            </li>
+          </ul>
+          <span v-else class="text-fg-body text-[13px]">Nothing asked since the order was placed.</span>
+          <form v-if="canAssign" class="border-line-soft flex flex-col gap-2.5 border-t pt-3" @submit.prevent="sendAsk">
+            <div>
+              <label for="ask-title" :class="ADMIN_LABEL">Ask the client to…</label>
+              <input id="ask-title" v-model="askTitle" placeholder="e.g. Approve the homepage design" :class="ADMIN_INPUT">
+            </div>
+            <div>
+              <label for="ask-body" :class="ADMIN_LABEL">Details <span class="text-fg-muted font-normal">(optional)</span></label>
+              <textarea id="ask-body" v-model="askBody" rows="2" :class="ADMIN_TEXTAREA" />
+            </div>
+            <div class="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+              <div>
+                <label for="ask-cta" :class="ADMIN_LABEL">Button</label>
+                <input id="ask-cta" v-model="askCta" :class="ADMIN_INPUT">
+              </div>
+              <div>
+                <label for="ask-done" :class="ADMIN_LABEL">Shown when done <span class="text-fg-muted font-normal">(optional)</span></label>
+                <input id="ask-done" v-model="askDone" :class="ADMIN_INPUT">
+              </div>
+            </div>
+            <div class="flex justify-end">
+              <AdminButton type="submit" variant="primary" :disabled="asking || askTitle.trim().length < 3">
+                Send request
+              </AdminButton>
+            </div>
+          </form>
+        </AdminCard>
+      </div>
 
-        <div class="min-h-0 flex-1 overflow-y-auto px-6 py-5">
-          <!-- The unpaid balance, restated where the decision is taken. -->
-          <div v-if="reasonRequired" class="flex items-start gap-3 rounded-xl border border-[#D9A521]/30 bg-[#D9A521]/8 px-4 py-3.5">
-            <Icon name="lucide:alert-triangle" class="mt-px size-[19px] shrink-0 text-[#F2C14E]" />
-            <p class="flex-1 text-[13.5px] leading-[1.6] text-muted-700 dark:text-muted-300">
-              <template v-if="canMoney && plan">
-                This plan has <strong class="font-semibold text-muted-900 dark:text-white">{{ plan.monthsPaid }} of {{ plan.monthsTotal }} instalments paid ({{ formatCurrency(paidSoFar) }} of {{ formatCurrency(planTotal) }})</strong>.
-              </template>
-              <template v-else>
-                This project still has a balance outstanding.
-              </template>
-              Releasing now hands over the files before the balance is settled.
-            </p>
+      <!-- ==================================================== Agreement -->
+      <div v-else-if="tab === 'agreement'" id="pj-agreement" role="tabpanel" class="flex flex-col gap-5">
+        <AdminCard v-if="contract" padded>
+          <div class="flex flex-wrap items-center gap-3">
+            <Icon name="solar:document-text-linear" class="text-accent-ink size-[22px]" />
+            <span class="font-heading text-fg-heading text-[19px] font-bold tracking-[-0.015em]">{{ contract.reference }}</span>
+            <AdminStatusChip :status="contract.status" dot />
+            <span class="flex-1" />
+            <AdminButton :to="`/admin/contracts/${contract.id}`">
+              Open the full agreement
+            </AdminButton>
           </div>
-          <div v-else class="flex items-start gap-3 rounded-xl border border-[#22B07D]/30 bg-[#22B07D]/8 px-4 py-3.5">
-            <Icon name="lucide:check-circle-2" class="mt-px size-[19px] shrink-0 text-[#22B07D]" />
-            <p class="flex-1 text-[13.5px] leading-[1.6] text-muted-700 dark:text-muted-300">
-              The balance on this project is settled. This is a routine hand-over.
-            </p>
-          </div>
-
-          <div class="mt-[22px] text-[11px] font-bold uppercase tracking-[0.05em] text-muted-500">
-            What the client gets
-          </div>
-          <div class="mt-2.5 rounded-xl border border-muted-200 bg-muted-50 px-4 dark:border-white/10 dark:bg-white/3" role="list">
+          <dl class="border-line-soft grid grid-cols-2 gap-x-5 gap-y-3.5 border-t pt-3.5 md:grid-cols-4">
             <div
-              v-for="(f, index) in project.files" :key="f.id"
-              role="listitem"
-              class="flex items-center gap-3 py-3"
-              :class="index < project.files.length - 1 ? 'border-b border-muted-200 dark:border-white/5' : ''"
+              v-for="m in [
+                { k: 'Signed by', v: contract.signerName || clientName },
+                { k: 'Signed', v: ukDateTime(contract.signedAt) },
+                { k: 'Method', v: contract.signatureType === 'drawn' ? 'Drawn signature' : 'Typed signature' },
+                { k: 'IP address', v: contract.signedIp || 'Not recorded' },
+                { k: 'Document version', v: contract.documentVersion || '—' },
+                { k: 'Device', v: contract.signedUserAgent || 'Not recorded' },
+              ]" :key="m.k" class="flex min-w-0 flex-col gap-[3px]"
             >
-              <Icon :name="f.type === 'zip' ? 'lucide:folder-archive' : 'lucide:file-text'" class="size-[17px] shrink-0 text-muted-500" />
-              <span class="min-w-0 flex-1 truncate text-sm text-muted-900 dark:text-white">{{ f.name }}</span>
-              <span class="shrink-0 text-[12.5px] tabular-nums text-muted-500">{{ f.size }}</span>
+              <dt class="text-fg-muted text-xs">
+                {{ m.k }}
+              </dt>
+              <dd class="text-fg-heading truncate text-[13.5px]">
+                <ClientOnly>{{ m.v }}</ClientOnly>
+              </dd>
             </div>
+          </dl>
+          <div v-if="signature" class="bg-raised rounded-xl px-4 py-3">
+            <span class="text-fg-muted block text-xs">Signature</span>
+            <img v-if="signatureIsImage" :src="signature" alt="The client’s drawn signature" class="mt-1 h-16 w-auto dark:invert">
+            <span v-else class="font-heading text-fg-heading mt-1 block text-[26px] font-semibold italic tracking-[-0.02em]">{{ signature }}</span>
           </div>
-
-          <label for="rel-reason" class="mb-2 mt-[22px] block text-[13px] font-semibold text-muted-900 dark:text-white">
-            {{ reasonRequired ? 'Reason for early release' : 'Reason (optional)' }}
-            <span v-if="reasonRequired" class="text-[#EC6453]">*</span>
-          </label>
-          <textarea
-            id="rel-reason" v-model="releaseReason" rows="3"
-            placeholder="Recorded in the audit log against your name."
-            class="focus:border-primary-400 w-full resize-y rounded-xl border border-muted-200 bg-muted-50 px-3.5 py-3 text-sm leading-[1.55] text-muted-900 outline-none placeholder:text-muted-400 dark:border-white/10 dark:bg-white/5 dark:text-white dark:placeholder:text-muted-500"
-          />
-          <!--
-            The mockup promises the client is emailed a download link. There
-            is no mail provider in this stack, so the copy says what actually
-            happens: the files become downloadable on their project page.
-          -->
-          <p class="mt-2.5 text-[12.5px] leading-[1.55] text-muted-500">
-            The files become downloadable on the client's project page immediately. Access can be withdrawn again from this panel.
+          <p class="text-fg-muted text-[12.5px] leading-normal">
+            Orders are signed by the client alone; Apex does not countersign in the panel. The agreement record, its hash and the evidence above are kept unchanged.
           </p>
-        </div>
-
-        <div class="flex shrink-0 flex-wrap items-center gap-2.5 border-t border-muted-200 px-6 py-4 dark:border-white/10">
-          <span class="min-w-0 flex-1 text-[12.5px] text-muted-500">
-            Logged as {{ personName(user) ?? user?.email }}<template v-if="roleDef"> · {{ roleDef.label }}</template>
-          </span>
-          <BaseButton rounded="lg" :disabled="releasing" @click="releaseOpen = false">
-            Cancel
-          </BaseButton>
-          <BaseButton
-            rounded="lg" variant="primary" :loading="releasing"
-            :disabled="releasing || (reasonRequired && !releaseReason.trim())"
-            @click="confirmRelease"
-          >
-            Release {{ fileCount }} file{{ fileCount === 1 ? '' : 's' }}
-          </BaseButton>
-        </div>
-        <p v-if="reasonRequired && !releaseReason.trim()" class="border-t border-muted-200 px-6 py-2.5 text-[12.5px] text-muted-500 dark:border-white/10">
-          A reason is required while a balance is outstanding.
-        </p>
+        </AdminCard>
+        <AdminEmptyState v-else icon="solar:document-text-linear" title="No agreement attached" subtitle="Orders placed in the portal carry the signed agreement. This one was created by staff, so it has none." />
       </div>
-    </div>
 
-    <!-- ========== WITHDRAW MODAL ========== -->
-    <div v-if="withdrawOpen && project" class="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Withdraw access">
-      <div class="apex-fade absolute inset-0 bg-black/60 backdrop-blur-sm" @click="withdrawOpen = false" />
-      <div :class="MODAL_SHELL" class="max-w-[460px] p-6">
-        <span class="mb-4 flex size-11 items-center justify-center rounded-xl bg-[#EC6453]/14 text-[#EC6453]">
-          <Icon name="lucide:lock" class="size-5" />
-        </span>
-        <div class="font-heading text-[19px] font-extrabold tracking-[-0.01em] text-muted-900 dark:text-white">
-          Withdraw client access?
-        </div>
-        <p class="mt-2 text-[13.5px] leading-[1.55] text-muted-600 dark:text-muted-300">
-          The download links disappear from {{ personName(project.user) }}'s project page immediately. They keep seeing the file names and sizes.
-        </p>
-        <label for="wd-reason" class="mb-2 mt-4 block text-[13px] font-semibold text-muted-900 dark:text-white">Reason (optional)</label>
-        <textarea
-          id="wd-reason" v-model="withdrawReason" rows="2"
-          placeholder="Recorded in the audit log against your name."
-          class="focus:border-primary-400 w-full resize-y rounded-xl border border-muted-200 bg-muted-50 px-3.5 py-3 text-sm leading-[1.55] text-muted-900 outline-none placeholder:text-muted-400 dark:border-white/10 dark:bg-white/5 dark:text-white dark:placeholder:text-muted-500"
-        />
-        <div class="mt-5 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-          <BaseButton rounded="lg" :disabled="releasing" @click="withdrawOpen = false">
-            Cancel
-          </BaseButton>
-          <BaseButton rounded="lg" class="!bg-[#EC6453] !text-white" :loading="releasing" :disabled="releasing" @click="confirmWithdraw">
-            Withdraw access
-          </BaseButton>
-        </div>
-      </div>
-    </div>
-
-    <!-- ========== ASSIGN MODAL ========== -->
-    <div v-if="showAssign && project" class="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Assign to project">
-      <div class="apex-fade absolute inset-0 bg-black/60 backdrop-blur-sm" @click="showAssign = false" />
-      <div :class="MODAL_SHELL" class="max-w-[520px]">
-        <div class="border-b border-muted-200 px-[22px] pb-3.5 pt-5 dark:border-white/10">
-          <div class="font-heading text-[18px] font-extrabold tracking-[-0.01em] text-muted-900 dark:text-white">
-            Assign to project
+      <!-- ===================================================== Payments -->
+      <div v-else-if="tab === 'payments' && canMoney" id="pj-payments" role="tabpanel" class="flex flex-col gap-5">
+        <template v-if="plan">
+          <div class="grid grid-cols-2 gap-3.5 md:grid-cols-4">
+            <AdminStatTile label="Plan total" :value="formatCurrency(plan.total)" />
+            <AdminStatTile label="Paid so far" :value="formatCurrency(plan.paid)" :hint="`${plan.monthsPaid} of ${plan.monthsTotal} instalments`" />
+            <AdminStatTile label="Monthly" :value="formatCurrency(plan.monthlyAmount || plan.amountDue)" />
+            <AdminStatTile label="Kickoff" :value="project.kickoffPaidAt ? 'Collected' : 'Not yet'" :hint="project.kickoffPaidAt ? ukDate(project.kickoffPaidAt) : kickoffLabel" />
           </div>
-          <p class="mt-1.5 text-[12.5px] text-muted-500">
-            Only staff whose role can own project work are listed.
+          <AdminCard label="Schedule" :meta="`${plan.monthsPaid} of ${plan.monthsTotal} paid`">
+            <div class="flex flex-wrap gap-1.5 px-[22px] pb-3.5" aria-hidden="true">
+              <span v-for="(r, k) in schedule" :key="k" class="size-4 rounded-full" :class="r.status === 'Paid' ? 'bg-accent' : r.status === 'Next' ? 'border-accent border-2' : 'bg-dot-unpaid'" />
+            </div>
+            <div class="hidden grid-cols-[90px_minmax(0,1fr)_110px_120px] gap-3.5 px-[22px] pb-2 sm:grid" :class="ADMIN_TH">
+              <span>Payment</span><span>Due</span><span class="text-end">Amount</span><span>Status</span>
+            </div>
+            <ul>
+              <li v-for="r in schedule" :key="r.n" class="border-line-soft grid grid-cols-[70px_minmax(0,1fr)_auto] items-center gap-3.5 border-t px-[18px] py-2.5 text-[13.5px] sm:grid-cols-[90px_minmax(0,1fr)_110px_120px] sm:px-[22px]">
+                <span class="text-fg-muted tabular-nums">{{ r.n }}</span>
+                <span class="text-fg-body"><ClientOnly>{{ r.due }}</ClientOnly></span>
+                <span class="text-fg-heading hidden text-end tabular-nums sm:block">{{ r.amount }}</span>
+                <AdminStatusChip :tone="r.tone" :label="r.status" />
+              </li>
+            </ul>
+          </AdminCard>
+        </template>
+        <AdminEmptyState v-else icon="lucide:wallet" title="No instalment plan" subtitle="This order is paid in one payment or was created by staff without a plan." />
+        <AdminCard v-if="(data?.charges ?? []).length" label="Collected">
+          <ul>
+            <li v-for="c in data?.charges ?? []" :key="c.id" class="border-line-soft flex items-center gap-3 border-t px-[22px] py-2.5 text-[13.5px]">
+              <span class="text-fg-heading min-w-0 flex-1 truncate">{{ c.description || 'Instalment collected' }}</span>
+              <span class="text-fg-muted text-xs"><ClientOnly>{{ ukDateTime(c.createdAt) }}</ClientOnly></span>
+              <span class="text-fg-heading tabular-nums">{{ formatCurrency(Math.abs(c.amount)) }}</span>
+            </li>
+          </ul>
+        </AdminCard>
+      </div>
+
+      <!-- ===================================================== Delivery -->
+      <div v-else-if="tab === 'delivery'" id="pj-delivery" role="tabpanel" class="grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
+        <AdminCard label="Milestones" :meta="`${milestones.filter(m => m.status === 'COMPLETED').length} of ${milestones.length} done`" padded>
+          <ol>
+            <li v-for="(m, i) in milestones" :key="m.id" class="grid grid-cols-[30px_minmax(0,1fr)_auto] gap-3.5">
+              <span class="flex flex-col items-center">
+                <span
+                  class="inline-flex size-7 shrink-0 items-center justify-center rounded-full text-[12.5px] font-bold"
+                  :class="m.status === 'COMPLETED' ? 'bg-[#22B07D] text-white' : m.status === 'CURRENT' ? 'bg-accent text-white' : 'border-line-strong text-fg-muted border-2'"
+                >{{ m.status === 'COMPLETED' ? '✓' : i + 1 }}</span>
+                <span v-if="i < milestones.length - 1" class="my-1 min-h-3 w-0.5 flex-1" :class="m.status === 'COMPLETED' ? 'bg-[#22B07D]' : 'bg-line-subtle'" />
+              </span>
+              <span class="min-w-0 pb-4">
+                <span class="text-fg-heading block text-sm font-semibold">{{ m.title }}</span>
+                <span class="text-fg-muted mt-0.5 block text-[12.5px]"><ClientOnly>{{ m.status === 'COMPLETED' ? `Completed ${m.date ? ukDate(m.date) : ''}` : m.status === 'CURRENT' ? 'In progress' : 'Planned' }}</ClientOnly></span>
+              </span>
+              <span v-if="canAssign" class="flex items-start gap-1.5">
+                <button type="button" class="apex-ring text-accent-ink rounded text-[12.5px] font-semibold" :aria-label="`Change the status of ${m.title}`" @click="cycleMilestone(m)">
+                  {{ m.status === 'PENDING' ? 'Start' : m.status === 'CURRENT' ? 'Complete' : 'Reopen' }}
+                </button>
+                <button type="button" class="apex-ring text-fg-muted hover:text-st-danger-fg rounded p-0.5" :aria-label="`Remove ${m.title}`" @click="deleteMilestone(m.id)">
+                  <Icon name="lucide:trash-2" class="size-3.5" />
+                </button>
+              </span>
+            </li>
+          </ol>
+          <p v-if="!milestones.length" class="text-fg-body text-[13.5px]">
+            No milestones yet.
           </p>
-        </div>
-        <!--
-          `Project.managerId` holds one owner, so this is a single choice,
-          not the mockup's multi-select. A many-to-many join table would be
-          a schema change with no product behind it — nothing else in the
-          app reads a second assignee.
-        -->
-        <div class="flex flex-col gap-0.5 overflow-y-auto p-3" role="radiogroup" aria-label="Project owner">
-          <button
-            v-for="s in assignable" :key="s.id"
-            type="button"
-            role="radio"
-            :aria-checked="project.managerId === s.id"
-            :disabled="savingAssign"
-            class="apex-focus flex min-h-14 items-center gap-3 rounded-xl px-3 text-start transition disabled:opacity-60"
-            :class="project.managerId === s.id ? 'bg-primary-500/12' : 'hover:bg-muted-100 dark:hover:bg-white/6'"
-            @click="assignTo(s.id)"
+          <form v-if="canAssign" class="flex gap-2" @submit.prevent="addMilestone">
+            <label class="sr-only" for="ms-new">New milestone</label>
+            <input id="ms-new" v-model="newMilestone" placeholder="Add a milestone" :class="ADMIN_INPUT">
+            <AdminButton type="submit" :disabled="addingMilestone || !newMilestone.trim()">
+              Add
+            </AdminButton>
+          </form>
+        </AdminCard>
+
+        <AdminCard label="Deliverables" :meta="`${fileCount} file${fileCount === 1 ? '' : 's'}`" padded>
+          <div
+            class="flex gap-3 rounded-xl px-4 py-3.5"
+            :class="gate.key === 'held' ? 'bg-st-warning-bg' : gate.key === 'released' ? 'bg-st-success-bg' : 'bg-raised'"
           >
-            <span aria-hidden="true" class="flex size-[34px] shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#9B79F6] to-[#6C40E8] text-xs font-bold text-white">
-              {{ initialsOf(personName(s)) }}
+            <Icon :name="gate.icon" class="text-fg-heading mt-0.5 size-[18px] shrink-0" />
+            <span class="min-w-0">
+              <span class="text-fg-heading block text-sm font-semibold">{{ gate.title }}</span>
+              <span class="text-fg-body mt-0.5 block text-[13px] leading-normal">{{ gate.body }}</span>
+              <span v-if="gate.key === 'held' && canMoney && plan" class="text-fg-heading mt-1.5 block text-[13px]">{{ formatCurrency(paidSoFar) }} of {{ formatCurrency(planTotal) }} paid · {{ formatCurrency(outstanding) }} outstanding</span>
             </span>
+          </div>
+          <ul v-if="project.files.length">
+            <li v-for="f in project.files" :key="f.id" class="border-line-soft flex items-center gap-2.5 border-t py-2.5">
+              <Icon name="lucide:file" class="text-fg-muted size-4 shrink-0" />
+              <span class="text-fg-heading min-w-0 flex-1 truncate text-[13.5px]">{{ f.name }}</span>
+              <span class="text-fg-muted text-xs">{{ f.size }}</span>
+            </li>
+          </ul>
+          <div class="flex flex-wrap items-center gap-2.5">
+            <span class="text-fg-muted min-w-[180px] flex-1 text-[12.5px] leading-[1.45]">
+              {{ canRelease ? (deliverables?.released ? 'The client can download these files.' : 'Files stay hidden until released.') : 'Releasing needs Owner, Admin or Project manager.' }}
+            </span>
+            <AdminButton v-if="canRelease && fileCount && !deliverables?.released" variant="primary" :disabled="releasing" @click="askRelease">
+              Release to client
+            </AdminButton>
+            <AdminButton v-if="canRelease && deliverables?.released" :disabled="releasing" @click="askWithdraw">
+              Withdraw access
+            </AdminButton>
+          </div>
+        </AdminCard>
+      </div>
+
+      <!-- ===================================================== Activity -->
+      <AdminCard v-else-if="tab === 'activity'" id="pj-activity" role="tabpanel" label="Activity" meta="Newest first. Audited actions, collections and the order itself.">
+        <ul>
+          <li v-for="(e, i) in activityAll" :key="i" class="border-line-soft flex gap-3 border-t px-[22px] py-3">
+            <span class="mt-1.5 size-2 shrink-0 rounded-full" :class="e.tone" aria-hidden="true" />
             <span class="min-w-0 flex-1">
-              <span class="block truncate text-[14.5px] font-semibold text-muted-900 dark:text-white">{{ personName(s) }}</span>
-              <span class="mt-0.5 block truncate text-[12.5px] text-muted-500">{{ staffLabel(s) }} · {{ s.load }} project{{ s.load === 1 ? '' : 's' }}</span>
+              <span class="text-fg-heading block text-[13.5px]">{{ e.text }}</span>
+              <span class="text-fg-muted mt-0.5 block text-xs">{{ e.who }} · {{ e.when }}</span>
             </span>
-            <Icon v-if="project.managerId === s.id" name="lucide:check" class="text-primary-400 size-[17px] shrink-0" />
-          </button>
-          <p v-if="!assignable.length" class="px-3 py-6 text-center text-[13px] text-muted-500">
-            No staff account currently holds the permission to own project work.
+          </li>
+        </ul>
+      </AdminCard>
+
+      <!-- ===================================================== Settings -->
+      <div v-else-if="tab === 'settings' && canAssign" id="pj-settings" role="tabpanel" class="grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+        <AdminCard label="Project details" padded>
+          <form id="pj-details" class="grid grid-cols-1 gap-3.5 sm:grid-cols-2" @submit.prevent="saveDetails">
+            <div class="sm:col-span-2">
+              <label for="pd-name" :class="ADMIN_LABEL">Project name</label>
+              <input id="pd-name" v-model="form.name" required :class="ADMIN_INPUT">
+            </div>
+            <div>
+              <label for="pd-cat" :class="ADMIN_LABEL">Service</label>
+              <input id="pd-cat" v-model="form.category" required :class="ADMIN_INPUT">
+            </div>
+            <div v-if="canMoney">
+              <label for="pd-amount" :class="ADMIN_LABEL">Contract value (GBP)</label>
+              <input id="pd-amount" v-model.number="form.amount" type="number" min="0" step="0.01" :class="ADMIN_INPUT">
+            </div>
+            <div>
+              <span :class="ADMIN_LABEL">Stage</span>
+              <BaseSelect v-model="form.status" rounded="lg" aria-label="Stage">
+                <BaseSelectItem v-for="s in STAGES" :key="s.key" :value="s.key">
+                  {{ s.label }}
+                </BaseSelectItem>
+              </BaseSelect>
+            </div>
+            <div>
+              <label for="pd-deadline" :class="ADMIN_LABEL">Target launch</label>
+              <input id="pd-deadline" v-model="form.deadline" type="date" :class="ADMIN_INPUT">
+            </div>
+            <div>
+              <label for="pd-progress" :class="ADMIN_LABEL">Progress (%)</label>
+              <input id="pd-progress" v-model.number="form.progress" type="number" min="0" max="100" :class="ADMIN_INPUT">
+            </div>
+          </form>
+          <div class="flex justify-end">
+            <AdminButton type="submit" form="pj-details" variant="primary" :disabled="saving">
+              Save changes
+            </AdminButton>
+          </div>
+        </AdminCard>
+        <AdminCard label="Delete" padded>
+          <p class="text-fg-body text-[13.5px] leading-normal">
+            Removes the project, its milestones and files. Payments already taken stay in the ledger.
           </p>
-        </div>
-        <div class="flex items-center gap-2.5 border-t border-muted-200 px-[22px] py-3.5 dark:border-white/10">
-          <BaseButton v-if="project.managerId" size="sm" rounded="lg" variant="ghost" :disabled="savingAssign" @click="assignTo(null)">
-            Unassign
-          </BaseButton>
-          <span class="grow" />
-          <BaseButton rounded="lg" :disabled="savingAssign" @click="showAssign = false">
-            Done
-          </BaseButton>
-        </div>
+          <div>
+            <AdminButton variant="danger" :disabled="deleting" @click="askDelete">
+              Delete project
+            </AdminButton>
+          </div>
+        </AdminCard>
       </div>
-    </div>
+    </template>
 
-    <!-- ========== DELETE CONFIRM MODAL ========== -->
-    <div v-if="showDelete" class="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Confirm deletion">
-      <div class="apex-fade absolute inset-0 bg-black/60 backdrop-blur-sm" @click="showDelete = false" />
-      <div :class="MODAL_SHELL" class="max-w-[420px] p-6">
-        <span class="mb-4 flex size-11 items-center justify-center rounded-xl bg-[#EC6453]/14 text-[#EC6453]">
-          <Icon name="lucide:trash-2" class="size-5" />
-        </span>
-        <div class="font-heading text-[19px] font-extrabold tracking-[-0.01em] text-muted-900 dark:text-white">
-          Delete this project?
-        </div>
-        <p class="mt-2 text-[13.5px] leading-[1.55] text-muted-600 dark:text-muted-300">
-          <strong class="text-muted-900 dark:text-white">{{ project?.name }}</strong> and all of its milestones and file records will be permanently removed. This can't be undone.
-        </p>
-        <div class="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-          <BaseButton rounded="lg" @click="showDelete = false">
-            Cancel
-          </BaseButton>
-          <BaseButton rounded="lg" class="!bg-[#EC6453] !text-white" :loading="deleting" :disabled="deleting" @click="deleteProject">
-            Delete permanently
-          </BaseButton>
-        </div>
+    <AdminDialog v-model:open="showAssign" title="Assign a project owner" description="Only staff whose role can own project work are listed. The change is recorded in the audit log.">
+      <div class="flex flex-col gap-0.5 pb-2">
+        <button
+          v-for="s in assignable" :key="s.id" type="button" :disabled="savingAssign"
+          class="apex-ring hover:bg-raised flex min-h-14 items-center gap-3 rounded-xl px-3 text-start disabled:opacity-60"
+          :class="s.id === project?.managerId && 'bg-accent-tint'"
+          @click="assignTo(s.id)"
+        >
+          <ApexPanelAvatar :person="s" :size="34" />
+          <span class="min-w-0 flex-1">
+            <span class="text-fg-heading block truncate text-sm font-semibold">{{ personName(s) }}</span>
+            <span class="text-fg-muted mt-0.5 block truncate text-[12.5px]">{{ staffLabel(s) }}<template v-if="s.load !== undefined"> · {{ s.load }} project{{ s.load === 1 ? '' : 's' }}</template></span>
+          </span>
+          <Icon v-if="s.id === project?.managerId" name="lucide:check" class="text-accent-ink size-4" />
+        </button>
       </div>
-    </div>
-  </div>
+      <template #actions>
+        <AdminButton :disabled="savingAssign || !project?.managerId" @click="assignTo(null)">
+          Clear owner
+        </AdminButton>
+        <AdminButton variant="primary" @click="showAssign = false">
+          Done
+        </AdminButton>
+      </template>
+    </AdminDialog>
+  </AdminPage>
 </template>
-
-<style scoped>
-@keyframes apex-fade {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-@keyframes apex-pop {
-  from {
-    opacity: 0;
-    transform: translateY(10px) scale(0.98);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-.apex-fade {
-  animation: apex-fade 0.2s ease-out both;
-}
-.apex-pop {
-  animation: apex-pop 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-@media (prefers-reduced-motion: reduce) {
-  .apex-fade,
-  .apex-pop {
-    animation: none;
-  }
-}
-</style>
