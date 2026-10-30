@@ -124,7 +124,7 @@ const TEXT_INPUT = 'focus:border-primary-400 w-full rounded-xl border border-mut
 </script>
 
 <template>
-  <div class="mx-auto flex max-w-[1180px] flex-col gap-8 pb-10">
+  <div class="mx-auto flex w-full max-w-[1180px] px-4 pt-5 sm:px-8 sm:pt-7 flex-col gap-8 pb-10">
     <AdminPageHeader
       title="Pages"
       subtitle="Every managed document: the public pages, the site chrome and the panel's customer-facing text."

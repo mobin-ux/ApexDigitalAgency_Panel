@@ -87,7 +87,7 @@ const CARD = 'rounded-2xl border border-muted-200 bg-white p-[18px] dark:border-
 </script>
 
 <template>
-  <div class="mx-auto flex max-w-[1240px] flex-col gap-6 pb-24 font-sans">
+  <div class="mx-auto flex w-full max-w-[1180px] px-4 pt-5 sm:px-8 sm:pt-7 flex-col gap-6 pb-24">
     <ApexPageHeader title="Catalogue" accent="" subtitle="The plans customers order from. Prices include VAT; a change applies to the next order signed, never to one already signed." />
 
     <p v-if="!canEdit" class="rounded-xl bg-[#D9A521]/14 px-4 py-3 text-[13px] text-muted-900 dark:text-[#F2C14E]">

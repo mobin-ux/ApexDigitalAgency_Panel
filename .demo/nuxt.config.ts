@@ -32,10 +32,11 @@ export default defineNuxtConfig({
    * remembered per browser by the module. `classSuffix: ''` keeps the class as
    * `.dark`, which is what main.css keys both token sets on.
    *
-   * The admin panel and the auth/legal screens were designed and measured on
-   * the dark theme only, so `pages:extend` below pins them to it — the customer
-   * panel going light must not drag those screens into a theme they have
-   * never been checked in.
+   * The auth and legal screens were designed and measured on the dark theme
+   * only, so `pages:extend` below pins them to it — the customer panel going
+   * light must not drag those screens into a theme they have never been
+   * checked in. The admin console left that list on 2026-10-31: its design
+   * (`Admin Console.dc.html`) draws both themes and carries its own switch.
    */
   colorMode: {
     preference: 'light',
@@ -347,7 +348,7 @@ export default defineNuxtConfig({
     'pages:extend': (pages) => {
       const pinDark = (list: typeof pages) => {
         for (const page of list) {
-          if (/^\/(?:admin|auth|legal)(?:\/|$)/.test(page.path)) {
+          if (/^\/(?:auth|legal)(?:\/|$)/.test(page.path)) {
             page.meta = { ...page.meta, colorMode: 'dark' }
           }
           if (page.children?.length) {

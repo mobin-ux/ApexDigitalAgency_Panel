@@ -317,7 +317,7 @@ const FILTER_OFF = 'border-muted-200 bg-white font-semibold text-muted-700 hover
 </script>
 
 <template>
-  <div class="mx-auto flex max-w-[1240px] flex-col gap-5 pb-10 font-sans">
+  <div class="mx-auto flex w-full max-w-[1180px] px-4 pt-5 sm:px-8 sm:pt-7 flex-col gap-5 pb-10">
     <AdminAccessWall
       v-if="!allowed"
       permission="team.manage"

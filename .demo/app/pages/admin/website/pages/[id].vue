@@ -299,7 +299,7 @@ const INPUT = 'focus:border-primary-400 w-full rounded-xl border border-muted-20
 </script>
 
 <template>
-  <div class="mx-auto flex max-w-[1180px] flex-col gap-6 pb-10">
+  <div class="mx-auto flex w-full max-w-[1180px] px-4 pt-5 sm:px-8 sm:pt-7 flex-col gap-6 pb-10">
     <AdminAccessWall
       v-if="!allowed"
       permission="website.view"

@@ -237,7 +237,7 @@ const labelClass = 'mb-2 block text-[12.5px] font-semibold text-white'
 </script>
 
 <template>
-  <div class="mx-auto flex max-w-[1240px] flex-col gap-6 pb-8 font-sans text-muted-400">
+  <div class="mx-auto flex w-full max-w-[1180px] px-4 pt-5 sm:px-8 sm:pt-7 flex-col gap-6 pb-8 text-fg-body">
     <NuxtLink to="/admin/users" class="-my-2 inline-flex min-h-11 w-fit items-center gap-1.5 py-2 text-[13.5px] font-semibold text-primary-400 transition hover:text-white sm:my-0 sm:min-h-0 sm:py-0">
       <Icon name="lucide:arrow-left" class="size-3.5" />All users
     </NuxtLink>

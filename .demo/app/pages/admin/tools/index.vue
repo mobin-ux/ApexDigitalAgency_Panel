@@ -90,7 +90,7 @@ const LABEL = 'mb-2 block text-[12.5px] font-semibold text-muted-900 dark:text-w
 </script>
 
 <template>
-  <div class="mx-auto flex max-w-[1240px] flex-col gap-6 pb-10 font-sans">
+  <div class="mx-auto flex w-full max-w-[1180px] px-4 pt-5 sm:px-8 sm:pt-7 flex-col gap-6 pb-10">
     <AdminAccessWall
       v-if="!allowed"
       permission="catalogue.edit"

@@ -350,7 +350,7 @@ const INPUT = 'w-full rounded-xl border border-muted-200 bg-white px-3.5 py-3 te
 </script>
 
 <template>
-  <div class="mx-auto flex max-w-[1240px] flex-col gap-6 pb-10 font-sans">
+  <div class="mx-auto flex w-full max-w-[1180px] px-4 pt-5 sm:px-8 sm:pt-7 flex-col gap-6 pb-10">
     <AdminAccessWall
       v-if="!allowed"
       permission="team.manage"

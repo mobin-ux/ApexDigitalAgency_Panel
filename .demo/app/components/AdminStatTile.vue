@@ -1,46 +1,34 @@
 <script setup lang="ts">
 /**
- * Headline stat tile for admin pages. Accent vocabulary matches the
- * customer pages' fixed status palette (CLAUDE.md hard rule 1: the four
- * status hexes are the only permitted literals).
+ * The Overview's count tile (`Admin Console.dc.html`): a 12.5px muted label
+ * held to two lines, a 34px Yellix figure and the call to action in accent
+ * ink. Every tile counts records a screen lists, so a tile with `to` is a
+ * link to that screen and lifts on hover. `icon` and `accent` are still
+ * accepted from older call sites; the design's tile carries neither.
  */
-const props = withDefaults(defineProps<{
+const { cta = 'Open', to } = defineProps<{
   label: string
   value: string | number
-  icon: string
+  icon?: string
   hint?: string
-  accent?: 'violet' | 'green' | 'amber' | 'coral' | 'blue' | 'muted'
-  /** Where the count leads: a tile is a count of rows a screen lists, and a linked tile opens that screen. */
+  cta?: string
+  accent?: string
   to?: string
-}>(), {
-  accent: 'violet',
-})
+}>()
 
 const NuxtLink = resolveComponent('NuxtLink')
-
-const accentClasses: Record<NonNullable<typeof props.accent>, string> = {
-  violet: 'bg-primary-500/14 text-primary-400',
-  green: 'bg-[#22B07D]/14 text-[#22B07D]',
-  amber: 'bg-[#D9A521]/14 text-[#F2C14E]',
-  coral: 'bg-[#EC6453]/14 text-[#EC6453]',
-  blue: 'bg-[#6EA8FE]/14 text-[#6EA8FE]',
-  muted: 'bg-white/5 text-muted-400',
-}
 </script>
 
 <template>
-  <component :is="to ? NuxtLink : 'div'" :to="to" class="flex flex-col rounded-[20px] border border-white/10 bg-muted-800 p-5 transition hover:border-white/15" :class="to && 'apex-focus hover:bg-muted-700/60'">
-    <div class="mb-4 flex items-center justify-between gap-3">
-      <span class="text-[11.5px] font-bold uppercase tracking-[0.06em] text-muted-500">{{ label }}</span>
-      <span class="flex size-9 shrink-0 items-center justify-center rounded-[10px]" :class="accentClasses[accent]">
-        <Icon :name="icon" class="size-[18px]" />
-      </span>
-    </div>
-    <div class="font-heading text-[28px] font-extrabold leading-none tracking-[-0.02em] text-white tabular-nums">
-      {{ value }}
-    </div>
-    <div v-if="hint" class="mt-2 text-[12.5px] text-muted-500">
-      {{ hint }}
-    </div>
+  <component
+    :is="to ? NuxtLink : 'div'"
+    :to="to"
+    class="bg-card border-line-subtle flex min-w-0 flex-col gap-1.5 rounded-2xl border px-[18px] pb-4 pt-[18px] transition-[transform,border-color] duration-200"
+    :class="to && 'apex-ring hover:border-line-strong motion-safe:hover:-translate-y-0.5'"
+  >
+    <span class="text-fg-muted min-h-[34px] text-[12.5px] leading-[1.35]">{{ label }}</span>
+    <span class="font-heading text-fg-heading text-[34px] font-extrabold leading-none tracking-[-0.03em] tabular-nums">{{ value }}</span>
+    <span v-if="hint" class="text-fg-muted text-[12.5px]">{{ hint }}</span>
+    <span v-if="to" class="text-accent-ink mt-1 text-[12.5px] font-semibold">{{ cta }} →</span>
   </component>
 </template>

@@ -1,43 +1,33 @@
 <script setup lang="ts">
 /**
- * Standard admin page header: Yellix display title, supporting line, and
- * an actions slot on the right — mirrors the customer pages' header
- * treatment so both sides read as one product.
- *
- * `dense` is the Phase 9 form: a 24px title and no eyebrow, which is what
- * the admin design draws now that the sidebar's group label already says
- * where you are. The eyebrow variant stays for the screens that have not
- * been through Phase 9 yet, so this change moves nothing on them.
+ * The design system's PageHeader as the admin console draws it: a 30px/800
+ * Yellix title whose last words can take the accent ink, a 15px muted
+ * sub-line, and the screen's actions on the right. No eyebrow and no
+ * breadcrumb, because the top bar owns location; `eyebrow` is still
+ * accepted from older call sites and not rendered.
  */
 defineProps<{
-  eyebrow?: string
   title: string
+  accent?: string
   subtitle?: string
+  eyebrow?: string
   dense?: boolean
 }>()
 </script>
 
 <template>
-  <div class="flex flex-wrap items-end justify-between gap-5">
+  <div class="flex flex-wrap items-start justify-between gap-x-6 gap-y-4">
     <div class="min-w-0">
-      <div v-if="eyebrow && !dense" class="text-primary-400 mb-2 text-xs font-bold tracking-[0.04em]">
-        {{ eyebrow }}
-      </div>
-      <h1
-        class="font-heading font-extrabold tracking-[-0.02em] text-muted-900 dark:text-white"
-        :class="dense ? 'text-2xl leading-[1.15]' : 'text-[30px] leading-[1.05] sm:text-[34px]'"
-      >
-        {{ title }}
+      <h1 class="font-heading text-fg-heading font-extrabold leading-[1.1] tracking-[-0.02em]" :class="dense ? 'text-[23px]' : 'text-[23px] sm:text-[30px]'">
+        {{ title }}<template v-if="accent">
+          {{ ' ' }}<span class="text-accent-ink">{{ accent }}</span>
+        </template>
       </h1>
-      <p
-        v-if="subtitle"
-        class="text-muted-600 dark:text-muted-300"
-        :class="dense ? 'mt-[7px] text-sm' : 'mt-2 text-[15px] dark:text-muted-400'"
-      >
+      <p v-if="subtitle" class="text-fg-muted mt-2.5 max-w-[42rem] text-[14.5px] leading-normal sm:text-[15px]">
         {{ subtitle }}
       </p>
     </div>
-    <div v-if="$slots.default" class="flex flex-wrap items-center gap-3">
+    <div v-if="$slots.default" class="flex flex-wrap items-center gap-2.5">
       <slot />
     </div>
   </div>

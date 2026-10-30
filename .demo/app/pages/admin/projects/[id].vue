@@ -598,7 +598,7 @@ const MODAL_SHELL = 'apex-pop relative flex max-h-[calc(100dvh-2rem)] w-full fle
 </script>
 
 <template>
-  <div class="mx-auto flex max-w-[1240px] flex-col gap-5 pb-8 font-sans">
+  <div class="mx-auto flex w-full max-w-[1180px] px-4 pt-5 sm:px-8 sm:pt-7 flex-col gap-5 pb-8">
     <NuxtLink to="/admin/projects" class="apex-focus -my-2 inline-flex min-h-11 w-fit items-center gap-1.5 rounded-lg py-2 text-[13.5px] font-semibold text-primary-500 transition hover:underline sm:my-0 sm:min-h-0 sm:py-0 dark:text-primary-400">
       <Icon name="lucide:arrow-left" class="size-3.5" />Orders
     </NuxtLink>

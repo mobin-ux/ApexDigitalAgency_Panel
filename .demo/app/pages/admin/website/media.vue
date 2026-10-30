@@ -163,7 +163,7 @@ const LABEL = 'text-muted-900 mb-1.5 block text-[13.5px] font-semibold dark:text
 </script>
 
 <template>
-  <div class="mx-auto flex max-w-[1180px] flex-col gap-8 pb-10">
+  <div class="mx-auto flex w-full max-w-[1180px] px-4 pt-5 sm:px-8 sm:pt-7 flex-col gap-8 pb-10">
     <AdminPageHeader
       title="Media"
       subtitle="Images and PDFs the public pages use. Each file is checked by its contents, sized from its header and served with a year's cache."

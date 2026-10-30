@@ -104,7 +104,7 @@ const INPUT = 'apex-focus h-10 w-full rounded-xl border border-muted-200 bg-whit
 </script>
 
 <template>
-  <div class="mx-auto flex max-w-[1240px] flex-col gap-6 pb-8 font-sans">
+  <div class="mx-auto flex w-full max-w-[1180px] px-4 pt-5 sm:px-8 sm:pt-7 flex-col gap-6 pb-8">
     <AdminAccessWall
       v-if="!allowed"
       permission="money.view"

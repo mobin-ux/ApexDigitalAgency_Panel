@@ -1,8 +1,5 @@
 <script setup lang="ts">
-/**
- * Dashed empty-state block, same treatment as the customer pages'
- * "No active projects" card on Balance.
- */
+/** An empty list, said plainly: what is empty and, in the slot, the way forward. */
 defineProps<{
   icon: string
   title: string
@@ -11,14 +8,14 @@ defineProps<{
 </script>
 
 <template>
-  <div class="flex flex-col items-center justify-center rounded-[20px] border border-dashed border-white/15 bg-white/[0.02] p-10 text-center">
-    <span class="mb-4 flex size-14 items-center justify-center rounded-full bg-white/5 text-muted-500">
-      <Icon :name="icon" class="size-7" />
+  <div class="border-line-strong flex flex-col items-center justify-center rounded-2xl border border-dashed px-6 py-10 text-center">
+    <span class="bg-chip text-fg-muted mb-4 flex size-12 items-center justify-center rounded-xl">
+      <Icon :name="icon" class="size-6" />
     </span>
-    <div class="text-base font-bold text-white">
+    <div class="text-fg-heading text-[15px] font-semibold">
       {{ title }}
     </div>
-    <p v-if="subtitle" class="mt-1 max-w-[280px] text-[13px] text-muted-500">
+    <p v-if="subtitle" class="text-fg-body mt-1 max-w-[340px] text-[13.5px] leading-normal">
       {{ subtitle }}
     </p>
     <div v-if="$slots.default" class="mt-5">

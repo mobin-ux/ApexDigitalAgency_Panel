@@ -146,7 +146,7 @@ function senderLabel(m: { isAdmin: boolean, isInternal: boolean, senderId?: stri
 </script>
 
 <template>
-  <div class="mx-auto flex max-w-[1240px] flex-col gap-6 pb-8 font-sans text-muted-400">
+  <div class="mx-auto flex w-full max-w-[1180px] px-4 pt-5 sm:px-8 sm:pt-7 flex-col gap-6 pb-8 text-fg-body">
     <AdminPageHeader
       eyebrow="ADMIN · SUPPORT"
       title="Tickets"

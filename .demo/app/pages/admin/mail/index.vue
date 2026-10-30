@@ -121,7 +121,7 @@ const PILL = 'apex-focus inline-flex min-h-[38px] items-center rounded-full bord
 </script>
 
 <template>
-  <div class="mx-auto flex max-w-[1180px] flex-col gap-8 pb-10">
+  <div class="mx-auto flex w-full max-w-[1180px] px-4 pt-5 sm:px-8 sm:pt-7 flex-col gap-8 pb-10">
     <AdminPageHeader
       title="Email"
       subtitle="Every email the panel sends: whether it went, and why not."

@@ -119,7 +119,7 @@ const LABEL = 'text-muted-900 mb-1.5 block text-[13.5px] font-semibold dark:text
 </script>
 
 <template>
-  <div class="mx-auto flex max-w-[1180px] flex-col gap-8 pb-24">
+  <div class="mx-auto flex w-full max-w-[1180px] px-4 pt-5 sm:px-8 sm:pt-7 flex-col gap-8 pb-24">
     <AdminPageHeader
       title="Site settings"
       subtitle="Company facts, contact details, social profiles and search defaults the public site reads. Empty keeps what the site code says, and the site hides anything that stays empty."

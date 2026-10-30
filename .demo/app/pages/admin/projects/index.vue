@@ -280,7 +280,7 @@ const CELL = 'shrink-0 truncate text-[13px]'
 </script>
 
 <template>
-  <div class="mx-auto flex max-w-[1240px] flex-col gap-5 pb-8 font-sans">
+  <div class="mx-auto flex w-full max-w-[1180px] px-4 pt-5 sm:px-8 sm:pt-7 flex-col gap-5 pb-8">
     <AdminPageHeader dense title="Orders" :subtitle="headline">
       <BaseButton v-if="can('work.assign')" rounded="full" variant="primary" @click="openCreate">
         <Icon name="lucide:plus" class="size-4" />

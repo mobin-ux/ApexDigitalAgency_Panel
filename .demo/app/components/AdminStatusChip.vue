@@ -1,56 +1,71 @@
 <script setup lang="ts">
+import type { ApexTone } from '~/utils/panel'
+
 /**
- * Status pill with the shared payment/status-state taxonomy. Free-text
- * statuses (schema strings) are normalized by keyword so PENDING,
- * "Processing", "in progress" etc. all land on the right accent:
- *   green  #22B07D — active / in progress / resolved / approved
- *   amber  #F2C14E — pending / processing / open (needs attention)
- *   blue   #6EA8FE — completed (terminal-good, matches customer orders)
- *   coral  #EC6453 — suspended / cancelled / rejected / failed / urgent
- *   muted           — closed / unknown
+ * Status pill for console tables (the design's `chip()`): 24px, 12px/600,
+ * the tone's tint and readable ink. Takes a semantic `tone`, or one of the
+ * older accent names some screens still pass, or derives a tone from the
+ * status word when given neither. `dot` adds the design system's hue dot.
  */
 const props = defineProps<{
-  status: string
-  /** Override the keyword mapping when the caller knows better. */
-  tone?: 'green' | 'amber' | 'blue' | 'coral' | 'violet' | 'muted'
+  status?: string
+  tone?: ApexTone | 'green' | 'amber' | 'blue' | 'coral' | 'muted'
   label?: string
+  dot?: boolean
 }>()
 
-const toneClasses = {
-  green: 'bg-[#22B07D]/14 text-[#22B07D]',
-  amber: 'bg-[#D9A521]/14 text-[#F2C14E]',
-  blue: 'bg-[#6EA8FE]/14 text-[#6EA8FE]',
-  coral: 'bg-[#EC6453]/14 text-[#EC6453]',
-  violet: 'bg-primary-500/16 text-primary-400',
-  muted: 'bg-white/5 text-muted-400',
-} as const
+const LEGACY: Record<string, ApexTone> = { green: 'success', amber: 'warning', blue: 'info', coral: 'danger', muted: 'neutral' }
 
-const derived = computed<keyof typeof toneClasses>(() => {
-  if (props.tone)
-    return props.tone
-  const s = props.status.toLowerCase()
-  if (/suspend|cancel|reject|fail|urgent|overdue|inactive/.test(s))
-    return 'coral'
-  if (/complete|paid/.test(s))
-    return 'blue'
-  if (/active|progress|resolve|approve|success|deposit|verified/.test(s))
-    return 'green'
-  if (/pending|processing|open|review|wait/.test(s))
-    return 'amber'
-  return 'muted'
+const resolved = computed<ApexTone>(() => {
+  if (props.tone) {
+    return (LEGACY[props.tone] ?? props.tone) as ApexTone
+  }
+  const s = (props.status ?? '').toLowerCase()
+  if (/suspend|cancel|reject|fail|urgent|overdue|inactive|declin/.test(s)) {
+    return 'danger'
+  }
+  if (/complete|paid|deliver/.test(s)) {
+    return 'violet'
+  }
+  if (/active|progress|resolve|approve|success|verified|publish/.test(s)) {
+    return 'success'
+  }
+  if (/pending|processing|open|review|wait|kickoff/.test(s)) {
+    return 'warning'
+  }
+  return 'neutral'
 })
 
 const display = computed(() => {
-  if (props.label)
+  if (props.label) {
     return props.label
+  }
   // "IN_PROGRESS" -> "In progress" (sentence case per brand voice).
-  const words = props.status.replaceAll('_', ' ').toLowerCase()
+  const words = (props.status ?? '').replaceAll('_', ' ').toLowerCase()
   return words.charAt(0).toUpperCase() + words.slice(1)
 })
+
+const TONE: Record<ApexTone, string> = {
+  success: 'bg-st-success-bg text-st-success-fg',
+  warning: 'bg-st-warning-bg text-st-warning-fg',
+  danger: 'bg-st-danger-bg text-st-danger-fg',
+  info: 'bg-st-info-bg text-st-info-fg',
+  violet: 'bg-st-violet-bg text-st-violet-fg',
+  neutral: 'bg-st-neutral-bg text-st-neutral-fg',
+}
+const DOT: Record<ApexTone, string> = {
+  success: 'bg-[#22B07D]',
+  warning: 'bg-[#D9A521]',
+  danger: 'bg-[#EC6453]',
+  info: 'bg-[#6EA8FE]',
+  violet: 'bg-accent',
+  neutral: 'bg-fg-muted',
+}
 </script>
 
 <template>
-  <span class="inline-flex shrink-0 items-center rounded-full px-2.5 py-1 text-[11px] font-bold" :class="toneClasses[derived]">
-    {{ display }}
+  <span class="inline-flex h-6 shrink-0 items-center gap-1.5 justify-self-start whitespace-nowrap rounded-full px-2.5 text-xs font-semibold" :class="TONE[resolved]">
+    <span v-if="dot" aria-hidden="true" class="size-1.5 shrink-0 rounded-full" :class="DOT[resolved]" />
+    <slot>{{ display }}</slot>
   </span>
 </template>

@@ -79,7 +79,7 @@ const cardClass = 'rounded-[20px] border border-white/10 bg-muted-800 p-6'
 </script>
 
 <template>
-  <div class="mx-auto flex max-w-[1100px] flex-col gap-6 pb-8 font-sans text-muted-400">
+  <div class="mx-auto flex w-full max-w-[1180px] px-4 pt-5 sm:px-8 sm:pt-7 flex-col gap-6 pb-8 text-fg-body">
     <NuxtLink to="/admin/contracts" class="inline-flex items-center gap-2 text-[13px] font-semibold text-muted-400 transition hover:text-white">
       <Icon name="lucide:arrow-left" class="size-4" /> All contracts
     </NuxtLink>

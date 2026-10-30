@@ -3,44 +3,53 @@ import type { Permission } from '~~/shared/permissions'
 import { rolesWith } from '~~/shared/permissions'
 
 /**
- * What a staff member sees where their role cannot go (Phase 9 Admin,
- * badges 3 and 9).
- *
- * A bare 403 tells someone the product is broken. This names the roles
- * that do hold the permission and restates what their own role covers,
- * so the next step is obvious — ask one of those people — rather than a
- * support ticket about an error page.
+ * The blocked screen (`Admin Console.dc.html`): "<Area> needs <roles>", why
+ * it is not shown, what the signed-in role does cover, and a way back. The
+ * roles come from `shared/permissions.ts`, the table the API's 403 names,
+ * so the wall and the server explain a refusal with the same words.
  */
 const { permission, title, body } = defineProps<{
   permission: Permission
-  title: string
-  body: string
+  title?: string
+  body?: string
 }>()
 
-const { roleDef } = useStaffAccess()
-const allowed = computed(() => rolesWith(permission))
+const { roleDef, role, PERMISSIONS } = useStaffAccess()
+const { user } = useUser()
+
+const allowed = computed(() => rolesWith(permission).map(r => r.label))
+const allowedText = computed(() => {
+  const a = allowed.value
+  return a.length > 1 ? `${a.slice(0, -1).join(', ')} or ${a.at(-1)}` : a.join('')
+})
+const who = computed(() => [user.value?.firstName, user.value?.lastName].filter(Boolean).join(' ') || user.value?.email || 'this account')
+const covers = computed(() => PERMISSIONS.filter(p => role.value && p.allow.includes(role.value)).map(p => p.label))
 </script>
 
 <template>
-  <div class="max-w-[560px] rounded-2xl border border-muted-200 bg-white p-7 dark:border-white/10 dark:bg-muted-800">
-    <span class="flex size-12 items-center justify-center rounded-xl bg-muted-100 text-muted-500 dark:bg-white/5 dark:text-muted-400">
-      <Icon name="lucide:lock" class="size-6" />
+  <div class="bg-card border-line-subtle mx-auto my-10 flex max-w-[620px] flex-col items-start gap-3.5 rounded-2xl border p-6 sm:my-24 sm:p-8">
+    <span class="bg-accent-tint text-accent-ink inline-flex size-11 items-center justify-center rounded-xl">
+      <Icon name="lucide:lock" class="size-5" />
     </span>
-    <h1 class="font-heading mt-[18px] text-[21px] font-extrabold tracking-[-0.01em] text-muted-900 dark:text-white">
-      {{ title }}
+    <h1 class="font-heading text-fg-heading text-[22px] font-bold tracking-[-0.02em]">
+      {{ title ?? `This area needs ${allowedText}` }}
     </h1>
-    <p class="mt-2.5 text-sm leading-[1.65] text-muted-600 dark:text-muted-300">
-      {{ body }}
+    <p class="text-fg-body text-[14.5px] leading-[1.6]">
+      {{ body ?? `You are signed in as ${who} (${roleDef?.label ?? 'staff'}). The server refuses this area for your role, so it is not shown. Ask an Owner or Admin if you need it.` }}
     </p>
-    <div class="mt-[18px] flex flex-wrap gap-2">
-      <span
-        v-for="r in allowed"
-        :key="r.key"
-        class="bg-primary-500/14 text-primary-600 dark:text-primary-200 inline-flex items-center rounded-full px-3 py-[7px] text-[12.5px] font-bold"
-      >{{ r.label }}</span>
+    <div class="text-fg-muted mt-1.5 text-xs font-bold uppercase tracking-[0.05em]">
+      Your role covers
     </div>
-    <p v-if="roleDef" class="mt-[18px] text-[13px] leading-[1.6] text-muted-500">
-      Your role, {{ roleDef.label }}, covers {{ roleDef.covers }}.
-    </p>
+    <ul class="flex flex-wrap gap-1.5">
+      <li v-for="c in covers" :key="c" class="bg-chip border-line-subtle text-fg-body rounded-full border px-2.5 py-[5px] text-[12.5px]">
+        {{ c }}
+      </li>
+      <li v-if="!covers.length" class="text-fg-body text-[13px]">
+        Nothing in the console yet.
+      </li>
+    </ul>
+    <AdminButton to="/admin" class="mt-2">
+      Back to overview
+    </AdminButton>
   </div>
 </template>

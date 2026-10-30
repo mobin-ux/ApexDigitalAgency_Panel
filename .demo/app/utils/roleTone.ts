@@ -14,14 +14,16 @@ import type { StaffRole } from '~~/shared/permissions'
  * side of the same "does the work" family.
  */
 export const ROLE_CHIP: Record<StaffRole, string> = {
-  owner: 'bg-[#D9A521]/16 text-[#F2C14E]',
-  admin: 'bg-primary-500/14 text-primary-400',
-  pm: 'bg-[#6EA8FE]/14 text-[#6EA8FE]',
-  support: 'bg-[#22B07D]/14 text-[#22B07D]',
-  finance: 'bg-primary-500/10 text-primary-600 dark:text-primary-200',
-  publisher: 'bg-[#6EA8FE]/10 text-[#6EA8FE]',
-  editor: 'bg-[#6EA8FE]/[0.07] text-[#6EA8FE]',
-  readonly: 'bg-muted-200 text-muted-600 dark:bg-white/5 dark:text-muted-400',
+  // Status tokens, so each chip reads in both themes: amber and coral are
+  // ink text on light (they fail AA as text on white) and bright on dark.
+  owner: 'bg-st-warning-bg text-st-warning-fg',
+  admin: 'bg-st-violet-bg text-st-violet-fg',
+  pm: 'bg-st-info-bg text-st-info-fg',
+  support: 'bg-st-success-bg text-st-success-fg',
+  finance: 'bg-st-violet-bg text-st-violet-fg',
+  publisher: 'bg-st-info-bg text-st-info-fg',
+  editor: 'bg-st-info-bg text-st-info-fg',
+  readonly: 'bg-st-neutral-bg text-st-neutral-fg',
 }
 
 /** Solid dot of the same hue, for the role pickers. */

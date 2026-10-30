@@ -30,10 +30,10 @@ const displayName = computed(() => {
   <div class="flex min-w-0 items-center gap-3">
     <ApexPanelAvatar :size="32" :person="user" />
     <div class="min-w-0">
-      <div class="truncate text-[13.5px] font-semibold text-white">
+      <div class="text-fg-heading truncate text-[13.5px] font-semibold">
         {{ displayName }}
       </div>
-      <div v-if="!compact && contact && displayName !== contact" class="truncate text-xs text-muted-500">
+      <div v-if="!compact && contact && displayName !== contact" class="text-fg-muted truncate text-xs">
         {{ contact }}
       </div>
     </div>

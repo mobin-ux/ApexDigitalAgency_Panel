@@ -465,6 +465,15 @@
   --shadow-panel-hover: var(--panel-shadow-hover);
   --shadow-pop: var(--panel-shadow-pop);
   --shadow-violet: 0 12px 28px rgba(125, 83, 242, 0.32);
+
+  /* Admin console (`Admin Console.dc.html`, 2026-10-31): the design names
+     two page planes the customer panel does not — `--bg-page` for the
+     sidebar and top bar, `--bg-subtle` for the desk the cards sit on — and
+     a chip fill. Same values as the design system's colors.css. */
+  --color-shell: var(--bg-page);
+  --color-desk: var(--bg-subtle);
+  --color-chip: var(--surface-chip);
+  --color-danger-strong: var(--apex-danger-strong);
 }
 
 :root {
@@ -516,6 +525,13 @@
   --status-violet-fg: #6c40e8;
   --status-neutral-bg: #f7f8f9;
   --status-neutral-fg: rgba(16, 24, 40, 0.74);
+
+  --bg-page: #fdfdfd;
+  --bg-subtle: #f7f8f9;
+  --surface-chip: #f7f8f9;
+  /* The design's danger button is white on #EC6453, which is 3.2:1 at
+     13.5px. This step of the same coral clears 4.8:1 and keeps the hue. */
+  --apex-danger-strong: #c2412f;
 }
 
 .dark,
@@ -563,6 +579,44 @@
   --status-violet-fg: #ae96f9;
   --status-neutral-bg: rgba(255, 255, 255, 0.05);
   --status-neutral-fg: #ffffff;
+
+  --bg-page: #0b1517;
+  --bg-subtle: #0c1719;
+  --surface-chip: rgba(255, 255, 255, 0.05);
+}
+
+/* Admin console overlays: entry-only keyframes, like `apex-pop-in`. */
+@keyframes apexRise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes apexSlideIn {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.apex-rise-in {
+  animation: apexRise 0.2s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.apex-slide-in {
+  animation: apexSlideIn 0.24s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .apex-rise-in,
+  .apex-slide-in {
+    animation: none;
+  }
 }
 
 /*
