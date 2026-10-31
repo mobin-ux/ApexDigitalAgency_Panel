@@ -2,7 +2,7 @@
 
 > Handoff doc for continuing work in fresh sessions. Update the relevant section
 > whenever a page ships, a decision lands, or a blocker appears.
-> Last updated: **2026-10-31** (admin console and website CMS removed — ADR-024; before that, admin console replaced by `Admin Console.dc.html`; both apps re-deployed from master; Cloudflare applied — ADR-023; Mail provider deployed — ADR-022; Website CMS — ADR-021; 2026-10-25 Panel v2: dashboard, New order and My orders revisions; Wallet revision — credit by application, ADR-020; Support revision — call requests and ratings; 2026-10-27 Settings re-check — profile photos, signed-in devices, two-step verification).
+> Last updated: **2026-11-01** (admin console reinstated without the CMS on `feature/admin-console` — ADR-025, hardening phases in progress; 2026-10-31 admin console and website CMS removed — ADR-024; before that, admin console replaced by `Admin Console.dc.html`; both apps re-deployed from master; Cloudflare applied — ADR-023; Mail provider deployed — ADR-022; Website CMS — ADR-021; 2026-10-25 Panel v2: dashboard, New order and My orders revisions; Wallet revision — credit by application, ADR-020; Support revision — call requests and ratings; 2026-10-27 Settings re-check — profile photos, signed-in devices, two-step verification).
 
 ## Where things stand
 
@@ -16,7 +16,32 @@
 - Stale branch `refactor/apex-dashboard` (local + origin) is superseded by master;
   deletable, but ask the user first.
 
-## Admin console and website CMS removed (2026-10-31)  ⬅ LATEST WORKSTREAM
+## Admin console reinstated, hardened (2026-11-01)  ⬅ LATEST WORKSTREAM
+
+The owner asked for `Admin Console.dc.html` as production code: separate
+staff sign-in, 2FA for staff, append-only audit, money guardrails, tests,
+on **`feature/admin-console`** (not master, not merged). Decided with the
+owner: restore the 31 Oct build rather than rebuild; **no Website group**
+(the CMS stays removed); defaults taken pending their word: credit
+decisions and interest-bearing plans behind flags that are off.
+ADR-025. Phases: 0 restore (done) · 1 staff auth · 2 money guardrails ·
+3 data hardening · 4 two-way sync · 5 tests incl. browser smoke · 6 docs
+(`ADMIN_CONSOLE.md`).
+
+- **Phase 0 done:** admin screens/APIs/invite flow restored from
+  `54b70f8^` minus everything website; `homeFor()` returns null for a
+  role that can open nothing (Publisher/Editor) instead of looping;
+  `AdminLoadError` replaces `AdminWebsiteLoadError`; Agreements' counts
+  no longer use a mistyped `groupBy`. Verified: tsc 46 (baseline),
+  lint clean, unit 28/28, API 11/11, 16 admin routes SSR 200 for the
+  owner and 302 for customer/anonymous, website routes 404.
+- **Open question for the owner (Phase 2):** twelve payments can end more
+  than 12 months after signing, because payment 1 is at kickoff and the
+  rest start on a later 1st of the month. Compress, or refuse kickoff?
+- This checkout had no `node_modules` (root or `web/`); both installed
+  2026-11-01 from npmmirror (12 min for the root).
+
+## Admin console and website CMS removed (2026-10-31)
 
 The owner asked to "remove the existing panel and keep only the main site",
 then chose: remove the **admin console only** (the customer panel stays),

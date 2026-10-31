@@ -107,7 +107,18 @@ async function loadIndex() {
   loading.value = false
 }
 
-const pages = computed<Entry[]>(() => PAGES)
+/**
+ * A computed, not a one-off `PAGES.push()`: `user` is hydrated by the auth
+ * plugin at boot, so a push evaluated during setup can run before the role is
+ * known and leave an admin without their own panel in search.
+ */
+const { can: staffCan } = useStaffAccess()
+const pages = computed<Entry[]>(() => {
+  if (user.value?.role !== 'ADMIN' || !staffCan('work.view')) {
+    return PAGES
+  }
+  return [...PAGES, { id: 'p-admin', kind: 'page', title: 'Admin panel', meta: 'Staff tools', icon: 'lucide:shield-check', to: '/admin' }]
+})
 
 const query = ref('')
 

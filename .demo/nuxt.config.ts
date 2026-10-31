@@ -35,7 +35,8 @@ export default defineNuxtConfig({
    * The auth and legal screens were designed and measured on the dark theme
    * only, so `pages:extend` below pins them to it — the customer panel going
    * light must not drag those screens into a theme they have never been
-   * checked in.
+   * checked in. The admin console is not on that list: its design
+   * (`Admin Console.dc.html`) draws both themes and carries its own switch.
    */
   colorMode: {
     preference: 'light',
@@ -275,6 +276,10 @@ export default defineNuxtConfig({
     // (unauthenticated) render would otherwise be cached and served to everyone,
     // breaking auth and leaking the wrong content between users.
     '/dashboards/**': {
+      swr: false,
+    },
+    // Admin console: authenticated + role-gated, same no-cache rule.
+    '/admin/**': {
       swr: false,
     },
   },
