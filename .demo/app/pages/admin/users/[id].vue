@@ -1,8 +1,10 @@
 <script setup lang="ts">
 /**
  * Admin — user detail. Profile editing, account controls (role /
- * verification / suspension), company profile management, wallet
- * adjustments (always through the ledger) and recent activity.
+ * verification / suspension), company profile management and recent
+ * activity. The wallet balance is shown, not edited: staff cannot add to or
+ * take from it by hand (ADR-025). It moves through top-ups, payments and
+ * refunds, each of which goes through its own audited path.
  */
 definePageMeta({
   title: 'User detail',
@@ -131,42 +133,6 @@ async function confirmSuspendToggle() {
   const next = detail.value?.status === 'SUSPENDED' ? 'ACTIVE' : 'SUSPENDED'
   showSuspend.value = false
   await patchAccount({ status: next }, next === 'SUSPENDED' ? 'Account suspended' : 'Account reactivated')
-}
-
-// --- Wallet adjustment modal ---
-const showWallet = ref(false)
-const walletDirection = ref<'credit' | 'debit'>('credit')
-const walletAmount = ref<number | null>(null)
-const walletReason = ref('')
-const adjusting = ref(false)
-
-function openWallet() {
-  walletDirection.value = 'credit'
-  walletAmount.value = null
-  walletReason.value = ''
-  showWallet.value = true
-}
-
-async function submitWallet() {
-  if (!walletAmount.value || walletAmount.value <= 0 || adjusting.value)
-    return
-  adjusting.value = true
-  try {
-    const signed = walletDirection.value === 'debit' ? -walletAmount.value : walletAmount.value
-    await $fetch(`/api/admin/users/${userId}/wallet`, {
-      method: 'POST',
-      body: { amount: signed, reason: walletReason.value },
-    })
-    toaster.add({ title: 'Wallet adjusted', description: `${walletDirection.value === 'debit' ? '−' : '+'}${formatCurrency(walletAmount.value)} recorded in the ledger.`, icon: 'lucide:check', progress: true })
-    showWallet.value = false
-    await refresh()
-  }
-  catch (error: any) {
-    toastError(error, 'The adjustment was not applied.')
-  }
-  finally {
-    adjusting.value = false
-  }
 }
 
 // --- Company profile ---
@@ -486,11 +452,9 @@ const labelClass = 'mb-[7px] block text-[13px] font-semibold text-fg-heading'
             <div class="mt-2 text-[13px] text-fg-body">
               Ad credits: <span class="font-semibold text-fg-heading tabular-nums">{{ formatCurrency(detail.adCredits) }}</span>
             </div>
-            <div class="mt-5">
-              <AdminButton class="!bg-white !text-muted-900 hover:!bg-primary-50" @click="openWallet">
-                <Icon name="lucide:arrow-up-down" class="size-4" />Adjust balance
-              </AdminButton>
-            </div>
+            <p class="text-fg-muted mt-4 text-[12.5px] leading-[1.55]">
+              Changed only by the client's top-ups and payments, and by refunds from Payments & credit.
+            </p>
           </section>
 
           <!-- account controls -->
@@ -698,64 +662,6 @@ const labelClass = 'mb-[7px] block text-[13px] font-semibold text-fg-heading'
             Remove profile
           </AdminButton>
         </div>
-      </div>
-    </div>
-
-    <!-- ========== WALLET ADJUST MODAL ========== -->
-    <div v-if="showWallet" class="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Adjust wallet balance">
-      <div class="apex-fade absolute inset-0 bg-black/60 backdrop-blur-sm" @click="showWallet = false" />
-      <div class="apex-pop relative w-full max-w-[440px] rounded-[20px] border border-line-subtle bg-card p-6 shadow-[0_30px_60px_rgba(0,0,0,.5)]">
-        <div class="mb-5">
-          <div class="font-heading text-[20px] font-extrabold tracking-[-0.01em] text-fg-heading">
-            Adjust wallet balance
-          </div>
-          <p class="mt-1 text-[13px] text-fg-body">
-            Every adjustment writes a ledger entry — nothing moves silently.
-          </p>
-        </div>
-
-        <form class="flex flex-col gap-4" @submit.prevent="submitWallet">
-          <div class="flex items-center gap-2 rounded-full border border-line-subtle bg-raised p-[3px]" role="radiogroup" aria-label="Direction">
-            <button
-              type="button"
-              role="radio"
-              :aria-checked="walletDirection === 'credit'"
-              class="flex-1 rounded-full px-4 py-2 text-[13px] font-bold transition"
-              :class="walletDirection === 'credit' ? 'bg-st-success-bg text-st-success-fg' : 'text-fg-body hover:text-white'"
-              @click="walletDirection = 'credit'"
-            >
-              Credit (+)
-            </button>
-            <button
-              type="button"
-              role="radio"
-              :aria-checked="walletDirection === 'debit'"
-              class="flex-1 rounded-full px-4 py-2 text-[13px] font-bold transition"
-              :class="walletDirection === 'debit' ? 'bg-st-danger-bg text-st-danger-fg' : 'text-fg-body hover:text-white'"
-              @click="walletDirection = 'debit'"
-            >
-              Debit (−)
-            </button>
-          </div>
-
-          <div>
-            <label for="wallet-amount" :class="labelClass">Amount (GBP)</label>
-            <input id="wallet-amount" v-model.number="walletAmount" type="number" min="0.01" step="0.01" required placeholder="0.00" :class="inputClass">
-          </div>
-          <div>
-            <label for="wallet-reason" :class="labelClass">Reason <span class="font-normal text-fg-muted">(recorded in the audit trail)</span></label>
-            <textarea id="wallet-reason" v-model="walletReason" rows="2" required minlength="3" placeholder="e.g. Goodwill credit for the delayed kickoff" class="w-full resize-y rounded-[11px] border border-line-subtle bg-raised px-3.5 py-2.5 text-sm leading-[1.55] text-fg-heading outline-none placeholder:text-fg-muted focus:border-primary-400" />
-          </div>
-
-          <div class="mt-1 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-            <AdminButton @click="showWallet = false">
-              Cancel
-            </AdminButton>
-            <AdminButton type="submit" variant="primary" :disabled="adjusting || !walletAmount || walletAmount <= 0 || walletReason.trim().length < 3">
-              <Icon name="lucide:check" class="size-4" />Apply adjustment
-            </AdminButton>
-          </div>
-        </form>
       </div>
     </div>
   </div>

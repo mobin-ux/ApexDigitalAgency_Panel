@@ -1,6 +1,7 @@
 import { createError, defineEventHandler, getRouterParam } from 'h3'
 import { z } from 'zod'
 import { recordAudit } from '../../../../utils/audit'
+import { requireCreditDecisions } from '../../../../utils/lending'
 import { requireStaffPermission } from '../../../../utils/permissions'
 import prisma from '../../../../utils/prisma'
 import { validateBody } from '../../../../utils/validate'
@@ -12,6 +13,10 @@ import { validateBody } from '../../../../utils/validate'
  * - freeze / unfreeze: suspend or restore spending
  * - reject:  decline the application
  * All audited with before/after, and the customer is notified.
+ *
+ * Anything that grants or widens credit — approve, unfreeze, a higher limit —
+ * is behind the credit-decisions switch (ADR-025); reject, freeze and a lower
+ * limit only ever reduce what is lent, so they stay available.
  */
 
 const bodySchema = z.object({
@@ -31,6 +36,9 @@ export default defineEventHandler(async (event) => {
   const before = await prisma.creditLine.findUnique({ where: { userId } })
   if (!before) {
     throw createError({ statusCode: 404, message: 'No credit line for this user' })
+  }
+  if (action === 'approve' || action === 'unfreeze' || (action === 'adjust' && (limit ?? 0) > before.limit)) {
+    requireCreditDecisions()
   }
 
   let data: Record<string, unknown>

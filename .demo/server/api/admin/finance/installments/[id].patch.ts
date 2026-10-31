@@ -1,7 +1,7 @@
 import { createError, defineEventHandler, getRouterParam } from 'h3'
 import { z } from 'zod'
 import { recordAudit } from '../../../../utils/audit'
-import { chargeInstallment, validationErrorFromCharge } from '../../../../utils/finance'
+import { chargeInstallment, dueAfter, planDeadlineFor, validationErrorFromCharge } from '../../../../utils/finance'
 import { requireStaffPermission } from '../../../../utils/permissions'
 import prisma from '../../../../utils/prisma'
 import { validateBody } from '../../../../utils/validate'
@@ -10,9 +10,12 @@ import { validateBody } from '../../../../utils/validate'
  * PATCH /api/admin/finance/installments/:id — admin actions on a plan:
  * - charge: collect the due installment from the customer wallet
  *   (identical money path as the customer's own Pay button).
- * - waive:  advance the schedule one month with NO money movement
+ * - waive:  move the schedule on by one payment with NO money movement
  *   (goodwill/comp) — the waived amount is deducted from the plan total
- *   so `paid` still converges on `total`.
+ *   so `paid` still converges on `total`. The next date follows the same
+ *   rule as a payment, so a waiver never lengthens an interest-free plan
+ *   past twelve months from signing (ADR-025).
+ * There is deliberately no action that adds to what the customer owes.
  * Both audited with before/after counters.
  */
 
@@ -29,7 +32,7 @@ export default defineEventHandler(async (event) => {
   }
   const { action } = await validateBody(event, bodySchema)
 
-  const before = await prisma.installment.findUnique({ where: { id } })
+  const before = await prisma.installment.findUnique({ where: { id }, include: { projectRef: { select: { signedAt: true } } } })
   if (!before) {
     throw createError({ statusCode: 404, message: 'Installment plan not found' })
   }
@@ -47,8 +50,7 @@ export default defineEventHandler(async (event) => {
     const waived = Math.round(Math.min(before.monthlyAmount || before.amountDue, Math.max(0, before.total - before.paid)) * 100) / 100
     const monthsPaid = before.monthsPaid + 1
     const settled = monthsPaid >= before.monthsTotal
-    const nextDue = new Date(before.nextDue)
-    nextDue.setMonth(nextDue.getMonth() + 1)
+    const nextDue = dueAfter(before.nextDue, before.monthsTotal - before.monthsPaid, planDeadlineFor(before, before.projectRef?.signedAt))
     await prisma.installment.update({
       where: { id },
       data: {

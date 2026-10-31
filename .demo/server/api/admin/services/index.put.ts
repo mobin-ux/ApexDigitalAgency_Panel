@@ -1,6 +1,6 @@
 import { createError, defineEventHandler } from 'h3'
 import { z } from 'zod'
-import { DEFAULT_CATALOG } from '../../../../shared/catalog'
+import { DEFAULT_CATALOG, FIXED_PLAN_MAX_PAYMENTS } from '../../../../shared/catalog'
 import { recordAudit } from '../../../utils/audit'
 import { requireStaffPermission } from '../../../utils/permissions'
 import prisma from '../../../utils/prisma'
@@ -26,7 +26,7 @@ const planSchema = z.object({
   flag: z.string().trim().max(24).optional(),
   monthly: money.optional(),
   deposit: money.optional(),
-  payments: z.coerce.number().int().min(1).max(36).optional(),
+  payments: z.coerce.number().int().min(1).max(FIXED_PLAN_MAX_PAYMENTS, `A plan has at most ${FIXED_PLAN_MAX_PAYMENTS} payments: the interest-free plan ends within twelve months.`).optional(),
   setup: money.optional(),
   price: money.optional(),
   note: z.string().trim().max(60).optional(),
@@ -39,7 +39,7 @@ const serviceSchema = z.object({
   heading: z.string().trim().max(120).default(''),
   sub: z.string().trim().max(300).default(''),
   foot: z.string().trim().max(400).default(''),
-  payments: z.coerce.number().int().min(1).max(36).optional(),
+  payments: z.coerce.number().int().min(1).max(FIXED_PLAN_MAX_PAYMENTS, `A plan has at most ${FIXED_PLAN_MAX_PAYMENTS} payments: the interest-free plan ends within twelve months.`).optional(),
   minimumMonths: z.coerce.number().int().min(1).max(24).optional(),
   plans: z.array(planSchema).min(1).max(6),
 })

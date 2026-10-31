@@ -417,3 +417,8 @@ Not deployed. When `feature/admin-console` is merged and shipped:
    else secret. It refuses while an active owner exists.
 4. No new environment variables. `NUXT_ENCRYPTION_KEY` (two-step secrets)
    and `NUXT_PUBLIC_SITE_URL` (the link the script prints) are already set.
+5. **Lending switches** (phase 2): `NUXT_LENDING_INTEREST_BEARING_PLANS` and
+   `NUXT_LENDING_CREDIT_DECISIONS` default to off. Leave them unset unless
+   the owner has confirmed the lending position in writing; with credit
+   decisions off, staff can decline, freeze and lower credit but not approve
+   it, and applications wait.

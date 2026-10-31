@@ -249,8 +249,21 @@ export function featuredPlan(service: CatalogService): CatalogPlan {
   return service.plans.find(p => p.featured) ?? service.plans[0]!
 }
 
+/**
+ * The interest-free plan's limits (ADR-025, owner's rule 2026-11-01): a fixed
+ * plan has at most twelve monthly payments, and every one of them falls due
+ * within twelve months of the day the agreement was signed. Nothing the admin
+ * console can do lengthens a plan past that, adds a charge to it or prices it
+ * differently from paying in full.
+ */
+export const FIXED_PLAN_MAX_PAYMENTS = 12
+export const PLAN_LIMIT_MONTHS = 12
+
 export function paymentCount(service: CatalogService, plan: CatalogPlan): number {
-  return plan.payments ?? service.payments ?? 12
+  const n = plan.payments ?? service.payments ?? FIXED_PLAN_MAX_PAYMENTS
+  // A stored catalogue from before the cap (the editor once took 36) is read
+  // as twelve at most, so no order can be priced over a longer term.
+  return service.kind === 'fixed' ? Math.min(n, FIXED_PLAN_MAX_PAYMENTS) : n
 }
 
 /** Price an order. `pay` only matters for fixed plans. */
@@ -294,6 +307,44 @@ export function firstPaymentDate(from: Date): Date {
     d.setMonth(d.getMonth() + 1)
   }
   return d
+}
+
+/** The last day a fixed plan's payment may fall due: twelve months after signing. */
+export function planDeadline(signedAt: Date): Date {
+  return new Date(signedAt.getFullYear(), signedAt.getMonth() + PLAN_LIMIT_MONTHS, signedAt.getDate())
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000
+
+/**
+ * Due dates for `count` payments, the first on `first` and the rest a month
+ * apart. When that would put the last after `deadline`, the dates are brought
+ * closer together instead, evenly spaced from `first` to the deadline, so the
+ * plan still ends inside twelve months (the owner chose this over refusing a
+ * late kickoff). The amounts never change. A `first` already past the
+ * deadline puts every payment on the deadline, which is then due at once.
+ *
+ * Stepping from a later due date with the payments still to come gives the
+ * same dates, so the server can move `nextDue` one payment at a time
+ * (`planDueDates(nextDue, remaining, deadline)[1]`) and the client can draw
+ * the whole schedule, and both agree.
+ */
+export function planDueDates(first: Date, count: number, deadline: Date | null): Date[] {
+  const monthly = Array.from({ length: Math.max(0, count) }, (_, i) => new Date(first.getFullYear(), first.getMonth() + i, first.getDate()))
+  if (!deadline || monthly.length === 0 || monthly.at(-1)!.getTime() <= deadline.getTime()) {
+    return monthly
+  }
+  if (first.getTime() >= deadline.getTime() || count === 1) {
+    return monthly.map(() => new Date(deadline))
+  }
+  const start = new Date(first.getFullYear(), first.getMonth(), first.getDate())
+  const spanDays = Math.round((deadline.getTime() - start.getTime()) / DAY_MS)
+  return monthly.map((_, i) => new Date(start.getFullYear(), start.getMonth(), start.getDate() + Math.round(i * spanDays / (count - 1))))
+}
+
+/** Whether the twelve-month rule governs a plan: interest-free, fixed, tied to a signed order. */
+export function underPlanLimit(plan: { kind?: string | null, interestRate?: number | null }): boolean {
+  return (plan.kind ?? 'fixed') === 'fixed' && !(plan.interestRate && plan.interestRate > 0)
 }
 
 /** Merge a stored override over the defaults, ignoring anything not v2-shaped. */

@@ -7,8 +7,11 @@ import { validateBody } from '../../../utils/validate'
 
 /**
  * PATCH /api/admin/projects/:id — whitelisted project update.
- * `amount` is editable here (it's the agreed contract value, not a
- * ledger movement); actual money still only moves through transactions.
+ * `amount` (the agreed value) is editable only on a project with no signed
+ * agreement. Once the client has signed, the price is the agreement's and
+ * the plan's (ADR-025): changing it here would show the client a total that
+ * differs from what they agreed and from the cash price, so it is refused.
+ * Money itself only moves through transactions either way.
  */
 
 const bodySchema = z
@@ -45,9 +48,12 @@ export default defineEventHandler(async (event) => {
 
   const updates = await validateBody(event, bodySchema)
 
-  const before = await prisma.project.findUnique({ where: { id }, select: auditedFields })
+  const before = await prisma.project.findUnique({ where: { id }, select: { ...auditedFields, signedAt: true, contract: { select: { id: true } } } })
   if (!before) {
     throw createError({ statusCode: 404, message: 'Project not found' })
+  }
+  if (updates.amount !== undefined && updates.amount !== before.amount && (before.signedAt || before.contract)) {
+    throw createError({ statusCode: 409, message: 'The client has signed an agreement for this project, so its value is fixed. Cancel and re-quote instead.' })
   }
 
   if (updates.managerId) {

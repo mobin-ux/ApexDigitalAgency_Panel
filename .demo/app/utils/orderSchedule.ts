@@ -1,4 +1,5 @@
 import type { ApexTone } from '~/utils/panel'
+import { planDeadline, planDueDates, underPlanLimit } from '~~/shared/catalog'
 import { ukDate } from '~/utils/panel'
 
 /**
@@ -8,15 +9,19 @@ import { ukDate } from '~/utils/panel'
  * Wallet's Payment plans all read this, so "3 of 12 paid" cannot be three
  * different numbers on three screens.
  *
- * Future dates are the plan's `nextDue` stepped a month at a time — the same
- * rule `chargeInstallment` uses to move it — and before kickoff they are
- * labelled as an estimate by the caller.
+ * Future dates come from `planDueDates` over the plan's `nextDue` — the same
+ * rule `chargeInstallment` uses to move it: a month apart, or closer
+ * together when an interest-free plan would otherwise end more than twelve
+ * months after signing (ADR-025). Before kickoff they are labelled as an
+ * estimate by the caller.
  */
 export interface ScheduleInput {
   payMode?: string | null
   kickoffAmount?: number | null
   kickoffPaidAt?: string | Date | null
   createdAt?: string | Date | null
+  /** When the agreement was signed; the twelve-month limit runs from here. */
+  signedAt?: string | Date | null
   amount?: number | null
   installmentPlan?: null | {
     kind?: string | null
@@ -29,6 +34,7 @@ export interface ScheduleInput {
     paid: number
     total: number
     depositAmount?: number | null
+    interestRate?: number | null
   }
 }
 
@@ -61,10 +67,6 @@ function row(label: string, date: string, amount: number, state: ScheduleRow['st
   return { label, date, amount, state, tone: TONE[state] }
 }
 
-function monthAfter(from: Date, i: number): Date {
-  return new Date(from.getFullYear(), from.getMonth() + i, from.getDate())
-}
-
 export function orderSchedule(p: ScheduleInput): Schedule {
   const plan = p.installmentPlan ?? null
   const kickoff = p.kickoffAmount ?? 0
@@ -72,6 +74,7 @@ export function orderSchedule(p: ScheduleInput): Schedule {
   const kickoffDate = started ? ukDate(p.kickoffPaidAt!) : 'At kickoff'
   const kickoffState: ScheduleRow['state'] = started ? 'Paid' : 'Next'
   const next = plan ? new Date(plan.nextDue) : null
+  const deadline = plan && p.signedAt && underPlanLimit(plan) ? planDeadline(new Date(p.signedAt)) : null
 
   // The monthly rows after kickoff, shared by fixed plans and retainers.
   function instalments(count: number, label: (i: number) => string) {
@@ -79,10 +82,11 @@ export function orderSchedule(p: ScheduleInput): Schedule {
     if (!plan || !next) {
       return rows
     }
+    const dates = planDueDates(next, Math.max(0, count - plan.monthsPaid), deadline)
     for (let i = 0; i < count; i++) {
       const paid = i < plan.monthsPaid
       const state: ScheduleRow['state'] = paid ? 'Paid' : (started && i === plan.monthsPaid ? 'Next' : 'Upcoming')
-      rows.push(row(label(i), paid ? 'Paid' : ukDate(monthAfter(next, i - plan.monthsPaid)), plan.monthlyAmount, state))
+      rows.push(row(label(i), paid ? 'Paid' : ukDate(dates[i - plan.monthsPaid]!), plan.monthlyAmount, state))
     }
     return rows
   }
@@ -107,7 +111,7 @@ export function orderSchedule(p: ScheduleInput): Schedule {
       // belongs to payment 2.
       const rows = started
         ? instalments(n, i => `Payment ${i + 1} of ${n}`)
-        : [row(`Payment 1 of ${n}`, kickoffDate, monthly, kickoffState), ...(next ? Array.from({ length: Math.max(0, n - 1) }, (_, i) => row(`Payment ${i + 2} of ${n}`, ukDate(monthAfter(next, i)), monthly, 'Upcoming')) : [])]
+        : [row(`Payment 1 of ${n}`, kickoffDate, monthly, kickoffState), ...(next ? planDueDates(next, Math.max(0, n - 1), deadline).map((d, i) => row(`Payment ${i + 2} of ${n}`, ukDate(d), monthly, 'Upcoming')) : [])]
       return { ...base, rows, paid: plan?.paid ?? 0, total: n * monthly }
     }
     case 'fixed-full':
@@ -171,10 +175,11 @@ export function orderSchedule(p: ScheduleInput): Schedule {
 
   function instalmentsLegacy() {
     const rows: ScheduleRow[] = []
+    const dates = planDueDates(next!, Math.max(0, plan!.monthsTotal - plan!.monthsPaid), deadline)
     for (let i = 0; i < plan!.monthsTotal; i++) {
       const paid = i < plan!.monthsPaid
       const state: ScheduleRow['state'] = paid ? 'Paid' : i === plan!.monthsPaid ? 'Next' : 'Upcoming'
-      rows.push(row(`Payment ${i + 1} of ${plan!.monthsTotal}`, paid ? 'Paid' : ukDate(monthAfter(next!, i - plan!.monthsPaid)), plan!.monthlyAmount || plan!.amountDue, state))
+      rows.push(row(`Payment ${i + 1} of ${plan!.monthsTotal}`, paid ? 'Paid' : ukDate(dates[i - plan!.monthsPaid]!), plan!.monthlyAmount || plan!.amountDue, state))
     }
     return rows
   }

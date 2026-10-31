@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { Catalog, CatalogPlan, CatalogService } from '~~/shared/catalog'
-import { orderTerms, paymentCount } from '~~/shared/catalog'
+import { FIXED_PLAN_MAX_PAYMENTS, orderTerms, paymentCount } from '~~/shared/catalog'
 import { ADMIN_INPUT, ADMIN_TEXTAREA, ADMIN_TH } from '~/utils/adminUi'
 
 /**
@@ -165,7 +165,10 @@ const LABEL = 'text-fg-heading mb-1.5 block text-xs font-semibold'
             </div>
             <div v-if="s.kind === 'fixed'">
               <label :for="`${s.id}-payments`" :class="LABEL">Monthly payments</label>
-              <input :id="`${s.id}-payments`" v-model.number="s.payments" type="number" min="1" max="36" :disabled="!canEdit" :class="ADMIN_INPUT">
+              <input :id="`${s.id}-payments`" v-model.number="s.payments" type="number" min="1" :max="FIXED_PLAN_MAX_PAYMENTS" :aria-describedby="`${s.id}-payments-hint`" :disabled="!canEdit" :class="ADMIN_INPUT">
+              <p :id="`${s.id}-payments-hint`" class="text-fg-muted mt-1 text-[12px]">
+                Up to {{ FIXED_PLAN_MAX_PAYMENTS }}. Interest-free plans end within twelve months of signing, at the same total as paying in full.
+              </p>
             </div>
             <div v-else-if="s.kind === 'retainer'">
               <label :for="`${s.id}-min`" :class="LABEL">Minimum term (months)</label>

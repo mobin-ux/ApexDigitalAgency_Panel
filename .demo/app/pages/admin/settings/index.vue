@@ -13,9 +13,10 @@ import { DEFAULT_REPLY_TARGETS, onlinePillText, REPLY_PRIORITIES, replyTargetKey
  *   6 §6 found a hardcoded "15 min" in three components beside a
  *   config-driven pill; `shared/support-eta.ts` is now the single source
  *   both this preview and `/api/config` read, so they cannot disagree.
- * - Credit rules — the credit ceiling (the most staff can approve), the
- *   24-month gate the New Order wizard and `/api/orders` check, and the
- *   first-instalment offset every new plan is built from.
+ * - Credit rules — the credit ceiling (the most staff can approve) and the
+ *   first-instalment offset every new plan is built from. The terms offered
+ *   are a statement, not a switch (ADR-025): interest-free, twelve payments
+ *   at most, ending within twelve months of signing.
  * - Sign-in & security (badge 29) — stated as real numbers read out of
  *   `utils/ratelimit.ts` and the reset endpoint, not the design's
  *   placeholders, and read-only because they are code, not settings.
@@ -65,7 +66,6 @@ const PANEL_DEFAULTS: SettingDef[] = [
   })),
   { key: 'credit.max-limit', label: 'Credit ceiling', type: 'number', default: 20_000, group: 'credit' },
   { key: 'deliverables.hold-until-paid', label: 'Hold deliverables until paid', type: 'boolean', default: false, group: 'credit' },
-  { key: 'finance.enable-24mo-plans', label: '24-month financing', type: 'boolean', default: true, group: 'finance' },
   { key: 'finance.first-installment-days', label: 'First instalment after', type: 'number', default: 30, group: 'finance' },
   { key: 'general.site-name', label: 'Trading name', type: 'text', default: 'Apex Digital Agency', group: 'general' },
   { key: 'general.support-email', label: 'Support email', type: 'text', default: 'support@apexdigi.co.uk', group: 'general' },
@@ -384,39 +384,24 @@ const GHOST_BTN = 'apex-focus inline-flex min-h-11 cursor-pointer items-center r
             </div>
 
             <!--
-              Deliberate deviation. The mockup offers 3 / 6 / 12 / 24 / 36
-              months as a free selection, but ADR-011 fixes the pricing for
-              exactly two terms — 12 months at 0% and 24 months amortised at
-              1%/month — and nothing can price the other three. Offering
-              them would let an owner switch on a term the wizard cannot
-              quote, which is the "control with nothing behind it" this
-              project keeps removing. 12 months is the base product and
-              always available; 24 is the one real toggle, and it is the
-              same setting `/api/orders` checks before accepting the term.
+              The terms are a statement, not a control (ADR-025). The mockup
+              offers 3 / 6 / 12 / 24 / 36 months; the owner's rule is that the
+              instalment plan stays interest-free, at the cash price, with at
+              most twelve payments ending within twelve months of signing. The
+              24-month 1%-a-month plan (ADR-011) is not offered, and the switch
+              that used to sit here is gone: lending at interest is a decision
+              for the owner, outside the console.
             -->
-            <div class="border-muted-200 border-t pt-3.5 dark:border-white/10">
-              <span class="text-muted-900 block text-[13.5px] font-semibold dark:text-white">Instalment terms offered</span>
+            <div class="border-line-subtle border-t pt-3.5">
+              <span class="text-fg-heading block text-[13.5px] font-semibold">Instalment terms offered</span>
               <span class="text-fg-muted mb-2.5 mt-[3px] block text-xs leading-[1.45]">
-                Only terms with locked pricing can be offered (ADR-011). A service can offer a subset of these, never more.
+                Fixed by the business, not a setting.
               </span>
-              <div class="flex flex-wrap items-center gap-2">
-                <span class="bg-primary-500 inline-flex min-h-[42px] items-center rounded-full px-4 text-[13.5px] font-bold text-white">
-                  12 months · 0%
-                </span>
-                <button
-                  type="button"
-                  :aria-pressed="Boolean(values['finance.enable-24mo-plans'])"
-                  class="apex-focus inline-flex min-h-[42px] cursor-pointer items-center rounded-full border px-4 text-[13.5px] transition-colors"
-                  :class="values['finance.enable-24mo-plans']
-                    ? 'border-primary-500 bg-primary-500 font-bold text-white'
-                    : 'border-muted-200 bg-muted-50 font-semibold text-muted-700 hover:bg-muted-100 dark:border-white/10 dark:bg-white/5 dark:text-muted-300 dark:hover:bg-white/10'"
-                  @click="values['finance.enable-24mo-plans'] = !values['finance.enable-24mo-plans']"
-                >
-                  24 months · 1%/mo
-                </button>
-              </div>
+              <span class="bg-accent inline-flex min-h-[42px] items-center rounded-full px-4 text-[13.5px] font-bold text-white">
+                Up to 12 months · 0%
+              </span>
               <p class="text-fg-muted mt-2.5 text-xs leading-[1.45]">
-                12 months is the base product and cannot be switched off — every plan falls back to it.
+                No interest, no fees and the same total as paying in full. Every payment falls due within twelve months of the agreement; if kickoff is late, the remaining dates are brought closer together, never moved later.
               </p>
             </div>
 

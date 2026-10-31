@@ -98,7 +98,7 @@ function fmtDateTime(iso: string | Date) {
 }
 
 // --- Refund modal ---
-const refundTarget = ref<{ id: string, amount: number, user: { email: string } } | null>(null)
+const refundTarget = ref<{ id: string, amount: number, type?: string, user: { email: string } } | null>(null)
 const refundReason = ref('')
 const refunding = ref(false)
 
@@ -112,11 +112,19 @@ async function submitRefund() {
     return
   refunding.value = true
   try {
-    await $fetch('/api/admin/finance/refund', {
+    const done = await $fetch<{ to: 'card' | 'wallet', status: string }>('/api/admin/finance/refund', {
       method: 'POST',
       body: { transactionId: refundTarget.value.id, reason: refundReason.value },
     })
-    toaster.add({ title: 'Refund issued', description: `${formatCurrency(Math.abs(refundTarget.value.amount))} returned to ${refundTarget.value.user.email}'s wallet.`, icon: 'lucide:check', progress: true })
+    const where = done.to === 'card' ? 'the card or account it came from' : `${refundTarget.value.user.email}'s wallet`
+    toaster.add({
+      title: done.status === 'failed' ? 'Refund refused' : 'Refund issued',
+      description: done.status === 'failed'
+        ? 'The provider refused the refund; the money stayed in the client’s wallet.'
+        : `${formatCurrency(Math.abs(refundTarget.value.amount))} ${done.status === 'processing' ? 'is on its way back to' : 'returned to'} ${where}.`,
+      icon: done.status === 'failed' ? 'lucide:alert-triangle' : 'lucide:check',
+      progress: true,
+    })
     refundTarget.value = null
     await Promise.all([refreshTx(), refreshSummary()])
   }
@@ -233,13 +241,23 @@ function txStatusTone(status: string) {
   return s === 'REFUNDED' ? 'neutral' : s === 'FAILED' ? 'danger' : s === 'PENDING' ? 'warning' : 'success'
 }
 
+/**
+ * A top-up goes back to the card through the payment provider (ADR-025); a
+ * payment taken from the wallet goes back to the wallet. The server decides
+ * which by the row, and says so; this only words the question.
+ */
 async function askRefund(t: any) {
+  const toCard = t.type === 'DEPOSIT'
   const reason = await ask({
-    title: `Refund ${formatCurrency(Math.abs(t.amount))} to ${personName(t.user, 'the client')}?`,
-    body: `${t.description || 'Payment'}. The money returns to the client’s wallet now.`,
-    points: [{ tone: 'info', text: 'The payment is marked refunded in the ledger and on the client’s receipts.' }],
+    title: `Refund ${formatCurrency(Math.abs(t.amount))} to ${personName(t.user, 'the client')}${toCard ? '’s card' : ''}?`,
+    body: toCard
+      ? `${t.description || 'Top-up'}. The provider refunds it to the card or account it came from; the amount leaves the client’s wallet now.`
+      : `${t.description || 'Payment'}. The money returns to the client’s wallet now.`,
+    points: [toCard
+      ? { tone: 'info', text: 'Only what is still in the wallet can be refunded. If the provider refuses, the money goes back into the wallet.' }
+      : { tone: 'info', text: 'The payment is marked refunded in the ledger and on the client’s receipts.' }],
     reason: { required: true, label: 'Reason', placeholder: 'e.g. Duplicate charge', hint: 'Stored with the audit entry and shown on the client’s receipt.' },
-    confirmLabel: 'Refund payment',
+    confirmLabel: toCard ? 'Refund to card' : 'Refund payment',
     danger: true,
   })
   if (reason === null) {
@@ -332,7 +350,7 @@ const TAB_CLS = 'apex-ring -mb-px inline-flex h-10 shrink-0 cursor-pointer items
             <span class="text-fg-heading text-end text-sm tabular-nums">{{ txDisplay(t).text }}</span>
             <AdminStatusChip :tone="txStatusTone(t.status)" :status="t.status" dot class="hidden xl:inline-flex" />
             <span class="hidden text-end xl:block">
-              <button v-if="canRefund && t.type === 'PAYMENT' && t.status !== 'REFUNDED'" type="button" class="apex-ring text-accent-ink rounded text-[13px] font-semibold" :disabled="refunding" @click="askRefund(t)">Refund</button>
+              <button v-if="canRefund && ((t.type === 'PAYMENT' && t.status !== 'REFUNDED') || t.type === 'DEPOSIT')" type="button" class="apex-ring text-accent-ink rounded text-[13px] font-semibold" :disabled="refunding" @click="askRefund(t)">{{ t.type === 'DEPOSIT' ? 'Refund to card' : 'Refund' }}</button>
             </span>
           </li>
         </ul>

@@ -2,6 +2,7 @@ import { defineEventHandler } from 'h3'
 import { creditRef } from '../../../../../shared/credit'
 import { can } from '../../../../../shared/permissions'
 import { creditLimit } from '../../../../utils/credit'
+import { lendingFlags } from '../../../../utils/lending'
 import { requireStaffPermission } from '../../../../utils/permissions'
 import prisma from '../../../../utils/prisma'
 
@@ -47,6 +48,8 @@ export default defineEventHandler(async (event) => {
 
   return {
     canDecide: can((staff.staffRole ?? 'owner') as Parameters<typeof can>[0], 'credit.approve'),
+    // Approving is behind the credit-decisions switch (ADR-025); declining is not.
+    approvalsEnabled: lendingFlags().creditDecisions,
     ceiling,
     waiting: waiting.map(shape),
     decided: decided.map(shape),

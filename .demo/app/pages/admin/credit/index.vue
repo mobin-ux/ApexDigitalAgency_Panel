@@ -36,6 +36,8 @@ const waiting = computed<any[]>(() => data.value?.waiting ?? [])
 const decided = computed<any[]>(() => data.value?.decided ?? [])
 const lines = computed<any[]>(() => data.value?.lines ?? [])
 const canDecide = computed(() => Boolean(data.value?.canDecide))
+/** The credit-decisions switch (ADR-025): off, approvals and widening a line are refused. */
+const approvalsEnabled = computed(() => Boolean(data.value?.approvalsEnabled))
 const ceiling = computed(() => Number(data.value?.ceiling ?? 0))
 
 const committed = computed(() => lines.value.reduce((n, l) => n + (l.used ?? 0), 0))
@@ -269,14 +271,17 @@ const GRID = 'xl:grid-cols-[96px_minmax(0,1fr)_110px_190px_150px_130px]'
                   <label :for="`lim-${app.id}`" :class="ADMIN_LABEL">Limit (£)</label>
                   <input :id="`lim-${app.id}`" v-model.number="limits[app.id]" type="number" min="500" :max="ceiling || undefined" step="100" :class="ADMIN_INPUT">
                 </div>
-                <AdminButton variant="primary" :disabled="busy === app.id" @click="askDecide(app, 'approve')">
+                <AdminButton v-if="approvalsEnabled" variant="primary" :disabled="busy === app.id" @click="askDecide(app, 'approve')">
                   Approve
                 </AdminButton>
                 <AdminButton variant="danger-text" :disabled="busy === app.id" @click="askDecide(app, 'decline')">
                   Decline
                 </AdminButton>
               </div>
-              <span class="text-fg-muted text-[12.5px]">The most any line can be is {{ formatCurrency(ceiling) }}, set in Platform settings.</span>
+              <span v-if="approvalsEnabled" class="text-fg-muted text-[12.5px]">The most any line can be is {{ formatCurrency(ceiling) }}, set in Platform settings.</span>
+              <span v-else class="text-fg-body text-[12.5px] leading-[1.55]">
+                Approving credit is switched off until the owner confirms the lending position. You can decline, or leave the application waiting.
+              </span>
             </template>
             <span v-else class="text-fg-muted text-[12.5px]">Deciding needs Owner or Admin.</span>
           </section>
@@ -461,7 +466,7 @@ const GRID = 'xl:grid-cols-[96px_minmax(0,1fr)_110px_190px_150px_130px]'
             <template v-if="canDecide">
               <template v-if="editing === l.id">
                 <label :for="`nl-${l.id}`" class="sr-only">New limit</label>
-                <input :id="`nl-${l.id}`" v-model.number="newLimit" type="number" min="0" step="100" :class="ADMIN_INPUT" class="w-[130px]!">
+                <input :id="`nl-${l.id}`" v-model.number="newLimit" type="number" min="0" :max="approvalsEnabled ? undefined : l.limit" step="100" :title="approvalsEnabled ? undefined : 'Lowering only, while approving credit is switched off'" :class="ADMIN_INPUT" class="w-[130px]!">
                 <AdminButton size="sm" variant="primary" :disabled="busy === l.id" @click="lineAction(l, 'adjust')">
                   Save
                 </AdminButton>
@@ -473,9 +478,10 @@ const GRID = 'xl:grid-cols-[96px_minmax(0,1fr)_110px_190px_150px_130px]'
                 <AdminButton size="sm" @click="editing = l.id; newLimit = l.limit">
                   Change limit
                 </AdminButton>
-                <AdminButton size="sm" :variant="l.status === 'FROZEN' ? 'light' : 'danger-text'" :disabled="busy === l.id" @click="askLine(l, l.status === 'FROZEN' ? 'unfreeze' : 'freeze')">
+                <AdminButton v-if="l.status !== 'FROZEN' || approvalsEnabled" size="sm" :variant="l.status === 'FROZEN' ? 'light' : 'danger-text'" :disabled="busy === l.id" @click="askLine(l, l.status === 'FROZEN' ? 'unfreeze' : 'freeze')">
                   {{ l.status === 'FROZEN' ? 'Release' : 'Put on hold' }}
                 </AdminButton>
+                <span v-else class="text-fg-muted text-[12px]">Release needs approving credit switched on</span>
               </template>
             </template>
           </li>

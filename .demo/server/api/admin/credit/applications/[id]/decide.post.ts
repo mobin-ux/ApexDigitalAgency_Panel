@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { creditRef } from '../../../../../../shared/credit'
 import { recordAudit } from '../../../../../utils/audit'
 import { creditLimit } from '../../../../../utils/credit'
+import { requireCreditDecisions } from '../../../../../utils/lending'
 import { requireStaffPermission } from '../../../../../utils/permissions'
 import prisma from '../../../../../utils/prisma'
 import { validateBody } from '../../../../../utils/validate'
@@ -14,6 +15,9 @@ import { validateBody } from '../../../../../utils/validate'
  * is claimed with a conditional update, so a decision racing a withdrawal (or
  * a second reviewer) settles once. The note is internal: it goes to the audit
  * log and the admin screen, never to the customer.
+ *
+ * Approving is behind the credit-decisions switch (ADR-025), off until the
+ * owner confirms the lending position; declining is always allowed.
  */
 const bodySchema = z.object({
   action: z.enum(['approve', 'decline']),
@@ -25,6 +29,9 @@ export default defineEventHandler(async (event) => {
   const admin = await requireStaffPermission(event, 'credit.approve')
   const id = getRouterParam(event, 'id')
   const { action, limit, note } = await validateBody(event, bodySchema)
+  if (action === 'approve') {
+    requireCreditDecisions()
+  }
 
   const app = await prisma.creditApplication.findUnique({ where: { id } })
   if (!app) {

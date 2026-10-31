@@ -49,6 +49,19 @@ ADR-025. Phases: 0 restore (done) · 1 staff auth · 2 money guardrails ·
 - **Owner's decision (2026-11-01) for Phase 2:** a 12-payment plan whose
   last payment would land past 12 months from signing gets its dates
   **compressed** to fit (the owner chose this over blocking late kickoff).
+- **Phase 2 done (money guardrails, ADR-025 §Money guardrails):** fixed
+  plans ≤ 12 payments (editor 400; old stored catalogues clamped in
+  `paymentCount`); `planDueDates()` compresses dates to end by
+  `Project.signedAt` + 12 months, used by kickoff, charges, waivers and both
+  schedules; agreement `apex-msa-2026-11` states it; lending switches
+  `NUXT_LENDING_INTEREST_BEARING_PLANS` / `NUXT_LENDING_CREDIT_DECISIONS`
+  (env only, off); the Platform-settings 24-month switch removed; wallet
+  adjust route removed; signed project value locked (409); top-up refunds via
+  `refundTopUp` (provider API, wallet debited first, `reverseRefund` on
+  refusal). Tests: `plan-limits.test.ts` (9 unit), `money-guardrails.test.ts`
+  (7 API, back-dates `Project.signedAt` through Prisma). Unit 37/37, API
+  25/25, tsc 46. **Gap:** direct-debit collections cannot be refunded from
+  the panel (409 pointing at the provider).
 - **Test harness gotchas:** API suites now run `--test-concurrency=1` (they
   share accounts; parallel enrolment overwrote each other's pending secret);
   the harness keeps the dev owner's TOTP secret, last step and cookie in

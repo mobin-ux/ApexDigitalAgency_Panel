@@ -1,6 +1,7 @@
 import type { PaymentIntent } from '@prisma/client'
 import type { Capability, CustomerRef, NormalisedEvent, ProviderName } from './types'
 import { randomBytes, randomUUID } from 'node:crypto'
+import { createError } from 'h3'
 import { createLogger } from '../utils/logger'
 import { deliverNow } from '../utils/mail/outbox'
 import { assertValidMinor, toMajor } from '../utils/money'
@@ -8,6 +9,7 @@ import { notify } from '../utils/notify'
 import prisma from '../utils/prisma'
 import {
   installmentChargeLines,
+  payoutLines,
   postJournal,
   walletTopUpLines,
 } from './ledger'
@@ -282,6 +284,108 @@ export async function failIntent(intentId: string, failure: { code?: string, mes
   return true
 }
 
+// ---------------------------------------------------------------------------
+// Refunds of card top-ups (ADR-025)
+// ---------------------------------------------------------------------------
+
+/**
+ * Refund a wallet top-up to the card or account it came from, through the
+ * provider that took it — never by editing a payment record. The money the
+ * top-up added is taken back out of the wallet in the same transaction that
+ * records the Refund, the customer's ledger row and the journal, so a
+ * customer who has already spent it cannot be refunded twice over; only what
+ * is still in the wallet can go back. The provider is called after the
+ * commit with the Refund's id as its idempotency key. If it refuses, now or
+ * later by webhook, `reverseRefund` puts the money back in the wallet once.
+ */
+export async function refundTopUp(input: { intentId: string, amount?: number, reason: string, actorId: string }): Promise<{ refundId: string, status: string, amount: number }> {
+  const intent = await prisma.paymentIntent.findUnique({ where: { id: input.intentId }, include: { refunds: true } })
+  if (!intent || intent.purpose !== 'wallet_topup') {
+    throw createError({ statusCode: 404, message: 'Top-up not found' })
+  }
+  if (intent.status !== 'succeeded' || !intent.providerIntentId) {
+    throw createError({ statusCode: 409, message: 'Only a completed top-up can be refunded.' })
+  }
+  const provider = getProviderByName(intent.provider as ProviderName)
+  if (!provider?.capabilities.includes('refund') || !provider.refund) {
+    throw createError({ statusCode: 409, message: `The ${intent.provider} rail cannot refund this payment. Refund it from the provider's dashboard and record it here as an adjustment.` })
+  }
+  const already = intent.refunds.filter(r => r.status !== 'failed').reduce((n, r) => n + r.amount, 0)
+  const left = intent.amount - already
+  const amount = input.amount ?? left
+  if (!Number.isInteger(amount) || amount <= 0 || amount > left) {
+    throw createError({ statusCode: 400, message: left > 0 ? `At most £${toMajor(left, intent.currency).toFixed(2)} of this top-up can still be refunded.` : 'This top-up has already been refunded in full.' })
+  }
+  assertValidMinor(amount)
+  const major = toMajor(amount, intent.currency)
+
+  const refund = await prisma.$transaction(async (tx) => {
+    const debited = await tx.user.updateMany({
+      where: { id: intent.userId, walletBalance: { gte: major } },
+      data: { walletBalance: { decrement: major } },
+    })
+    if (debited.count === 0) {
+      throw createError({ statusCode: 409, message: 'The customer has spent part of this top-up: only what is still in their wallet can be refunded. Lower the amount.' })
+    }
+    const row = await tx.refund.create({
+      data: { provider: intent.provider, amount, reason: input.reason, status: 'processing', paymentIntentId: intent.id, initiatedById: input.actorId },
+    })
+    await tx.transaction.create({
+      data: { userId: intent.userId, amount: -major, type: 'REFUND', description: `Refund to your card — ${intent.reference}` },
+    })
+    await postJournal({ tx, description: `Refund of top-up ${intent.reference}`, paymentIntentId: intent.id, currency: intent.currency, lines: payoutLines({ userId: intent.userId, amount }) })
+    return row
+  })
+
+  try {
+    const result = await provider.refund({ providerIntentId: intent.providerIntentId, amount, reason: input.reason, idempotencyKey: refund.id })
+    if (result.status === 'failed') {
+      await reverseRefund(refund.id, result.failureMessage ?? 'The provider refused the refund.')
+      return { refundId: refund.id, status: 'failed', amount }
+    }
+    await prisma.refund.update({ where: { id: refund.id }, data: { providerRefundId: result.providerRefundId, status: result.status } })
+    return { refundId: refund.id, status: result.status, amount }
+  }
+  catch (error) {
+    log.warn('refund call failed; returning the money to the wallet', { refundId: refund.id, error: (error as Error).message })
+    await reverseRefund(refund.id, 'The provider could not be reached.')
+    throw createError({ statusCode: 502, message: 'The payment provider did not accept the refund. Nothing was refunded and the wallet is as it was.' })
+  }
+}
+
+/**
+ * A refund the provider refused: claim it (processing → failed) and put the
+ * money back in the wallet, once, whether the refusal came from the call
+ * itself or from a later webhook.
+ */
+export async function reverseRefund(refundId: string, why: string): Promise<boolean> {
+  return prisma.$transaction(async (tx) => {
+    const claimed = await tx.refund.updateMany({ where: { id: refundId, status: 'processing' }, data: { status: 'failed', reason: undefined } })
+    if (claimed.count === 0) {
+      return false
+    }
+    const refund = await tx.refund.findUniqueOrThrow({ where: { id: refundId }, include: { paymentIntent: true } })
+    const intent = refund.paymentIntent
+    const major = toMajor(refund.amount, intent.currency)
+    await tx.user.update({ where: { id: intent.userId }, data: { walletBalance: { increment: major } } })
+    await tx.transaction.create({
+      data: { userId: intent.userId, amount: major, type: 'REFUND', description: `Refund to your card did not go through — returned to your wallet (${intent.reference})` },
+    })
+    await postJournal({
+      tx,
+      description: `Failed refund of top-up ${intent.reference}: ${why}`.slice(0, 200),
+      paymentIntentId: intent.id,
+      currency: intent.currency,
+      lines: [
+        { account: 'PROVIDER_CLEARING', direction: 'DEBIT', amount: refund.amount, userId: intent.userId },
+        { account: 'USER_WALLET', direction: 'CREDIT', amount: refund.amount, userId: intent.userId },
+      ],
+    })
+    log.warn('refund reversed', { refundId, why })
+    return true
+  })
+}
+
 /**
  * Translate a verified webhook into state changes. Pure dispatch — every
  * branch is idempotent, so replaying the stored payload is always safe.
@@ -315,18 +419,20 @@ export async function applyWebhookEvent(provider: ProviderName, event: Normalise
     case 'refund.succeeded': {
       if (event.providerRefundId) {
         await prisma.refund.updateMany({
-          where: { provider, providerRefundId: event.providerRefundId },
+          where: { provider, providerRefundId: event.providerRefundId, status: 'processing' },
           data: { status: 'succeeded' },
         })
       }
       break
     }
     case 'refund.failed': {
+      // The wallet was debited when the refund was asked for; a refusal puts
+      // the money back, once (reverseRefund claims processing → failed).
       if (event.providerRefundId) {
-        await prisma.refund.updateMany({
-          where: { provider, providerRefundId: event.providerRefundId },
-          data: { status: 'failed' },
-        })
+        const refund = await prisma.refund.findFirst({ where: { provider, providerRefundId: event.providerRefundId } })
+        if (refund) {
+          await reverseRefund(refund.id, 'The provider reported the refund as failed.')
+        }
       }
       break
     }

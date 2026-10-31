@@ -25,6 +25,7 @@
  *   "advance" moves — and progress is recomputed from it, so the bar and
  *   the timeline cannot disagree.
  */
+import { planDeadline, planDueDates, underPlanLimit } from '~~/shared/catalog'
 import { isStaffRole, ROLES } from '~~/shared/permissions'
 import { orderRef } from '~~/shared/refs'
 import { ukDateTime } from '~/utils/adminFormat'
@@ -450,6 +451,8 @@ async function assignTo(staffId: string | null) {
 /* ------------------------------------------------------ details form --- */
 
 const form = reactive({ name: '', category: '', amount: 0, progress: 0, status: 'PENDING', deadline: '', managerId: '' })
+/** A signed agreement fixes the project's value; the server refuses a change (ADR-025). */
+const valueFixed = computed(() => Boolean((project.value as any)?.signedAt || (project.value as any)?.contract))
 const saving = ref(false)
 
 watch(project, (p) => {
@@ -476,8 +479,9 @@ async function saveDetails() {
       body: {
         name: form.name,
         category: form.category,
-        // The contract value is money; a role without it never sends one.
-        ...(canMoney.value ? { amount: form.amount } : {}),
+        // The contract value is money; a role without it never sends one, and
+        // a signed agreement fixes it (ADR-025), so it is not sent then either.
+        ...(canMoney.value && !valueFixed.value ? { amount: form.amount } : {}),
         progress: form.progress,
         status: form.status,
         deadline: form.deadline || null,
@@ -668,20 +672,25 @@ const facts = computed(() => {
   return rows
 })
 
-/** The instalment schedule: paid rows from the ledger count, the rest from `nextDue`. */
+/**
+ * The instalment schedule: paid rows from the ledger count, the rest from
+ * `nextDue` through `planDueDates`, the rule the server charges by — a month
+ * apart, or closer together when the plan must end within twelve months of
+ * signing (ADR-025).
+ */
 const schedule = computed(() => {
   const pl = plan.value
   if (!pl) {
     return []
   }
+  const deadline = p.value?.signedAt && underPlanLimit(pl) ? planDeadline(new Date(p.value.signedAt)) : null
+  const dates = planDueDates(new Date(pl.nextDue), Math.max(0, pl.monthsTotal - pl.monthsPaid), deadline)
   return Array.from({ length: pl.monthsTotal }, (_, k) => {
     const paid = k < pl.monthsPaid
     const isNext = k === pl.monthsPaid && Boolean(p.value?.kickoffPaidAt)
     let due = 'After kickoff'
     if (p.value?.kickoffPaidAt && !paid) {
-      const d = new Date(pl.nextDue)
-      d.setMonth(d.getMonth() + (k - pl.monthsPaid))
-      due = ukDate(d)
+      due = ukDate(dates[k - pl.monthsPaid]!)
     }
     else if (paid) {
       due = 'Collected'
@@ -1238,7 +1247,10 @@ const TAB_CLS = 'apex-ring -mb-px inline-flex h-10 shrink-0 cursor-pointer items
             </div>
             <div v-if="canMoney">
               <label for="pd-amount" :class="ADMIN_LABEL">Contract value (GBP)</label>
-              <input id="pd-amount" v-model.number="form.amount" type="number" min="0" step="0.01" :class="ADMIN_INPUT">
+              <input id="pd-amount" v-model.number="form.amount" type="number" min="0" step="0.01" :readonly="valueFixed" :aria-describedby="valueFixed ? 'pd-amount-fixed' : undefined" :class="ADMIN_INPUT">
+              <p v-if="valueFixed" id="pd-amount-fixed" class="text-fg-muted mt-1 text-[12px]">
+                Fixed by the signed agreement.
+              </p>
             </div>
             <div>
               <span :class="ADMIN_LABEL">Stage</span>

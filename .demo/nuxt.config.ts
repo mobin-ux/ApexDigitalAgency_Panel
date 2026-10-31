@@ -153,6 +153,20 @@ export default defineNuxtConfig({
 
   runtimeConfig: {
     /**
+     * Lending switches (ADR-025), off unless the owner turns them on in the
+     * environment after taking advice — never from the admin console:
+     * - `interestBearingPlans` (NUXT_LENDING_INTEREST_BEARING_PLANS): the
+     *   legacy 24-month plan at 1% a month (ADR-011). Off: no such plan can
+     *   be created. Plans already signed keep being collected as agreed.
+     * - `creditDecisions` (NUXT_LENDING_CREDIT_DECISIONS): approving a credit
+     *   application, raising a line's limit or unfreezing it. Off: staff can
+     *   still decline, freeze and lower; customers can still apply.
+     */
+    lending: {
+      interestBearingPlans: false,
+      creditDecisions: false,
+    },
+    /**
      * Server-only secret used to sign/verify the `auth_token` JWT.
      * Override with NUXT_JWT_SECRET in any real environment; the fallback
      * chain only exists so local dev logins keep working out of the box.

@@ -146,8 +146,20 @@ export function hashAgreement(text: string): string {
  * monthly payments (with a deposit only where the catalogue sets one), a
  * retainer with a minimum term, or fixed-price discovery. Kept beside the 2026-08 text rather than replacing it, because a
  * contract signed under that version must stay reproducible word for word.
+ *
+ * 2026-11 (ADR-025): monthly plans state the twelve-month limit and what a
+ * late kickoff does to the dates. Contracts store their own text, so those
+ * signed under 2026-10 keep the words they were signed with.
  */
-export const AGREEMENT_VERSION_V2 = 'apex-msa-2026-10'
+export const AGREEMENT_VERSION_V2 = 'apex-msa-2026-11'
+
+/** The twelve-month limit, as a fixed plan's agreement states it (ADR-025). */
+const PLAN_LIMIT_LINES = [
+  `  Every payment falls due within twelve months of the date you sign this`,
+  `  agreement. If kickoff happens later than planned, the remaining dates`,
+  `  are brought closer together so the last still falls within those`,
+  `  twelve months; the amounts do not change and no charge is added.`,
+]
 
 export interface AgreementInputV2 {
   agencyName: string
@@ -186,6 +198,7 @@ export function buildAgreementTextV2(input: AgreementInputV2): string {
       `  is collected after the kickoff call and the rest on the 1st of each`,
       `  month, starting at least fourteen days after the first.`,
       `  Total, all in: ${gbp(total)}. No interest is charged.`,
+      ...PLAN_LIMIT_LINES,
     ]
   }
   else if (kind === 'fixed') {
@@ -194,6 +207,7 @@ export function buildAgreementTextV2(input: AgreementInputV2): string {
       `  ${payments} monthly payments of ${gbp(monthly)}, the first on the 1st of a`,
       `  month at least fourteen days after the deposit.`,
       `  Total, all in: ${gbp(total)}. No interest is charged.`,
+      ...PLAN_LIMIT_LINES,
     ]
   }
   else if (kind === 'retainer') {
