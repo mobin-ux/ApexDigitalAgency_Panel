@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /**
- * The site-wide announcement (ADR-021): one line above the header, from the
- * published `announcement` document. It renders only when the document is
+ * The site-wide announcement: one line above the header, from the
+ * `announcement` document in the code baseline. It renders only when it is
  * on, has text and is inside its window; a reader can dismiss it for this
  * browser, and a different message shows again. The decision to show is
  * made on the server from the document alone, so the server and the first

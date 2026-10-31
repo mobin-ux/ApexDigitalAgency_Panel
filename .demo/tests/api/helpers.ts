@@ -10,11 +10,8 @@ import process from 'node:process'
  *
  * Without `CMS_TEST_URL` every suite skips rather than failing, so the unit
  * runner stays green on a machine with no server up. The owner and the
- * customer are the dev accounts `/api/create-admin` seeds; a staff account
- * for any other role is created on first use through the real invite flow
- * (`cms-test-<role>@example.test`), which is also the test that acceptance
- * grants exactly the invited role. Those accounts live only in the local
- * database, which is never committed.
+ * customer are the dev accounts `/api/create-admin` seeds; they live only
+ * in the local database, which is never committed.
  */
 
 export const BASE = (process.env.CMS_TEST_URL ?? '').replace(/\/$/, '')
@@ -111,41 +108,3 @@ export const DEV_ACCOUNTS = {
   owner: { identifier: 'admin@apex.com', password: 'admin123' },
   customer: { identifier: 'user@apex.com', password: 'user123' },
 } as const
-
-/** Throwaway local accounts, one per staff role, created through the invite flow on first use. */
-const TEST_STAFF_PASSWORD = process.env.CMS_TEST_STAFF_PASSWORD ?? 'cms-test-staff-password'
-
-export function staffEmailFor(role: string): string {
-  return `cms-test-${role}@example.test`
-}
-
-/**
- * The owner invites the role and the invite is accepted through the real
- * endpoints: role and email come from the invite row, never the request.
- */
-export async function inviteAndAccept(owner: Client, role: string, email = staffEmailFor(role), password = TEST_STAFF_PASSWORD): Promise<Client> {
-  const invite = await owner.json<{ acceptUrl?: string }>('/api/admin/team/invites', {
-    method: 'POST',
-    json: { email, name: `CMS test ${role}`, role },
-  })
-  if (invite.status !== 200 && invite.status !== 201) {
-    throw new HarnessError(`invite as ${role} answered ${invite.status}: ${JSON.stringify(invite.body)}`)
-  }
-  const token = new URL(invite.body.acceptUrl ?? '', BASE).searchParams.get('token')
-  if (!token) {
-    throw new HarnessError('invite response carried no token')
-  }
-  const accept = await client().json('/api/auth/accept-invite', { method: 'POST', json: { token, password } })
-  if (accept.status !== 200) {
-    throw new HarnessError(`accept-invite answered ${accept.status}: ${JSON.stringify(accept.body)}`)
-  }
-  return login(email, password)
-}
-
-/** A signed-in client for a staff role: the existing test account, or a freshly invited one. */
-export async function staffClient(owner: Client, role: string): Promise<Client> {
-  if (role === 'owner') {
-    return owner
-  }
-  return (await tryLogin(staffEmailFor(role), TEST_STAFF_PASSWORD)) ?? inviteAndAccept(owner, role)
-}

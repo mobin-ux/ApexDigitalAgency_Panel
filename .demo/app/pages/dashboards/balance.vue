@@ -60,7 +60,7 @@ const creditPct = computed(() => {
 })
 // The design's three states — not set up, under review, approved — plus on
 // hold, when staff freeze a line. Credit is applied for from the Wallet
-// (`?credit=apply`) and decided in /admin/credit.
+// (`?credit=apply`) and decided by staff.
 const creditState = computed(() => credit.value?.state ?? 'none')
 const creditChip = computed(() => creditState.value === 'frozen'
   ? { label: 'On hold', tone: 'warning' as const }

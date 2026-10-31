@@ -18,7 +18,7 @@ if (!loader) {
 const loaded = await loader
 // The CMS overlay covers the hero copy, the questions, the closing panel and
 // the search listing; plans, prices, process and proof stay in the catalogue.
-const cms = useCmsRecord('service', routes.service(loaded.slug), serviceBaseline(loaded))
+const cms = useCmsRecord('service', serviceBaseline(loaded))
 const page = {
   ...loaded,
   hero: { ...loaded.hero, ...cms.value.hero },

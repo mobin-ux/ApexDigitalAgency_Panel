@@ -19,7 +19,7 @@ if (!found) {
   throw createError({ statusCode: 404, statusMessage: 'Page not found', fatal: true })
 }
 // The overlay covers the written-up title, lead and search listing; figures and chapters stay in the catalogue.
-const cms = useCmsRecord('case-study', routes.caseStudy(found.slug), caseStudyBaseline(found))
+const cms = useCmsRecord('case-study', caseStudyBaseline(found))
 const study = found.story
   ? { ...found, story: { ...found.story, title: cms.value.title, lead: cms.value.lead, seo: { title: cms.value.seo.title, description: cms.value.seo.description } } }
   : found

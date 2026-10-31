@@ -4,7 +4,7 @@ import process from 'node:process'
 import { describe, it } from 'node:test'
 import { absoluteUrl, escapeHtml, renderHtml, renderText } from '../../server/utils/mail/render.ts'
 import { MAX_ATTEMPTS, nextAttemptFor } from '../../server/utils/mail/schedule.ts'
-import { notificationMail, passwordResetMail, staffInviteMail } from '../../server/utils/mail/templates.ts'
+import { notificationMail, passwordResetMail } from '../../server/utils/mail/templates.ts'
 
 /**
  * The renderer, the retry schedule and the templates, without Nuxt or a
@@ -87,13 +87,5 @@ describe('templates', () => {
     const text = renderText(draft.content)
     assert.match(text, /expires in 60 minutes/)
     assert.match(text, /your password has not changed/)
-  })
-
-  it('an invite email names the inviter, the role and the expiry date', () => {
-    const draft = staffInviteMail(brand, { name: 'Leah', role: 'Editor', inviter: 'Priya', url: 'https://panel.example.test/auth/accept-invite?token=t', expiresAt: new Date('2026-11-04T12:00:00Z') })
-    const text = renderText(draft.content)
-    assert.match(draft.subject, /Priya invited you/)
-    assert.match(text, /as Editor/)
-    assert.match(text, /4 November 2026/)
   })
 })

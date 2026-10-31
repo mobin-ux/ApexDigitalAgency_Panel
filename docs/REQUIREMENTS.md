@@ -19,10 +19,14 @@ implementation. Hard rules live in CLAUDE.md; rationale in docs/decisions/.
       duration, financing breakdown, payment schedule
 - [x] Complete and submit orders directly in the platform (e-sign → POST /api/orders)
 
-### 1b. Website management (2026-10-28, ADR-021)
+### 1b. Website management (2026-10-28, ADR-021) — removed 2026-10-31
 
-The panel is also the content system for the public website. Staff with the
-website roles must be able to:
+> **Withdrawn (ADR-024).** The owner removed the admin console and the
+> website CMS; the site's copy is edited in code. The list below records
+> what was built and is no longer in the product.
+
+The panel was also the content system for the public website. Staff with the
+website roles could:
 
 - [x] Edit every page's copy (home, services, each service, our work, each
       case study, insights, each article, about, contact), the menus, the
@@ -87,8 +91,9 @@ generation, drag-and-drop page building, email notifications, a CDN.
 ## 5. Security requirements
 
 - Every customer page: `middleware: 'auth'`; every customer API route verifies the
-  JWT via `requireAuth(event)`; **every admin API route uses
-  `requireStaffPermission(event, '<permission>')`** — the coarse `Role` gate plus
+  JWT via `requireAuth(event)`; **every staff-only read uses
+  `requireStaffPermission(event, '<permission>')`** (there is no admin API since
+  ADR-024) — the coarse `Role` gate plus
   one of seventeen staff permissions, both checked DB-fresh (ADR-013, ADR-016).
   Bad/expired tokens → clean 401, never 500; an insufficient role → 403 naming
   the roles that do hold the permission.
@@ -157,7 +162,7 @@ generation, drag-and-drop page building, email notifications, a CDN.
 | No invoice model/endpoint | invoices requirement (§1) |
 | Unread-message counts per project | unread chips in My Orders list (designed, hidden) |
 | ~~Broken seeds (`seed-rich`, `seed-wallet`)~~ fixed (schema-valid, dev-gated); `prisma/seed.js` still stale | realistic local test data |
-| ~~Admin UI pages~~ **done** — all 7 modules at `/admin/**` (overview, users, projects, payments, tickets, settings, tools) on the `/api/admin/**` backend (ADR-013) | — |
+| ~~Admin UI pages~~ built, then **removed 2026-10-31** (ADR-024): staff have no screen to answer requests, decide credit, collect kickoff or release files | a staff tool, if one is wanted again |
 | ~~No mail provider: staff invites, password resets and notifications cannot be emailed~~ **done** (ADR-022, 2026-10-28): Resend over REST behind a durable outbox; invites, resets, a soft verification link and every notification are emailed, with one switch per account and an Email screen for failures. Delivery needs the sender's domain verified in Resend (its records go into the Cloudflare zone, ADR-023); until then the keys stay unset and every screen says what did not go | a verified sending domain |
 | ~~No `DeliverableRelease` model~~ **done** (ADR-017): releasing and withholding project files is real, the platform rule governs it, and the audit log's Files bucket is populated. Clients can now upload to their order (Panel v2, `/api/uploads`); **still missing: a staff uploader** — deliverable `ProjectFile` rows arrive by seed or direct record | an uploader for project deliverables |
 | Instalment pricing is fixed to 12 and 24 months (ADR-011), so the platform cannot offer the design's 3/6/36-month terms | a per-service term catalogue (Phase 9 Support & Catalogue, badge 21) |

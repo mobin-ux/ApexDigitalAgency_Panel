@@ -1,16 +1,15 @@
 import type { Client } from './helpers.ts'
 import assert from 'node:assert/strict'
 // eslint-disable-next-line test/no-import-node-test -- node --test is the runner (ADR-021)
-import { before, describe, it } from 'node:test'
-import { BASE, client, DEV_ACCOUNTS, enabled, login, resetRateLimits } from './helpers.ts'
+import { describe, it } from 'node:test'
+import { client, enabled, login, resetRateLimits } from './helpers.ts'
 
 /**
  * The account emails (ADR-022) on a dev server with no mail key: every
  * flow queues its message, and the test reads the link from the queued
  * text through the dev-only capture endpoint instead of the console,
  * which no longer prints it. Signup → verification link → verified;
- * reset request → link → new password → sign in; invite → the answer
- * says the email did not go and still carries the link.
+ * reset request → link → new password → sign in.
  */
 interface MailRow {
   id: string
@@ -55,11 +54,6 @@ describe('account emails', { skip: !enabled && 'CMS_TEST_URL is not set', timeou
   const email = `verify-${stamp}@example.test`
   const password = `Signup-${stamp}-pass`
   let customer: Client
-  let owner: Client
-
-  before(async () => {
-    owner = await login(DEV_ACCOUNTS.owner.identifier, DEV_ACCOUNTS.owner.password)
-  })
 
   it('signing up with an email queues a verification link that confirms the address once', async () => {
     const res = await client().fetch('/api/auth/signup', { method: 'POST', json: { identifier: email, password, name: 'Verify Tester' } })
@@ -122,31 +116,5 @@ describe('account emails', { skip: !enabled && 'CMS_TEST_URL is not set', timeou
     assert.equal(silent.status, 200)
     assert.deepEqual(silent.body, asked.body)
     assert.equal((await mailFor(unknown)).length, 0)
-  })
-
-  it('an invite is emailed through the outbox and the answer says whether it went; the link still works by hand', async () => {
-    const invitee = `invite-${stamp}@example.test`
-    const created = await owner.json<any>('/api/admin/team/invites', { method: 'POST', json: { name: 'Invite Tester', email: invitee, role: 'editor' } })
-    assert.equal(created.status, 200, JSON.stringify(created.body))
-    assert.match(created.body.acceptUrl, /^\/auth\/accept-invite\?token=/)
-    assert.equal(created.body.mail.status, 'FAILED', 'with no key the panel must not claim it was emailed')
-    assert.equal(created.body.mail.error, 'Mail is not configured')
-
-    const rows = await mailFor(invitee)
-    const invite = rows.find(r => r.kind === 'staff-invite')
-    assert.ok(invite, 'the invite email was queued')
-    assert.match(invite.text, /invited you to the .* panel as Editor/)
-    const token = linkIn(invite.text, '/auth/accept-invite')
-    assert.equal(created.body.acceptUrl, `/auth/accept-invite?token=${token}`, 'the emailed link is the returned link')
-
-    const resent = await owner.json<any>(`/api/admin/team/invites/${created.body.invite.id}/resend`, { method: 'POST' })
-    assert.equal(resent.status, 200, JSON.stringify(resent.body))
-    assert.notEqual(resent.body.acceptUrl, created.body.acceptUrl, 'resend mints a new token')
-    assert.equal(resent.body.mail.status, 'FAILED')
-    assert.equal((await mailFor(invitee)).filter(r => r.kind === 'staff-invite').length, 2)
-
-    const withdrawn = await owner.json<any>(`/api/admin/team/invites/${created.body.invite.id}`, { method: 'DELETE' })
-    assert.equal(withdrawn.status, 200)
-    assert.ok(BASE)
   })
 })

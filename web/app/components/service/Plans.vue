@@ -10,16 +10,14 @@ import { formatGbp } from '~/utils/format'
  *
  * - `terms`: instalment plans with a 12 / 6-month switch. The prerendered HTML
  *   carries the standard term, and every figure comes from the catalogue, so
- *   the switch can never show a sum that does not add up. "Start your order"
- *   opens the panel's New Order wizard with the plan and term.
- * - `monthly`: one monthly figure per plan. The panel does not sell these
- *   plans yet, so "Start your order" opens the contact form with the plan
- *   named, as the design specifies.
+ *   the switch can never show a sum that does not add up.
+ * - `monthly`: one monthly figure per plan.
+ *
+ * In both, "Start your order" opens the contact form with the plan named.
  * - `scoping`: no price list; the steps from a free call to a quoted build.
  */
 const props = defineProps<{ page: ServicePageContent }>()
 
-const panel = usePanelLinks()
 const { contact } = useServiceLinks(props.page.slug)
 const plans = props.page.plans
 const term = ref<PlanTerm>(defaultPlanTerm)
@@ -40,7 +38,7 @@ const cards = computed<PlanCardView[]>(() => {
         price: monthly,
         detail: `${formatGbp(plan.deposit)} deposit, then ${term.value} × ${monthly}`,
         chip: `Total ${formatGbp(planTotal(plan, term.value))} inc. VAT · 0% interest`,
-        order: { href: panel.orderFor(props.page.slug, { plan: card.id, term: term.value }) },
+        order: { to: contact(card.id) },
         orderContext: `${plan.name}, ${term.value} months`,
       }
     })
@@ -58,9 +56,9 @@ const cards = computed<PlanCardView[]>(() => {
   return []
 })
 
-// The comparison table's footer links, at the selected term.
+// The comparison table's footer links.
 const compareOrders = computed(() => Object.fromEntries(
-  cards.value.map(card => [card.id, 'href' in card.order ? card.order.href : card.order.to]),
+  cards.value.map(card => [card.id, card.order.to]),
 ) as Record<PlanId, string>)
 
 // Retainers are governed by the general terms; anything paid in instalments

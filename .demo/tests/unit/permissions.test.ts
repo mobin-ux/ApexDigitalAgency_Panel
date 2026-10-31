@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict'
 // eslint-disable-next-line test/no-import-node-test -- node --test is the runner (ADR-021)
 import { describe, it } from 'node:test'
-import { AUDIT_KIND_DEFS, AUDIT_KINDS, auditKindOf, kindFilter } from '../../shared/audit-kinds.ts'
 import { can, PERMISSION_KEYS, PERMISSIONS, permissionsOf, ROLES, rolesWith, STAFF_ROLES } from '../../shared/permissions.ts'
 
 describe('permission matrix (ADR-016 + ADR-021)', () => {
@@ -52,26 +51,5 @@ describe('permission matrix (ADR-016 + ADR-021)', () => {
     for (const [key, allow] of Object.entries(before)) {
       assert.deepEqual(PERMISSIONS.find(p => p.key === key)?.allow, allow, key)
     }
-  })
-})
-
-describe('audit kinds', () => {
-  it('website actions land in the website bucket and in no other filter', () => {
-    const actions = ['admin.website.document.publish', 'admin.website.media.upload', 'admin.website.settings.update', 'admin.website.publish.failed']
-    for (const action of actions) {
-      assert.equal(auditKindOf(action), 'website', action)
-    }
-    for (const kind of AUDIT_KINDS) {
-      const { matchAll, include, exclude } = kindFilter(kind)
-      const matches = (action: string) => (matchAll || include.some(p => action.startsWith(p))) && !exclude.some(p => action.startsWith(p))
-      for (const action of actions) {
-        assert.equal(matches(action), kind === 'website', `${action} under ${kind}`)
-      }
-    }
-  })
-
-  it('every bucket is still reachable and the catch-all is still config', () => {
-    assert.ok(AUDIT_KIND_DEFS.website.prefixes.includes('admin.website.'))
-    assert.equal(auditKindOf('admin.something.new'), 'config')
   })
 })

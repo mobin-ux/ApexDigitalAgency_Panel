@@ -199,7 +199,6 @@ function rowState(on: boolean) {
       </header>
 
       <main class="min-w-0 grow">
-        <ApexAnnouncementBar :announcement="(appConfig as any)?.announcement ?? null" />
         <ApexVerifyEmailBanner :mail-available="(appConfig as any)?.features?.mail === true" />
         <div v-if="maintenanceMode" role="status" class="bg-st-warning-bg text-st-warning-fg mx-[clamp(16px,3vw,40px)] mt-5 flex items-start gap-3 rounded-2xl px-4 py-3 text-[13px] leading-normal">
           <Icon name="lucide:hard-hat" class="mt-0.5 size-4 shrink-0" />

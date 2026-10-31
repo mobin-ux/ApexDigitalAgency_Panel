@@ -91,10 +91,10 @@ ships as a `.dc.html` mockup plus a `PHASE-N-*.md` implementation spec.
 | 5M | **Wallet & credit at 393px** — four tabs that fit, a plan is a screen, sheets not modals | ✅ Done |
 | 6M | **Support at 393px** — one entry point, a thread is a screen, the composer takes the bottom edge | ✅ Done |
 | 7M | **Settings at 393px** — the sub-nav becomes a hub, save is pinned and scoped | ✅ Done |
-| 9A | **Admin — Team & platform** — six staff roles, one enforced matrix, invites, platform settings, audit log | ✅ Done |
-| 9B | **Admin — Overview & work** — a work queue, an orders table with counts, the deliverable release gate | ✅ Done |
-| CMS | **Admin — Website module** (ADR-021) — pages, editor, navigation, media, SEO & redirects, site settings, panel content; the public site renders published documents over its code baseline | ✅ Done |
-| AC | **Admin console** (`Admin Console.dc.html`) — new shell for every `/admin/**` screen, light and dark, ⌘K search, confirmations with reasons, record drawers; see "Admin console" below | ✅ Done |
+| 9A | **Admin — Team & platform** — six staff roles, one enforced matrix, invites, platform settings, audit log | ⛔ Removed (ADR-024) |
+| 9B | **Admin — Overview & work** — a work queue, an orders table with counts, the deliverable release gate | ⛔ Removed (ADR-024) |
+| CMS | **Admin — Website module** (ADR-021) — pages, editor, navigation, media, SEO & redirects, site settings, panel content; the public site renders published documents over its code baseline | ⛔ Removed (ADR-024) |
+| AC | **Admin console** (`Admin Console.dc.html`) — new shell for every `/admin/**` screen, light and dark, ⌘K search, confirmations with reasons, record drawers; see "Admin console" below | ⛔ Removed (ADR-024) |
 
 #### Phase 1 — the shell standard (applies to every page from here on)
 
@@ -1295,6 +1295,26 @@ What the module adds to the standards:
 - Measured: zero horizontal overflow at 375 and 768 on every screen (the
   pages table scrolls inside its card); the dialogs were checked for name,
   description, focus, Escape and focus return in the browser.
+
+### Admin console and website CMS — removed (2026-10-31, ADR-024)
+
+The owner removed the admin console, keeping the customer panel and the
+public site. Every `/admin/**` screen, the `Admin*` components and their
+API, the website CMS (editor, media library, redirects, settings, panel
+content) and the staff invite flow are gone from the code; the sections
+below on the admin and the Website module are the record of what was built.
+What changed for the parts that remain:
+
+- **Customer panel:** no "Admin panel" row in the account menu or search;
+  the legal pages show their placeholder (no published document can replace
+  it); the panel announcement bar is gone; the dashboard promo's words are
+  in `shared/panel-baseline.ts`. Staff notifications are still sent, with
+  no link.
+- **Public site:** no "Client login" and no "Client dashboard" link; every
+  "Start your order" opens `/contact?service=…&plan=…`, and the home CTA's
+  client card reads "Start your next project" and goes to Contact. The
+  words come from `app/data/cms-baseline.ts` alone; there are no landing
+  pages, previews, media-library images or panel-managed redirects.
 
 ### Admin console (`Admin Console.dc.html`, 2026-10-31)
 

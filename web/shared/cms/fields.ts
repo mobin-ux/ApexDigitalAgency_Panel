@@ -1,17 +1,11 @@
-import type { Block } from './blocks.ts'
 import type { LinkValue } from './links.ts'
 import { z } from 'zod'
-import { blockSchema } from './blocks.ts'
 import { isHttpsUrl, isSafeInternalPath, linkSchema } from './links.ts'
 
 /**
- * The field DSL: one declaration per editable value that yields both the
- * zod schema the server validates with and the form the admin editor
- * renders. A template is a tree of these, so the site and the panel cannot
- * disagree about what a page can hold — there is one description.
- *
- * Only plain data types. No HTML, no style, no scripts: `blocks` is the only
- * rich field and it is a list of typed blocks the site renders itself.
+ * The field DSL: one declaration per value a page template holds, which
+ * yields both its TypeScript type and the zod schema the baseline is
+ * checked against. Only plain data types: no HTML, no style, no scripts.
  */
 
 export interface TextField {
@@ -27,9 +21,7 @@ export interface TextField {
   format?: 'path' | 'https' | 'path-or-https' | 'email' | 'date' | 'datetime'
 }
 export interface TextareaField extends Omit<TextField, 'type'> { type: 'textarea' }
-export interface BlocksField { type: 'blocks', label: string, hint?: string, max?: number }
 export interface LinkField { type: 'link', label: string, hint?: string }
-export interface MediaField { type: 'media', label: string, hint?: string, accept: readonly ('image' | 'pdf')[] }
 export interface SelectField<V extends string = string> {
   type: 'select'
   label: string
@@ -41,50 +33,31 @@ export interface NumberField { type: 'number', label: string, hint?: string, min
 export interface ObjectField<F extends FieldMap = FieldMap> { type: 'object', label: string, hint?: string, fields: F }
 export interface ListField<I extends FieldDef = FieldDef> { type: 'list', label: string, hint?: string, item: I, min?: number, max?: number }
 export interface OptionalField<I extends FieldDef = FieldDef> { type: 'optional', inner: I }
-/**
- * A field whose schema is built elsewhere (the landing-page section list).
- * `kind` tells the editor which control to render; `schema` is what the
- * server validates with. `__value` never exists at runtime — it carries the
- * stored type for `Infer`.
- */
-export interface CustomField<T = unknown> { type: 'custom', kind: string, label: string, hint?: string, schema: z.ZodTypeAny, __value?: T }
 
 export type FieldDef
   = | TextField
     | TextareaField
-    | BlocksField
     | LinkField
-    | MediaField
     | SelectField
     | BooleanField
     | NumberField
     | ObjectField
     | ListField
     | OptionalField
-    | CustomField
 
 export type FieldMap = Record<string, FieldDef>
-
-/** A stored reference to a file in the media library. */
-export interface MediaRef {
-  mediaId: string
-  alt: string
-}
 
 /** The TypeScript value a field definition stores. */
 export type Infer<D>
   = D extends TextField | TextareaField ? string
-    : D extends BlocksField ? Block[]
-      : D extends LinkField ? LinkValue
-        : D extends MediaField ? MediaRef
-          : D extends SelectField<infer V> ? V
-            : D extends BooleanField ? boolean
-              : D extends NumberField ? number
-                : D extends ObjectField<infer F> ? InferMap<F>
-                  : D extends ListField<infer I> ? Infer<I>[]
-                    : D extends OptionalField<infer I> ? Infer<I> | undefined
-                      : D extends CustomField<infer T> ? T
-                        : never
+    : D extends LinkField ? LinkValue
+      : D extends SelectField<infer V> ? V
+        : D extends BooleanField ? boolean
+          : D extends NumberField ? number
+            : D extends ObjectField<infer F> ? InferMap<F>
+              : D extends ListField<infer I> ? Infer<I>[]
+                : D extends OptionalField<infer I> ? Infer<I> | undefined
+                  : never
 
 export type InferMap<F extends FieldMap> = { [K in keyof F]: Infer<F[K]> }
 
@@ -127,23 +100,14 @@ function textSchema(def: TextField | TextareaField) {
     : 'Braces are not allowed here')
 }
 
-export const mediaRefSchema = z.object({
-  mediaId: z.string().trim().min(1).max(64),
-  alt: z.string().trim().max(300).default(''),
-})
-
 /** The zod schema for one field definition. */
 export function toZod(def: FieldDef): z.ZodTypeAny {
   switch (def.type) {
     case 'text':
     case 'textarea':
       return textSchema(def)
-    case 'blocks':
-      return z.array(blockSchema).max(def.max ?? 200)
     case 'link':
       return linkSchema
-    case 'media':
-      return mediaRefSchema
     case 'select':
       return z.enum(def.options.map(o => o.value) as [string, ...string[]])
     case 'boolean':
@@ -175,8 +139,6 @@ export function toZod(def: FieldDef): z.ZodTypeAny {
     }
     case 'optional':
       return toZod(def.inner).optional()
-    case 'custom':
-      return def.schema
   }
 }
 
@@ -187,22 +149,6 @@ export function mapToZod(fields: FieldMap): z.ZodObject<Record<string, z.ZodType
     shape[key] = toZod(def)
   }
   return z.object(shape)
-}
-
-/** Every leaf path a map declares, dotted, with its definition — for the editor and the audit. */
-export function fieldPaths(fields: FieldMap, prefix = ''): { path: string, def: FieldDef }[] {
-  const out: { path: string, def: FieldDef }[] = []
-  for (const [key, def] of Object.entries(fields)) {
-    const path = prefix ? `${prefix}.${key}` : key
-    const inner = def.type === 'optional' ? def.inner : def
-    if (inner.type === 'object') {
-      out.push(...fieldPaths(inner.fields, path))
-    }
-    else {
-      out.push({ path, def })
-    }
-  }
-  return out
 }
 
 /** Substitute the declared placeholders; unknown tokens are left as typed (the schema already refused them). */
@@ -216,14 +162,11 @@ type Opts<T> = Omit<T, 'type'>
 export const f = {
   text: (o: Opts<TextField>): TextField => ({ type: 'text', ...o }),
   textarea: (o: Opts<TextareaField>): TextareaField => ({ type: 'textarea', ...o }),
-  blocks: (o: Opts<BlocksField>): BlocksField => ({ type: 'blocks', ...o }),
   link: (o: Opts<LinkField>): LinkField => ({ type: 'link', ...o }),
-  media: (o: Opts<MediaField>): MediaField => ({ type: 'media', ...o }),
   select: <const V extends string>(o: Opts<SelectField<V>>): SelectField<V> => ({ type: 'select', ...o }),
   boolean: (o: Opts<BooleanField>): BooleanField => ({ type: 'boolean', ...o }),
   number: (o: Opts<NumberField>): NumberField => ({ type: 'number', ...o }),
   object: <const F extends FieldMap>(o: Opts<ObjectField<F>>): ObjectField<F> => ({ type: 'object', ...o }),
   list: <const I extends FieldDef>(o: Opts<ListField<I>>): ListField<I> => ({ type: 'list', ...o }),
   optional: <const I extends FieldDef>(inner: I): OptionalField<I> => ({ type: 'optional', inner }),
-  custom: <T>(o: Omit<CustomField<T>, 'type' | '__value'>): CustomField<T> => ({ type: 'custom', ...o }),
 }

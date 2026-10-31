@@ -21,7 +21,7 @@ import { mailConfigured, MailTransportError, sendViaResend } from './transport'
 
 const log = createLogger('mail')
 
-export const MAIL_KINDS = ['password-reset', 'verify-email', 'staff-invite', 'notification', 'cms-review', 'test'] as const
+export const MAIL_KINDS = ['password-reset', 'verify-email', 'notification', 'test'] as const
 export type MailKind = typeof MAIL_KINDS[number]
 
 export const MAIL_STATUSES = ['QUEUED', 'SENDING', 'SENT', 'FAILED'] as const

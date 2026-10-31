@@ -1,26 +1,19 @@
 /**
- * The CMS content contract shared by the site and the panel.
+ * The content contract for the site's code baseline.
  *
- * The site owns the rendering contract: every editable field a page template
- * exposes, every landing-page section type, the SEO object and the link rules
- * are declared here, as plain TypeScript plus zod, with no Nuxt, Prisma or
- * JWT imports. The panel imports this module by relative path
- * (`.demo/shared/cms.ts`) so the editor validates exactly what the site will
- * render, and the two cannot drift (ADR-021).
+ * Every page's words are declared here as a template (plain TypeScript plus
+ * zod, with no Nuxt imports) and filled in `app/data/cms-baseline.ts`. The
+ * panel used to edit documents against these templates and the site laid
+ * them over the baseline (ADR-021); that CMS was removed on 2026-10-31, so
+ * the templates now only type the baseline and let the tests check it.
  *
  * Nothing here may import from `web/app` or `web/server`. Relative imports
  * carry their `.ts` extension so Node can run the test suites on these files
  * directly, without a bundler.
  */
 
-/** Bumped when a stored document shape changes in a way old readers cannot resolve. */
-export const CMS_CONTRACT_VERSION = 1 as const
-
-export * from './blocks.ts'
 export * from './fields.ts'
 export * from './links.ts'
-export * from './resolve.ts'
-export * from './sections.ts'
 export * from './seo.ts'
 export * from './templates.ts'
-export * from './workflow.ts'
+export * from './validate.ts'

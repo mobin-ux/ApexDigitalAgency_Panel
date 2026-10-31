@@ -17,7 +17,6 @@ const displayName = computed(() => {
   const u = user.value as any
   return [u?.firstName, u?.lastName].filter(Boolean).join(' ').trim() || u?.email || u?.phone || 'My account'
 })
-const isStaff = computed(() => (user.value as any)?.role === 'ADMIN')
 
 const sheetOpen = computed({
   get: () => open.value && isPhone.value,
@@ -81,9 +80,6 @@ const SHEET_ROW = 'apex-ring flex min-h-[52px] w-full cursor-pointer items-cente
         <Icon name="solar:pallete-2-linear" class="text-fg-muted size-[19px]" /><span class="grow">Theme</span>
         <ApexThemeSwitch />
       </div>
-      <NuxtLink v-if="isStaff" to="/admin" :class="ROW">
-        <Icon name="solar:shield-user-linear" class="text-fg-muted size-[19px]" />Admin panel
-      </NuxtLink>
       <button type="button" :class="ROW" class="border-line-soft mt-1 rounded-t-none border-t" @click="signOut">
         <Icon name="solar:logout-2-linear" class="size-[19px] text-[#EC6453]" />Sign out
       </button>
@@ -109,9 +105,6 @@ const SHEET_ROW = 'apex-ring flex min-h-[52px] w-full cursor-pointer items-cente
         <Icon name="solar:pallete-2-linear" class="text-fg-muted size-[21px]" /><span class="grow">Theme</span>
         <ApexThemeSwitch size="lg" />
       </div>
-      <NuxtLink v-if="isStaff" to="/admin" :class="SHEET_ROW">
-        <Icon name="solar:shield-user-linear" class="text-fg-muted size-[21px]" />Admin panel
-      </NuxtLink>
       <button type="button" :class="SHEET_ROW" @click="signOut">
         <Icon name="solar:logout-2-linear" class="size-[21px] text-[#EC6453]" />Sign out
       </button>

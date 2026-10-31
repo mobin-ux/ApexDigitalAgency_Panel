@@ -62,23 +62,7 @@ export function verifyEmailMail(brand: Brand, input: { name: string | null, url:
   }
 }
 
-export function staffInviteMail(brand: Brand, input: { name: string, role: string, inviter: string, url: string, expiresAt: Date }): MailDraft {
-  const expires = input.expiresAt.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
-  return {
-    subject: `${input.inviter} invited you to the ${brand.siteName} panel`,
-    content: {
-      heading: `You are invited to join ${brand.siteName}`,
-      paragraphs: [
-        `Hello ${input.name}. ${input.inviter} has invited you to the ${brand.siteName} staff panel as ${input.role}.`,
-        `Accept the invitation to choose a password and sign in. The link works once and expires on ${expires}.`,
-      ],
-      action: { label: 'Accept the invitation', url: input.url },
-      footer: footer(brand),
-    },
-  }
-}
-
-/** Every in-app notification, mirrored (ADR-022); the website review steps use it too, filed as `cms-review`. */
+/** Every in-app notification, mirrored (ADR-022). */
 export function notificationMail(brand: Brand, input: { title: string, message: string, url: string | null }): MailDraft {
   return {
     subject: `${brand.siteName}: ${input.title}`,

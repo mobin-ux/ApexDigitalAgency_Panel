@@ -1,31 +1,25 @@
 import type { FieldMap, InferMap } from './fields.ts'
 import { f } from './fields.ts'
 import { PAGE_TEMPLATES } from './pages.ts'
-import { sectionsField } from './sections.ts'
-import { seoField } from './seo.ts'
 
 /**
  * What each kind of document can hold.
  *
  * - `page`: a URL on the public site. The core templates (home, services,
- *   about …) expose the fields of the page the site already renders from
- *   code; `landing` is a free page built from sections.
+ *   about …) hold the words of the page the site renders.
  * - `global`: the chrome every page shares — header, footer, announcement.
- * - `panel`: customer-facing documents the panel shows — legal text, the
- *   dashboard promo, a panel-wide announcement.
  *
  * A document's `key` is its path for a page, and the fixed key for a global
- * or panel document (one each). The core page templates live in pages.ts;
- * the free-form and chrome templates are here.
+ * (one each). The page templates live in pages.ts; the chrome is here.
  */
 
-export type TemplateKind = 'page' | 'global' | 'panel'
+export type TemplateKind = 'page' | 'global'
 
 export interface TemplateDef<F extends FieldMap = FieldMap> {
   label: string
   detail: string
   kind: TemplateKind
-  /** Globals and panel documents exist once, at this key; pages are keyed by path. */
+  /** Globals exist once, at this key; pages are keyed by path. */
   fixedKey?: string
   fields: F
 }
@@ -59,24 +53,13 @@ const navLink = f.object({
 
 export const TEMPLATES = {
   ...PAGE_TEMPLATES,
-  'landing': {
-    label: 'Landing page',
-    detail: 'A page built from sections, at any address that is free',
-    kind: 'page',
-    fields: {
-      title: f.text({ label: 'Page name', hint: 'Shown in the panel and as the default search title.', max: 120, required: true }),
-      sections: sectionsField,
-      seo: seoField,
-    },
-  },
-  'header': {
+  header: {
     label: 'Header',
-    detail: 'The main menu and the sign-in buttons on every page',
+    detail: 'The main menu and the call to action on every page',
     kind: 'global',
     fixedKey: 'header',
     fields: {
       nav: f.list({ label: 'Menu', hint: 'Services keeps its own menu; these sit beside it.', min: 1, max: 6, item: navLink }),
-      signIn: f.text({ label: 'Sign-in button', max: 30, required: true }),
       start: f.text({ label: 'Start button', max: 30, required: true }),
       servicesLabel: f.text({ label: 'Services menu label', max: 30, required: true }),
       allServices: f.text({ label: 'All-services link', max: 30, required: true }),
@@ -95,7 +78,7 @@ export const TEMPLATES = {
       }),
     },
   },
-  'footer': {
+  footer: {
     label: 'Footer',
     detail: 'The talk-first strip, the link columns and the legal line',
     kind: 'global',
@@ -125,41 +108,11 @@ export const TEMPLATES = {
       registeredIn: f.text({ label: 'Registered-in line', hint: 'The country comes from site settings.', max: 40, required: true }),
     },
   },
-  'announcement': {
+  announcement: {
     label: 'Announcement bar',
     detail: 'One line above the header on the public site',
     kind: 'global',
     fixedKey: 'announcement',
-    fields: announcementFields,
-  },
-  'legal': {
-    label: 'Legal document',
-    detail: 'Terms, privacy and the other policies, as structured text',
-    kind: 'panel',
-    fields: {
-      title: f.text({ label: 'Title', max: 120, required: true }),
-      updated: f.text({ label: 'Last updated', hint: 'YYYY-MM-DD', max: 10, format: 'date' }),
-      blocks: f.blocks({ label: 'Document', max: 300 }),
-    },
-  },
-  'panel-promo': {
-    label: 'Dashboard promo',
-    detail: 'The pay-monthly band on the customer dashboard',
-    kind: 'panel',
-    fixedKey: 'dashboard-promo',
-    fields: {
-      eyebrow: f.text({ label: 'Eyebrow', max: 40, required: true }),
-      title: f.text({ label: 'Headline', max: 80, required: true }),
-      text: f.textarea({ label: 'Text', max: 240, required: true }),
-      button: f.text({ label: 'Button', max: 30, required: true }),
-      finePrint: f.text({ label: 'Fine print', hint: 'The deposit and monthly figures are added from the catalogue.', max: 160 }),
-    },
-  },
-  'panel-announcement': {
-    label: 'Panel announcement',
-    detail: 'One line above every customer page in the panel',
-    kind: 'panel',
-    fixedKey: 'panel-announcement',
     fields: announcementFields,
   },
 } as const satisfies Record<string, TemplateDef>
@@ -173,19 +126,3 @@ export type TemplateContent<T extends TemplateKey> = InferMap<typeof TEMPLATES[T
 export function isTemplateKey(value: unknown): value is TemplateKey {
   return typeof value === 'string' && value in TEMPLATES
 }
-
-/**
- * Templates a staff member may create a document from: the free page, and
- * the panel documents (the site's own pages and chrome come from the
- * baseline import). A fixed-key panel document can be created once.
- */
-export function creatableTemplates(): TemplateKey[] {
-  return TEMPLATE_KEYS.filter((key) => {
-    const def = TEMPLATES[key] as TemplateDef
-    return def.kind === 'panel' || !def.fixedKey
-  })
-}
-
-/** The two legal documents the panel renders; a legal document's key is one of these. */
-export const LEGAL_KEYS = ['terms', 'privacy'] as const
-export type LegalKey = typeof LEGAL_KEYS[number]

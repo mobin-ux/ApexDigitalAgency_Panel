@@ -12,7 +12,7 @@ import { validateBody } from '../../utils/validate'
 
 /**
  * POST /api/credit/application — apply for an Apex credit line
- * (Wallet.dc.html). Staff decide it in /admin/credit; nothing is granted here.
+ * (Wallet.dc.html). Staff decide it; nothing is granted here.
  *
  * The photo ID and bank statements arrive first through `POST /api/uploads`
  * and are claimed here, so they must be the caller's own, unattached uploads.

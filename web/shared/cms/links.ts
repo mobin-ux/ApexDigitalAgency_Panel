@@ -3,17 +3,10 @@ import { z } from 'zod'
 /**
  * Link values the CMS may store, and the rules that keep them safe.
  *
- * Three kinds, and nothing else: a path on this site, a named destination in
- * the customer panel (resolved by the site's `usePanelLinks()` at render, so
- * the panel's base URL never lives in content), or an absolute https URL. No
- * `javascript:`, `data:`, protocol-relative or dot-segment paths can be
- * stored, because the schema refuses them before anything is saved.
+ * Two kinds, and nothing else: a path on this site or an absolute https URL.
+ * No `javascript:`, `data:`, protocol-relative or dot-segment paths pass
+ * the schema.
  */
-
-/** Destinations in the customer panel the site already knows how to reach. */
-export const PANEL_LINK_KEYS = ['login', 'signup', 'dashboard', 'newOrder'] as const
-
-export type PanelLinkKey = typeof PANEL_LINK_KEYS[number]
 
 /**
  * A same-site path: starts with one `/`, has no scheme, no `//`, no `..`
@@ -78,7 +71,6 @@ export const httpsUrlSchema = z.string().trim().refine(isHttpsUrl, 'Must be a fu
 
 export const linkSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('internal'), path: internalPathSchema }),
-  z.object({ kind: z.literal('panel'), key: z.enum(PANEL_LINK_KEYS) }),
   z.object({ kind: z.literal('external'), url: httpsUrlSchema }),
 ])
 

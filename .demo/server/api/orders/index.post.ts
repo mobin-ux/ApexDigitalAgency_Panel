@@ -246,7 +246,6 @@ export default defineEventHandler(async (event) => {
       title: 'New order signed',
       message: `${contract.reference}: ${project.name} · ${service.name}, ${plan.name}. Book the kickoff call.`,
       type: 'INFO',
-      link: `/admin/projects/${project.id}`,
     })
   }
   catch {

@@ -4,7 +4,7 @@ import { signPurposeToken } from '../auth'
 import prisma from '../prisma'
 import { enqueueMail, loadBrand } from './outbox'
 import { absoluteUrl, MailRenderError } from './render'
-import { passwordResetMail, staffInviteMail, verifyEmailMail } from './templates'
+import { passwordResetMail, verifyEmailMail } from './templates'
 
 /**
  * The account emails (ADR-022): what each flow queues, in one place, so the
@@ -60,14 +60,4 @@ export async function queuePasswordResetMail(user: { id: string, email: string }
   }
   const draft = passwordResetMail(brand, { url: link.url, expiresMinutes: RESET_LINK_TTL_MINUTES })
   return enqueueMail({ to: user.email, toUserId: user.id, kind: 'password-reset', ...draft }, db)
-}
-
-export async function queueInviteMail(invite: { name: string, email: string, roleLabel: string, expiresAt: Date }, inviter: string, token: string, db: Db = prisma): Promise<{ id: string }> {
-  const brand = await loadBrand(db)
-  const link = linkOrError(`/auth/accept-invite?token=${encodeURIComponent(token)}`)
-  if ('error' in link) {
-    return unsendable({ to: invite.email, toUserId: null, kind: 'staff-invite', subject: `${inviter} invited you to the ${brand.siteName} panel`, error: link.error }, db)
-  }
-  const draft = staffInviteMail(brand, { name: invite.name, role: invite.roleLabel, inviter, url: link.url, expiresAt: invite.expiresAt })
-  return enqueueMail({ to: invite.email, toUserId: null, kind: 'staff-invite', ...draft }, db)
 }

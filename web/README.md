@@ -1,8 +1,8 @@
 # @apex/web — Apex Digital Agency public website
 
-Marketing site for apexdigi.co.uk. It sells, then hands the visitor to the
-customer panel (`.demo/`, deployed on its own subdomain). The two apps share a
-repository but nothing at runtime — the only coupling is the panel URL.
+Marketing site for apexdigi.co.uk. Orders start on its contact form. It
+shares a repository with the customer panel (`.demo/`) but nothing at
+runtime: no link, content or API call goes between them.
 
 ## Stack
 
@@ -35,31 +35,20 @@ pnpm web:typecheck  # vue-tsc
 pnpm exec eslint --fix web/app   # lint (repo root config)
 ```
 
-## Content and the CMS (ADR-021)
+## Content
 
-The words on every page come from the panel's CMS when it is reachable, and
-from the code baseline when it is not. Components call `useCmsContent('home')`
-(or `useCmsRecord('service', path, baseline)`) and read fields from the
-template in `shared/cms/pages.ts`; the baseline documents are assembled in
-`app/data/cms-baseline.ts` from the data modules and served at
-`GET /api/cms/baseline`. To add editable copy: declare the field in the
-template, give it a value in the baseline, read it in the component. Run
-`pnpm test:cms:unit` and, against a dev server,
-`SITE_TEST_URL=http://localhost:3000 pnpm test:cms:site` (from the repo root).
+The words on every page live in code. Components call `useCmsContent('home')`
+(or `useCmsRecord('service', baseline)`) and read fields from the template in
+`shared/cms/pages.ts`; the documents are assembled in
+`app/data/cms-baseline.ts` from the data modules, and each is checked against
+its template once at render and by `pnpm test:cms:unit` (from the repo root).
+To add copy: declare the field in the template, give it a value in the
+baseline, read it in the component. Company facts come from `data/site.ts`.
 
-Runtime pairing with the panel: `NUXT_CMS_URL` (the panel as seen from this
-server; empty renders the code baseline) and `NUXT_CMS_REVALIDATE_SECRET`
-(must equal the panel's `NUXT_WEBSITE_REVALIDATE_SECRET`). Images from the
-panel's media library go through `/_ipx` (`server/middleware/01.ipx-cache.ts`
-caches the processed bytes under `.data/ipx`); PDFs through `/media`. Site
-every page's head comes from `useCmsSeo()` (page → template default → site
-settings; one canonical; `X-Robots-Tag` on a hidden page); the sitemap is
-`server/api/__sitemap__/urls.get.ts` alone (code pages plus published,
-indexable landing pages); `server/plugins/robots.ts` adds the panel's
-disallows; `server/middleware/00.redirects.ts` answers the panel's
-redirects before routing. Site
-settings arrive through `useSiteSettings()`: a filled setting wins over the
-value in `data/site.ts`, an empty one keeps it.
+The panel's CMS that could overlay these documents, the landing pages, the
+media library and the redirects (ADR-021) were removed on 2026-10-31. Every
+page's head comes from `useCmsSeo()` (one canonical; `X-Robots-Tag` on a
+hidden page); the sitemap is `server/api/__sitemap__/urls.get.ts` alone.
 
 ## Layout
 
@@ -87,7 +76,7 @@ app/
                         home, content, case-studies, case-study-page, our-work, articles,
                         insights, article-page, about, contact, and service-pages/ (one file
                         per service page)
-  composables/          usePanelLinks, useServiceLinks, useContactForm, useInsightsFilter
+  composables/          useCmsContent, useCmsSeo, useServiceLinks, useContactForm, useInsightsFilter
   utils/                formatters, initials, studio (the studio address and its links)
   pages/                one file per route
 shared/contact.ts       the contact form's ids, limits and validator, used by page AND server

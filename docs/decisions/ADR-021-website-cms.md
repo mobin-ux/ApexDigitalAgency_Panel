@@ -1,6 +1,7 @@
 # ADR-021 — The website is managed from the panel: content overlay, SSR over cached data, fixed roles
 
-**Status:** Accepted (2026-10-28). Amends ADR-016 (adds two roles and six
+**Status:** Superseded by ADR-024 (2026-10-31): the CMS, its panel screens and
+the site's overlay were removed. Accepted (2026-10-28). Amends ADR-016 (adds two roles and six
 permissions to the fixed matrix) and ADR-018 (one server-to-server runtime read
 between the site and the panel).
 **Context:** the business needs to change website copy, publish landing pages,

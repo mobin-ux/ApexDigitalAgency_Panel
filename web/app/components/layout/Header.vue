@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { routes } from '~/data/routes'
 
-const panel = usePanelLinks()
 const header = useCmsContent('header')
 const { linkHref } = useCmsLink()
 const mainNav = computed(() => header.value.nav.map(item => ({ label: item.label, to: linkHref(item.link) })))
@@ -59,12 +58,6 @@ function currentFor(to: string): 'page' | 'true' | undefined {
       </nav>
 
       <div class="ml-auto flex items-center gap-5">
-        <a
-          :href="panel.login"
-          class="hidden text-[0.9063rem] font-semibold text-body transition-colors hover:text-violet-600 lg:inline"
-        >
-          {{ header.signIn }}
-        </a>
         <div class="hidden sm:block">
           <UiButton
             :to="routes.contact"

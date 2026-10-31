@@ -1,4 +1,4 @@
-import type { TemplateContent, TemplateKey } from '#shared/cms'
+import type { SeoValue, TemplateContent, TemplateKey } from '#shared/cms'
 import type { Article } from './articles'
 import type { CaseStudy } from './case-studies'
 import type { ServicePageContent } from './service-pages/types'
@@ -15,16 +15,13 @@ import { mainNav, seoDefaults } from './site'
 
 /**
  * The code baseline: one complete document per template, built from the
- * data modules (ADR-021). The site renders `overlay ?? baseline`, field by
- * field, so with no CMS these are exactly what the pages show, and a
- * published document can change any field here and nothing else.
- *
- * Strings that used to be typed inside components live here now, next to
- * the data they belong with, so the panel can offer them for editing. Every
- * document is validated against its template by the contract tests.
+ * data modules. These are exactly what the pages show: the panel's CMS
+ * that could overlay them (ADR-021) was removed on 2026-10-31, so copy is
+ * edited here and in the data modules. Every document is validated against
+ * its template by the contract tests and once at render.
  */
 
-function seo(title: string, description: string): TemplateContent<'landing'>['seo'] {
+function seo(title: string, description: string): SeoValue {
   return {
     title,
     description,
@@ -32,12 +29,10 @@ function seo(title: string, description: string): TemplateContent<'landing'>['se
     robots: 'index,follow',
     ogTitle: '',
     ogDescription: '',
-    ogImage: undefined,
   }
 }
 
 const internal = (path: string) => ({ kind: 'internal' as const, path })
-const panel = (key: 'login' | 'signup' | 'dashboard' | 'newOrder') => ({ kind: 'panel' as const, key })
 
 export const homeBaseline: TemplateContent<'home'> = {
   hero: {
@@ -96,7 +91,7 @@ export const homeBaseline: TemplateContent<'home'> = {
     replyLabel: 'Typical reply time',
     replyValue: 'Within one working day',
     clientLabel: 'Already a client?',
-    clientValue: 'Order from your dashboard',
+    clientValue: 'Start your next project',
     whereLabel: 'Where we are',
   },
   seo: seo(seoDefaults.title, seoDefaults.description),
@@ -280,7 +275,6 @@ export function articleBaseline(article: Article): TemplateContent<'article'> {
 
 export const headerBaseline: TemplateContent<'header'> = {
   nav: mainNav.map(link => ({ label: link.label, link: internal(link.to) })),
-  signIn: 'Client login',
   start: 'Get in touch',
   servicesLabel: 'Services',
   allServices: 'All services',
@@ -308,7 +302,6 @@ export const footerBaseline: TemplateContent<'footer'> = {
         { label: 'Frequently asked questions', link: internal(`${routes.home}${homeAnchors.faq}`) },
         { label: 'Website cost guide', link: internal(routes.article('website-cost-uk-2026')) },
         { label: 'Instalment plan terms', link: internal(routes.legal.instalmentTerms) },
-        { label: 'Client dashboard', link: panel('dashboard') },
       ],
     },
     {

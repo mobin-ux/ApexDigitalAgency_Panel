@@ -2,12 +2,12 @@
  * Staff roles and permissions — the single object this phase's screens read
  * AND the server enforces (Phase 9 Admin, badge 26).
  *
- * Documentation and enforcement live here together on purpose. The role
- * matrix on /admin/team renders straight out of `PERMISSIONS`, the sidebar
- * decides padlock-vs-link from `can()`, and every `/api/admin/**` route
- * gates on the same table via `requireStaffPermission()`. A tick on the
- * matrix and a hidden panel elsewhere therefore cannot disagree — there is
- * no second copy to fall out of step.
+ * Documentation and enforcement live here together on purpose: every
+ * staff-gated route (attachments, avatars, staff notifications) asks the
+ * same table through `requireStaffPermission()` or `can()`. The admin
+ * console that rendered the matrix was removed on 2026-10-31; the matrix
+ * stays because staff accounts and their roles still exist, and dropping
+ * a role here would make `isStaffRole()` fall back to `owner` for it.
  *
  * Imported from both halves of the app by explicit path (server uses a
  * relative import, the app uses `~~/shared/...`), so it stays one module
@@ -151,7 +151,7 @@ export function isStaffRole(value: unknown): value is StaffRole {
 /**
  * The role an existing admin account holds when it has no `staffRole` yet.
  *
- * Every account that could reach `/admin/**` before this phase had the full
+ * Every staff account that existed before this phase had the full
  * panel, so the backfill — and the fallback for any row the migration
  * missed — is `owner`. That is what makes retrofitting the permission gate
  * onto the existing endpoints behaviour-identical rather than a lockout.

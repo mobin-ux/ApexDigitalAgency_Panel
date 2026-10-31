@@ -36,7 +36,6 @@ export default defineEventHandler(async (event) => {
       title: 'Client answered',
       message: `${action.project.name}: "${action.title}" is done.`,
       type: 'SUCCESS',
-      link: `/admin/projects/${projectId}`,
     })
   }
   return { ok: true, doneLine: action.doneLine }

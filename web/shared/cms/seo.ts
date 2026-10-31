@@ -2,10 +2,10 @@ import type { InferMap } from './fields.ts'
 import { f, mapToZod } from './fields.ts'
 
 /**
- * The SEO object every page document carries, and how three layers of it
- * combine: the page's own values win, then the template's defaults, then
- * the site-wide defaults from settings. An empty string means "not set
- * here, ask the next layer", which is why nothing is required.
+ * The SEO object every page document carries, and how its layers combine:
+ * the page's own values win, then the template's defaults (the words the
+ * page passes), then a site default. An empty string means "not set here,
+ * ask the next layer", which is why nothing is required.
  */
 
 export const ROBOTS_OPTIONS = [
@@ -23,7 +23,6 @@ export const seoFields = {
   robots: f.select({ label: 'Search engines', options: ROBOTS_OPTIONS }),
   ogTitle: f.text({ label: 'Social title', hint: 'Used when the page is shared. Empty uses the search title.', max: 90 }),
   ogDescription: f.textarea({ label: 'Social description', max: 200 }),
-  ogImage: f.optional(f.media({ label: 'Social image', hint: '1200 × 630 works everywhere.', accept: ['image'] })),
 } as const
 
 export const seoField = f.object({ label: 'SEO', fields: seoFields })
@@ -39,7 +38,6 @@ export const EMPTY_SEO: SeoValue = {
   robots: 'index,follow',
   ogTitle: '',
   ogDescription: '',
-  ogImage: undefined,
 }
 
 export interface ResolvedSeo {
@@ -49,7 +47,6 @@ export interface ResolvedSeo {
   robots: RobotsValue
   ogTitle: string
   ogDescription: string
-  ogImage: SeoValue['ogImage']
   noindex: boolean
 }
 
@@ -58,9 +55,9 @@ function first(...values: (string | undefined)[]): string {
 }
 
 /**
- * Precedence: page → template default → site default. `robots` is the one
- * value that is never inherited upward from the site: a page's own choice
- * stands, and a page that says nothing is indexable.
+ * Precedence: page → template default → site default. `robots` is never
+ * inherited from the site: a page's own choice stands, and a page that
+ * says nothing is indexable.
  */
 export function resolveSeo(page?: Partial<SeoValue> | null, template?: Partial<SeoValue> | null, site?: Partial<SeoValue> | null): ResolvedSeo {
   const title = first(page?.title, template?.title, site?.title)
@@ -73,7 +70,6 @@ export function resolveSeo(page?: Partial<SeoValue> | null, template?: Partial<S
     robots,
     ogTitle: first(page?.ogTitle, title),
     ogDescription: first(page?.ogDescription, description),
-    ogImage: page?.ogImage ?? template?.ogImage ?? site?.ogImage,
     noindex: robots.startsWith('noindex'),
   }
 }

@@ -17,7 +17,6 @@ import { services } from '~/data/services'
  * easy to get wrong by hand: focus trap, Escape, scroll lock, focus return.
  */
 const open = ref(false)
-const panel = usePanelLinks()
 const header = useCmsContent('header')
 const { linkHref } = useCmsLink()
 const mainNav = computed(() => header.value.nav.map(item => ({ label: item.label, to: linkHref(item.link) })))
@@ -131,14 +130,6 @@ watch(() => useRoute().fullPath, () => (open.value = false))
             block
           >
             {{ header.start }}
-          </UiButton>
-          <UiButton
-            :href="panel.login"
-            variant="light"
-            shape="pill"
-            block
-          >
-            {{ header.signIn }}
           </UiButton>
         </div>
       </DialogContent>

@@ -1,15 +1,13 @@
 <script setup lang="ts">
 import type { ServicePageContent } from '~/data/service-pages/types'
-import { company as companyBaseline } from '~/data/site'
+import { company } from '~/data/site'
 
 const props = defineProps<{ page: ServicePageContent }>()
 const chrome = useCmsContent('service-chrome')
 
 const { contact, linkTo } = useServiceLinks(props.page.slug)
 // An unconfirmed phone number is empty and its row is not rendered.
-const settings = useSiteSettings()
-const company = computed(() => settings.value ?? companyBaseline)
-const phoneHref = computed(() => (company.value.phone ? `tel:${company.value.phone.replace(/\s+/g, '')}` : ''))
+const phoneHref = computed(() => (company.phone ? `tel:${company.phone.replace(/\s+/g, '')}` : ''))
 </script>
 
 <template>

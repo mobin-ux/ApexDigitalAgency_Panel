@@ -1,11 +1,8 @@
 <script setup lang="ts">
 import { routes } from '~/data/routes'
-import { company as companyBaseline } from '~/data/site'
+import { company } from '~/data/site'
 
-const panel = usePanelLinks()
 const home = useCmsContent('home')
-const settings = useSiteSettings()
-const company = computed(() => settings.value ?? companyBaseline)
 </script>
 
 <template>
@@ -56,10 +53,12 @@ const company = computed(() => settings.value ?? companyBaseline)
         </li>
         <li class="relative flex flex-col gap-1 rounded-xl border border-white/10 bg-white/5 px-6 py-5 transition-colors hover:bg-white/8">
           <span class="text-[0.78rem] text-muted-on-dark">{{ home.cta.clientLabel }}</span>
-          <a
-            :href="panel.newOrder"
+          <NuxtLink
+            :to="routes.contact"
             class="font-display text-[1.3125rem] font-semibold tracking-tight text-white after:absolute after:inset-0 after:rounded-xl"
-          >{{ home.cta.clientValue }} <span aria-hidden="true">→</span></a>
+          >
+            {{ home.cta.clientValue }} <span aria-hidden="true">→</span>
+          </NuxtLink>
         </li>
         <li class="flex flex-col gap-1 rounded-xl border border-white/10 bg-white/5 px-6 py-5">
           <span class="text-[0.78rem] text-muted-on-dark">{{ home.cta.whereLabel }}</span>

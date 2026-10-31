@@ -2,7 +2,7 @@
 
 > Handoff doc for continuing work in fresh sessions. Update the relevant section
 > whenever a page ships, a decision lands, or a blocker appears.
-> Last updated: **2026-10-31** (admin console replaced by `Admin Console.dc.html`; both apps re-deployed from master; Cloudflare applied — ADR-023; Mail provider deployed — ADR-022; Website CMS — ADR-021; 2026-10-25 Panel v2: dashboard, New order and My orders revisions; Wallet revision — credit by application, ADR-020; Support revision — call requests and ratings; 2026-10-27 Settings re-check — profile photos, signed-in devices, two-step verification).
+> Last updated: **2026-10-31** (admin console and website CMS removed — ADR-024; before that, admin console replaced by `Admin Console.dc.html`; both apps re-deployed from master; Cloudflare applied — ADR-023; Mail provider deployed — ADR-022; Website CMS — ADR-021; 2026-10-25 Panel v2: dashboard, New order and My orders revisions; Wallet revision — credit by application, ADR-020; Support revision — call requests and ratings; 2026-10-27 Settings re-check — profile photos, signed-in devices, two-step verification).
 
 ## Where things stand
 
@@ -16,7 +16,42 @@
 - Stale branch `refactor/apex-dashboard` (local + origin) is superseded by master;
   deletable, but ask the user first.
 
-## Admin console — done (2026-10-31)  ⬅ LATEST WORKSTREAM
+## Admin console and website CMS removed (2026-10-31)  ⬅ LATEST WORKSTREAM
+
+The owner asked to "remove the existing panel and keep only the main site",
+then chose: remove the **admin console only** (the customer panel stays),
+the site's words **from code only**, and the site's order/sign-in links to
+**Contact**. Decision record: ADR-024. Not deployed.
+
+- **Panel:** `/admin/**` pages, `layouts/admin.vue`, `middleware/admin.ts`,
+  every `Admin*` component, `useAdminConsole`, `useStaffAccess`,
+  `utils/admin*|cmsEditor|roleTone`, the unused V2 admin shell
+  (`ApexAccountMenu`, `ApexSidebarNav`, `ApexShell`, `ApexPageHeader`,
+  `ApexSectionLabel`, `useApexDrawer`), all of `/api/admin/**`,
+  `/api/site/**`, `server/utils/website/**`, the publish-due task, the
+  staff invite flow, `shared/cms.ts|media-sniff.ts|audit-kinds.ts`.
+  `/api/config` lost `legal`/`announcement`; legal pages show the
+  placeholder; the dashboard promo reads `shared/panel-baseline.ts`.
+  Staff notifications still go out, without a link.
+- **Kept:** `shared/permissions.ts` (staff accounts still exist; removing
+  a role would make it fall back to `owner`), the whole Prisma schema (no
+  migration; `Site*`, `StaffInvite` tables untouched).
+- **Site:** CMS client, landing/preview pages, `components/cms/*`, the
+  redirects middleware, IPX cache, `/media` proxy, settings/robots plugins,
+  `useSiteSettings`, `useCmsMedia`, `usePanelLinks` removed.
+  `useCmsContent`/`useCmsRecord(template, baseline)` return the baseline
+  validated by `shared/cms/validate.ts`. Contract lost workflow, sections,
+  blocks, media/custom fields, panel links, landing/legal/panel templates
+  and the header's `signIn`. Robots disallow `/api/` via nuxt config.
+- **Consequence to remember:** nothing lets staff reply to requests,
+  decide credit, collect kickoff, release files or assign work any more.
+- **Verified:** panel customer routes 200, `/admin/**` and removed APIs
+  404, `test:tsc-demo` 46 (< 56), `web:typecheck` clean, lint clean, unit
+  14/14 panel + 11/11 site, API suites 4/4; site pages 200, removed routes
+  404, sitemap 15 code addresses, plan links preselect on Contact.
+
+## Admin console — built, then removed (2026-10-31)
+
 
 The admin interface was replaced by the Claude Design "Admin Console"
 (project `eb7c3341-4385-4c1d-85a6-bf80958b6398`, `Admin Console.dc.html`,

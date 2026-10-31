@@ -1,16 +1,14 @@
 <script setup lang="ts">
 import { routes } from '~/data/routes'
 import { services } from '~/data/services'
-import { company as companyBaseline } from '~/data/site'
+import { company } from '~/data/site'
 
 const footer = useCmsContent('footer')
 const { linkAttrs } = useCmsLink()
 const year = useRuntimeConfig().public.buildYear
 
-const settings = useSiteSettings()
-const company = computed(() => settings.value ?? companyBaseline)
-const phoneHref = computed(() => (company.value.phone ? `tel:${company.value.phone.replace(/\s+/g, '')}` : ''))
-const social = computed(() => company.value.social.filter(profile => profile.url))
+const phoneHref = computed(() => (company.phone ? `tel:${company.phone.replace(/\s+/g, '')}` : ''))
+const social = computed(() => company.social.filter(profile => profile.url))
 
 const groups = computed(() => footer.value.groups.map(group => ({
   label: group.label,

@@ -335,6 +335,6 @@ export const websiteDesignPage: ServicePageContent = {
   cta: {
     title: `Start your website from ${from} a month`,
     body: 'Pick a plan and set your order up in the dashboard, or book a call first and we will do it with you. Nothing is taken until you have seen every payment date.',
-    primary: { label: 'Start your order', target: 'order' },
+    primary: { label: 'Start your order', target: 'contact' },
   },
 }

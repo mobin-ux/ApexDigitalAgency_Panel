@@ -42,7 +42,7 @@ const router = useRouter()
 const toaster = useNuiToasts()
 const { fetchNotifications } = useNotifications()
 const { formatCurrency } = useCurrency()
-/** Whether customers may apply for credit right now (Website › Panel content). */
+/** Whether customers may apply for credit right now (Setting `credit.applications-open`). */
 const { data: appConfig } = useApexConfig()
 const creditApplicationsOpen = computed(() => (appConfig.value as any)?.features?.creditApplications !== false)
 

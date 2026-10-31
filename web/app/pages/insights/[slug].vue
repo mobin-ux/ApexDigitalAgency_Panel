@@ -17,7 +17,7 @@ if (!found?.body) {
   throw createError({ statusCode: 404, statusMessage: 'Page not found', fatal: true })
 }
 // The overlay covers the title, excerpt, lead and search listing; the body stays in the catalogue.
-const cms = useCmsRecord('article', routes.article(found.slug), articleBaseline(found))
+const cms = useCmsRecord('article', articleBaseline(found))
 const article = { ...found, title: cms.value.title, excerpt: cms.value.excerpt }
 const body = { ...found.body, lead: cms.value.lead, seo: { title: cms.value.seo.title, description: cms.value.seo.description } }
 

@@ -35,8 +35,7 @@ export default defineNuxtConfig({
    * The auth and legal screens were designed and measured on the dark theme
    * only, so `pages:extend` below pins them to it — the customer panel going
    * light must not drag those screens into a theme they have never been
-   * checked in. The admin console left that list on 2026-10-31: its design
-   * (`Admin Console.dc.html`) draws both themes and carries its own switch.
+   * checked in.
    */
   colorMode: {
     preference: 'light',
@@ -176,20 +175,6 @@ export default defineNuxtConfig({
     /** Companies House public data API key (NUXT_COMPANIES_HOUSE_KEY). Empty hides the lookup. */
     companiesHouseKey: '',
     /**
-     * The public website this panel manages (ADR-021). `siteUrl` is where
-     * the site runs as seen from this server (NUXT_WEBSITE_SITE_URL, e.g.
-     * http://127.0.0.1:3100); `revalidateSecret` is the bearer token the
-     * site expects on POST /api/cms/revalidate (NUXT_WEBSITE_REVALIDATE_SECRET,
-     * the same value as the site's NUXT_CMS_REVALIDATE_SECRET). Empty means
-     * no site is attached: previews have no link and publishes skip the call.
-     */
-    website: {
-      siteUrl: '',
-      revalidateSecret: '',
-      /** Where the website media library stores files (NUXT_WEBSITE_MEDIA_DIR); outside the bundle in production. */
-      mediaDir: '',
-    },
-    /**
      * Outgoing email (ADR-022): Resend over REST, the same provider the
      * public site's contact form uses. `from` must be an address on a
      * domain verified with Resend (NUXT_MAIL_FROM, e.g.
@@ -292,10 +277,6 @@ export default defineNuxtConfig({
     '/dashboards/**': {
       swr: false,
     },
-    // Admin panel: authenticated + role-gated, same no-cache rule.
-    '/admin/**': {
-      swr: false,
-    },
   },
 
   sourcemap: {
@@ -313,14 +294,14 @@ export default defineNuxtConfig({
     // (gzip ≈ zstd, the entry chunk 184 KB); Brotli at build time is about a
     // quarter smaller, which is what a slow or lossy connection feels.
     compressPublicAssets: { gzip: true, brotli: true },
-    // The website CMS scheduler (ADR-021): one in-process cron that publishes
-    // documents whose time has come. The panel runs as a single node-server
-    // process, so there is exactly one.
+    // The mail outbox scheduler (ADR-022): one in-process cron that retries
+    // queued email. The panel runs as a single node-server process, so there
+    // is exactly one.
     experimental: {
       tasks: true,
     },
     scheduledTasks: {
-      '* * * * *': ['website:publish-due', 'mail:deliver'],
+      '* * * * *': ['mail:deliver'],
     },
     // Minifying the server bundle is the peak-memory stage of the build and
     // repeatedly OOM-killed the 4GB production VPS (the rollup pass holds the

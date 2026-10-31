@@ -61,7 +61,7 @@ export default defineEventHandler(async (event) => {
   // assignee, else the order's manager, else everyone who answers support.
   const preview = content ? (content.length > 160 ? `${content.slice(0, 157).trim()}…` : content) : `${attachmentIds.length} ${attachmentIds.length === 1 ? 'file' : 'files'} attached.`
   const handler = ticket.assigneeId ?? ticket.relatedProject?.managerId ?? null
-  const heads = { title: `Customer replied: ${ticket.subject}`, message: preview, type: 'INFO' as const, link: `/admin/tickets?ticket=${ticketId}` }
+  const heads = { title: `Customer replied: ${ticket.subject}`, message: preview, type: 'INFO' as const }
   if (handler) {
     await notify({ userIds: [handler], ...heads })
   }

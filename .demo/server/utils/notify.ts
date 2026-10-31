@@ -1,5 +1,5 @@
 import type { Permission } from '../../shared/permissions'
-import type { Db, MailKind } from './mail/outbox'
+import type { Db } from './mail/outbox'
 import { rolesWith } from '../../shared/permissions'
 import { deliverNow, enqueueMail, loadBrand } from './mail/outbox'
 import { absoluteUrl, MailRenderError } from './mail/render'
@@ -28,14 +28,12 @@ export interface NotifyInput {
   title: string
   message: string
   type?: NotificationType
-  /** An in-app path (`/dashboards/…`, `/admin/…`); the email gets it as an absolute link. */
+  /** An in-app path (`/dashboards/…`); the email gets it as an absolute link. */
   link?: string | null
   /** Account and security notices: email even when notification emails are off. */
   always?: boolean
   /** Leave the person who caused the event out (a reviewer, a replying agent). */
   excludeUserId?: string | null
-  /** How the outbox files the email; `notification` unless a flow has its own filter on the Email screen. */
-  kind?: Extract<MailKind, 'notification' | 'cms-review'>
 }
 
 export interface NotifyResult {
@@ -78,7 +76,7 @@ export async function notify(input: NotifyInput, tx?: Db): Promise<NotifyResult>
       }
     }
     const draft = notificationMail(brand, { title: input.title, message: input.message, url })
-    const kind = input.kind ?? 'notification'
+    const kind = 'notification'
     for (const { id, email } of emails) {
       if (linkError) {
         // The row is written as failed with the reason, where the Email screen shows it; the in-app notification still stands.

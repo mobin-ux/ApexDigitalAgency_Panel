@@ -8,8 +8,7 @@ import { client, DEV_ACCOUNTS, enabled, login } from './helpers.ts'
  * Notification emails (ADR-022) through real events on a keyless dev
  * server: a customer's reply on a support request reaches the people who
  * answer support as an in-app row and a queued email; turning the switch
- * off keeps the row and stops the email; a broadcast reports how many it
- * emailed.
+ * off keeps the row and stops the email.
  */
 async function mailFor(to: string): Promise<{ id: string, kind: string, subject: string, status: string, text: string }[]> {
   const res = await client().json<any>(`/api/_test/mail?to=${encodeURIComponent(to)}`)
@@ -44,7 +43,6 @@ describe('notification emails', { skip: !enabled && 'CMS_TEST_URL is not set', t
     assert.equal(rows.length, before + 1, 'one notification email queued for the owner, who answers support')
     assert.match(rows[0]!.subject, /Customer replied: Notify test/)
     assert.match(rows[0]!.text, /A reply from the customer\./)
-    assert.match(rows[0]!.text, /\/admin\/tickets\?ticket=/)
 
     const inApp = await owner.json<any>('/api/notifications')
     assert.equal(inApp.status, 200)
@@ -72,15 +70,5 @@ describe('notification emails', { skip: !enabled && 'CMS_TEST_URL is not set', t
     const on = await owner.json<any>('/api/settings/preferences', { method: 'PATCH', json: { emailNotifications: true } })
     assert.equal(on.body.preferences.emailNotifications, true)
     await customer.json(`/api/support/${ticketId}`, { method: 'PATCH', json: { status: 'RESOLVED' } }).catch(() => {})
-  })
-
-  it('a broadcast to one customer reports the email it queued', async () => {
-    const who = await customer.json<any>('/api/auth/me')
-    const res = await owner.json<any>('/api/admin/notifications/broadcast', { method: 'POST', json: { title: `Broadcast ${stamp}`, message: 'Hello from the test.', type: 'INFO', userId: who.body.user.id } })
-    assert.equal(res.status, 200, JSON.stringify(res.body))
-    assert.equal(res.body.recipientCount, 1)
-    assert.equal(res.body.emailed, who.body.user.email && who.body.user.emailNotifications !== false ? 1 : 0)
-    const bad = await owner.json<any>('/api/admin/notifications/broadcast', { method: 'POST', json: { title: 'x', message: 'y', link: 'https://evil.test' } })
-    assert.equal(bad.status, 400, 'links must be in-app paths')
   })
 })

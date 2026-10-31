@@ -34,11 +34,11 @@ Detail lives in the docs — read on demand, don't guess:
 8. **Never kill the user's dev server on port 3000**; preview uses `autoPort` (launch.json).
 9. **Never fabricate financial actions** — no fake charges; route to Wallet + `TODO(api)`.
 10. Rewrite Persian comments to English whenever touching a legacy file.
-11. **Admin routes gate on a permission, not on "is admin"** — every
-    `/api/admin/**` handler calls `requireStaffPermission(event, '<perm>')` from
-    the eleven in `shared/permissions.ts` (ADR-016). Never add an admin endpoint
-    on bare `requireAdmin`, and never duplicate the matrix: the admin UI reads
-    the same file, which is what stops the documented and enforced rules drifting.
+11. **There is no admin console** (removed 2026-10-31, ADR-024). Staff-only
+    behaviour that remains (attachments, avatars, staff notifications) gates on
+    a permission from `shared/permissions.ts` via `requireStaffPermission()` or
+    `can()`, never on bare `requireAdmin`. Do not drop roles from the matrix:
+    an unknown `staffRole` falls back to `owner`.
 
 ## Conventions
 
@@ -52,12 +52,7 @@ Detail lives in the docs — read on demand, don't guess:
   `text-fg-muted`, `border-line-subtle`, `text-accent-ink`, `bg-st-<tone>-bg`…
   (main.css). Components: `ApexButton`, `ApexStatusChip`, `ApexField`, `ApexGlyph`.
   Status labels come from `projectStatus()` and schedules from `orderSchedule()`.
-- **Admin is the Admin Console** (`Admin Console.dc.html`, 2026-10-31): light and
-  dark, `layouts/admin.vue` + `AdminConsoleSidebar`, nav table `utils/adminNav.ts`.
-  Build screens from `AdminPage`, `AdminPageHeader` (title + accent), `AdminCard`,
-  `AdminButton`, `AdminStatusChip`, `AdminDialog`, `AdminDrawer` and
-  `useAdminConfirm().ask()` (reason required wherever the API stores one); tables
-  switch to fixed columns at `xl`. Auth and legal routes stay pinned dark.
+- Auth and legal routes stay pinned dark (`pages:extend` in nuxt.config).
 - Radius scale: surfaces `rounded-2xl`, inner rows/inputs/icon buttons `rounded-xl`,
   pills `rounded-full`. No new arbitrary `rounded-[Npx]` for either.
 - Static assets go in **`.demo/public/`**. `.demo/app/public/` is not served.
@@ -93,11 +88,10 @@ Detail lives in the docs — read on demand, don't guess:
 .demo/server/api/             Nitro endpoints (auth, orders, finance, support, settings)
 .demo/server/utils/           requireAuth / requireStaffPermission, prisma, zod, audit
 .demo/shared/                 imported by BOTH halves: permissions.ts (the staff role
-                              matrix the UI renders AND the server enforces — ADR-016),
-                              support-eta.ts, audit-kinds.ts
+                              matrix the server enforces — ADR-016), catalog.ts,
+                              support-eta.ts, panel-baseline.ts
 .demo/server/utils/deliverables.ts  the ONE answer to "are these files in the client's
-                              hands" — read by the admin panel and by /api/orders, so the
-                              two can't disagree (ADR-017)
+                              hands", read by /api/orders (ADR-017)
 prisma/schema.prisma          User/Project/Milestone/Transaction/Installment/Ticket…
 ```
 
@@ -113,9 +107,10 @@ prisma/schema.prisma          User/Project/Milestone/Transaction/Installment/Tic
 
 ## Public website (`web/`)
 
-The marketing site (apexdigi.co.uk) is a **separate Nuxt 4 app**, `@apex/web`, that
-sells and then hands visitors to the panel — see
-@docs/decisions/ADR-018-public-marketing-site.md and `web/README.md`.
+The marketing site (apexdigi.co.uk) is a **separate Nuxt 4 app**, `@apex/web`; orders
+start on its contact form and nothing links to or reads from the panel (ADR-024) —
+see @docs/decisions/ADR-018-public-marketing-site.md and `web/README.md`. Its words
+live in code: `app/data/cms-baseline.ts` over the templates in `shared/cms/`.
 Run `pnpm web:dev` · lint `pnpm exec eslint --fix web` · types `pnpm web:typecheck`.
 The panel's hard rules above are about the panel. In `web/`: tokens not hex (`@theme`
 in `app/assets/css/main.css`), copy as typed data in `app/data/`, **no invented facts**

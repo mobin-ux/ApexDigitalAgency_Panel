@@ -62,7 +62,7 @@ export interface PlanCardView extends PlanCopy {
   detail?: string
   /** The pill under the price: the total, or the billing terms. */
   chip: string
-  order: { to: string } | { href: string }
+  order: { to: string }
   /** Read after "Start your order" by screen readers, naming the plan. */
   orderContext: string
 }
@@ -80,10 +80,10 @@ export interface Quote {
 }
 
 /**
- * Where a call to action goes: the plans or work section on the page, the
- * contact form (with the service named), or the panel's New Order wizard.
+ * Where a call to action goes: the plans or work section on the page, or
+ * the contact form (with the service named).
  */
-export type CtaTarget = 'plans' | 'work' | 'contact' | 'order'
+export type CtaTarget = 'plans' | 'work' | 'contact'
 
 export interface CtaLink {
   label: string

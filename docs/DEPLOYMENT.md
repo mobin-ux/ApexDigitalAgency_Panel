@@ -169,6 +169,13 @@ substantially more compliance burden.
 
 ## 9. The website CMS (ADR-021) — what a deploy needs
 
+> **Removed on 2026-10-31 (ADR-024).** The CMS, the admin console and the
+> site's overlay are gone from the code. This section is kept as the record
+> of what was deployed. After the next deploy of both apps, `NUXT_WEBSITE_*`
+> (panel) and `NUXT_CMS_URL`, `NUXT_CMS_REVALIDATE_SECRET` and
+> `NUXT_PUBLIC_PANEL_URL` (site) are unused and can be deleted from the env
+> files; the `Site*` tables and `/opt/apex/site-media` stay untouched.
+
 The panel became the content system for the public site on 2026-10-28
 (commits `bbedafa` → `cc969a5`, nine gates). Nothing from it is deployed
 yet, and it goes out together with the panel's Settings re-check commits

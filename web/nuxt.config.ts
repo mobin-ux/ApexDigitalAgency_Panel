@@ -60,21 +60,7 @@ export default defineNuxtConfig({
       to: '',
       from: '',
     },
-    /**
-     * The panel that manages this site's content (ADR-021). `url` is where
-     * the panel runs as seen from this server (NUXT_CMS_URL, e.g.
-     * http://127.0.0.1:3000); empty renders the code baseline. `secret` is
-     * the bearer token POST /api/cms/revalidate expects
-     * (NUXT_CMS_REVALIDATE_SECRET, the same value as the panel's
-     * NUXT_WEBSITE_REVALIDATE_SECRET); empty answers 503 there.
-     */
-    cms: {
-      url: '',
-      revalidateSecret: '',
-    },
     public: {
-      /** Customer panel (separate Nuxt app) — target of "Client login" and order links. */
-      panelUrl: 'https://panel.apexdigi.co.uk',
       /** Baked at build so server and browser render the same © year. */
       buildYear: new Date().getFullYear(),
     },
@@ -98,29 +84,15 @@ export default defineNuxtConfig({
   },
 
   // ---------------------------------------------------------------------------
-  // Rendering: every page is server-rendered per request over content the
-  // server caches for 60 s (ADR-021), so a publish is visible on the next
-  // request and every visitor gets a fresh CSP nonce. HTML-level swr is
-  // deliberately not used: the route cache would replay one nonce.
+  // Rendering: every page is server-rendered per request, so every visitor
+  // gets a fresh CSP nonce. HTML-level swr is deliberately not used: the
+  // route cache would replay one nonce.
   // ---------------------------------------------------------------------------
   routeRules: {
     '/**': { headers: { 'permissions-policy': permissionsPolicy } },
-    // A draft preview: never cached, never indexed.
-    '/preview/**': { cache: false, headers: { 'cache-control': 'no-store', 'x-robots-tag': 'noindex, nofollow' } },
-    // The panel's revalidate call: POST, small, server to server, authenticated by a bearer secret.
-    '/api/cms/revalidate': {
-      security: {
-        allowedMethodsRestricter: { methods: ['POST'] },
-        requestSizeLimiter: { maxRequestSizeInBytes: 8_000 },
-        rateLimiter: false,
-      },
-    },
-    // Same-origin content proxies for client-side navigation; the server's own cache bounds the work.
-    '/api/cms/**': { security: { rateLimiter: false } },
     '/api/__sitemap__/**': { security: { rateLimiter: false } },
-    // Images and library files: many per page, cached on disk, no per-IP limiter.
+    // Images: many per page, no per-IP limiter.
     '/_ipx/**': { security: { rateLimiter: false } },
-    '/media/**': { security: { rateLimiter: false } },
     // The site's one write. POST is allowed here and nowhere else; the body is
     // small and each IP gets five messages per ten minutes.
     '/api/contact': {
@@ -137,17 +109,6 @@ export default defineNuxtConfig({
 
   nitro: {
     compressPublicAssets: { gzip: true, brotli: true },
-    // The last good answer from the panel, on disk, so an outage renders the
-    // last published words rather than the baseline (server/utils/cms.ts).
-    storage: {
-      cms: { driver: 'fs', base: '.data/cms' },
-      // Processed images, by request path (server/routes/_ipx): IPX itself never caches.
-      ipx: { driver: 'fs', base: '.data/ipx' },
-    },
-    devStorage: {
-      cms: { driver: 'fs', base: '.data/cms' },
-      ipx: { driver: 'fs', base: '.data/ipx' },
-    },
   },
 
   // ---------------------------------------------------------------------------
@@ -160,19 +121,18 @@ export default defineNuxtConfig({
     defaultLocale: 'en-GB',
   },
 
-  // The Organization identity is defined at request time in app.vue from
-  // the site settings (ADR-021), so a changed phone number or profile URL
-  // reaches structured data without a build.
+  // The Organization identity is defined in app.vue from `data/site.ts`.
 
   // The service-worker based skew protection is for apps with many concurrent
   // deploys; a prerendered marketing site gains nothing from it, and its worker
   // registration logs an error under the strict COEP header.
   skewProtection: { enabled: false },
   // The browser-side XSL stylesheet is an inline resource the strict CSP would block.
-  // Every address comes from one server source (code pages plus the published
-  // landing pages, ADR-021), not from the router: the catch-all and the preview
-  // route must never be listed.
+  // Every address comes from one server source, not from the router, so the
+  // dynamic pages list only the studies and articles that are written.
   sitemap: { xsl: false, sources: ['/api/__sitemap__/urls'], excludeAppSources: true },
+  // The APIs are not pages.
+  robots: { disallow: ['/api/'] },
 
   // TODO(seo): turn the link checker on once the remaining pages exist; it
   // would otherwise report every not-yet-built internal link as broken.

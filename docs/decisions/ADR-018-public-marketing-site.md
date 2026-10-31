@@ -1,7 +1,9 @@
 # ADR-018 — The public marketing site is its own Nuxt 4 app in `web/`
 
 **Status:** Accepted (2026-10-15) — begins the "public website" phase, the work
-that sells and then hands the visitor to the customer panel.
+that sells and then hands the visitor to the customer panel. Amended by ADR-024
+(2026-10-31): the site no longer links to or reads from the panel; orders start
+on its contact form and its words come from code only.
 **Context:** the panel (`.demo/`) is a logged-in product. The marketing site is a
 different job: be found, be fast, be trusted, and convert. Its design comes from
 the same Claude Design project (`Homepage.dc.html` first; About, Services,

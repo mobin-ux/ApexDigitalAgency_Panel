@@ -6,7 +6,7 @@ import { APPLICANT_ROLES, BUSINESS_TYPES, CREDIT_REQUEST_MIN, CREDIT_REQUEST_STE
 /**
  * The credit line application (Wallet.dc.html, 2026-10-25): an intro with two
  * eligibility checks, then Business · About you · Banking · Limit and review.
- * Submits to `POST /api/credit/application`; staff decide it in /admin/credit.
+ * Submits to `POST /api/credit/application`; staff decide it.
  *
  * Where the design and the product differ, the product wins:
  *  - "Connect your bank" (Open Banking) is not offered: no provider is set up,

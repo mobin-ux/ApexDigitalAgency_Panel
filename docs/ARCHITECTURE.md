@@ -28,8 +28,6 @@ Tairo components and is extended by `.demo/nuxt.config.ts`.
     pages/dashboards/        customer pages (balance, orders, services, wallet, support, settings)
     pages/auth/              login-1 (active login), signup-1, recover — still template-era
     layouts/sidenav.vue      customer shell: brand band, ApexSidebarNav, ApexAccountMenu
-    layouts/admin.vue        admin console shell (`Admin Console.dc.html`): sidebar, top bar,
-                             ⌘K palette, confirmation host; light and dark
     components/Apex*.vue     shared shell vocabulary (V2 Phase 1):
                              ApexSidebarNav, ApexAccountMenu, ApexNotificationsMenu,
                              ApexPageHeader, ApexSectionLabel
@@ -95,12 +93,17 @@ Yellix fonts, and reference screenshots). Integration strategy:
 
 ## 5. API surface (customer-relevant)
 
+**2026-10-31 (ADR-024):** the admin console, every `/api/admin/**` route, the
+website CMS's public API (`/api/site/**`) and the staff invite routes were
+removed; the table lists what remains. `/api/config` no longer carries
+`legal` or `announcement`.
+
 **Server conventions (ADR-013)**: every Prisma-backed route uses the shared
 utils in `.demo/server/utils/` — `requireAuth(event)` for customer routes and
-**`requireStaffPermission(event, '<permission>')`** for every `/api/admin/**`
-route (ADR-016; never inline JWT; bad tokens → 401, not 500), the `prisma`
+**`requireStaffPermission(event, '<permission>')`** for what staff alone may
+read (ADR-016; never inline JWT; bad tokens → 401, not 500), the `prisma`
 singleton (never `new PrismaClient()`), zod `validateBody`/`validateQuery`
-(400 with `data.fieldErrors`), and `recordAudit()` on every admin mutation. List
+(400 with `data.fieldErrors`), and `recordAudit()` on staff mutations. List
 endpoints return the `paginated()` envelope `{items,total,page,pageSize,pageCount}`.
 `requireAdmin` still exists as the coarse panel gate that
 `requireStaffPermission` is built on, and `requireRole` now also refuses a
@@ -134,64 +137,24 @@ JWT secret: `runtimeConfig.jwtSecret` (`NUXT_JWT_SECRET` env override).
 | DELETE `/api/settings/sessions/:id` · POST `/api/settings/sessions/others` | sign out one other device, or all others (also ends pre-session tokens via `User.sessionsValidAfter`) |
 | GET `/api/settings/two-factor` · POST `…/setup` · `…/enable` · `…/disable` · `…/backup-codes` | authenticator-app two-step: status; a pending secret and otpauth URI; a code turns it on and returns ten backup codes once; off needs the password and a code; new codes need a code. Code checks are rate-limited per account |
 | POST `/api/auth/login-2fa` | second sign-in step: the five-minute ticket from `/api/auth/login` plus an app code or a backup code; starts the session |
-| POST `/api/admin/users/:id/two-factor-reset` | `clients.approve` — turn off someone else's two-step, with a typed reason (audited); the customer is notified |
 | GET `/api/avatars/:userId` | the profile photo, inline, to the account itself and active staff only (404 otherwise); a year's private cache, since the URL carries `?v=<file id>` |
-| POST `/api/admin/tickets/:id/reply` | `support.answer` — a public reply also notifies the customer; internal notes never do |
 | POST `/api/notifications/:id/read` | mark one of the caller's notifications read (owner-scoped update; 404 otherwise) |
 | GET/POST/DELETE `/api/credit/application` | ADR-020: the caller's credit application (status screen + ceiling), submit one (claims their own photo ID and statement uploads; one at a time, none with a line in place), withdraw it (stamped WITHDRAWN, files deleted from disk) |
 | GET `/api/credit/companies?q=` | Companies House search by name or number for the application; 503 without `NUXT_COMPANIES_HOUSE_KEY` |
 | DELETE `/api/uploads/:id` | discard one of the caller's own unattached uploads (a replaced ID or a removed statement) |
-| GET `/api/admin/credit/applications` | `money.view` — waiting applications (oldest first) with their files, recent decisions, lines in place, the ceiling and whether this role may decide |
-| POST `/api/admin/credit/applications/:id/decide` | `credit.approve` — approve with a limit (at most `credit.max-limit`; creates the CreditLine) or decline; claimed conditionally, internal note to the audit log, customer notified |
 | GET `/api/settings/companies-house` | Companies House lookup by number (`NUXT_COMPANIES_HOUSE_KEY`; 503 without, and `/api/config.companiesHouseLookup` hides the button) |
-| POST `/api/admin/projects/:id/kickoff` | `work.assign` — collect the kickoff payment from the wallet and start the work (`collectKickoff()`); 400 naming the shortfall, 409 if already taken |
-| POST/DELETE `/api/admin/projects/:id/actions[/:actionId]` | `work.assign` — ask the client for something / withdraw it (stamped CANCELLED, never deleted) |
 | POST `/api/orders/pay` | pays FULL amount, activates PENDING project — ownership-checked, atomic conditional debit (no double-spend). **Not** an installment charge (ADR-010) |
 | GET `/api/finance/dashboard` | wallet overview. `balanceOverview.cash` **is** `User.walletBalance` (it used to be the sum of the ten newest transactions) |
 | GET `/api/config` | the customer-safe Setting slice. Signed out: `siteName`, `supportEmail`, plus the published `legal.{terms,privacy}` documents and a live `announcement` (ADR-021); signed in adds `dashboardPromo` (resolved over `shared/panel-baseline.ts`) and `features.creditApplications`. Client code reads it through `useApexConfig()`, one shared key per page |
-| GET `/api/admin/tickets` | `support.answer` — the inbox; since 2026-10-31 also `replyTargets` (minutes per priority, Platform settings over `shared/support-eta` defaults) and each request's `waitingSince` (the customer's latest public message when unanswered; internal notes are not an answer) |
-| GET `/api/admin/services` | `work.view` — the catalogue and defaults; since 2026-10-31 also `live` project counts per service |
-| GET `/api/admin/users` | `work.view` — the directory; since 2026-10-31 also the credit line (selected only for `money.view` roles; `canMoney` in the answer) and the newest session's `lastSeenAt` |
 | `/api/support/*` | ticket create/list zod-validated; thread read/reply **ownership-checked** (were fully unauthenticated) |
 | `/api/settings/*` | schema-valid field names; `get-all` no longer returns the password hash. `update-all` accepts only the fields a customer may set — not the company's status, manager, income or headcount, and no image URLs |
-| **`/api/admin/users`** (GET) | ADMIN only — paginated/searchable/role-filterable directory (`?page&pageSize&search&role`) |
-| **`/api/admin/users/:id`** (GET/PATCH) | ADMIN only — detail w/ recent activity; whitelisted PATCH (role/adCredits/profile — not password/walletBalance/email) + audit row; self-demotion blocked |
-| **`/api/admin/stats`** (GET) | `work.view` — the Overview screen: the four count tiles, the oldest-first work queue, the delivery pipeline, and the money card **only** for a role holding `money.view`. Every pre-existing field is still returned |
-| **`/api/admin/projects/:id/deliverables/release`** (POST) | `work.release` — hands the files to the client. A reason is **required** while a balance is outstanding; the balance is snapshotted on the row. 409 if already released. The client is told the files are ready (in the panel and by email, ADR-022) |
-| **`/api/admin/projects/:id/deliverables/withdraw`** (POST) | `work.release` — stamps `withdrawnAt` on the active release with a conditional update, so racing withdrawals settle it once |
-| **`/api/admin/projects/:id/advance`** (POST) | `work.assign` — completes the current milestone, lights the next, and recomputes `progress` from the timeline in one transaction and one audit entry |
-| **`/api/admin/projects/:id/notes`** (POST) | `work.assign` — a staff-only project note. No customer endpoint reads `ProjectNote` |
-| **`/api/admin/{projects,finance,tickets,settings,audit,milestones,notifications}`** | ADMIN only — full management surface (list/detail/create/patch/delete per module; finance = summary/transactions/refund/withdrawals/installments; tickets incl. internal notes + reply; settings key/value upsert; broadcast notifications). Same ADR-013 conventions: `requireAdmin`, zod, `paginated()`, `recordAudit()` |
 | POST `/api/finance/topup` | **real gateway top-up** (ADR-015). Creates a `PaymentIntent` *before* calling the provider, returns redirect/clientSecret; the wallet moves only in `settleIntent`. Supersedes `/api/finance/deposit` for the UI |
 | POST `/api/webhooks/:provider` | **the only unauthenticated writes** — the HMAC signature is the auth. Raw body → constant-time verify → unique `(provider, providerEventId)` insert → 200. `stripe`\|`gocardless`\|`paypal`\|`mock` |
-| GET `/api/admin/payments/health` | `money.view` — rails status: configured providers + mode, trial balance, stuck intents, webhook failures, provider balances. Shown as the Rails tab of Payments & credit |
-| **`/api/admin/team`** (GET) | `team.manage` — staff members (role ADMIN) with their `staffRole`, project load and most recent audited action, **plus** pending invites as a separate list (badge 24) |
-| **`/api/admin/team/:id`** (PATCH) | `team.manage` — change `staffRole` or suspend/restore. Refuses self-edits and last-owner demotion/suspension with the sentence the UI shows; writes an audit row with the typed reason |
-| **`/api/admin/team/invites`** (POST) | `team.manage` — create a `StaffInvite` (single-use token, 7-day expiry). Grants nothing. The acceptance link is emailed through the outbox (ADR-022) and the answer carries `mail.status`, SENT only when the provider accepted it; the link is returned as well so the operator can pass it on when the email did not go |
-| **`/api/admin/team/invites/:id`** (DELETE) | `team.manage` — withdraw; stamps `cancelledAt` rather than deleting, so the audit trail's subject survives |
-| **`/api/admin/team/invites/:id/resend`** (POST) | `team.manage` — mints a NEW token and restarts the clock, invalidating the previous link; emailed and returned like a new invite |
-| **`/api/admin/website/overview`** (GET) | `website.view` — the Website module's first screen (ADR-021): document counts by display status, the scheduled queue, failed publishes, pending revalidations, media totals, redirect counts, the latest `admin.website.*` audit rows, and `seo` (issue counts) only for a role holding `website.seo` — `null` otherwise, so the screen draws no figure the reader cannot open |
 | POST `/api/_test/reset-rate-limits` | **dev-only (404 in production)** — clears the in-process rate limiter so the API test suites can sign in as every role from one address |
 | GET `/api/_test/mail?to=` | **dev-only (404 in production)** — the newest outbox rows for one address *with their rendered text*, so the API suites read reset, verification and invite links from the message instead of the console (ADR-022) |
-| `/api/admin/mail` (GET) · `/:id/retry` (POST) · `/test` (POST) | `team.manage` — the mail outbox (ADR-022): whether sending is configured, the queued / failed / sent-today counts and a page of messages with status, attempts and the provider's reason, **never the body** (reset and invite emails carry live tokens); retry a failed message now (409 for a reset or verification email, whose link died with its token, and while mail is not configured); send a test email to the caller's own address through the real outbox and provider |
-| GET `/api/site/manifest` · `/api/site/page?path=` · `/api/site/globals` | **public, no auth** (ADR-021): published website content only, never drafts; `Cache-Control: public, max-age=30, stale-while-revalidate=300` and no `Pragma` (the security middleware exempts `/api/site/`). The site's server is the caller and caches on top |
-| GET `/api/site/preview/:token` | a document's current draft behind a 30-minute purpose token (`site-preview`) minted by the panel; `no-store`; anything else is 404 |
-| `/api/admin/website/documents` (GET, POST) · `/:id` (GET, PUT, DELETE) · `/:id/transition` (POST) · `/:id/revisions/:n` (GET) · `/:id/revisions/:n/restore` (POST) · `/:id/preview-link` (POST) | `website.view` to read, `website.edit` to create and save, the action's own permission to transition (`ACTION_PERMISSION` in the shared contract), `website.publish` to delete. Content is validated against the shared template before it is written (400 with `fieldErrors` by dotted path); a save names the draft version it edited and a stale one is a 409 saying who saved first; every transition is one transaction that then tells the site to drop its cache and the people it concerns (ADR-022: a submission reaches the publishers, a decision the submitter, a publish by someone else the last editor; never the actor) |
-| POST `/api/admin/website/import-baseline` | `website.settings` — reads the site's `GET /api/cms/baseline` and creates one published document per entry that does not exist yet; idempotent |
-| POST `/api/admin/website/publish-due` | `website.publish` — "run now": the job the scheduler runs every minute (`server/tasks/website/publish-due.ts`): publishes what is due, once each, retries pending revalidations |
-| PATCH `/api/admin/website/documents/:id/key` · POST `…/:id/duplicate` | `website.publish` moves a page (a 301 `SiteRedirect` from the old address when it was ever live); `website.edit` copies a free page or legal document as a new draft |
-| PUT `/api/admin/website/panel-features` | `website.settings` — the `credit.applications-open` switch; `POST /api/credit/application` answers 409 while it is off and `/api/config` hides the apply buttons |
-| GET/HEAD `/api/site/media/:id/:version/:name` · GET `/api/site/settings` | **public**: a media-library file (a year's immutable cache; HEAD because the site's image pipeline asks first) and the site settings the panel validated |
-| `/api/admin/website/media` (GET, POST multipart ≤10 × 10 MB) · `/:id` (GET, PATCH alt/caption, DELETE) · `/:id/replace` (POST) · `/:id/usage` (GET) | `website.view` to read, `website.media` to change. Files are sniffed by their bytes and must match their extension; SVG and HTML are never accepted; a file any document references cannot be deleted (409 names them); a replacement keeps the id and bumps the version in the public address |
-| GET/PUT `/api/admin/website/settings` | `website.view` reads the registry and values; `website.settings` saves, each key validated by its own schema (400 with `fieldErrors` by key), only changed keys written and audited |
-| GET `/api/site/redirects` | **public**: the enabled redirects (`from`, `to`, `status`); the site's `00.redirects` middleware reads them, cached 60 s and purged on publish |
-| `/api/admin/website/redirects` (GET, POST) · `/check` (POST) · `/:id` (PATCH, DELETE) | `website.view` to list and check; `website.seo` to change. The source must be typed as a site path (never the root, no query), the target a site path or an https address; A → A and a loop are 409; a target that is itself redirected is flattened to its destination; redirects pointing at the new source are retargeted; every change tells the site to drop its cache |
-| GET `/api/admin/website/seo-audit` | `website.seo` — issues over the published documents and redirects (titles, descriptions, duplicates, canonicals, noindex, loops and chains, a redirect shadowing a live page, links to nothing, images without alt), sorted error → warning → info |
-| GET `/api/auth/invite?token=` | unauthenticated by necessity (the invitee has no account). Returns only the offered name, address and role — never the token or the inviter |
-| POST `/api/auth/accept-invite` | the **only** route that can create a non-CUSTOMER account. Role and email come from the invite row, never the body; the invite is claimed by a conditional update inside the account-creating transaction |
 | GET `/api/create-admin`, `/api/seed-*` | **dev-only (404 in production builds)**. All seeds now schema-valid |
 
-Deleted: `/api/users` GET/POST (were unauthenticated user list/create — superseded by `/api/admin/users`).
+Deleted: `/api/users` GET/POST (were unauthenticated user list/create).
 Deleted 2026-10-23: `/api/finance/deposit` (credited any amount to the caller's
 wallet with no payment, and was live in production), `/api/finance/credit/repay`
 and `/credit/apply` (both undone by `ensureCredit()` on the next load — repay kept
@@ -248,28 +211,11 @@ All customer pages: `definePageMeta({ layout: 'sidenav', middleware: 'auth' })`.
   `/dashboards/support` (real page, not the design's stub).
 - **Old-style pages awaiting redesign**: settings.vue, auth pages — still hardcoded
   hex/USD/native alerts; rebuild only on design arrival.
-- **Admin console (2026-10-31, `Admin Console.dc.html`)**: every `/admin/**`
-  screen sits in `layouts/admin.vue` (236px sidebar from `lg`, drawer below,
-  64px top bar with breadcrumb, ⌘K search, theme switch), light and dark.
-  The nav table is `app/utils/adminNav.ts`; a destination whose permission
-  the role lacks renders `AdminAccessWall` from the layout. Shared pieces
-  live in `app/components/Admin*.vue`, `app/composables/useAdminConsole.ts`
-  (breadcrumb, confirmation, palette, nav counts), `app/utils/adminUi.ts`
-  and `app/utils/adminFormat.ts`. See DESIGN_SYSTEM.md "Admin console".
-- **Admin — Team & platform (V2 Phase 9)**: `/admin/team` (staff, invites and the
-  role matrix), `/admin/settings` rebuilt as the design's four platform panels
-  with the rest of the catalogue below it, `/admin/audit` (the log, lifted out of
-  Tools, with kind filters and CSV export). The sidebar is grouped Work · People ·
-  Money · Service · Website · System and renders a padlock — not a link that 403s — for a
-  destination the signed-in `staffRole` cannot open. `/auth/accept-invite`
-  completes the invite loop on the Phase 8 auth shell. See ADR-016.
-- **Admin panel** (`/admin/**`): `layout: 'admin'` + `middleware: 'admin'` (role gate;
-  non-admins → customer dashboard), swr:false, shared `Admin*` components. Seven
-  modules — overview, users (+detail), projects (+detail w/ milestone CRUD), payments
-  (ledger/refunds, withdrawal queue, read-only installments), tickets (split-pane
-  triage, staff reply vs internal notes), settings (typed catalogue over `Setting`
-  rows), tools (audit trail, broadcast, dev seeds). Same Apex design language as the
-  customer pages.
+- **No admin console (2026-10-31, ADR-024).** The `/admin/**` screens (the
+  V2 Phase 9 admin, then the `Admin Console.dc.html` rebuild) were removed
+  with their API and the website CMS. Staff accounts and the permission
+  matrix remain; nothing in the panel lets staff act on orders, requests or
+  credit applications.
 
 Shared UI vocabulary (see DESIGN_SYSTEM.md + CLAUDE.md): status accents
 (`#22B07D`/`#F2C14E`/`#EC6453`/`#6EA8FE`), payment-state taxonomy
