@@ -422,3 +422,7 @@ Not deployed. When `feature/admin-console` is merged and shipped:
    the owner has confirmed the lending position in writing; with credit
    decisions off, staff can decline, freeze and lower credit but not approve
    it, and applications wait.
+6. **Indexes and the append-only audit log** (phase 3): with the panel
+   stopped and after a backup, `docs/migrations/2026-11-admin-hardening.sql`
+   (idempotent; rollback in the file). If a later `prisma db push` rebuilds
+   "AuditLog", the start-up log says `[audit-append-only]`: re-run the file.

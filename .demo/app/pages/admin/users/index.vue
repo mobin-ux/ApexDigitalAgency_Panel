@@ -35,7 +35,10 @@ watch([debouncedSearch, role, status, accountType], () => {
   page.value = 1
 })
 
+const { state: sortState, setSort, sortQuery } = useAdminSort({ sort: 'created', dir: 'desc' }, page)
+
 const query = computed(() => ({
+  ...sortQuery.value,
   page: page.value,
   pageSize: 20,
   ...(debouncedSearch.value ? { search: debouncedSearch.value } : {}),
@@ -158,7 +161,7 @@ const GRID = 'xl:grid-cols-[minmax(0,1fr)_180px_80px_190px_120px_130px]'
 
     <section class="bg-card border-line-subtle overflow-hidden rounded-2xl border">
       <div :class="[GRID, ADMIN_TH]" class="hidden gap-3.5 px-[22px] py-3.5 xl:grid">
-        <span>Client</span><span>Company</span><span class="text-end">Projects</span><span>Credit line</span><span>Portal</span><span>Last active</span>
+        <AdminSortHeader label="Client" column="name" :state="sortState" @sort="setSort" /><span>Company</span><span class="text-end">Projects</span><span>Credit line</span><span>Portal</span><span>Last active</span>
       </div>
       <div v-if="pending" aria-hidden="true">
         <div v-for="i in 6" :key="i" class="border-line-soft h-[60px] animate-pulse border-t" />

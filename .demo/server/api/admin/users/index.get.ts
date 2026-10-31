@@ -1,19 +1,32 @@
+import type { Prisma } from '@prisma/client'
 import { defineEventHandler } from 'h3'
 import { z } from 'zod'
 import { can } from '../../../../shared/permissions'
-import { paginated, paginationQuerySchema, toSkipTake } from '../../../utils/http'
+import { orderFor, paginated, paginationQuerySchema, sortQuerySchema, toSkipTake } from '../../../utils/http'
 import { requireStaffPermission } from '../../../utils/permissions'
 import prisma from '../../../utils/prisma'
 import { validateQuery } from '../../../utils/validate'
 
 /**
  * GET /api/admin/users — paginated, searchable customer directory.
- * Query: ?page=&pageSize=&search=&role=
+ * Query: ?page=&pageSize=&search=&role=&status=&accountType=&sort=&dir=
+ * (sort: name | created)
  * Exemplar for every future admin list endpoint: requireStaffPermission →
  * validated query → shared prisma → `paginated()` envelope.
+ *
+ * A list carries only what its rows show (ADR-025, UK GDPR data
+ * minimisation): name, one contact (the phone only for an account with no
+ * email), status, company, counts, last active, and the credit line for
+ * money roles. Addresses, balances and verification dates stay on the
+ * client's record.
  */
 
-const querySchema = paginationQuerySchema.extend({
+const SORTS: Record<string, (dir: 'asc' | 'desc') => Prisma.UserOrderByWithRelationInput> = {
+  name: (dir: 'asc' | 'desc') => ({ firstName: dir }),
+  created: (dir: 'asc' | 'desc') => ({ createdAt: dir }),
+}
+
+const querySchema = paginationQuerySchema.merge(sortQuerySchema(['name', 'created'])).extend({
   search: z.string().trim().max(200).optional(),
   role: z.enum(['CUSTOMER', 'ADMIN', 'EMPLOYEE']).optional(),
   status: z.enum(['ACTIVE', 'SUSPENDED']).optional(),
@@ -25,7 +38,7 @@ const querySchema = paginationQuerySchema.extend({
 export default defineEventHandler(async (event) => {
   const staff = await requireStaffPermission(event, 'work.view')
   const canMoney = can(staff.staffRole, 'money.view')
-  const { page, pageSize, search, role, status, accountType } = validateQuery(event, querySchema)
+  const { page, pageSize, search, role, status, accountType, sort, dir } = validateQuery(event, querySchema)
 
   const where = {
     ...(role ? { role } : {}),
@@ -48,7 +61,7 @@ export default defineEventHandler(async (event) => {
     prisma.user.findMany({
       where,
       ...toSkipTake({ page, pageSize }),
-      orderBy: { createdAt: 'desc' },
+      orderBy: orderFor(SORTS, sort, dir, { sort: 'created', dir: 'desc' }),
       // Explicit select — the password hash must never leave the server.
       select: {
         id: true,
@@ -58,12 +71,7 @@ export default defineEventHandler(async (event) => {
         phone: true,
         role: true,
         status: true,
-        verifiedAt: true,
         avatar: true,
-        city: true,
-        country: true,
-        walletBalance: true,
-        adCredits: true,
         createdAt: true,
         company: { select: { id: true, name: true, status: true } },
         _count: { select: { projects: true, tickets: true } },
@@ -77,5 +85,6 @@ export default defineEventHandler(async (event) => {
     prisma.user.count({ where }),
   ])
 
-  return { ...paginated(items, total, { page, pageSize }), canMoney }
+  const rows = items.map(u => ({ ...u, phone: u.email ? null : u.phone }))
+  return { ...paginated(rows, total, { page, pageSize }), canMoney }
 })

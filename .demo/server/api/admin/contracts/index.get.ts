@@ -1,6 +1,7 @@
+import type { Prisma } from '@prisma/client'
 import { defineEventHandler } from 'h3'
 import { z } from 'zod'
-import { paginated, paginationQuerySchema, toSkipTake } from '../../../utils/http'
+import { orderFor, paginated, paginationQuerySchema, sortQuerySchema, toSkipTake } from '../../../utils/http'
 import { requireStaffPermission } from '../../../utils/permissions'
 import prisma from '../../../utils/prisma'
 import { validateQuery } from '../../../utils/validate'
@@ -11,7 +12,13 @@ import { validateQuery } from '../../../utils/validate'
  * Query: ?page=&pageSize=&search=&status=&userId=
  */
 
-const querySchema = paginationQuerySchema.extend({
+const SORTS: Record<string, (dir: 'asc' | 'desc') => Prisma.ContractOrderByWithRelationInput> = {
+  created: (dir: 'asc' | 'desc') => ({ createdAt: dir }),
+  signed: (dir: 'asc' | 'desc') => ({ signedAt: dir }),
+  value: (dir: 'asc' | 'desc') => ({ amount: dir }),
+}
+
+const querySchema = paginationQuerySchema.merge(sortQuerySchema(['created', 'signed', 'value'])).extend({
   search: z.string().trim().max(200).optional(),
   status: z.enum(['SIGNED', 'ACTIVE', 'COMPLETED', 'CANCELLED']).optional(),
   userId: z.string().trim().max(64).optional(),
@@ -19,7 +26,7 @@ const querySchema = paginationQuerySchema.extend({
 
 export default defineEventHandler(async (event) => {
   await requireStaffPermission(event, 'money.view')
-  const { page, pageSize, search, status, userId } = validateQuery(event, querySchema)
+  const { page, pageSize, search, status, userId, sort, dir } = validateQuery(event, querySchema)
 
   const where = {
     ...(status ? { status } : {}),
@@ -39,7 +46,7 @@ export default defineEventHandler(async (event) => {
     prisma.contract.findMany({
       where,
       ...toSkipTake({ page, pageSize }),
-      orderBy: { createdAt: 'desc' },
+      orderBy: orderFor(SORTS, sort, dir, { sort: 'created', dir: 'desc' }),
       include: {
         user: { select: { id: true, email: true, phone: true, firstName: true, lastName: true, avatar: true } },
         project: { select: { id: true, name: true, category: true, status: true, progress: true } },

@@ -1,14 +1,16 @@
+import type { Prisma } from '@prisma/client'
 import { defineEventHandler } from 'h3'
 import { z } from 'zod'
 import { AUDIT_KINDS, kindFilter } from '../../../../shared/audit-kinds'
-import { paginated, paginationQuerySchema, toSkipTake } from '../../../utils/http'
+import { orderFor, paginated, paginationQuerySchema, sortQuerySchema, toSkipTake } from '../../../utils/http'
 import { requireStaffPermission } from '../../../utils/permissions'
 import prisma from '../../../utils/prisma'
 import { validateQuery } from '../../../utils/validate'
 
 /**
  * GET /api/admin/audit — the privileged-action trail, paginated.
- * Query: ?page=&pageSize=&search=&action=&targetType=&kind=
+ * Query: ?page=&pageSize=&search=&action=&targetType=&kind=&dir=
+ * (newest first unless dir=asc)
  * `action` matches as a prefix (e.g. "admin.user." covers every user verb).
  *
  * Phase 9 adds, without removing anything the previous callers read:
@@ -25,7 +27,9 @@ import { validateQuery } from '../../../utils/validate'
  * resource. An audit log you can amend is not an audit log.
  */
 
-const querySchema = paginationQuerySchema.extend({
+const SORTS: Record<string, (dir: 'asc' | 'desc') => Prisma.AuditLogOrderByWithRelationInput> = { date: (dir: 'asc' | 'desc') => ({ createdAt: dir }) }
+
+const querySchema = paginationQuerySchema.merge(sortQuerySchema(['date'])).extend({
   search: z.string().trim().max(200).optional(),
   action: z.string().trim().max(100).optional(),
   targetType: z.string().trim().max(50).optional(),
@@ -34,7 +38,7 @@ const querySchema = paginationQuerySchema.extend({
 
 export default defineEventHandler(async (event) => {
   await requireStaffPermission(event, 'team.manage')
-  const { page, pageSize, search, action, targetType, kind } = validateQuery(event, querySchema)
+  const { page, pageSize, search, action, targetType, kind, sort, dir } = validateQuery(event, querySchema)
 
   const kindWhere = (() => {
     if (!kind) {
@@ -71,7 +75,7 @@ export default defineEventHandler(async (event) => {
     prisma.auditLog.findMany({
       where,
       ...toSkipTake({ page, pageSize }),
-      orderBy: { createdAt: 'desc' },
+      orderBy: orderFor(SORTS, sort, dir ?? 'desc', { sort: 'date', dir: 'desc' }),
     }),
     prisma.auditLog.count({ where }),
   ])

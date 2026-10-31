@@ -1,21 +1,28 @@
+import type { Prisma } from '@prisma/client'
 import type { ReplyPriority } from '../../../../shared/support-eta'
 import { defineEventHandler } from 'h3'
 import { z } from 'zod'
 import { DEFAULT_REPLY_TARGETS, REPLY_PRIORITIES, replyTargetKey } from '../../../../shared/support-eta'
-import { paginated, paginationQuerySchema, toSkipTake } from '../../../utils/http'
+import { orderFor, paginated, paginationQuerySchema, sortQuerySchema, toSkipTake } from '../../../utils/http'
 import { requireStaffPermission } from '../../../utils/permissions'
 import prisma from '../../../utils/prisma'
 import { validateQuery } from '../../../utils/validate'
 
 /**
  * GET /api/admin/tickets — support inbox across all customers.
- * Query: ?page=&pageSize=&search=&status=&priority=&assignee=
+ * Query: ?page=&pageSize=&search=&status=&priority=&assignee=&sort=&dir=
+ * (sort: updated | created)
  * `assignee` accepts a user id, "me", or "unassigned".
  * Status/priority are free-text schema fields (matches the customer page's
  * keyword normalization) so they're filtered as case-insensitive contains.
  */
 
-const querySchema = paginationQuerySchema.extend({
+const SORTS: Record<string, (dir: 'asc' | 'desc') => Prisma.TicketOrderByWithRelationInput> = {
+  updated: (dir: 'asc' | 'desc') => ({ updatedAt: dir }),
+  created: (dir: 'asc' | 'desc') => ({ createdAt: dir }),
+}
+
+const querySchema = paginationQuerySchema.merge(sortQuerySchema(['updated', 'created'])).extend({
   search: z.string().trim().max(200).optional(),
   status: z.string().trim().max(40).optional(),
   priority: z.string().trim().max(40).optional(),
@@ -24,7 +31,7 @@ const querySchema = paginationQuerySchema.extend({
 
 export default defineEventHandler(async (event) => {
   const admin = await requireStaffPermission(event, 'support.answer')
-  const { page, pageSize, search, status, priority, assignee } = validateQuery(event, querySchema)
+  const { page, pageSize, search, status, priority, assignee, sort, dir } = validateQuery(event, querySchema)
 
   const where = {
     ...(status ? { status: { contains: status } } : {}),
@@ -51,7 +58,7 @@ export default defineEventHandler(async (event) => {
     prisma.ticket.findMany({
       where,
       ...toSkipTake({ page, pageSize }),
-      orderBy: { updatedAt: 'desc' },
+      orderBy: orderFor(SORTS, sort, dir, { sort: 'updated', dir: 'desc' }),
       include: {
         user: { select: { id: true, email: true, firstName: true, lastName: true, avatar: true } },
         assignee: { select: { id: true, email: true, firstName: true, lastName: true } },

@@ -1,4 +1,5 @@
 import { createError, defineEventHandler, getRouterParam } from 'h3'
+import { can } from '../../../../shared/permissions'
 import { requireStaffPermission } from '../../../utils/permissions'
 import prisma from '../../../utils/prisma'
 
@@ -6,10 +7,17 @@ import prisma from '../../../utils/prisma'
  * GET /api/admin/users/:id — full customer detail for the admin panel:
  * profile, balances, and the 10 most recent projects / transactions /
  * tickets plus total counts.
+ *
+ * Minimised by role (ADR-025, UK GDPR): the balances, the ledger rows and
+ * project values go only to roles holding `money.view`, and date of birth
+ * and gender only to roles holding `clients.approve`. What a role may not
+ * see is left out of the response, not blanked in the page.
  */
 
 export default defineEventHandler(async (event) => {
-  await requireStaffPermission(event, 'work.view')
+  const staff = await requireStaffPermission(event, 'work.view')
+  const canMoney = can(staff.staffRole, 'money.view')
+  const canPersonal = can(staff.staffRole, 'clients.approve')
 
   const id = getRouterParam(event, 'id')
   if (!id) {
@@ -65,5 +73,12 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 404, message: 'User not found' })
   }
 
-  return user
+  const { walletBalance, adCredits, transactions, birthDate, gender, projects, ...rest } = user
+  return {
+    ...rest,
+    projects: projects.map(p => ({ ...p, amount: canMoney ? p.amount : null })),
+    ...(canMoney ? { walletBalance, adCredits, transactions } : { walletBalance: null, adCredits: null, transactions: [] }),
+    ...(canPersonal ? { birthDate, gender } : {}),
+    canMoney,
+  }
 })

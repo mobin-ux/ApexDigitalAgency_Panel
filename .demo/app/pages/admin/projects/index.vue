@@ -56,7 +56,10 @@ watch([debouncedSearch, status, category], () => {
  * on one screen — which is the point of badge 4. The pager below stays,
  * because "in practice" is not "always".
  */
+const { state: sortState, setSort, sortQuery } = useAdminSort({ sort: 'updated', dir: 'desc' }, page)
+
 const query = computed(() => ({
+  ...sortQuery.value,
   page: page.value,
   pageSize: 100,
   ...(debouncedSearch.value ? { search: debouncedSearch.value } : {}),
@@ -330,7 +333,7 @@ const PILL = 'apex-ring inline-flex h-8 cursor-pointer items-center gap-[7px] wh
 
     <section class="bg-card border-line-subtle overflow-hidden rounded-2xl border">
       <div :class="[GRID, ADMIN_TH]" class="hidden px-[22px] py-3.5 xl:grid">
-        <span v-if="can('work.assign')" /><span>Ref</span><span>Project</span><span>Service</span><span>Stage</span><span>Owner</span><span class="text-end">Updated</span><span v-if="canMoney" class="text-end">Plan value</span>
+        <span v-if="can('work.assign')" /><span>Ref</span><AdminSortHeader label="Project" column="name" :state="sortState" @sort="setSort" /><span>Service</span><span>Stage</span><span>Owner</span><AdminSortHeader label="Updated" column="updated" first="desc" align="end" :state="sortState" @sort="setSort" /><AdminSortHeader v-if="canMoney" label="Plan value" column="value" first="desc" align="end" :state="sortState" @sort="setSort" />
       </div>
 
       <div v-if="pending" aria-hidden="true">

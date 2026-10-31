@@ -102,3 +102,37 @@ Not changed, and stated so: credit lines themselves (ADR-020) carry no
 interest; whether lending on them to sole traders needs authorisation is
 the owner's question to take advice on, which is why approvals are behind
 the switch.
+
+## Data hardening (phase 3, 2026-11-01)
+
+- **Sorting on the server.** Lists were already paged and filtered in the
+  database; their order was fixed. `sortQuerySchema()` + `orderFor()`
+  (`server/utils/http.ts`) give projects, clients, transactions, agreements,
+  support and the audit log `?sort=&dir=` over a whitelist per list (an
+  unknown column is a 400), with the id as a tiebreak so pages never repeat
+  or skip a row. A role without `money.view` cannot sort by value: the
+  order would reveal what the column hides. The Projects, Clients and
+  Payments tables' existing column headings became `AdminSortHeader`
+  buttons. The screens built from the design had no sort control, so this
+  is the smallest addition that meets the requirement, not a design element.
+- **Indexes** for those orders and filters: Project (status+updatedAt,
+  userId, managerId), Ticket (status+updatedAt, userId, assigneeId), User
+  (role+createdAt), Transaction (type+createdAt). Project and Ticket had
+  none.
+- **Append-only audit log in the database**: two triggers refuse UPDATE and
+  DELETE on "AuditLog" (Prisma surfaces the refusal as a constraint error).
+  No code ever modified a row; now the database refuses it too. Prisma does
+  not manage triggers and a `db push` that rebuilds the table drops them, so
+  `server/plugins/audit-guard.ts` warns at start-up when they are missing.
+  SQL and rollback: `docs/migrations/2026-11-admin-hardening.sql`.
+- **Minimisation (UK GDPR).** The Clients list carries only what its rows
+  show: city, country, balances and verification date are gone, and the
+  phone is sent only for an account with no email. A client's record leaves
+  out balances, ledger rows and project values for roles without
+  `money.view`, and date of birth and gender for roles without
+  `clients.approve`. Before this, both went to every staff role, including
+  Read-only and Support.
+- **Not built:** a data export or erasure-request screen. The console as
+  designed has none, and erasure has to respect what UK law requires the
+  business to keep (signed agreements, payment records); that is a policy
+  decision to make before it is a screen.

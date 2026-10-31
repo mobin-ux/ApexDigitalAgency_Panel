@@ -2,7 +2,7 @@ import type { Prisma } from '@prisma/client'
 import { defineEventHandler } from 'h3'
 import { z } from 'zod'
 import { can } from '../../../../shared/permissions'
-import { paginated, paginationQuerySchema, toSkipTake } from '../../../utils/http'
+import { orderFor, paginated, paginationQuerySchema, sortQuerySchema, toSkipTake } from '../../../utils/http'
 import { requireStaffPermission } from '../../../utils/permissions'
 import prisma from '../../../utils/prisma'
 import { assignableStaff } from '../../../utils/staff'
@@ -10,7 +10,8 @@ import { validateQuery } from '../../../utils/validate'
 
 /**
  * GET /api/admin/projects — paginated project directory across all customers.
- * Query: ?page=&pageSize=&search=&status=&category=&userId=
+ * Query: ?page=&pageSize=&search=&status=&category=&userId=&sort=&dir=
+ * (sort: name | updated | created | deadline | value; value only for money roles)
  *
  * Phase 9 (Overview & work) adds three things, all additive:
  *
@@ -27,7 +28,15 @@ import { validateQuery } from '../../../utils/validate'
  * search, category and owner, which are narrowing the same set.
  */
 
-const querySchema = paginationQuerySchema.extend({
+const SORTS: Record<string, (dir: 'asc' | 'desc') => Prisma.ProjectOrderByWithRelationInput> = {
+  name: (dir: 'asc' | 'desc') => ({ name: dir }),
+  updated: (dir: 'asc' | 'desc') => ({ updatedAt: dir }),
+  created: (dir: 'asc' | 'desc') => ({ createdAt: dir }),
+  deadline: (dir: 'asc' | 'desc') => ({ deadline: { sort: dir, nulls: 'last' as const } }),
+  value: (dir: 'asc' | 'desc') => ({ amount: dir }),
+}
+
+const querySchema = paginationQuerySchema.merge(sortQuerySchema(['name', 'updated', 'created', 'deadline', 'value'])).extend({
   search: z.string().trim().max(200).optional(),
   status: z.enum(['PENDING', 'IN_PROGRESS', 'IN_REVIEW', 'COMPLETED', 'CANCELLED']).optional(),
   category: z.string().trim().max(100).optional(),
@@ -36,7 +45,9 @@ const querySchema = paginationQuerySchema.extend({
 
 export default defineEventHandler(async (event) => {
   const session = await requireStaffPermission(event, 'work.view')
-  const { page, pageSize, search, status, category, userId } = validateQuery(event, querySchema)
+  const { page, pageSize, search, status, category, userId, sort, dir } = validateQuery(event, querySchema)
+  // Sorting by value would leak the order of values to a role that cannot see them.
+  const orderBy = orderFor(SORTS, sort === 'value' && !can(session.staffRole, 'money.view') ? undefined : sort, dir, { sort: 'updated', dir: 'desc' })
 
   /*
    * Built as "everything except the stage", then narrowed — rather than
@@ -74,7 +85,7 @@ export default defineEventHandler(async (event) => {
     prisma.project.findMany({
       where,
       ...toSkipTake({ page, pageSize }),
-      orderBy: { updatedAt: 'desc' },
+      orderBy,
       include: {
         user: { select: { id: true, email: true, firstName: true, lastName: true, avatar: true } },
         manager: { select: { id: true, email: true, firstName: true, lastName: true } },

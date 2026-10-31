@@ -378,7 +378,7 @@ const labelClass = 'mb-[7px] block text-[13px] font-semibold text-fg-heading'
                     <NuxtLink :to="`/admin/projects/${p.id}`" class="flex items-center gap-3 px-4 py-3 transition hover:bg-chip">
                       <span class="min-w-0 flex-1 truncate text-[13.5px] font-semibold text-fg-heading">{{ p.name }}</span>
                       <span class="hidden text-[12.5px] text-fg-muted sm:block">{{ p.category }}</span>
-                      <span class="text-[13px] font-semibold text-fg-heading tabular-nums">{{ formatCurrency(p.amount) }}</span>
+                      <span v-if="p.amount !== null" class="text-[13px] font-semibold text-fg-heading tabular-nums">{{ formatCurrency(p.amount) }}</span>
                       <AdminStatusChip :status="p.status" />
                     </NuxtLink>
                   </template>
@@ -388,7 +388,7 @@ const labelClass = 'mb-[7px] block text-[13px] font-semibold text-fg-heading'
                 </p>
               </div>
 
-              <div>
+              <div v-if="detail.canMoney">
                 <div class="mb-2.5 flex items-center justify-between">
                   <span class="text-[12.5px] font-bold uppercase tracking-[0.05em] text-fg-muted">Transactions ({{ detail._count.transactions }})</span>
                   <NuxtLink :to="`/admin/payments?userId=${detail.id}`" class="text-[12.5px] font-semibold text-accent-ink hover:text-fg-heading">
@@ -440,7 +440,7 @@ const labelClass = 'mb-[7px] block text-[13px] font-semibold text-fg-heading'
         <!-- ========== RIGHT RAIL ========== -->
         <div class="flex flex-col gap-6">
           <!-- wallet -->
-          <section class="relative overflow-hidden rounded-[20px] border border-primary-500/30 p-6" style="background: linear-gradient(150deg, #241846, #16252A 72%);" aria-label="Wallet">
+          <section v-if="detail.canMoney" class="relative overflow-hidden rounded-[20px] border border-primary-500/30 p-6" style="background: linear-gradient(150deg, #241846, #16252A 72%);" aria-label="Wallet">
             <div class="mb-4 flex items-center justify-between">
               <span class="inline-flex items-center gap-3 text-[12.5px] font-bold tracking-[0.06em] text-accent-ink">
                 <span class="flex size-9 items-center justify-center rounded-[10px] bg-chip text-fg-heading"><Icon name="lucide:wallet" class="size-[18px]" /></span>WALLET BALANCE

@@ -65,7 +65,10 @@ watch([txSearchDebounced, txType, txStatus], () => {
   txPage.value = 1
 })
 
+const { state: txSort, setSort: setTxSort, sortQuery: txSortQuery } = useAdminSort({ sort: 'date', dir: 'desc' }, txPage)
+
 const txQuery = computed(() => ({
+  ...txSortQuery.value,
   page: txPage.value,
   pageSize: 20,
   ...(txSearchDebounced.value ? { search: txSearchDebounced.value } : {}),
@@ -337,7 +340,7 @@ const TAB_CLS = 'apex-ring -mb-px inline-flex h-10 shrink-0 cursor-pointer items
       </div>
       <section class="bg-card border-line-subtle overflow-hidden rounded-2xl border">
         <div class="hidden grid-cols-[150px_170px_minmax(0,1fr)_110px_120px_100px] gap-3.5 px-[22px] py-3.5 xl:grid" :class="ADMIN_TH">
-          <span>Date</span><span>Client</span><span>Description</span><span class="text-end">Amount</span><span>Status</span><span />
+          <AdminSortHeader label="Date" column="date" first="desc" :state="txSort" @sort="setTxSort" /><span>Client</span><span>Description</span><AdminSortHeader label="Amount" column="amount" first="desc" align="end" :state="txSort" @sort="setTxSort" /><span>Status</span><span />
         </div>
         <div v-if="txPending" aria-hidden="true">
           <div v-for="i in 6" :key="i" class="border-line-soft h-[52px] animate-pulse border-t" />
