@@ -1,4 +1,5 @@
 import process from 'node:process'
+import { staffCookie } from './staff-session.ts'
 
 /**
  * Helpers for the API suites, which run against a live panel dev server on a
@@ -15,6 +16,11 @@ import process from 'node:process'
  * (`cms-test-<role>@example.test`), which is also the test that acceptance
  * grants exactly the invited role. Those accounts live only in the local
  * database, which is never committed.
+ *
+ * Staff accounts sign in through the staff sign-in with an authenticator
+ * code (ADR-025); `login()` notices the customer sign-in turning a staff
+ * account away and goes through `staff-session.ts` instead, so a suite asks
+ * for the owner the same way it asks for the customer.
  */
 
 export const BASE = (process.env.CMS_TEST_URL ?? '').replace(/\/$/, '')
@@ -77,6 +83,39 @@ export async function resetRateLimits(): Promise<void> {
   await fetch(`${BASE}/api/_test/reset-rate-limits`, { method: 'POST', headers: { origin: BASE } })
 }
 
+async function postJson(path: string, json: unknown): Promise<{ status: number, body: any, cookie: string }> {
+  const res = await fetch(`${BASE}${path}`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'origin': BASE },
+    body: JSON.stringify(json),
+  })
+  const text = await res.text()
+  let body: any = text
+  try {
+    body = JSON.parse(text)
+  }
+  catch {}
+  return { status: res.status, body, cookie: res.headers.getSetCookie().map(c => c.split(';')[0]).join('; ') }
+}
+
+/** A client on a staff session, through the staff sign-in (ADR-025). */
+export async function staffLogin(email: string, password: string): Promise<Client> {
+  await resetRateLimits()
+  const cookie = await staffCookie(
+    email,
+    password,
+    postJson,
+    async (c) => {
+      const me = await client(c).json<any>('/api/auth/me')
+      return me.body?.user?.sessionKind === 'staff'
+    },
+    async () => {
+      await postJson('/api/_test/two-factor-reset', { email })
+    },
+  )
+  return client(cookie)
+}
+
 /** Sign in and return a client carrying the session cookie, or null on a 401. */
 export async function tryLogin(identifier: string, password: string): Promise<Client | null> {
   await resetRateLimits()
@@ -87,6 +126,13 @@ export async function tryLogin(identifier: string, password: string): Promise<Cl
   })
   if (res.status === 401) {
     return null
+  }
+  if (res.status === 403) {
+    const refusal = await res.json().catch(() => null)
+    if (refusal?.data?.signIn) {
+      return staffLogin(identifier, password)
+    }
+    throw new HarnessError(`login as ${identifier} answered 403: ${JSON.stringify(refusal)}`)
   }
   if (res.status !== 200) {
     throw new HarnessError(`login as ${identifier} answered ${res.status}: ${await res.text()}`)
@@ -139,7 +185,7 @@ export async function inviteAndAccept(owner: Client, role: string, email = staff
   if (accept.status !== 200) {
     throw new HarnessError(`accept-invite answered ${accept.status}: ${JSON.stringify(accept.body)}`)
   }
-  return login(email, password)
+  return staffLogin(email, password)
 }
 
 /** A signed-in client for a staff role: the existing test account, or a freshly invited one. */

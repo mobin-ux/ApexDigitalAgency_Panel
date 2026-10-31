@@ -41,6 +41,8 @@ export function useUser() {
    * in a half-signed-in UI.
    */
   const logout = async () => {
+    // Staff return to their own sign-in (ADR-025), customers to theirs.
+    const signIn = user.value?.sessionKind === 'staff' ? '/admin/sign-in' : '/auth/login-1'
     try {
       await $fetch('/api/auth/logout', { method: 'POST' })
     }
@@ -48,7 +50,7 @@ export function useUser() {
       // Ignored on purpose — see above.
     }
     user.value = null
-    await navigateTo('/auth/login-1')
+    await navigateTo(signIn)
   }
 
   return { user, fetchUser, setUser, logout }

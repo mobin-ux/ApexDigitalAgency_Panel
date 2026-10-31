@@ -17,7 +17,6 @@ import { toTypedSchema } from '@vee-validate/zod'
 import { Field, useForm } from 'vee-validate'
 import { z } from 'zod'
 import { PASSWORD_MIN } from '~~/shared/password'
-import { homeFor } from '~/utils/adminNav'
 
 definePageMeta({
   layout: 'auth',
@@ -27,7 +26,6 @@ definePageMeta({
 /** Same minimum as signup, reset and Settings (Phase 8). */
 
 const route = useRoute()
-const { user, fetchUser } = useUser()
 
 const token = computed(() => (route.query.token as string) || '')
 
@@ -102,15 +100,13 @@ const linkProblem = computed(() => {
 const onSubmit = handleSubmit(async (formValues) => {
   errorMessage.value = ''
   try {
-    await $fetch('/api/auth/accept-invite', {
+    const done = await $fetch('/api/auth/accept-invite', {
       method: 'POST',
       body: { token: token.value, password: formValues.password },
     })
-    // The endpoint sets the session cookie, so refresh state and go
-    // straight to the first screen the invited role can open, or to /admin,
-    // whose access wall explains a role that can open none.
-    await fetchUser({ force: true })
-    await navigateTo(homeFor(user.value?.staffRole) ?? '/admin')
+    // No session yet (ADR-025): the staff sign-in has the new member set up
+    // two-step verification, then starts the only session the console takes.
+    await navigateTo(done.signIn)
   }
   catch (error: any) {
     errorMessage.value = error?.statusCode === 429
@@ -134,7 +130,7 @@ const onSubmit = handleSubmit(async (formValues) => {
         {{ linkProblem }}
       </p>
       <p class="mt-[22px] text-[13.5px]">
-        <NuxtLink to="/auth/login-1" class="apex-focus text-primary-400 hover:text-primary-300 rounded font-semibold">
+        <NuxtLink to="/admin/sign-in" class="apex-focus text-primary-400 hover:text-primary-300 rounded font-semibold">
           Go to sign in
         </NuxtLink>
       </p>
@@ -151,7 +147,7 @@ const onSubmit = handleSubmit(async (formValues) => {
         Welcome, {{ invite.name.split(' ')[0] }}
       </h1>
       <p class="text-muted-400 mt-2.5 text-[14.5px] leading-[1.6]">
-        Choose a password and your Apex staff account is ready. Your sign-in address is
+        Choose a password, then set up an authenticator app when you first sign in: the admin console asks for a code every time. Your sign-in address is
         <strong class="text-muted-900 font-semibold dark:text-white">{{ invite.email }}</strong>.
       </p>
 

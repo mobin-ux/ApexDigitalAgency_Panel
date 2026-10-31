@@ -67,6 +67,14 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 403, message: 'This account has been suspended. Contact support for assistance.' })
   }
 
+  // Staff accounts sign in through the admin console's own sign-in, which
+  // requires two-step verification (ADR-025). Said only after the password
+  // was right, like suspension, so it cannot tell a prober which addresses
+  // belong to staff.
+  if (user.role === 'ADMIN') {
+    throw createError({ statusCode: 403, message: 'Staff accounts sign in at /admin/sign-in.', data: { signIn: '/admin/sign-in' } })
+  }
+
   const twoFactor = await prisma.twoFactor.findUnique({ where: { userId: user.id }, select: { enabledAt: true } })
   if (twoFactor?.enabledAt) {
     return { status: 'two_factor', ticket: signTwoFactorTicket(event, user.id) }

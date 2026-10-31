@@ -393,3 +393,27 @@ Unproxy the records (`--apply --dns-only`) and the edge is out of the path
 within the TTL; Caddy keeps serving as before. Restore the previous
 Caddyfile from its dated backup and `systemctl reload caddy` to drop the
 proxy trust (harmless to keep).
+
+---
+
+## 12. Admin console (ADR-025) — staff sign-in
+
+Not deployed. When `feature/admin-console` is merged and shipped:
+
+1. **Schema, before the new build starts.** Panel stopped, backup taken,
+   then `docs/migrations/2026-11-staff-sessions.sql` (one `ADD COLUMN` with a
+   default; the rollback is in the file). Every existing session becomes a
+   customer session.
+2. **Staff are signed out of the old route.** After the deploy a staff
+   account can no longer use the customer sign-in, and its existing
+   customer-kind session is refused by every admin endpoint (401). Each
+   staff member signs in at `/admin/sign-in` and sets up an authenticator
+   app on the first sign-in; tell them before the deploy.
+3. **First owner, only if none exists.** On the server, against the live
+   database:
+   `DATABASE_URL=file:/opt/apex/dev.db NUXT_PUBLIC_SITE_URL=https://panel.apexdigi.co.uk node scripts/create-super-admin.mjs --email … --name "…"`
+   from a checkout that has `node_modules` (the script needs
+   `@prisma/client`). It prints a 60-minute set-password link and nothing
+   else secret. It refuses while an active owner exists.
+4. No new environment variables. `NUXT_ENCRYPTION_KEY` (two-step secrets)
+   and `NUXT_PUBLIC_SITE_URL` (the link the script prints) are already set.

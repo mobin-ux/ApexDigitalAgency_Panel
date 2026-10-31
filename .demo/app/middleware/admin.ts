@@ -1,19 +1,21 @@
 import { can, DEFAULT_STAFF_ROLE, isStaffRole } from '~~/shared/permissions'
-import { homeFor } from '~/utils/adminNav'
+import { adminSignInFor, homeFor } from '~/utils/adminNav'
 
 /**
- * Route guard for /admin/** pages: authentication plus a role gate.
- * Non-admin accounts are sent to their customer dashboard rather than a
- * 403 — the admin panel simply doesn't exist for them.
+ * Route guard for /admin/** pages: a staff session plus a role gate.
+ *
+ * Only the staff sign-in (`/admin/sign-in`, ADR-025) makes a staff session,
+ * so anyone without one is sent there, remembering where they were going.
+ * A customer account holding a customer session is sent to its dashboard
+ * rather than a 403 — the admin console simply doesn't exist for them.
  *
  * The Overview at /admin loads the work queue, which needs `work.view`. A
- * role without it (an Editor, ADR-021) is sent to the first screen its role
- * can open instead of a page whose only content is a 403.
+ * role without it is sent to the first screen its role can open instead of
+ * a page whose only content is a 403.
  *
- * The session cookie is httpOnly, so authentication is resolved through
- * `fetchUser()` (server-verified). The role check here is UX only; every
- * /api/admin/** endpoint re-verifies the role server-side against the
- * database via `requireAdmin`, so a tampered client cannot gain anything.
+ * The session cookies are httpOnly, so this is decided by `fetchUser()`
+ * (server-verified). It is UX only: every /api/admin/** endpoint re-checks
+ * the session kind and the role against the database through `requireAdmin`.
  */
 export default defineNuxtRouteMiddleware(async (to) => {
   const { user, fetchUser } = useUser()
@@ -22,12 +24,12 @@ export default defineNuxtRouteMiddleware(async (to) => {
     await fetchUser()
   }
 
-  if (!user.value) {
-    return navigateTo(signInFor(to))
+  if (user.value && user.value.role !== 'ADMIN') {
+    return navigateTo('/dashboards/balance')
   }
 
-  if (user.value.role !== 'ADMIN') {
-    return navigateTo('/dashboards/balance')
+  if (user.value?.sessionKind !== 'staff') {
+    return navigateTo(adminSignInFor(to))
   }
 
   if (to.path === '/admin') {

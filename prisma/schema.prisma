@@ -990,6 +990,10 @@ model Session {
   lastSeenAt DateTime  @default(now())
   expiresAt  DateTime
   revokedAt  DateTime?
+  /// "customer" (the panel's own sign-in) or "staff" (the admin console's,
+  /// ADR-025): a staff session needs two-step verification, lasts hours not
+  /// days, and is the only kind the admin API accepts.
+  kind       String    @default("customer")
 
   @@index([userId])
 }

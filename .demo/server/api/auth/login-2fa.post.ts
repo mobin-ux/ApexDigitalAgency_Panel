@@ -29,7 +29,9 @@ export default defineEventHandler(async (event) => {
   rateLimit(event, { ...RateLimits.login, bucket: 'auth:login:2fa', identity: userId })
 
   const user = await prisma.user.findUnique({ where: { id: userId } })
-  if (!user || user.status === 'SUSPENDED') {
+  // A staff account never reaches this step through /api/auth/login; refusing
+  // here too keeps a ticket from any other source from making a customer session.
+  if (!user || user.status === 'SUSPENDED' || user.role === 'ADMIN') {
     throw createError({ statusCode: 401, message: 'That sign-in took too long. Enter your password again.' })
   }
   const via = await verifySecondFactor(user.id, code, { backup: true })

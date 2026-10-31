@@ -100,6 +100,24 @@ export function navItemFor(path: string) {
 }
 
 /**
+ * Where the staff sign-in sends someone (ADR-025): the `?redirect=` they
+ * came with when it is an admin console path, otherwise their role's home.
+ * Like `safeRedirect`, nothing off-site or protocol-relative is honoured,
+ * and the sign-in page itself is never a destination.
+ */
+export function adminDestination(redirect: unknown, roleValue: unknown): string {
+  if (typeof redirect === 'string' && /^\/admin(?:[/?#]|$)/.test(redirect) && !redirect.startsWith('/admin/sign-in')) {
+    return redirect
+  }
+  return homeFor(roleValue) ?? '/admin'
+}
+
+/** The staff sign-in for a guard to send `to` to, remembering `to`. */
+export function adminSignInFor(to: { fullPath: string }) {
+  return to.fullPath === '/admin' ? '/admin/sign-in' : { path: '/admin/sign-in', query: { redirect: to.fullPath } }
+}
+
+/**
  * The first destination a role can open — where that role lands after
  * sign-in or invite acceptance. Null for a role that can open nothing here
  * (Publisher and Editor held only `website.*`, whose screens left with

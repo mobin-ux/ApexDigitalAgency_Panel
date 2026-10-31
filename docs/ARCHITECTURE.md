@@ -187,6 +187,21 @@ verification), and the Tairo demo routes `/api/payments/*` and `/api/hello`.
    returns a five-minute ticket (a JWT with `purpose: 'two-factor'`, which
    `readAuthToken` refuses as a session) instead of a cookie, and
    `/api/auth/login-2fa` takes the ticket and a code.
+8. **Staff sessions (ADR-025).** The admin console has its own sign-in at
+   `/admin/sign-in` (`/api/admin/auth/{login,login-2fa,enrol/start,enrol/finish}`,
+   `server/utils/staff-auth.ts`). It accepts only `role: ADMIN` accounts,
+   always asks for an authenticator code, and enrols a staff account that
+   has no two-step before giving it anything. The session it starts is
+   `Session.kind = 'staff'`, carried in the `apex_admin` cookie
+   (httpOnly, SameSite=Strict, 12 h absolute, ended by `02.session.ts` after
+   2 idle hours). `requireAdmin` — and so every `requireStaffPermission` —
+   accepts only that kind; the customer sign-in refuses staff accounts
+   (403 with `data.signIn`), and starting either kind clears the other
+   cookie. `/api/auth/me` reports `sessionKind`; the `admin` route guard
+   sends anyone without a staff session to the staff sign-in, and the
+   `auth` guard sends a staff session to `/admin`. Accepting an invite
+   starts no session. The first owner is made by
+   `pnpm admin:create --email … --name …` (`scripts/create-super-admin.mjs`).
 
 ## 7. Frontend architecture — implemented pages
 

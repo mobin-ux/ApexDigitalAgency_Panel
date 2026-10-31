@@ -3,7 +3,6 @@ import { createError, defineEventHandler } from 'h3'
 import { z } from 'zod'
 import { isStaffRole } from '../../../shared/permissions'
 import { recordAudit } from '../../utils/audit'
-import { startSession } from '../../utils/auth'
 import prisma from '../../utils/prisma'
 import { rateLimit, RateLimits } from '../../utils/ratelimit'
 import { validateBody } from '../../utils/validate'
@@ -80,7 +79,7 @@ export default defineEventHandler(async (event) => {
     metadata: { role: invite.role, invitedById: invite.invitedById },
   })
 
-  await startSession(event, { id: user.id, email: user.email, role: user.role })
-
-  return { status: 'success', user }
+  // No session here (ADR-025): a staff session comes only from the staff
+  // sign-in, which has the new member set up two-step verification first.
+  return { status: 'success', user, signIn: `/admin/sign-in?email=${encodeURIComponent(user.email ?? invite.email)}` }
 })

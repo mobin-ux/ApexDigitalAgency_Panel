@@ -35,9 +35,27 @@ ADR-025. Phases: 0 restore (done) · 1 staff auth · 2 money guardrails ·
   no longer use a mistyped `groupBy`. Verified: tsc 46 (baseline),
   lint clean, unit 28/28, API 11/11, 16 admin routes SSR 200 for the
   owner and 302 for customer/anonymous, website routes 404.
-- **Open question for the owner (Phase 2):** twelve payments can end more
-  than 12 months after signing, because payment 1 is at kickoff and the
-  rest start on a later 1st of the month. Compress, or refuse kickoff?
+- **Phase 1 done (staff sign-in):** `Session.kind` (`customer`|`staff`,
+  `docs/migrations/2026-11-staff-sessions.sql`, rollback tested on a copy);
+  `/admin/sign-in` + `/api/admin/auth/{login,login-2fa,enrol/start,enrol/finish}`
+  — staff only, authenticator code always, enrolment before any session;
+  `apex_admin` cookie (Strict, 12 h, 2 h idle); `requireAdmin` takes only a
+  staff session; customer sign-in refuses staff (403 + `data.signIn`);
+  invites start no session; `pnpm admin:create` makes the first owner (no
+  usable password + 60-min reset link; counts null/unknown staffRole as
+  owner, as the server does). Settings' two-step setup now shares
+  `beginTwoFactorSetup`/`confirmTwoFactorSetup` with the staff enrolment.
+  Tests: `staff-auth.test.ts` (7), all API 18/18, unit 28/28, tsc 46.
+- **Owner's decision (2026-11-01) for Phase 2:** a 12-payment plan whose
+  last payment would land past 12 months from signing gets its dates
+  **compressed** to fit (the owner chose this over blocking late kickoff).
+- **Test harness gotchas:** API suites now run `--test-concurrency=1` (they
+  share accounts; parallel enrolment overwrote each other's pending secret);
+  the harness keeps the dev owner's TOTP secret, last step and cookie in
+  `.demo/.data/test-staff.json` and resets via dev-only
+  `POST /api/_test/two-factor-reset` when they disagree. To sign in as the
+  dev owner by hand, compute a code from that secret. The RTK shell proxy
+  rejects `pnpm -s`; run scripts with `node` directly.
 - This checkout had no `node_modules` (root or `web/`); both installed
   2026-11-01 from npmmirror (12 min for the root).
 

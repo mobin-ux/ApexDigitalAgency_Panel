@@ -14,6 +14,8 @@ Detail lives in the docs — read on demand, don't guess:
 
 - **The active app is `.demo/`** — NOT `.app/` (empty shell). Customer pages:
   `.demo/app/pages/dashboards/{balance,orders,services,wallet,support,settings}.vue`.
+- Staff sign in at `/admin/sign-in` with an authenticator code (ADR-025); the API
+  test harness keeps the dev owner's secret in `.demo/.data/test-staff.json`.
 - Run: `pnpm demo:dev` → localhost:3000. Dev login: `user@apex.com` / `user123`
   (seed via GET `/api/create-admin`; sample data: `/api/seed-orders|seed-support|seed-notifs`).
 - Backend: Nitro routes in `.demo/server/api/`, Prisma + SQLite (`prisma/schema.prisma`).

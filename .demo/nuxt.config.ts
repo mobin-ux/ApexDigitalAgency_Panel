@@ -334,7 +334,8 @@ export default defineNuxtConfig({
     'pages:extend': (pages) => {
       const pinDark = (list: typeof pages) => {
         for (const page of list) {
-          if (/^\/(?:auth|legal)(?:\/|$)/.test(page.path)) {
+          // The staff sign-in (ADR-025) uses the auth layout, so it is pinned with it.
+          if (/^\/(?:auth|legal)(?:\/|$)/.test(page.path) || page.path === '/admin/sign-in') {
             page.meta = { ...page.meta, colorMode: 'dark' }
           }
           if (page.children?.length) {

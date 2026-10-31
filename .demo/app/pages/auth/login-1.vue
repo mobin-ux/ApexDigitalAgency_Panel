@@ -39,7 +39,7 @@ definePageMeta({
         await fetchUser().catch(() => {})
       }
       if (user.value) {
-        return navigateTo(safeRedirect(to.query.redirect))
+        return navigateTo(user.value.sessionKind === 'staff' ? '/admin' : safeRedirect(to.query.redirect))
       }
     },
   ],
@@ -52,6 +52,7 @@ const route = useRoute()
 const destination = computed(() => safeRedirect(route.query.redirect))
 
 const errorMessage = ref('')
+const staffSignIn = ref('')
 const showPassword = ref(false)
 const formRef = ref<HTMLFormElement | null>(null)
 // Second step: set when the password was right and the account has two-step on.
@@ -101,6 +102,8 @@ const onSubmit = handleSubmit(
       errorMessage.value = error?.statusCode === 429
         ? (error?.data?.message || 'Too many attempts. Please wait a minute and try again.')
         : (error?.data?.message || 'We couldn\'t sign you in. Check your details and try again.')
+      // A staff account is told where its own sign-in is (ADR-025).
+      staffSignIn.value = error?.data?.data?.signIn ? `${error.data.data.signIn}?email=${encodeURIComponent(values.identifier)}` : ''
     }
   },
   // Invalid form: the fields show their own errors, so the banner would just
@@ -183,7 +186,10 @@ onMounted(() => {
       class="mt-5 flex items-start gap-2.5 rounded-xl border border-[#EC6453]/32 bg-[#EC6453]/10 px-[15px] py-[13px]"
     >
       <Icon name="lucide:alert-triangle" class="mt-px size-[17px] shrink-0 text-[#EC6453]" />
-      <span class="flex-1 text-[13px] leading-[1.5] text-muted-900 dark:text-white">{{ errorMessage }}</span>
+      <span class="flex-1 text-[13px] leading-[1.5] text-muted-900 dark:text-white">
+        {{ errorMessage }}
+        <NuxtLink v-if="staffSignIn" :to="staffSignIn" class="apex-focus text-primary-400 hover:text-primary-300 rounded font-semibold">Go to the staff sign-in</NuxtLink>
+      </span>
     </div>
 
     <form v-if="ticket" novalidate class="mt-6 flex flex-col gap-4" @submit.prevent="submitCode">
