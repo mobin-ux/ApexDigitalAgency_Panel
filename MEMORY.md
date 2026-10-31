@@ -21,7 +21,18 @@
 The owner asked to "remove the existing panel and keep only the main site",
 then chose: remove the **admin console only** (the customer panel stays),
 the site's words **from code only**, and the site's order/sign-in links to
-**Contact**. Decision record: ADR-024. Not deployed.
+**Contact**. Decision record: ADR-024. **Deployed 2026-10-31** on the
+user's go-ahead ("commit and push and deploy"): site via `ship-web.sh`
+(health 200), panel via `pnpm demo:build` + `ship-bundle.sh` (health 200,
+Stripe keys intact, previous build at `/opt/apex/.output.previous`). No
+schema or env change. Checked through Cloudflare: site pages 200,
+`/preview/x`, `/api/cms/globals` and unknown paths 404, no panel links,
+plan links to `/contact?service=&plan=`, robots `Disallow: /api/`, sitemap
+15 addresses, www 301; panel sign-in and recover 200, a guarded page 302,
+`/admin/**`, `/api/admin/**`, `/api/site/**`, the invite route 404,
+`/api/config` without `legal`/`announcement`, bad login 401; both journals
+clean. Still on the box and now unused: panel `NUXT_WEBSITE_*`, site
+`NUXT_CMS_*` and `NUXT_PUBLIC_PANEL_URL` (harmless; remove when convenient).
 
 - **Panel:** `/admin/**` pages, `layouts/admin.vue`, `middleware/admin.ts`,
   every `Admin*` component, `useAdminConsole`, `useStaffAccess`,
