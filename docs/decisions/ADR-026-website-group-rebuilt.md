@@ -208,3 +208,52 @@ today's contract; the screens are new, from the design.
   analytics script.
 - Public, read-only: `/api/site/{settings,redirects,media/…}`; page and
   preview answers carry a `media` index for built documents.
+
+## Enquiries (phase E, 2026-11-02)
+
+The owner chose to store enquiries and keep them 24 months.
+
+- **Two ways in, one message.** The site's `POST /api/contact` still
+  emails the team (when `NUXT_CONTACT_*` is set) and now also forwards
+  the message to the console, at `POST /api/site/enquiries`. Either one
+  arriving counts as delivered; the visitor sees "not sent" only when
+  neither did. The forward is signed: an HMAC-SHA256 over the timestamp
+  and the raw body with a shared secret (site `NUXT_CMS_ENQUIRY_SECRET`,
+  panel `NUXT_WEBSITE_ENQUIRY_SECRET`), checked in constant time within
+  five minutes (`web/shared/enquiry.ts`, imported by the panel by
+  relative path). Unset secret: 503. The site's id for the submission is
+  unique, so its one retry stores once. What crosses is what the visitor
+  typed, the labels of the options they picked and the page they sent it
+  from: no IP address or other request data.
+- **Model.** `Enquiry` and `EnquiryNote` (staff only, deleted with the
+  enquiry), `docs/migrations/2026-11-enquiries.sql`, additive.
+- **Screen** (`/admin/website/enquiries`, `leads.handle`): the design's
+  list and detail. Filters Open · New · Contacted · Qualified · Won ·
+  Lost with counts; status and owner (anyone holding `leads.handle`);
+  staff notes; "Reply by email"; "Mark as lost" needs a reason, kept for
+  reporting and never sent; moving it off Lost reopens it and clears the
+  reason. The selected enquiry is in the address (`?enquiry=`). The
+  sidebar row counts enquiries nobody has contacted; the Overview has the
+  design's tile, queue rows and "Latest enquiries"; ⌘K searches open
+  enquiries.
+- **Convert to client** (`leads.handle` and `clients.approve`): a
+  customer account with no usable password and a company if a business
+  was given; the enquirer is emailed a set-password link valid 72 hours
+  (`client-welcome` in the outbox; after that "Forgot password" works).
+  With mail unconfigured the account is still made and the screen says
+  the email did not go. An address that already has a client account is
+  linked instead, with no email; a staff address is refused. The enquiry
+  becomes Won and stays Won.
+- **Retention.** `website:enquiries-retention` runs daily at 03:17 and
+  deletes enquiries older than 24 months that did not become a client,
+  with their notes. Audit entries name an enquiry by its reference
+  (`ENQ-1A2B3C`), never the person, and the deletion is logged as a count,
+  so the append-only log keeps no copy of what retention removes.
+- **Real or absent.** The design's "Marketing consent" and "Privacy notice
+  accepted" describe checkboxes the form does not have; the screen says
+  no marketing consent was asked, so replies are about the enquiry only.
+  The design copies the message and notes to the client record; the
+  client's own notes are customer-editable, so they stay on the enquiry
+  (staff only) and the enquiry links to the client. No notification or
+  email per enquiry inside the console: the team's inbox already gets the
+  site's email, and the sidebar count and Overview show what is new.

@@ -26,7 +26,7 @@ permission matrix**, **enquiries stored, 24 months**, **own cookieless
 analytics**. Branch `feature/admin-website` (not merged). ADR-026.
 Phases: A permissions + nav (done, `a02fd87`) · B content API + site
 reading it (done) · C Pages/Insights/Case studies + editor (done) · D (done) Media,
-Navigation, SEO, Site settings · E Enquiries · F Analytics · G tests, docs.
+Navigation, SEO, Site settings · E (done) Enquiries · F Analytics · G tests, docs.
 
 - **Phase B done:** shared contract (`web/shared/cms/{sections,documents,resolve}.ts`),
   panel workflow (`server/utils/website/content.ts`, 12 admin routes, 4
@@ -62,6 +62,20 @@ Navigation, SEO, Site settings · E Enquiries · F Analytics · G tests, docs.
   are now functions of a company). Site `/media/**` passes files through.
   Test suite `website-structure.test.ts` (6). Found: the footer links to
   seven pages the site does not have (/careers, six /legal/*).
+- **Phase E done:** `Enquiry` + `EnquiryNote`
+  (`docs/migrations/2026-11-enquiries.sql`, additive; **production needs
+  it**). The site's `/api/contact` stores via a signed
+  `POST /api/site/enquiries` (`web/shared/enquiry.ts`; secrets
+  `NUXT_WEBSITE_ENQUIRY_SECRET` = site `NUXT_CMS_ENQUIRY_SECRET`, dev pair
+  in the tracked `.env` files) and emails; either one is "delivered", so
+  in production the form starts working once the secret pair is set even
+  with the contact mail keys empty. Screen `/admin/website/enquiries`,
+  Overview tile/queue/latest, sidebar count, ⌘K. Convert makes a customer
+  with a 72-hour `client-welcome` set-password link. Daily
+  `website:enquiries-retention` (03:17) deletes non-clients after 24
+  months; audit names `ENQ-…` refs only. Tests `enquiries.test.ts` (6,
+  back-dates through Prisma, runs the task through Nitro's dev-only
+  `/_nitro/tasks/…`), unit `enquiry.test.ts` (4).
 - Gotcha: an error thrown in a site server middleware is answered as JSON
   unless the request sends `Accept: text/html`; tests must send it to see
   the error page.

@@ -50,6 +50,7 @@ const KIND_LABEL: Record<string, string> = {
   'password-reset': 'Password reset',
   'verify-email': 'Email verification',
   'staff-invite': 'Staff invite',
+  'client-welcome': 'Client welcome',
   'notification': 'Notification',
   'cms-review': 'Website review',
   'test': 'Test',

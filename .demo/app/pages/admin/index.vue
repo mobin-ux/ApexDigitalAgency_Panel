@@ -1,7 +1,9 @@
 <script setup lang="ts">
+import type { EnquiryStatus } from '~~/shared/enquiry-status'
 import type { ApexTone } from '~/utils/panel'
 import { creditRef } from '~~/shared/credit'
-import { personName, waitedSince } from '~/utils/adminFormat'
+import { ENQUIRY_STATUS } from '~~/shared/enquiry-status'
+import { personName, ukDateTime, waitedSince } from '~/utils/adminFormat'
 
 /**
  * Admin console — Overview (`Admin Console.dc.html`, 2026-10-31).
@@ -12,13 +14,16 @@ import { personName, waitedSince } from '~/utils/adminFormat'
  * lists and links to it; the queue names the record, its owner and how
  * long it has waited; money is omitted, not blanked, for roles without it.
  *
+ * Enquiries from the website (ADR-026, phase E) are here as the design
+ * draws them, for the roles that handle them: a tile counting the ones
+ * nobody has contacted, those in the queue, and the three newest.
+ *
  * Real or absent: the design's "Signups awaiting approval" (accounts are
- * active from signup, there is no approval step), "New enquiries" and
- * "Latest enquiries" (the site's contact form stores nothing) and the
- * "Website visits" placeholder bars (no analytics is connected) are left
- * out, and so is the design's website card and content-review queue: the
- * site's words live in code since ADR-024. The delivery pipeline and money
- * card the Overview already had stay, in the design's card vocabulary.
+ * active from signup, there is no approval step) and the "Website visits"
+ * placeholder bars (no analytics is connected) are left out, and so is the
+ * design's website card and content-review queue. The delivery pipeline
+ * and money card the Overview already had stay, in the design's card
+ * vocabulary.
  */
 definePageMeta({
   title: 'Overview',
@@ -35,6 +40,8 @@ const { data: stats, pending, error, refresh } = await useFetch('/api/admin/stat
 // Records whose wait is computed in the browser load after hydration, so
 // the server and the first client render never disagree about "6h".
 const { data: credit } = useFetch<{ waiting: any[] }>('/api/admin/credit/applications', { server: false, immediate: can('money.view') })
+interface EnquiryRow { id: string, name: string, business: string, topic: string, status: EnquiryStatus, owner: string | null, receivedAt: string }
+const { data: enquiries } = useFetch<{ newCount: number, waiting: EnquiryRow[], latest: EnquiryRow[] }>('/api/admin/website/enquiries/summary', { server: false, immediate: can('leads.handle') })
 
 /* The greeting and the date are client facts (time of day, the reader's zone). */
 const greet = ref('Welcome back,')
@@ -55,6 +62,9 @@ const tiles = computed(() => {
   const out: { label: string, value: number, cta: string, to: string }[] = []
   if (can('money.view')) {
     out.push({ label: 'Credit applications to decide', value: credit.value?.waiting.length ?? 0, cta: 'Review', to: '/admin/credit' })
+  }
+  if (can('leads.handle')) {
+    out.push({ label: 'New enquiries not yet contacted', value: enquiries.value?.newCount ?? 0, cta: 'Open', to: '/admin/website/enquiries' })
   }
   if (can('support.answer')) {
     out.push({ label: 'Open support requests', value: s?.openTickets ?? 0, cta: 'Inbox', to: '/admin/tickets' })
@@ -110,6 +120,18 @@ const queue = computed<QueueRow[]>(() => {
       ownerNote: can('credit.approve') ? 'You can decide' : 'Owner or Admin',
       since: a.submittedAt,
       to: `/admin/credit?application=${a.id}`,
+    })
+  }
+  for (const e of enquiries.value?.waiting ?? []) {
+    rows.push({
+      key: `enquiry-${e.id}`,
+      kind: 'Enquiry',
+      tone: 'info',
+      title: [e.name, e.business].filter(Boolean).join(' · '),
+      sub: `${e.topic} · from the contact form`,
+      owner: e.owner,
+      since: e.receivedAt,
+      to: `/admin/website/enquiries?enquiry=${e.id}`,
     })
   }
   return rows.sort((a, b) => new Date(a.since).getTime() - new Date(b.since).getTime())
@@ -231,6 +253,30 @@ const moneyRows = computed(() => {
           </dl>
           <p v-else class="text-fg-body text-[13px] leading-[1.55]">
             Money is shown to Owner, Admin and Finance. Your role does not receive these figures.
+          </p>
+        </AdminCard>
+
+        <AdminCard v-if="can('leads.handle')">
+          <div class="flex items-center gap-2.5 px-[22px] pb-2.5 pt-5">
+            <ApexSectionLabel>Latest enquiries</ApexSectionLabel>
+            <span class="flex-1" />
+            <NuxtLink to="/admin/website/enquiries" class="apex-ring text-accent-ink rounded text-[13px] font-semibold">
+              All enquiries →
+            </NuxtLink>
+          </div>
+          <ul v-if="enquiries?.latest.length">
+            <li v-for="e in enquiries.latest" :key="e.id">
+              <NuxtLink :to="`/admin/website/enquiries?enquiry=${e.id}`" class="apex-ring border-line-soft hover:bg-raised flex items-center gap-3 border-t px-[22px] py-[11px]">
+                <span class="min-w-0 flex-1">
+                  <span class="text-fg-heading block truncate text-[13.5px] font-semibold">{{ [e.name, e.business].filter(Boolean).join(' · ') }}</span>
+                  <span class="text-fg-muted mt-0.5 block truncate text-xs">{{ e.topic }} · {{ ukDateTime(e.receivedAt) }}</span>
+                </span>
+                <AdminStatusChip :tone="ENQUIRY_STATUS[e.status].tone" :label="ENQUIRY_STATUS[e.status].label" />
+              </NuxtLink>
+            </li>
+          </ul>
+          <p v-else class="border-line-soft text-fg-body border-t px-[22px] py-4 text-[13px]">
+            {{ enquiries ? 'No enquiries yet. Messages from the contact form arrive here.' : 'Loading…' }}
           </p>
         </AdminCard>
       </div>

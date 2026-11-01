@@ -1,6 +1,9 @@
+import { randomUUID } from 'node:crypto'
 import { validateContact } from '#shared/contact'
+import { enquirySource } from '#shared/enquiry'
 import { fetchSettings } from '../utils/cms'
 import { contactMailConfigured, sendContactMail } from '../utils/contact-mail'
+import { enquiryForwardConfigured, forwardedEnquiry, forwardEnquiry } from '../utils/enquiry-forward'
 
 /**
  * POST /api/contact: the site's only write. Layered defences, cheapest first:
@@ -12,9 +15,16 @@ import { contactMailConfigured, sendContactMail } from '../utils/contact-mail'
  *   - a honeypot field bots fill in and people never see;
  *   - the shared validator the page uses, so both sides agree on every rule.
  *
- * Answers: 200 delivered · 422 field errors · 503 no mail provider configured
- * · 502 the provider failed. The page treats 502/503 as "not sent" and offers
- * the visitor's own email instead, so nothing claims to have arrived.
+ * A message goes two ways (ADR-026, phase E): stored in the console as an
+ * enquiry over a signed call, and emailed to the team. Either one arriving
+ * is a delivered message; the visitor is told otherwise only when neither
+ * did. No IP address or other visitor metadata is passed on, only what
+ * they typed and the page they sent it from.
+ *
+ * Answers: 200 delivered · 422 field errors · 503 neither route configured
+ * · 502 every configured route failed. The page treats 502/503 as "not
+ * sent" and offers the visitor's own email instead, so nothing claims to
+ * have arrived.
  */
 export default defineEventHandler(async (event) => {
   const site = getHeader(event, 'sec-fetch-site')
@@ -42,17 +52,25 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 422, statusMessage: 'Check the marked fields', data: { errors: result.errors } })
   }
 
-  const config = useRuntimeConfig(event).contact
-  if (!contactMailConfigured(config)) {
+  const mail = useRuntimeConfig(event).contact
+  const store = enquiryForwardConfigured()
+  const email = contactMailConfigured(mail)
+  if (!store && !email) {
     throw createError({ statusCode: 503, statusMessage: 'Contact delivery is not configured' })
   }
 
-  try {
-    await sendContactMail(config, result.data)
+  const [stored, emailed] = await Promise.allSettled([
+    store ? forwardEnquiry(forwardedEnquiry(randomUUID(), result.data, enquirySource(body.source))) : Promise.reject(new Error('off')),
+    email ? sendContactMail(mail, result.data) : Promise.reject(new Error('off')),
+  ])
+  // Log the failure, never the message: it is a visitor's personal data.
+  if (store && stored.status === 'rejected') {
+    console.error('[contact] storing in the console failed', (stored.reason as { statusCode?: number }).statusCode ?? (stored.reason as Error).name)
   }
-  catch (error: unknown) {
-    // Log the failure, never the message: it is a visitor's personal data.
-    console.error('[contact] delivery failed', (error as { statusCode?: number }).statusCode ?? (error as Error).name)
+  if (email && emailed.status === 'rejected') {
+    console.error('[contact] email delivery failed', (emailed.reason as { statusCode?: number }).statusCode ?? (emailed.reason as Error).name)
+  }
+  if (stored.status === 'rejected' && emailed.status === 'rejected') {
     throw createError({ statusCode: 502, statusMessage: 'Delivery failed' })
   }
 

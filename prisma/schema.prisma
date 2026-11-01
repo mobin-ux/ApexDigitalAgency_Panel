@@ -961,6 +961,61 @@ model ProjectNote {
   @@index([projectId, createdAt])
 }
 
+// A message from the website's contact form (ADR-026, phase E). The site
+// forwards each one over a signed call as well as emailing the team; the
+// console's Enquiries screen works them. Kept 24 months, unless it became a
+// client (`clientId`): the retention task deletes the rest.
+model Enquiry {
+  id         String  @id @default(uuid())
+  // The site's id for the submission, so a retried forward stores it once.
+  externalId String? @unique
+  name       String
+  email      String
+  phone      String  @default("")
+  business   String  @default("")
+  message    String  @default("")
+  // JSON array of the service names the visitor ticked, as the form labels them.
+  services   String  @default("[]")
+  plan       String  @default("")
+  budget     String  @default("")
+  // How the visitor asked to be answered: Email, Phone, Visit.
+  reply      String  @default("")
+  // The site address the form was sent from (path and query).
+  source     String  @default("")
+
+  // new | contacted | qualified | won | lost
+  status     String  @default("new")
+  ownerId    String?
+  lostReason String?
+
+  // The portal account it became, and who made it.
+  clientId      String?
+  convertedAt   DateTime?
+  convertedById String?
+
+  receivedAt DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  notes      EnquiryNote[]
+
+  @@index([status, receivedAt])
+  @@index([receivedAt])
+  @@index([clientId])
+}
+
+// A staff-only note on an enquiry. Never sent to the enquirer.
+model EnquiryNote {
+  id         String   @id @default(uuid())
+  body       String
+  authorId   String
+  authorRole String?
+  createdAt  DateTime @default(now())
+
+  enquiryId String
+  enquiry   Enquiry @relation(fields: [enquiryId], references: [id], onDelete: Cascade)
+
+  @@index([enquiryId, createdAt])
+}
+
 model StaffInvite {
   id          String    @id @default(uuid())
   email       String

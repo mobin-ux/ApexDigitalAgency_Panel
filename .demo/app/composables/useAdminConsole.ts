@@ -120,6 +120,12 @@ export function useAdminNavCounts() {
         next.work = w.work
       }).catch(() => {}))
     }
+    // Enquiries nobody has contacted yet, for the people who handle them.
+    if (can('leads.handle')) {
+      jobs.push($fetch<{ newCount: number }>('/api/admin/website/enquiries/summary').then((e) => {
+        next.leads = e.newCount
+      }).catch(() => {}))
+    }
     await Promise.all(jobs)
     counts.value = next
   }

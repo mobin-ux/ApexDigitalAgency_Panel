@@ -215,6 +215,8 @@ export default defineNuxtConfig({
       publicUrl: '',
       /** Where media-library files are stored (NUXT_WEBSITE_MEDIA_DIR); default `.data/site-media`. Outside the bundle in production. */
       mediaDir: '',
+      /** Checks the signature on contact messages the site forwards (NUXT_WEBSITE_ENQUIRY_SECRET). */
+      enquirySecret: '',
     },
     payments: {
       stripe: {
@@ -336,6 +338,7 @@ export default defineNuxtConfig({
     },
     scheduledTasks: {
       '* * * * *': ['mail:deliver'],
+      '17 3 * * *': ['website:enquiries-retention'],
     },
     // Minifying the server bundle is the peak-memory stage of the build and
     // repeatedly OOM-killed the 4GB production VPS (the rollup pass holds the

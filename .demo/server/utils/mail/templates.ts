@@ -47,6 +47,21 @@ export function passwordResetMail(brand: Brand, input: { url: string, expiresMin
   }
 }
 
+export function clientWelcomeMail(brand: Brand, input: { name: string | null, url: string, expiresHours: number }): MailDraft {
+  return {
+    subject: `${brand.siteName}: your client account is ready`,
+    content: {
+      heading: 'Your client account is ready',
+      paragraphs: [
+        `${input.name ? `Hello ${input.name}. ` : ''}Thanks for your enquiry. We have opened a ${brand.siteName} client account for you, where you can start an order, follow your projects and talk to the team.`,
+        `Choose a password with the button below. The link works once and expires in ${input.expiresHours} hours; after that, use "Forgot password" on the sign-in page.`,
+      ],
+      action: { label: 'Choose a password', url: input.url },
+      footer: footer(brand),
+    },
+  }
+}
+
 export function verifyEmailMail(brand: Brand, input: { name: string | null, url: string, expiresHours: number }): MailDraft {
   return {
     subject: `${brand.siteName}: confirm your email address`,

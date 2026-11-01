@@ -19,7 +19,7 @@ import { can, DEFAULT_STAFF_ROLE, isStaffRole } from '~~/shared/permissions'
  * in the group they belong to rather than being dropped.
  */
 
-export type AdminCountKey = 'support' | 'clients' | 'credit' | 'pages' | 'insights' | 'work'
+export type AdminCountKey = 'support' | 'clients' | 'credit' | 'pages' | 'insights' | 'work' | 'leads'
 
 export interface AdminNavDef {
   /** Stable id, used by the palette and the counts. */
@@ -80,7 +80,7 @@ export const ADMIN_NAV: AdminNavGroup[] = [
       { key: 'media', label: 'Media library', icon: 'solar:gallery-linear', to: '/admin/website/media', needs: 'website.view' },
       { key: 'nav', label: 'Navigation & footer', icon: 'solar:list-linear', to: '/admin/website/navigation', needs: 'website.view' },
       { key: 'seo', label: 'SEO & redirects', icon: 'solar:magnifer-linear', to: '/admin/website/seo', needs: 'website.seo' },
-      { key: 'leads', label: 'Enquiries', icon: 'solar:inbox-linear', to: '/admin/website/enquiries', needs: 'leads.handle' },
+      { key: 'leads', label: 'Enquiries', icon: 'solar:inbox-linear', to: '/admin/website/enquiries', needs: 'leads.handle', count: 'leads' },
       { key: 'analytics', label: 'Analytics', icon: 'solar:chart-2-linear', to: '/admin/website/analytics', needs: 'analytics.view' },
     ],
   },

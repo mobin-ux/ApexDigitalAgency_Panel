@@ -23,7 +23,7 @@ const log = createLogger('mail')
 
 // `cms-review` is no longer queued (ADR-024) but stays a kind: rows from the
 // website CMS remain in the outbox and the Email screen still filters them.
-export const MAIL_KINDS = ['password-reset', 'verify-email', 'staff-invite', 'notification', 'cms-review', 'test'] as const
+export const MAIL_KINDS = ['password-reset', 'verify-email', 'staff-invite', 'client-welcome', 'notification', 'cms-review', 'test'] as const
 export type MailKind = typeof MAIL_KINDS[number]
 
 export const MAIL_STATUSES = ['QUEUED', 'SENDING', 'SENT', 'FAILED'] as const
@@ -38,7 +38,7 @@ export const NOT_CONFIGURED_ERROR = 'Mail is not configured'
  * Kinds whose link dies with its token. Retrying one of these later would
  * send a link that no longer works; the person has to ask for a new one.
  */
-export const DEAD_ON_RETRY: ReadonlySet<string> = new Set<MailKind>(['password-reset', 'verify-email'])
+export const DEAD_ON_RETRY: ReadonlySet<string> = new Set<MailKind>(['password-reset', 'verify-email', 'client-welcome'])
 
 const RETENTION = { SENT: 30, FAILED: 90 } as const
 

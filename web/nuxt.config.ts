@@ -82,6 +82,8 @@ export default defineNuxtConfig({
     cms: {
       url: '',
       revalidateSecret: '',
+      /** Signs each contact message forwarded to the console (NUXT_CMS_ENQUIRY_SECRET). */
+      enquirySecret: '',
     },
     public: {
       /** Baked at build so server and browser render the same © year. */

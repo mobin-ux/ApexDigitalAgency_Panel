@@ -15,3 +15,8 @@ export function orderRef(id: string): string {
 export function ticketRef(id: string): string {
   return `T-${hex(id, 6)}`
 }
+
+/** `ENQ-1A2B3C`, an enquiry from the website. The audit log names enquiries by this, never by the person. */
+export function enquiryRef(id: string): string {
+  return `ENQ-${hex(id, 6)}`
+}

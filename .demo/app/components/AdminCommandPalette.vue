@@ -4,8 +4,8 @@ import { ADMIN_NAV_ITEMS } from '~/utils/adminNav'
 
 /**
  * The console's ⌘K search (`Admin Console.dc.html`): one field over the
- * console's destinations and the records behind them — clients and
- * projects. Each record kind is searched only when the role
+ * console's destinations and the records behind them — clients,
+ * projects and open enquiries. Each record kind is searched only when the role
  * can read it, through the list endpoints the screens already use, so the
  * palette can never show a row whose screen would 403. A destination the
  * role cannot open is still listed, with a padlock, because the access
@@ -80,6 +80,16 @@ async function search(term: string) {
       kind: 'Project',
       icon: 'solar:suitcase-linear',
       to: `/admin/projects/${p.id}`,
+      locked: false,
+    }))))
+  }
+  if (can('leads.handle')) {
+    jobs.push($fetch<{ items: any[] }>('/api/admin/website/enquiries', { query: { q: term, filter: 'open', pageSize: 5 } }).then(r => r.items.map(e => ({
+      id: `e-${e.id}`,
+      label: [e.name, e.business].filter(Boolean).join(' · '),
+      kind: 'Enquiry',
+      icon: 'solar:inbox-linear',
+      to: `/admin/website/enquiries?enquiry=${e.id}`,
       locked: false,
     }))))
   }
