@@ -41,6 +41,7 @@ Detail lives in the docs — read on demand, don't guess:
     route gates on a permission from `shared/permissions.ts` via
     `requireStaffPermission()` or `can()`, never on bare `requireAdmin`. Do not
     drop roles from the matrix: an unknown `staffRole` falls back to `owner`.
+    Reference (roles, endpoints, migrations, first owner): `ADMIN_CONSOLE.md`.
 
 ## Conventions
 

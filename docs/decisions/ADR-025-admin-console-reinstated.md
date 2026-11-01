@@ -48,9 +48,10 @@ work could be brought back with git.
    provider, and no free-form wallet edits.
 3. Server-side sorting and indexes, an append-only audit log enforced in the
    database, and less personal data in list views.
-4. Tests for every admin endpoint and role, and smoke tests in a browser.
-
-`ADMIN_CONSOLE.md` documents the result.
+4. Two-way sync with the client panel.
+5. Tests for every admin endpoint and role, and smoke tests in a browser.
+6. `ADMIN_CONSOLE.md`: architecture, roles and permissions, endpoints,
+   migrations, env vars and the first Super Admin.
 
 ## Money guardrails (phase 2, 2026-11-01)
 

@@ -1,0 +1,462 @@
+# Admin console
+
+The staff side of the Apex panel: one console at `/admin` for running client
+work, support, money and the team, built from the Claude Design file
+`Admin Console.dc.html` (project `eb7c3341-…`). It lives in the same Nuxt
+app as the customer panel (`.demo/`) and works on the same database rows,
+so a change made on one side is what the other side reads next.
+
+Branch: `feature/admin-console` (not merged to master). Decision record:
+[ADR-025](docs/decisions/ADR-025-admin-console-reinstated.md). The website
+CMS stays removed ([ADR-024](docs/decisions/ADR-024-remove-admin-console.md));
+the design's Website group is not built.
+
+Contents: [Architecture](#architecture) · [Sign-in and sessions](#sign-in-and-sessions) ·
+[Roles and permissions](#roles-and-permissions) · [Endpoints](#endpoints) ·
+[Money guardrails](#money-guardrails) · [Audit log and data](#audit-log-and-data) ·
+[Migrations](#migrations) · [Environment variables](#environment-variables) ·
+[The first Super Admin](#the-first-super-admin) · [Tests](#tests) ·
+[Not built](#not-built)
+
+---
+
+## Architecture
+
+```
+.demo/
+  app/pages/admin/            the screens (17 routes, listed below)
+  app/pages/admin/sign-in.vue the staff sign-in (password, then authenticator code)
+  app/layouts/admin.vue       the shell: 236px sidebar (drawer below lg), 64px top bar,
+                              breadcrumb, ⌘K palette, theme switch, access wall
+  app/utils/adminNav.ts       the sidebar table: every row names the permission it needs
+  app/middleware/admin.ts     route guard: no staff session → /admin/sign-in
+  app/components/Admin*.vue   the console's building blocks (page, header, card,
+                              button, status chip, dialog, drawer, confirm host,
+                              command palette, sort header, access wall)
+  app/composables/            useStaffAccess (role → can()), useAdminConsole
+                              (useAdminConfirm, useAdminCrumb), useAdminSort,
+                              useLiveRefresh
+  server/api/admin/**         the console's API (55 route files) + /api/admin/auth/*
+  server/utils/auth.ts        sessions, cookies, requireAuth / requireRole / requireAdmin
+  server/utils/staff.ts       requireStaffPermission(event, permission)
+  server/utils/staff-auth.ts  the staff sign-in steps and their rate limits
+  server/utils/project-lifecycle.ts  cancelProject(), syncProgress()
+  server/utils/notify.ts      notify() / notifyRoles(): in-app row + mirrored email
+  server/plugins/audit-guard.ts      start-up warning when the audit triggers are missing
+  shared/permissions.ts       the role × permission matrix, read by BOTH halves
+  shared/catalog.ts           pricing, FIXED_PLAN_MAX_PAYMENTS, planDueDates()
+scripts/create-super-admin.mjs       the first owner (pnpm admin:create)
+docs/migrations/2026-11-*.sql        the two schema changes, with rollback
+```
+
+**One matrix, enforced on the server and drawn in the browser.** Every
+`/api/admin/**` handler starts with `requireStaffPermission(event, '<permission>')`
+(never a bare `requireAdmin`). That call checks, fresh from the database on
+each request, that the caller has a staff session, an `ADMIN` account that is
+not suspended, and a `staffRole` holding the permission; otherwise it answers
+403 with `data.permission` and the roles that do hold it. The sidebar's
+padlocks, the access wall, the Team screen's matrix and every hidden button
+read the same `shared/permissions.ts` through `can()`, so the screen cannot
+show an action the server would refuse, or the other way round. Hiding is a
+convenience; the server is the gate.
+
+**Server conventions** (ADR-013, unchanged): the `prisma` singleton, zod
+`validateBody` / `validateQuery` (400 with `data.fieldErrors`), the
+`paginated()` envelope `{ items, total, page, pageSize, pageCount }`,
+`?sort=&dir=` over a per-list whitelist (`orderFor()`, id tiebreak), and
+`recordAudit()` on every staff write.
+
+**Screens** (sidebar groups from `utils/adminNav.ts`):
+
+| Group | Screen | Route | Needs |
+|---|---|---|---|
+| Overview | Work queue, counts, delivery pipeline, money cards (money roles only) | `/admin` | `work.view` |
+| Work | Projects (table, stage tabs, bulk assign) | `/admin/projects` | `work.view` |
+| | Project record (timeline, kickoff, deliverables gate, notes, client actions) | `/admin/projects/:id` | `work.view` |
+| | Support inbox | `/admin/tickets` | `support.answer` |
+| | Services & pricing | `/admin/services` | `work.view` (edit: `catalogue.edit`) |
+| People | Clients | `/admin/users` | `work.view` |
+| | Client record (credit, two-step reset, suspension) | `/admin/users/:id` | `work.view` |
+| | Team & roles (members, invites, the matrix) | `/admin/team` | `team.manage` |
+| Money | Payments & credit (ledger, instalments, withdrawals, credit lines, rails) | `/admin/payments` | `money.view` |
+| | Credit applications | `/admin/credit` | `money.view` (decide: `credit.approve`) |
+| | Agreements | `/admin/contracts`, `/admin/contracts/:id` | `money.view` |
+| System | Platform settings | `/admin/settings` | `platform.settings` |
+| | Audit log | `/admin/audit` | `team.manage` |
+| | Email (outbox) | `/admin/mail` | `team.manage` |
+| | Tools (broadcast) | `/admin/tools` | `catalogue.edit` |
+
+A destination the role cannot open shows a padlock in the sidebar and the
+access wall ("This area needs …") in place of the screen.
+
+**Two-way sync with the client panel** (ADR-025 §Two-way sync): both panels
+read the same rows; each event that matters to the other side writes a
+notification through `notify()` (client links into `/dashboards/…`, staff
+links into `/admin/…`), and open pages re-read their data when one arrives
+(`useClientLiveRefresh`, every 60 s while the tab is visible; the console's
+sidebar counts every 2 min). Cancelling a project is one function
+(`cancelProject()`) that stops its plan and contract in the same
+transaction, so neither panel can show a cancelled order still being
+charged.
+
+**Payments.** Stripe (cards), GoCardless (Direct Debit) and PayPal are the
+source of truth for money that moves; the panel's wallet and ledger change
+only when a signed webhook settles an intent, and webhook handling is
+idempotent twice over (unique `(provider, providerEventId)` and a
+conditional claim on the intent). See [ARCHITECTURE.md §9](docs/ARCHITECTURE.md).
+Development and tests use Stripe test mode and the mock rail only.
+
+---
+
+## Sign-in and sessions
+
+Staff sign in at **`/admin/sign-in`**, never at the customer sign-in.
+
+1. `POST /api/admin/auth/login` — email and password. Only an `ADMIN`
+   account gets past it; an unknown address, a wrong password and a
+   customer account all get the same 401, so the form cannot be used to
+   find out who works here.
+2. With two-step on: `POST /api/admin/auth/login-2fa` — the five-minute
+   ticket plus an authenticator code or a backup code. A code works once.
+3. With two-step off: the account is made to set it up first —
+   `POST /api/admin/auth/enrol/start` (QR code and key) and
+   `…/enrol/finish` (a code turns it on and returns ten backup codes once).
+   No session is issued until then.
+
+| | Customer session | Staff session |
+|---|---|---|
+| Started by | `/api/auth/login` (+ `login-2fa` if on) | `/api/admin/auth/*` only, code always required |
+| `Session.kind` | `customer` | `staff` |
+| Cookie | `auth_token`, 7 days, SameSite=Lax | `apex_admin`, httpOnly, **SameSite=Strict**, Secure in production, **12 h** absolute |
+| Idle limit | none | **2 h** (`middleware/02.session.ts` ends it on the next request) |
+| Accepted by the admin API | no (401 with `data.signIn`) | yes |
+
+- **Separate from signup.** Public signup only ever creates `CUSTOMER`
+  accounts. A staff account comes from an invite (`/admin/team`, accepted at
+  `/auth/accept-invite`; role and address come from the invite row, the
+  single-use token is claimed inside the account-creating transaction, and
+  accepting starts no session) or, for the very first owner, from the CLI
+  script below.
+- **The customer sign-in refuses staff accounts** (403 pointing at the staff
+  sign-in), and starting either kind of session clears the other cookie.
+- **Rate limits** (`RateLimits.staffLogin`): five attempts per 15 minutes per
+  IP and, separately, per address, then a 30-minute block; the code step has
+  its own budget per account. Failed attempts are audited
+  (`auth.staff.login.failed`, with the reason and IP).
+- A suspension or demotion takes effect on the next request: the guard reads
+  the account fresh every time, and a sign-in ticket is re-checked before the
+  code step.
+- Two-step secrets are encrypted at rest (`NUXT_ENCRYPTION_KEY`) in their own
+  table. A staff member who loses the phone and the backup codes is reset by
+  an owner or admin (`clients.approve`) with a typed, audited reason; nobody
+  can reset their own.
+
+---
+
+## Roles and permissions
+
+Eight fixed roles, seventeen permissions, one table: `shared/permissions.ts`.
+No per-person overrides. An `ADMIN` account with no `staffRole`, or one the
+code does not recognise, is treated as **Owner** (`DEFAULT_STAFF_ROLE`) — the
+backfill rule from ADR-016 — so never remove a role from the table.
+
+| Permission | What it allows | Owner | Admin | Project manager | Support | Finance | Read-only | Publisher | Editor |
+|---|---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
+| `work.view` | See projects, clients, the Overview, services | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | | |
+| `work.assign` | Create, assign, advance, cancel projects; milestones, notes, client actions, kickoff | ✓ | ✓ | ✓ | | | | | |
+| `work.release` | Release or withhold a project's files | ✓ | ✓ | ✓ | | | | | |
+| `money.view` | Values, plans, payments; collect an instalment; decline a withdrawal; agreements | ✓ | ✓ | | | ✓ | | | |
+| `credit.approve` | Decide credit applications, change a line | ✓ | ✓ | | | | | | |
+| `money.refund` | Refund; **approve a withdrawal; waive an instalment** | ✓ | | | | ✓ | | | |
+| `clients.approve` | Create, suspend, restore clients; edit their company; reset their two-step | ✓ | ✓ | | | | | | |
+| `support.answer` | Read and answer support requests, assign, resolve | ✓ | ✓ | ✓ | ✓ | | | | |
+| `catalogue.edit` | Services and prices; broadcast notifications | ✓ | ✓ | | | | | | |
+| `team.manage` | Invite, change role, suspend staff; audit log; email outbox | ✓ | ✓ | | | | | | |
+| `platform.settings` | Platform settings | ✓ | | | | | | | |
+| `website.*` (6) | The removed website CMS — nothing in the console uses them | ✓ | ✓ | | | | read | ✓ | ✓ |
+
+Publisher and Editor hold only `website.*`, so in this console they reach the
+access wall and nothing else; they stay in the table so such an account is
+not promoted to Owner by the fallback.
+
+Rules the API enforces besides the matrix:
+
+- Nobody can change or suspend their own access, and the last active owner
+  cannot be demoted or suspended.
+- A reason is required for a role change, a suspension, a refund, releasing
+  files early, declining credit and a two-step reset; it is stored in the
+  audit row.
+- A role without `money.view` is not sent money at all: the Overview's money
+  cards, project values and client balances are left out of the response,
+  and sorting by value is ignored. A role without `clients.approve` is not
+  sent a client's date of birth or gender.
+
+---
+
+## Endpoints
+
+All under `/api/admin/` unless shown otherwise. `:id` is a record id. Lists
+take `page`, `pageSize`, their filters, and `sort` / `dir` where noted.
+
+**Sign-in** (no session needed)
+
+| Method | Path | Notes |
+|---|---|---|
+| POST | `auth/login` | email + password → `{ status: 'two_factor' \| 'enrol', ticket }` |
+| POST | `auth/login-2fa` | ticket + code → staff session |
+| POST | `auth/enrol/start` · `auth/enrol/finish` | first-time authenticator setup → staff session + backup codes |
+| GET · POST | `/api/auth/invite` · `/api/auth/accept-invite` | read an invite by token; accept it (creates the account, no session) |
+| POST | `/api/auth/logout` | ends whichever session the browser holds |
+
+**Work**
+
+| Method | Path | Needs |
+|---|---|---|
+| GET | `stats` | `work.view` (money figures only with `money.view`) |
+| GET · POST | `projects` (sort: name, updated, created, deadline, value) | `work.view` · `work.assign` |
+| GET · PATCH · DELETE | `projects/:id` | `work.view` · `work.assign` · `work.assign` |
+| POST | `projects/:id/advance` · `/kickoff` · `/milestones` · `/notes` · `/actions` | `work.assign` |
+| DELETE | `projects/:id/actions/:actionId` | `work.assign` |
+| POST | `projects/:id/deliverables/release` · `/withdraw` | `work.release` |
+| PATCH · DELETE | `milestones/:id` | `work.assign` |
+| GET · PUT | `services` | `work.view` · `catalogue.edit` |
+
+**People**
+
+| Method | Path | Needs |
+|---|---|---|
+| GET · POST | `users` (sort: name, created) | `work.view` · `clients.approve` |
+| GET · PATCH | `users/:id` | `work.view` · `clients.approve` |
+| PUT | `users/:id/company` | `clients.approve` |
+| POST | `users/:id/two-factor-reset` | `clients.approve` |
+| GET | `tickets` (sort: updated, created) · `tickets/:id` | `support.answer` |
+| PATCH · POST | `tickets/:id` · `tickets/:id/reply` | `support.answer` |
+| GET | `team` | `team.manage` |
+| PATCH | `team/:id` | `team.manage` |
+| POST · DELETE | `team/invites` · `team/invites/:id` | `team.manage` |
+| POST | `team/invites/:id/resend` | `team.manage` |
+
+**Money**
+
+| Method | Path | Needs |
+|---|---|---|
+| GET | `finance/summary` · `finance/transactions` (sort: date, amount) · `finance/installments` · `finance/withdrawals` · `finance/credit` | `money.view` |
+| PATCH | `finance/installments/:id` `{action:'charge'}` | `money.view` |
+| PATCH | `finance/installments/:id` `{action:'waive'}` | `money.view` + `money.refund` |
+| PATCH | `finance/withdrawals/:id` `{action:'reject'}` | `money.view` |
+| PATCH | `finance/withdrawals/:id` `{action:'approve'}` | `money.view` + `money.refund` |
+| POST | `finance/refund` | `money.refund` |
+| PATCH | `finance/credit/:id` | `credit.approve` (raising or releasing also needs `NUXT_LENDING_CREDIT_DECISIONS`) |
+| GET | `credit/applications` | `money.view` |
+| POST | `credit/applications/:id/decide` | `credit.approve` (approving also needs the lending switch) |
+| GET · PATCH | `contracts` (sort: created, signed, value) · `contracts/:id` | `money.view` |
+| GET | `payments/health` | `money.view` |
+
+**System**
+
+| Method | Path | Needs |
+|---|---|---|
+| GET · PUT | `settings` | `platform.settings` |
+| GET | `audit` (sort: date; kind filter; the screen exports the filtered set as CSV) | `team.manage` |
+| GET · POST | `mail` · `mail/test` · `mail/:id/retry` | `team.manage` |
+| POST | `notifications/broadcast` | `catalogue.edit` |
+
+**Development only** (404 in a production build): `POST /api/_test/reset-rate-limits`,
+`GET /api/_test/mail`, `POST /api/_test/two-factor-reset` — used by the test
+harness.
+
+Answers: 401 without a staff session (`data.signIn` names the staff
+sign-in), 403 with `data.permission` when the role lacks it, 400 with
+`data.fieldErrors` for a bad body, 404 for a record that does not exist,
+409 for a move the record's state refuses.
+
+---
+
+## Money guardrails
+
+The owner's rules, enforced in the server, not only in the screens:
+
+- **The 12-month instalment plan is zero-cost.** No admin control adds
+  interest, late fees, admin fees or any other charge to it, and there is no
+  price difference between paying in full and paying in instalments (a unit
+  test checks every fixed plan). The catalogue editor refuses more than
+  **12 payments** (`FIXED_PLAN_MAX_PAYMENTS`), and an older stored catalogue
+  is read as 12.
+- **Never past 12 months from the agreement date.** `planDueDates()` spaces
+  the payments a month apart, or, when the last would land after
+  `Project.signedAt` + 12 months, compresses them evenly to end on that day
+  (the owner's choice over refusing a late kickoff). Amounts never change.
+  Kickoff, charging, waiving and both panels' schedules all use it. Agreements
+  signed from `apex-msa-2026-11` state the limit.
+- **Regulated lending is off.** The 24-month 1%-a-month plan and approving
+  or raising credit lines sit behind `NUXT_LENDING_INTEREST_BEARING_PLANS`
+  and `NUXT_LENDING_CREDIT_DECISIONS`, both **off by default** and settable
+  only in the environment. Declining, freezing and lowering still work.
+- **No hand-edited money.** The free-form wallet credit/debit route is gone;
+  a signed project's value cannot be edited (409); refunds go back the way
+  the money came (a top-up through the provider's refund API, with the wallet
+  debited first and restored once if the provider refuses).
+- Approving a withdrawal and waiving an instalment need `money.refund`.
+
+Removed from the design for these rules: the Platform settings "24-month
+financing" switch and the client record's wallet adjustment.
+
+---
+
+## Audit log and data
+
+- Every staff write calls `recordAudit()`: actor, the role they held at the
+  time, action, target, before/after values, reason where one is required,
+  IP and time. Failed staff sign-ins are recorded too.
+- **Append-only, in the database.** Two SQLite triggers refuse `UPDATE` and
+  `DELETE` on `"AuditLog"`; no route edits a row, and the screen has no edit
+  or delete control. Prisma does not manage triggers, so a `prisma db push`
+  that rebuilds the table drops them; the panel then logs
+  `[audit-append-only]` at start-up until the hardening SQL is re-run.
+- **UK GDPR minimisation.** List views carry only what their rows show (the
+  Clients list has no city, country, balances or verification date; a phone
+  only for an account with no email); a client record leaves out money for
+  roles without `money.view` and date of birth and gender for roles without
+  `clients.approve`.
+
+---
+
+## Migrations
+
+The branch adds two schema changes; everything else the console reads
+already exists in production (deployed 2026-10-28). Both are additive and
+carry their rollback at the bottom of the file.
+
+| File | What | Rollback |
+|---|---|---|
+| [`docs/migrations/2026-11-staff-sessions.sql`](docs/migrations/2026-11-staff-sessions.sql) | `Session.kind TEXT NOT NULL DEFAULT 'customer'` | `ALTER TABLE "Session" DROP COLUMN "kind"` (SQLite 3.35+), with the previous build restored |
+| [`docs/migrations/2026-11-admin-hardening.sql`](docs/migrations/2026-11-admin-hardening.sql) | 8 indexes (Project, Ticket, User, Transaction) and the two append-only triggers on `AuditLog`; safe to run twice | drop the triggers and indexes (listed in the file) |
+
+Order for a deployment (only on the owner's go-ahead; never against
+production from a development machine):
+
+1. Stop the panel and back up the database
+   (`cp /opt/apex/dev.db /opt/apex/backups/dev.db.$(date +%Y%m%d-%H%M%S).pre-admin-console`).
+2. `sqlite3 /opt/apex/dev.db < 2026-11-staff-sessions.sql`, then
+   `sqlite3 /opt/apex/dev.db < 2026-11-admin-hardening.sql`.
+3. Copy the branch's `prisma/schema.prisma` beside the database, ship the
+   bundle (`scripts/ship-bundle.sh`), start the panel.
+4. Check the start-up log has no `[audit-append-only]` warning, and that
+   `/admin/sign-in` answers 200 and `/api/admin/stats` 401.
+
+Locally, `pnpm exec prisma db push` applies the column and indexes; run the
+hardening SQL afterwards for the triggers.
+
+---
+
+## Environment variables
+
+New on this branch (documented in [`.env.example`](.env.example)):
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `NUXT_LENDING_INTEREST_BEARING_PLANS` | unset = off | Allows the legacy 24-month plan at 1% a month. Leave off until the owner confirms the lending position. |
+| `NUXT_LENDING_CREDIT_DECISIONS` | unset = off | Allows approving credit applications, raising a limit and releasing a held line. Set to `true` only on the owner's word. |
+
+Existing variables the console depends on:
+
+| Variable | Why |
+|---|---|
+| `NUXT_JWT_SECRET` | signs both kinds of session; production warns when it is the fallback |
+| `NUXT_ENCRYPTION_KEY` | encrypts two-step secrets (falls back to the JWT secret) |
+| `NUXT_PUBLIC_SITE_URL` | builds invite, reset and notification links (required in production) |
+| `NUXT_MAIL_RESEND_API_KEY`, `NUXT_MAIL_FROM` | email for invites, resets and notifications; unset, the console says what was not sent and hands the link over |
+| `NUXT_PAYMENTS_*` | provider keys (ADR-015). Use **test-mode** keys anywhere but production; live keys are inert until `payments.live-mode` is on |
+| `NUXT_UPLOAD_DIR` | where client uploads are stored |
+
+---
+
+## The first Super Admin
+
+There is no web route that creates staff from nothing: signup makes
+customers and invites need someone to send them. The first owner is made by
+whoever has shell access to the database:
+
+```bash
+pnpm admin:create --email owner@apexdigi.co.uk --name "First Last"
+```
+
+On a server, point it at the database and the panel's public address:
+
+```bash
+DATABASE_URL=file:/opt/apex/dev.db NUXT_PUBLIC_SITE_URL=https://panel.apexdigi.co.uk node scripts/create-super-admin.mjs --email owner@apexdigi.co.uk --name "First Last"
+```
+
+What happens:
+
+1. The script creates an `ADMIN` account with staff role **Owner** and **no
+   usable password**, and prints a one-time reset link valid for 60 minutes.
+   Nothing else secret is printed.
+2. The owner opens the link and chooses a password (12 characters minimum).
+3. They sign in at `/admin/sign-in`; the console makes them set up an
+   authenticator app before giving them a session, and shows ten backup
+   codes once. Keep those somewhere safe.
+4. Everyone else is invited from **Team & roles**.
+
+It refuses when an active owner already exists (pass `--allow-additional`
+only if a second owner is really wanted) and refuses an address that already
+has an account. Existing `ADMIN` accounts from before this branch keep their
+role and, on their first staff sign-in, are asked to set up the
+authenticator app.
+
+---
+
+## Tests
+
+Run against a dev server on a local database (never production):
+
+```bash
+pnpm test:cms:unit
+```
+
+```bash
+CMS_TEST_URL=http://localhost:3000 pnpm test:cms:api
+```
+
+```bash
+E2E_URL=http://localhost:3000 pnpm e2e
+```
+
+```bash
+pnpm test:tsc-demo
+```
+
+| Suite | What it covers | Last run (2026-11-01) |
+|---|---|---|
+| Unit (`.demo/tests/unit`, `web/tests/unit`) | permissions, plan limits and dates, mail rendering, recipient rules | 37/37 |
+| API (`.demo/tests/api`) | staff sign-in and enrolment, money guardrails, sorting and audit triggers, panel sync, **every admin route × every role** (58 route-and-body rows × 8 roles + customer + anonymous), mail flows | 47/47 |
+| Browser (`.demo/tests/e2e`, Playwright on installed Edge) | staff sign-in with a code, every screen for the owner, the access wall for Support, no Waive for Admin, customer pages, staff refused at the customer sign-in, one request across both panels | 8/8 |
+| Types | `vue-tsc` over the panel | 46 errors, the pre-existing baseline (none in console files) |
+
+The API harness keeps the dev owner's authenticator secret in
+`.demo/.data/test-staff.json` and creates `cms-test-<role>@example.test`
+staff accounts through the real invite flow on first use.
+
+---
+
+## Not built
+
+Drawn in the design, left out because nothing real stands behind them (the
+full list with reasons is in [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md), "Admin
+console"):
+
+- The **Website** group, website visits and content review (CMS removed, ADR-024).
+- Signups awaiting approval, enquiries, analytics.
+- Project lifecycle steps the platform does not record (countersigning, brief
+  acceptance, booking the kickoff call, on hold).
+- Credit checks with agencies, a second review, generated credit agreements.
+- A staff notification bell (staff see client activity in the Overview queue
+  and sidebar counts, and by email once mail is configured).
+- A data export or erasure-request screen (needs a retention policy first).
+- Refunding a Direct Debit collection from the panel (refused with a pointer
+  to GoCardless).
+
+Flagged for the owner and deliberately not built: any control that adds a
+charge to the interest-free plan, prices it differently from paying in full,
+or runs it past 12 months; and switching on interest-bearing plans or credit
+decisions from the console.

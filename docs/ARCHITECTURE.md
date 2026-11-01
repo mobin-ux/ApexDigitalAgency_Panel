@@ -95,7 +95,10 @@ Yellix fonts, and reference screenshots). Integration strategy:
 
 **2026-10-31 (ADR-024):** the admin console, every `/api/admin/**` route, the
 website CMS's public API (`/api/site/**`) and the staff invite routes were
-removed; the table lists what remains. `/api/config` no longer carries
+removed; the table lists what remains. On `feature/admin-console`
+(ADR-025) the console, `/api/admin/**` (without `/api/admin/website/**`)
+and the invite routes are back; their endpoints, permissions and sign-in
+are in `ADMIN_CONSOLE.md`. `/api/config` no longer carries
 `legal` or `announcement`.
 
 **Server conventions (ADR-013)**: every Prisma-backed route uses the shared
@@ -226,11 +229,12 @@ All customer pages: `definePageMeta({ layout: 'sidenav', middleware: 'auth' })`.
   `/dashboards/support` (real page, not the design's stub).
 - **Old-style pages awaiting redesign**: settings.vue, auth pages — still hardcoded
   hex/USD/native alerts; rebuild only on design arrival.
-- **No admin console (2026-10-31, ADR-024).** The `/admin/**` screens (the
-  V2 Phase 9 admin, then the `Admin Console.dc.html` rebuild) were removed
-  with their API and the website CMS. Staff accounts and the permission
-  matrix remain; nothing in the panel lets staff act on orders, requests or
-  credit applications.
+- **Admin console (ADR-025, on `feature/admin-console`).** Removed on
+  master on 2026-10-31 with the website CMS (ADR-024), then reinstated on
+  the feature branch without the Website group, behind its own staff
+  sign-in with a required authenticator code, an append-only audit log and
+  the money guardrails. `ADMIN_CONSOLE.md` is its reference: screens, roles
+  and permissions, endpoints, migrations, env vars, the first Super Admin.
 
 Shared UI vocabulary (see DESIGN_SYSTEM.md + CLAUDE.md): status accents
 (`#22B07D`/`#F2C14E`/`#EC6453`/`#6EA8FE`), payment-state taxonomy

@@ -91,9 +91,9 @@ generation, drag-and-drop page building, email notifications, a CDN.
 ## 5. Security requirements
 
 - Every customer page: `middleware: 'auth'`; every customer API route verifies the
-  JWT via `requireAuth(event)`; **every staff-only read uses
-  `requireStaffPermission(event, '<permission>')`** (there is no admin API since
-  ADR-024) — the coarse `Role` gate plus
+  JWT via `requireAuth(event)`; **every staff-only route uses
+  `requireStaffPermission(event, '<permission>')`** (the admin API, removed by
+  ADR-024 and reinstated on `feature/admin-console` by ADR-025) — the coarse `Role` gate plus
   one of seventeen staff permissions, both checked DB-fresh (ADR-013, ADR-016).
   Bad/expired tokens → clean 401, never 500; an insufficient role → 403 naming
   the roles that do hold the permission.
@@ -110,6 +110,15 @@ generation, drag-and-drop page building, email notifications, a CDN.
   come from the `StaffInvite` row, never the request body, and the single-use
   token is claimed by a conditional update inside the account-creating
   transaction.
+- **Staff sign in separately** (ADR-025): `/admin/sign-in` accepts only staff
+  accounts, always asks for an authenticator code (enrolling one first), is
+  rate-limited (5 per 15 minutes per IP and per address), and issues a
+  `staff` session in its own `apex_admin` cookie (httpOnly, SameSite=Strict,
+  12 h, 2 h idle) — the only kind the admin API accepts. Staff accounts come
+  from invites or, for the first owner, `pnpm admin:create`; never signup.
+- **The audit log is append-only in the database** (two triggers refuse
+  UPDATE and DELETE, ADR-025), and list views carry only the personal data
+  their rows show.
 - Authenticated routes are never SWR/HTML-cached (ADR-008).
 - Server APIs return raw data scoped to `userId` from the verified session — no
   cross-user data. Object access is ownership-checked (404 for "not yours").
@@ -162,7 +171,7 @@ generation, drag-and-drop page building, email notifications, a CDN.
 | No invoice model/endpoint | invoices requirement (§1) |
 | Unread-message counts per project | unread chips in My Orders list (designed, hidden) |
 | ~~Broken seeds (`seed-rich`, `seed-wallet`)~~ fixed (schema-valid, dev-gated); `prisma/seed.js` still stale | realistic local test data |
-| ~~Admin UI pages~~ built, then **removed 2026-10-31** (ADR-024): staff have no screen to answer requests, decide credit, collect kickoff or release files | a staff tool, if one is wanted again |
+| ~~Admin UI pages~~ built, then **removed 2026-10-31** (ADR-024); **reinstated without the CMS on `feature/admin-console`** (ADR-025, `ADMIN_CONSOLE.md`), not yet merged | merging the branch |
 | ~~No mail provider: staff invites, password resets and notifications cannot be emailed~~ **done** (ADR-022, 2026-10-28): Resend over REST behind a durable outbox; invites, resets, a soft verification link and every notification are emailed, with one switch per account and an Email screen for failures. Delivery needs the sender's domain verified in Resend (its records go into the Cloudflare zone, ADR-023); until then the keys stay unset and every screen says what did not go | a verified sending domain |
 | ~~No `DeliverableRelease` model~~ **done** (ADR-017): releasing and withholding project files is real, the platform rule governs it, and the audit log's Files bucket is populated. Clients can now upload to their order (Panel v2, `/api/uploads`); **still missing: a staff uploader** — deliverable `ProjectFile` rows arrive by seed or direct record | an uploader for project deliverables |
 | Instalment pricing is fixed to 12 and 24 months (ADR-011), so the platform cannot offer the design's 3/6/36-month terms | a per-service term catalogue (Phase 9 Support & Catalogue, badge 21) |

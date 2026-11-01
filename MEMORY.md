@@ -24,9 +24,9 @@ on **`feature/admin-console`** (not master, not merged). Decided with the
 owner: restore the 31 Oct build rather than rebuild; **no Website group**
 (the CMS stays removed); defaults taken pending their word: credit
 decisions and interest-bearing plans behind flags that are off.
-ADR-025. Phases: 0 restore (done) · 1 staff auth · 2 money guardrails ·
-3 data hardening · 4 two-way sync · 5 tests incl. browser smoke · 6 docs
-(`ADMIN_CONSOLE.md`).
+ADR-025. Phases 0–6 all done (restore · staff auth · money guardrails ·
+data hardening · two-way sync · tests · docs); **not merged, not deployed**.
+Reference: `ADMIN_CONSOLE.md`.
 
 - **Phase 0 done:** admin screens/APIs/invite flow restored from
   `54b70f8^` minus everything website; `homeFor()` returns null for a
@@ -94,6 +94,13 @@ ADR-025. Phases: 0 restore (done) · 1 staff auth · 2 money guardrails ·
   plain HTML; `pnpm add` failed its postinstall while the dev server held the
   Prisma engine and never wrote package.json (added by hand); the dev
   customer's avatar file is not on this machine (404, initials shown).
+- **Phase 6 done (docs):** `ADMIN_CONSOLE.md` at the repo root (architecture,
+  screens, sign-in, the role matrix, every endpoint with its permission,
+  money guardrails, audit and minimisation, the two migrations with the
+  deploy order, env vars, `pnpm admin:create`, tests, not built);
+  ARCHITECTURE §5/§7, REQUIREMENTS §5/§6, DESIGN_SYSTEM roadmap, CLAUDE.md
+  rule 11 point at it. Deploying needs both 2026-11 SQL files (DEPLOYMENT
+  order in `ADMIN_CONSOLE.md` §Migrations) and the owner's go-ahead.
 - **Test harness gotchas:** API suites now run `--test-concurrency=1` (they
   share accounts; parallel enrolment overwrote each other's pending secret);
   the harness keeps the dev owner's TOTP secret, last step and cookie in
@@ -150,7 +157,6 @@ clean. Still on the box and now unused: panel `NUXT_WEBSITE_*`, site
   404, sitemap 15 code addresses, plan links preselect on Contact.
 
 ## Admin console — built, then removed (2026-10-31)
-
 
 The admin interface was replaced by the Claude Design "Admin Console"
 (project `eb7c3341-4385-4c1d-85a6-bf80958b6398`, `Admin Console.dc.html`,
