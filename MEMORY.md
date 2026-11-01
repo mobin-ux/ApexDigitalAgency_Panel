@@ -25,8 +25,25 @@ owner: restore the 31 Oct build rather than rebuild; **no Website group**
 (the CMS stays removed); defaults taken pending their word: credit
 decisions and interest-bearing plans behind flags that are off.
 ADR-025. Phases 0–6 all done (restore · staff auth · money guardrails ·
-data hardening · two-way sync · tests · docs); **not merged, not deployed**.
-Reference: `ADMIN_CONSOLE.md`.
+data hardening · two-way sync · tests · docs). **Merged to master in PR #1
+(`53c25d8`) and deployed 2026-11-01** on the user's go-ahead ("Merge to
+master first", then deploy). Reference: `ADMIN_CONSOLE.md`.
+- **Deploy 2026-11-01:** server schema was master's previous one (`0f47c05`,
+saved CRLF), so the two 2026-11 SQL files were the whole difference. The
+production DB is **`/opt/apex/prisma/dev.db`** (no `DATABASE_URL`; not
+`/opt/apex/dev.db`). Panel stopped a few seconds; backup
+`/opt/apex/backups/dev.db.20261101-124554.pre-admin-console`, SQL and old
+schema beside it; row counts unchanged (5 users, 5 projects, 14 tx, 67
+audit rows), integrity ok, `Session.kind` + 2 triggers + 8 indexes present,
+3 ACTIVE owners. Bundle via `ship-bundle.sh` (health 200, Stripe live keys
+intact, previous build at `/opt/apex/.output.previous`). Checked through
+Cloudflare: `/admin/sign-in` and `/auth/login-1` 200, `/admin/**` 302 to
+the staff sign-in, `/dashboards/**` 302 to login, `/api/admin/stats` 401,
+`/api/config` 200, every `/api/_test/*` and `/api/create-admin` 404; start-up
+checks passed, no `[audit-append-only]` warning. **Not verified:** an owner
+signing in and enrolling (no owner credentials here). Lending switches unset
+(off). The three Vercel projects on the repo build the empty `.app` and fail
+on master too; ignore them.
 
 - **Phase 0 done:** admin screens/APIs/invite flow restored from
   `54b70f8^` minus everything website; `homeFor()` returns null for a

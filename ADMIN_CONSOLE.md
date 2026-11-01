@@ -6,7 +6,8 @@ work, support, money and the team, built from the Claude Design file
 app as the customer panel (`.demo/`) and works on the same database rows,
 so a change made on one side is what the other side reads next.
 
-Branch: `feature/admin-console` (not merged to master). Decision record:
+Merged to master in PR #1 (`53c25d8`) and deployed to production on
+2026-11-01, migrations included (see [Migrations](#migrations)). Decision record:
 [ADR-025](docs/decisions/ADR-025-admin-console-reinstated.md). The website
 CMS stays removed ([ADR-024](docs/decisions/ADR-024-remove-admin-console.md));
 the design's Website group is not built.
@@ -332,13 +333,16 @@ carry their rollback at the bottom of the file.
 | [`docs/migrations/2026-11-staff-sessions.sql`](docs/migrations/2026-11-staff-sessions.sql) | `Session.kind TEXT NOT NULL DEFAULT 'customer'` | `ALTER TABLE "Session" DROP COLUMN "kind"` (SQLite 3.35+), with the previous build restored |
 | [`docs/migrations/2026-11-admin-hardening.sql`](docs/migrations/2026-11-admin-hardening.sql) | 8 indexes (Project, Ticket, User, Transaction) and the two append-only triggers on `AuditLog`; safe to run twice | drop the triggers and indexes (listed in the file) |
 
-Order for a deployment (only on the owner's go-ahead; never against
-production from a development machine):
+**Applied in production on 2026-11-01** (backup
+`/opt/apex/backups/dev.db.20261101-124554.pre-admin-console`, the SQL and the
+previous schema beside it). Production's database is
+`/opt/apex/prisma/dev.db`, not `/opt/apex/dev.db`. Order for a deployment
+(only on the owner's go-ahead):
 
 1. Stop the panel and back up the database
-   (`cp /opt/apex/dev.db /opt/apex/backups/dev.db.$(date +%Y%m%d-%H%M%S).pre-admin-console`).
-2. `sqlite3 /opt/apex/dev.db < 2026-11-staff-sessions.sql`, then
-   `sqlite3 /opt/apex/dev.db < 2026-11-admin-hardening.sql`.
+   (`cp -p /opt/apex/prisma/dev.db /opt/apex/backups/dev.db.$(date +%Y%m%d-%H%M%S).pre-admin-console`).
+2. `sqlite3 /opt/apex/prisma/dev.db < 2026-11-staff-sessions.sql`, then
+   `sqlite3 /opt/apex/prisma/dev.db < 2026-11-admin-hardening.sql`.
 3. Copy the branch's `prisma/schema.prisma` beside the database, ship the
    bundle (`scripts/ship-bundle.sh`), start the panel.
 4. Check the start-up log has no `[audit-append-only]` warning, and that
