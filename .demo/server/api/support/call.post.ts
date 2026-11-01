@@ -4,7 +4,7 @@ import { callLabel, isCallSlot } from '../../../shared/support-call'
 import { requireAuth } from '../../utils/auth'
 import prisma from '../../utils/prisma'
 import { rateLimit, RateLimits } from '../../utils/ratelimit'
-import { projectManagerFor } from '../../utils/support'
+import { notifyTicketHandler, projectManagerFor } from '../../utils/support'
 import { validateBody } from '../../utils/validate'
 
 /**
@@ -47,7 +47,7 @@ export default defineEventHandler(async (event) => {
   const open = await prisma.ticket.findFirst({
     where: { userId: session.id, callSlot: { not: null }, status: { notIn: ['RESOLVED', 'CLOSED'] } },
     orderBy: { updatedAt: 'desc' },
-    select: { id: true },
+    select: { id: true, assigneeId: true },
   })
 
   if (open) {
@@ -56,6 +56,7 @@ export default defineEventHandler(async (event) => {
       prisma.ticketMessage.create({ data: { ticketId: open.id, content, isAdmin: false, senderId: session.id } }),
       prisma.ticket.update({ where: { id: open.id }, data: { callSlot: slot, subject: `Call request · ${label}`, status: 'OPEN' } }),
     ])
+    await notifyTicketHandler({ id: open.id, assigneeId: open.assigneeId }, { title: `Call moved to ${label}`, message: 'The client asked to move their video call. Reply to confirm.', type: 'INFO' })
     return { ticket: { id: open.id }, slot }
   }
 
@@ -72,7 +73,8 @@ export default defineEventHandler(async (event) => {
       customerLastSeenAt: new Date(),
       messages: { create: { content, isAdmin: false, senderId: session.id } },
     },
-    select: { id: true },
+    select: { id: true, assigneeId: true },
   })
-  return { ticket, slot }
+  await notifyTicketHandler(ticket, { title: `Call requested: ${label}`, message: 'The client asked for a 30-minute video call. Reply to confirm.', type: 'INFO' })
+  return { ticket: { id: ticket.id }, slot }
 })

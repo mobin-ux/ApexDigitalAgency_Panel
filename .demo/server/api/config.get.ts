@@ -4,6 +4,7 @@ import { DEFAULT_REPLY_TARGETS, formatReplyEta, replyTargetKey } from '../../sha
 import { getAuthSession } from '../utils/auth'
 import { DEFAULT_BANK_DETAILS, DEFAULT_FAQ } from '../utils/catalog'
 import { getCatalog } from '../utils/catalog-v2'
+import { lendingFlags } from '../utils/lending'
 import { mailConfigured } from '../utils/mail/transport'
 import { getSettings } from '../utils/settings'
 
@@ -34,7 +35,6 @@ export default defineEventHandler(async (event) => {
     'general.support-email': 'support@apexdigi.co.uk',
     'general.maintenance-mode': false,
     'business.vat-rate': 20,
-    'finance.enable-24mo-plans': true,
     'finance.first-installment-days': 30,
     'finance.withdrawal-min': 25,
     'finance.withdrawal-max': 10_000,
@@ -51,7 +51,9 @@ export default defineEventHandler(async (event) => {
     supportEmail: s['general.support-email'],
     maintenanceMode: s['general.maintenance-mode'],
     finance: {
-      enable24moPlans: s['finance.enable-24mo-plans'],
+      // The 24-month plan charges interest: the environment's lending switch
+      // decides it now, not a Setting (ADR-025). Off by default.
+      enable24moPlans: lendingFlags().interestBearingPlans,
       firstInstallmentDays: s['finance.first-installment-days'],
       withdrawalMin: s['finance.withdrawal-min'],
       withdrawalMax: s['finance.withdrawal-max'],

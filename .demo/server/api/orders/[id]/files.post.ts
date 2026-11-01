@@ -35,6 +35,7 @@ export default defineEventHandler(async (event) => {
       title: 'Client added files',
       message: `${project.name}: ${linked.count} new file${linked.count === 1 ? '' : 's'}.`,
       type: 'INFO',
+      link: `/admin/projects/${project.id}`,
     })
   }
   return { ok: true, count: linked.count }

@@ -1,8 +1,10 @@
 import { createError } from 'h3'
-import { firstPaymentDate } from '../../shared/catalog'
+import { firstPaymentDate, planDeadline, planDueDates, underPlanLimit } from '../../shared/catalog'
+import { requireInterestBearingPlans } from './lending'
 import { deliverNow } from './mail/outbox'
 import { notify } from './notify'
 import prisma from './prisma'
+import { PLAN_CANCELLED } from './project-lifecycle'
 
 /**
  * Financing engine — the single server-side source of the locked ADR-011
@@ -23,12 +25,17 @@ export interface FinancingPlan {
  * ADR-011 (locked): 12-mo = 0% interest, base/12.
  * 24-mo = 1%/month on the reducing balance, amortized:
  * monthly = base·0.01 / (1 − 1.01⁻²⁴).
+ *
+ * The 24-month plan charges interest, so it is behind the interest-bearing
+ * switch (ADR-025) and refused while that is off. Nothing in the panel offers
+ * it today; plans signed on it before keep their terms.
  */
 export function planFor(base: number, termMonths: 12 | 24): FinancingPlan {
   if (termMonths === 12) {
     const monthly = base / 12
     return { termMonths, interestRate: 0, monthlyAmount: monthly, totalAmount: base }
   }
+  requireInterestBearingPlans()
   const r = 0.01
   const monthly = base * r / (1 - (1 + r) ** -24)
   return { termMonths, interestRate: r, monthlyAmount: monthly, totalAmount: monthly * 24 }
@@ -49,10 +56,28 @@ export function planIcon(category: string): string {
   return 'lucide:monitor'
 }
 
+/**
+ * The latest a plan's last payment may fall due (ADR-025): twelve months after
+ * the agreement was signed, for an interest-free fixed plan. Null where the
+ * rule does not apply (retainers, and the legacy interest-bearing plans).
+ */
+export function planDeadlineFor(plan: { kind?: string | null, interestRate?: number | null }, signedAt: Date | null | undefined): Date | null {
+  return underPlanLimit(plan) && signedAt ? planDeadline(signedAt) : null
+}
+
+/**
+ * The due date after `current`, with `remaining` payments still to come
+ * counting the one due at `current`: a month later, or sooner when the plan
+ * has to be compressed to end by its deadline (`planDueDates`).
+ */
+export function dueAfter(current: Date, remaining: number, deadline: Date | null): Date {
+  return planDueDates(current, Math.max(2, remaining), deadline)[1]!
+}
+
 export interface ChargeResult {
   ok: boolean
   /** Machine-readable failure reason when !ok. */
-  reason?: 'not_found' | 'settled' | 'insufficient_funds' | 'not_started'
+  reason?: 'not_found' | 'settled' | 'insufficient_funds' | 'not_started' | 'cancelled'
   charged?: number
   settled?: boolean
 }
@@ -72,7 +97,7 @@ export async function chargeInstallment(planId: string, opts?: { actorNote?: str
   const result = await prisma.$transaction(async (tx) => {
     const plan = await tx.installment.findUnique({
       where: { id: planId },
-      include: { projectRef: { select: { id: true, name: true, category: true } } },
+      include: { projectRef: { select: { id: true, name: true, category: true, signedAt: true } } },
     })
     if (!plan) {
       return { ok: false, reason: 'not_found' as const }
@@ -81,6 +106,10 @@ export async function chargeInstallment(planId: string, opts?: { actorNote?: str
     // (ADR-019): no monthly payment may be taken before the kickoff payment.
     if (plan.status === 'pending') {
       return { ok: false, reason: 'not_started' as const }
+    }
+    // A cancelled project's plan takes nothing more (`cancelProject`).
+    if (plan.status === PLAN_CANCELLED) {
+      return { ok: false, reason: 'cancelled' as const }
     }
     // A retainer runs past its minimum term until cancelled, so only a fixed
     // plan can run out of payments.
@@ -106,8 +135,7 @@ export async function chargeInstallment(planId: string, opts?: { actorNote?: str
 
     const monthsPaid = plan.monthsPaid + 1
     const settled = !retainer && monthsPaid >= plan.monthsTotal
-    const nextDue = new Date(plan.nextDue)
-    nextDue.setMonth(nextDue.getMonth() + 1)
+    const nextDue = dueAfter(plan.nextDue, plan.monthsTotal - plan.monthsPaid, planDeadlineFor(plan, plan.projectRef?.signedAt))
 
     await tx.installment.update({
       where: { id: plan.id },
@@ -200,12 +228,15 @@ export function validationErrorFromCharge(reason: NonNullable<ChargeResult['reas
   if (reason === 'not_started') {
     throw createError({ statusCode: 400, message: 'Monthly payments start after the kickoff payment.' })
   }
+  if (reason === 'cancelled') {
+    throw createError({ statusCode: 409, message: 'This project was cancelled, so its plan takes no more payments.' })
+  }
   throw createError({ statusCode: 400, message: 'Insufficient wallet balance. Please top up first.' })
 }
 
 export type KickoffResult
   = | { ok: true, charged: number }
-    | { ok: false, reason: 'not_found' | 'already_paid' | 'insufficient_funds', shortBy?: number }
+    | { ok: false, reason: 'not_found' | 'already_paid' | 'insufficient_funds' | 'cancelled', shortBy?: number }
 
 class KickoffShortfall extends Error {
   constructor(public shortBy: number) {
@@ -231,6 +262,9 @@ export async function collectKickoff(projectId: string, opts?: { actorNote?: str
     })
     if (!project) {
       return { ok: false as const, reason: 'not_found' as const }
+    }
+    if (project.status === 'CANCELLED') {
+      return { ok: false as const, reason: 'cancelled' as const }
     }
     const claimed = await tx.project.updateMany({
       where: { id: projectId, kickoffPaidAt: null },
@@ -292,21 +326,34 @@ export async function collectKickoff(projectId: string, opts?: { actorNote?: str
         await tx.milestone.update({ where: { id: next.id }, data: { status: 'CURRENT' } })
       }
     }
+    // The rest of the plan's dates, compressed if a late kickoff would carry
+    // the last one past twelve months from signing (ADR-025).
+    let compressedUntil: Date | null = null
     if (plan && plan.status === 'pending') {
       const settled = firstOfPlan && plan.monthsTotal <= 1
+      const remaining = firstOfPlan ? plan.monthsTotal - 1 : plan.monthsTotal
+      const deadline = planDeadlineFor(plan, project.signedAt)
+      const dates = planDueDates(firstPaymentDate(now), Math.max(1, remaining), deadline)
+      const monthly = planDueDates(firstPaymentDate(now), Math.max(1, remaining), null)
+      if (remaining > 0 && dates.at(-1)!.getTime() !== monthly.at(-1)!.getTime()) {
+        compressedUntil = dates.at(-1)!
+      }
       await tx.installment.update({
         where: { id: plan.id },
         data: firstOfPlan
-          ? { status: settled ? 'settled' : 'active', nextDue: firstPaymentDate(now), monthsPaid: 1, paid: amount, amountDue: plan.monthlyAmount }
-          : { status: 'active', nextDue: firstPaymentDate(now) },
+          ? { status: settled ? 'settled' : 'active', nextDue: dates[0]!, monthsPaid: 1, paid: amount, amountDue: plan.monthlyAmount }
+          : { status: 'active', nextDue: dates[0]! },
       })
     }
+    const compressedNote = compressedUntil
+      ? ` Because work started later than planned, your remaining payments fall due closer together and finish by ${compressedUntil.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}, within twelve months of your agreement. The amounts have not changed.`
+      : ''
     const sent = await notify({
       userIds: [project.userId],
       title: 'Work has started',
-      message: amount > 0
+      message: (amount > 0
         ? `${project.name}: £${amount.toLocaleString('en-GB', { minimumFractionDigits: 2 })} was taken from your wallet and work has started.`
-        : `${project.name}: work has started.`,
+        : `${project.name}: work has started.`) + compressedNote,
       type: 'SUCCESS',
       link: `/dashboards/orders?project=${project.id}`,
     }, tx)

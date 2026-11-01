@@ -18,7 +18,18 @@ import prisma from './prisma'
  * The one exception is `middleware/02.session.ts`, and it only ever takes
  * access away: it marks a token whose session was signed out as revoked, so
  * these guards see no session. It never lets a request in.
+ *
+ * Two kinds of session (ADR-025). A **customer** session comes from the
+ * panel's sign-in and lives seven days in `auth_token`. A **staff** session
+ * comes only from the admin console's sign-in (`/api/admin/auth/*`), which
+ * requires two-step verification; it lives in `apex_admin` (SameSite=Strict)
+ * for at most twelve hours and ends after two idle hours. `requireAdmin`
+ * accepts nothing else, so a password alone never reaches the admin API, and
+ * the customer sign-in refuses staff accounts. A browser holds one or the
+ * other: starting either kind clears the other cookie.
  */
+
+export type SessionKind = 'customer' | 'staff'
 
 /**
  * Verified JWT payload — what `jwt.sign` receives at login/signup.
@@ -31,6 +42,8 @@ export interface AuthSession {
   role: Role
   /** The `Session` row this token belongs to; null for a token issued before sessions were recorded. */
   sid: string | null
+  /** Which sign-in made it. Tokens from before ADR-025 carry none and are customer sessions. */
+  kind: SessionKind
 }
 
 /** A verified token's claims, before the session check in `middleware/02.session.ts`. */
@@ -40,7 +53,16 @@ export interface AuthTokenClaims extends AuthSession {
 }
 
 const AUTH_COOKIE = 'auth_token'
+const STAFF_COOKIE = 'apex_admin'
 const TOKEN_TTL_SECONDS = 60 * 60 * 24 * 7 // 7 days, matches cookie maxAge
+/** A staff session's absolute life; the idle limit is in `middleware/02.session.ts`. */
+export const STAFF_TOKEN_TTL_SECONDS = 60 * 60 * 12
+/** A staff session unused for this long is ended on its next request. */
+export const STAFF_IDLE_MS = 2 * 60 * 60_000
+
+function ttlFor(kind: SessionKind): number {
+  return kind === 'staff' ? STAFF_TOKEN_TTL_SECONDS : TOKEN_TTL_SECONDS
+}
 
 let warnedWeakSecret = false
 
@@ -54,12 +76,23 @@ function jwtSecret(event: H3Event): string {
 }
 
 /**
- * Decode and verify the auth cookie. Returns `null` on any failure
+ * Decode and verify the session cookie. Returns `null` on any failure
  * (missing cookie, bad signature, expired, malformed payload) — never
  * throws, so an invalid token can't surface as a 500.
+ *
+ * The staff cookie is read first, and only a token that says it is a staff
+ * session counts there; a customer token copied into it is ignored.
  */
 export function readAuthToken(event: H3Event): AuthTokenClaims | null {
-  const token = getCookie(event, AUTH_COOKIE)
+  const staff = verifyToken(event, getCookie(event, STAFF_COOKIE))
+  if (staff?.kind === 'staff') {
+    return staff
+  }
+  const customer = verifyToken(event, getCookie(event, AUTH_COOKIE))
+  return customer?.kind === 'customer' ? customer : null
+}
+
+function verifyToken(event: H3Event, token: string | undefined): AuthTokenClaims | null {
   if (!token) {
     return null
   }
@@ -68,7 +101,7 @@ export function readAuthToken(event: H3Event): AuthTokenClaims | null {
     if (typeof decoded !== 'object' || decoded === null) {
       return null
     }
-    const { id, email, role, sid, iat, purpose } = decoded as Record<string, unknown>
+    const { id, email, role, sid, iat, purpose, kind } = decoded as Record<string, unknown>
     // A two-step ticket is signed with the same secret; it is never a session.
     if (typeof id !== 'string' || typeof role !== 'string' || purpose !== undefined) {
       return null
@@ -78,6 +111,7 @@ export function readAuthToken(event: H3Event): AuthTokenClaims | null {
       email: typeof email === 'string' ? email : null,
       role: role as Role,
       sid: typeof sid === 'string' ? sid : null,
+      kind: kind === 'staff' ? 'staff' : 'customer',
       iat: typeof iat === 'number' ? iat : 0,
     }
   }
@@ -146,31 +180,42 @@ export async function requireRole(event: H3Event, ...roles: Role[]): Promise<Aut
   return { ...session, role: user.role }
 }
 
-/** Shorthand for the common case. */
-export function requireAdmin(event: H3Event): Promise<AuthSession> {
-  return requireRole(event, 'ADMIN')
+/**
+ * The admin API's gate: an ADMIN account on a staff session. An admin
+ * holding an older customer session gets a 401 rather than a 403, because
+ * the remedy is to sign in through the staff sign-in, not to ask for a role.
+ */
+export async function requireAdmin(event: H3Event): Promise<AuthSession> {
+  const session = await requireRole(event, 'ADMIN')
+  if (session.kind !== 'staff') {
+    throw createError({ statusCode: 401, statusMessage: 'Unauthorized', message: 'Sign in through the staff sign-in to use the admin console.', data: { signIn: '/admin/sign-in' } })
+  }
+  return session
 }
 
 /**
  * Sign someone in on this browser: record a `Session` (what Settings lists as
  * a signed-in device), sign a token naming it and set the cookie. Every
- * sign-in path — password, two-step code, signup, invite — goes through here.
+ * sign-in path — password, two-step code, signup, staff sign-in — goes
+ * through here; only `/api/admin/auth/*` passes `kind: 'staff'`.
  */
-export async function startSession(event: H3Event, user: { id: string, email: string | null, role: Role }): Promise<string> {
+export async function startSession(event: H3Event, user: { id: string, email: string | null, role: Role }, kind: SessionKind = 'customer'): Promise<string> {
+  const ttl = ttlFor(kind)
   const row = await prisma.session.create({
     data: {
       userId: user.id,
       userAgent: getRequestHeader(event, 'user-agent')?.slice(0, 400) ?? null,
-      expiresAt: new Date(Date.now() + TOKEN_TTL_SECONDS * 1000),
+      expiresAt: new Date(Date.now() + ttl * 1000),
+      kind,
     },
     select: { id: true },
   })
   const token = jwt.sign(
-    { id: user.id, email: user.email, role: user.role, sid: row.id },
+    { id: user.id, email: user.email, role: user.role, sid: row.id, kind },
     jwtSecret(event),
-    { expiresIn: TOKEN_TTL_SECONDS },
+    { expiresIn: ttl },
   )
-  setAuthCookie(event, token)
+  setAuthCookie(event, token, kind)
   return row.id
 }
 
@@ -242,6 +287,10 @@ export function readTwoFactorTicket(event: H3Event, ticket: string): string | nu
 /**
  * One place for cookie attributes so login/signup/logout can't drift.
  *
+ * The staff cookie is SameSite=Strict: no other site can make a browser
+ * send it, at the cost that following a link to /admin from an email lands
+ * on the staff sign-in, which then finds the session and carries on.
+ *
  * `httpOnly: true` — the token is unreadable from JavaScript, so an XSS
  * payload cannot exfiltrate a session. This required reworking the client
  * route guards (app/middleware/{auth,admin}.ts), which previously read the
@@ -249,16 +298,19 @@ export function readTwoFactorTicket(event: H3Event, ticket: string): string | nu
  * whose answer is server-verified anyway. The old fast path was never a
  * security control — a forged cookie value passed it just as easily.
  */
-export function setAuthCookie(event: H3Event, token: string): void {
-  setCookie(event, AUTH_COOKIE, token, {
+export function setAuthCookie(event: H3Event, token: string, kind: SessionKind = 'customer'): void {
+  setCookie(event, kind === 'staff' ? STAFF_COOKIE : AUTH_COOKIE, token, {
     httpOnly: true,
     secure: !import.meta.dev,
-    sameSite: 'lax',
-    maxAge: TOKEN_TTL_SECONDS,
+    sameSite: kind === 'staff' ? 'strict' : 'lax',
+    maxAge: ttlFor(kind),
     path: '/',
   })
+  deleteCookie(event, kind === 'staff' ? AUTH_COOKIE : STAFF_COOKIE, { path: '/' })
 }
 
+/** Clear both session cookies: a sign-out ends whichever this browser holds. */
 export function clearAuthCookie(event: H3Event): void {
   deleteCookie(event, AUTH_COOKIE, { path: '/' })
+  deleteCookie(event, STAFF_COOKIE, { path: '/' })
 }

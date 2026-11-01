@@ -94,7 +94,7 @@ ships as a `.dc.html` mockup plus a `PHASE-N-*.md` implementation spec.
 | 9A | **Admin — Team & platform** — six staff roles, one enforced matrix, invites, platform settings, audit log | ⛔ Removed (ADR-024) |
 | 9B | **Admin — Overview & work** — a work queue, an orders table with counts, the deliverable release gate | ⛔ Removed (ADR-024) |
 | CMS | **Admin — Website module** (ADR-021) — pages, editor, navigation, media, SEO & redirects, site settings, panel content; the public site renders published documents over its code baseline | ⛔ Removed (ADR-024) |
-| AC | **Admin console** (`Admin Console.dc.html`) — new shell for every `/admin/**` screen, light and dark, ⌘K search, confirmations with reasons, record drawers; see "Admin console" below | ⛔ Removed (ADR-024) |
+| AC | **Admin console** (`Admin Console.dc.html`) — new shell for every `/admin/**` screen, light and dark, ⌘K search, confirmations with reasons, record drawers; see "Admin console" below | ✅ Reinstated without the Website group on `feature/admin-console` (ADR-025), hardened and tested; reference in `ADMIN_CONSOLE.md`; not merged |
 
 #### Phase 1 — the shell standard (applies to every page from here on)
 
@@ -190,7 +190,6 @@ below apply to every page from here on:
   are `aria-pressed` buttons.
 - Decorative SVG beside a text value (progress rings) gets `aria-hidden`.
 - No text link inside a control that already owns the click ("Details ›").
-
 
 #### Phase 5 — Wallet & Credit (name things by what they are)
 

@@ -95,7 +95,10 @@ Yellix fonts, and reference screenshots). Integration strategy:
 
 **2026-10-31 (ADR-024):** the admin console, every `/api/admin/**` route, the
 website CMS's public API (`/api/site/**`) and the staff invite routes were
-removed; the table lists what remains. `/api/config` no longer carries
+removed; the table lists what remains. On `feature/admin-console`
+(ADR-025) the console, `/api/admin/**` (without `/api/admin/website/**`)
+and the invite routes are back; their endpoints, permissions and sign-in
+are in `ADMIN_CONSOLE.md`. `/api/config` no longer carries
 `legal` or `announcement`.
 
 **Server conventions (ADR-013)**: every Prisma-backed route uses the shared
@@ -187,6 +190,21 @@ verification), and the Tairo demo routes `/api/payments/*` and `/api/hello`.
    returns a five-minute ticket (a JWT with `purpose: 'two-factor'`, which
    `readAuthToken` refuses as a session) instead of a cookie, and
    `/api/auth/login-2fa` takes the ticket and a code.
+8. **Staff sessions (ADR-025).** The admin console has its own sign-in at
+   `/admin/sign-in` (`/api/admin/auth/{login,login-2fa,enrol/start,enrol/finish}`,
+   `server/utils/staff-auth.ts`). It accepts only `role: ADMIN` accounts,
+   always asks for an authenticator code, and enrols a staff account that
+   has no two-step before giving it anything. The session it starts is
+   `Session.kind = 'staff'`, carried in the `apex_admin` cookie
+   (httpOnly, SameSite=Strict, 12 h absolute, ended by `02.session.ts` after
+   2 idle hours). `requireAdmin` — and so every `requireStaffPermission` —
+   accepts only that kind; the customer sign-in refuses staff accounts
+   (403 with `data.signIn`), and starting either kind clears the other
+   cookie. `/api/auth/me` reports `sessionKind`; the `admin` route guard
+   sends anyone without a staff session to the staff sign-in, and the
+   `auth` guard sends a staff session to `/admin`. Accepting an invite
+   starts no session. The first owner is made by
+   `pnpm admin:create --email … --name …` (`scripts/create-super-admin.mjs`).
 
 ## 7. Frontend architecture — implemented pages
 
@@ -211,11 +229,12 @@ All customer pages: `definePageMeta({ layout: 'sidenav', middleware: 'auth' })`.
   `/dashboards/support` (real page, not the design's stub).
 - **Old-style pages awaiting redesign**: settings.vue, auth pages — still hardcoded
   hex/USD/native alerts; rebuild only on design arrival.
-- **No admin console (2026-10-31, ADR-024).** The `/admin/**` screens (the
-  V2 Phase 9 admin, then the `Admin Console.dc.html` rebuild) were removed
-  with their API and the website CMS. Staff accounts and the permission
-  matrix remain; nothing in the panel lets staff act on orders, requests or
-  credit applications.
+- **Admin console (ADR-025, on `feature/admin-console`).** Removed on
+  master on 2026-10-31 with the website CMS (ADR-024), then reinstated on
+  the feature branch without the Website group, behind its own staff
+  sign-in with a required authenticator code, an append-only audit log and
+  the money guardrails. `ADMIN_CONSOLE.md` is its reference: screens, roles
+  and permissions, endpoints, migrations, env vars, the first Super Admin.
 
 Shared UI vocabulary (see DESIGN_SYSTEM.md + CLAUDE.md): status accents
 (`#22B07D`/`#F2C14E`/`#EC6453`/`#6EA8FE`), payment-state taxonomy

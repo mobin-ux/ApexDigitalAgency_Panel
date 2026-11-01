@@ -14,6 +14,8 @@ Detail lives in the docs — read on demand, don't guess:
 
 - **The active app is `.demo/`** — NOT `.app/` (empty shell). Customer pages:
   `.demo/app/pages/dashboards/{balance,orders,services,wallet,support,settings}.vue`.
+- Staff sign in at `/admin/sign-in` with an authenticator code (ADR-025); the API
+  test harness keeps the dev owner's secret in `.demo/.data/test-staff.json`.
 - Run: `pnpm demo:dev` → localhost:3000. Dev login: `user@apex.com` / `user123`
   (seed via GET `/api/create-admin`; sample data: `/api/seed-orders|seed-support|seed-notifs`).
 - Backend: Nitro routes in `.demo/server/api/`, Prisma + SQLite (`prisma/schema.prisma`).
@@ -34,11 +36,12 @@ Detail lives in the docs — read on demand, don't guess:
 8. **Never kill the user's dev server on port 3000**; preview uses `autoPort` (launch.json).
 9. **Never fabricate financial actions** — no fake charges; route to Wallet + `TODO(api)`.
 10. Rewrite Persian comments to English whenever touching a legacy file.
-11. **There is no admin console** (removed 2026-10-31, ADR-024). Staff-only
-    behaviour that remains (attachments, avatars, staff notifications) gates on
-    a permission from `shared/permissions.ts` via `requireStaffPermission()` or
-    `can()`, never on bare `requireAdmin`. Do not drop roles from the matrix:
-    an unknown `staffRole` falls back to `owner`.
+11. **The admin console is back without the website CMS** (ADR-025, on
+    `feature/admin-console`; removed on master by ADR-024). Every staff-only
+    route gates on a permission from `shared/permissions.ts` via
+    `requireStaffPermission()` or `can()`, never on bare `requireAdmin`. Do not
+    drop roles from the matrix: an unknown `staffRole` falls back to `owner`.
+    Reference (roles, endpoints, migrations, first owner): `ADMIN_CONSOLE.md`.
 
 ## Conventions
 
@@ -75,6 +78,7 @@ Detail lives in the docs — read on demand, don't guess:
 | Install (mirror 403 workaround) | `pnpm install --registry=https://registry.npmmirror.com/` |
 | Dev server | `pnpm demo:dev` (or `./dev.sh` for `--host`) |
 | Lint / typecheck | `pnpm exec eslint --fix <files>` / `pnpm test:tsc-demo` |
+| API tests / browser smoke | `CMS_TEST_URL=http://localhost:3000 pnpm test:cms:api` / `E2E_URL=http://localhost:3000 pnpm e2e` (installed Edge; both need the dev server up) |
 | Prisma client | auto (`postinstall`); manual `pnpm exec prisma generate` |
 | Preview (agent) | `.claude/launch.json` config `demo` — autoPort, coexists with :3000 |
 

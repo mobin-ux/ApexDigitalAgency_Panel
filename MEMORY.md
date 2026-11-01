@@ -2,7 +2,7 @@
 
 > Handoff doc for continuing work in fresh sessions. Update the relevant section
 > whenever a page ships, a decision lands, or a blocker appears.
-> Last updated: **2026-10-31** (admin console and website CMS removed — ADR-024; before that, admin console replaced by `Admin Console.dc.html`; both apps re-deployed from master; Cloudflare applied — ADR-023; Mail provider deployed — ADR-022; Website CMS — ADR-021; 2026-10-25 Panel v2: dashboard, New order and My orders revisions; Wallet revision — credit by application, ADR-020; Support revision — call requests and ratings; 2026-10-27 Settings re-check — profile photos, signed-in devices, two-step verification).
+> Last updated: **2026-11-01** (admin console reinstated without the CMS on `feature/admin-console` — ADR-025, hardening phases in progress; 2026-10-31 admin console and website CMS removed — ADR-024; before that, admin console replaced by `Admin Console.dc.html`; both apps re-deployed from master; Cloudflare applied — ADR-023; Mail provider deployed — ADR-022; Website CMS — ADR-021; 2026-10-25 Panel v2: dashboard, New order and My orders revisions; Wallet revision — credit by application, ADR-020; Support revision — call requests and ratings; 2026-10-27 Settings re-check — profile photos, signed-in devices, two-step verification).
 
 ## Where things stand
 
@@ -16,7 +16,102 @@
 - Stale branch `refactor/apex-dashboard` (local + origin) is superseded by master;
   deletable, but ask the user first.
 
-## Admin console and website CMS removed (2026-10-31)  ⬅ LATEST WORKSTREAM
+## Admin console reinstated, hardened (2026-11-01)  ⬅ LATEST WORKSTREAM
+
+The owner asked for `Admin Console.dc.html` as production code: separate
+staff sign-in, 2FA for staff, append-only audit, money guardrails, tests,
+on **`feature/admin-console`** (not master, not merged). Decided with the
+owner: restore the 31 Oct build rather than rebuild; **no Website group**
+(the CMS stays removed); defaults taken pending their word: credit
+decisions and interest-bearing plans behind flags that are off.
+ADR-025. Phases 0–6 all done (restore · staff auth · money guardrails ·
+data hardening · two-way sync · tests · docs); **not merged, not deployed**.
+Reference: `ADMIN_CONSOLE.md`.
+
+- **Phase 0 done:** admin screens/APIs/invite flow restored from
+  `54b70f8^` minus everything website; `homeFor()` returns null for a
+  role that can open nothing (Publisher/Editor) instead of looping;
+  `AdminLoadError` replaces `AdminWebsiteLoadError`; Agreements' counts
+  no longer use a mistyped `groupBy`. Verified: tsc 46 (baseline),
+  lint clean, unit 28/28, API 11/11, 16 admin routes SSR 200 for the
+  owner and 302 for customer/anonymous, website routes 404.
+- **Phase 1 done (staff sign-in):** `Session.kind` (`customer`|`staff`,
+  `docs/migrations/2026-11-staff-sessions.sql`, rollback tested on a copy);
+  `/admin/sign-in` + `/api/admin/auth/{login,login-2fa,enrol/start,enrol/finish}`
+  — staff only, authenticator code always, enrolment before any session;
+  `apex_admin` cookie (Strict, 12 h, 2 h idle); `requireAdmin` takes only a
+  staff session; customer sign-in refuses staff (403 + `data.signIn`);
+  invites start no session; `pnpm admin:create` makes the first owner (no
+  usable password + 60-min reset link; counts null/unknown staffRole as
+  owner, as the server does). Settings' two-step setup now shares
+  `beginTwoFactorSetup`/`confirmTwoFactorSetup` with the staff enrolment.
+  Tests: `staff-auth.test.ts` (7), all API 18/18, unit 28/28, tsc 46.
+- **Owner's decision (2026-11-01) for Phase 2:** a 12-payment plan whose
+  last payment would land past 12 months from signing gets its dates
+  **compressed** to fit (the owner chose this over blocking late kickoff).
+- **Phase 2 done (money guardrails, ADR-025 §Money guardrails):** fixed
+  plans ≤ 12 payments (editor 400; old stored catalogues clamped in
+  `paymentCount`); `planDueDates()` compresses dates to end by
+  `Project.signedAt` + 12 months, used by kickoff, charges, waivers and both
+  schedules; agreement `apex-msa-2026-11` states it; lending switches
+  `NUXT_LENDING_INTEREST_BEARING_PLANS` / `NUXT_LENDING_CREDIT_DECISIONS`
+  (env only, off); the Platform-settings 24-month switch removed; wallet
+  adjust route removed; signed project value locked (409); top-up refunds via
+  `refundTopUp` (provider API, wallet debited first, `reverseRefund` on
+  refusal). Tests: `plan-limits.test.ts` (9 unit), `money-guardrails.test.ts`
+  (7 API, back-dates `Project.signedAt` through Prisma). Unit 37/37, API
+  25/25, tsc 46. **Gap:** direct-debit collections cannot be refunded from
+  the panel (409 pointing at the provider).
+- **Phase 3 done (data hardening, ADR-025 §Data hardening):** `?sort=&dir=`
+  whitelists on projects/users/transactions/contracts/tickets/audit
+  (`orderFor`, id tiebreak; value sort ignored without `money.view`);
+  `AdminSortHeader` + `useAdminSort` on Projects, Clients, Payments; 8 new
+  indexes; AuditLog UPDATE/DELETE triggers (`docs/migrations/2026-11-admin-hardening.sql`,
+  start-up warning `[audit-append-only]` in `server/plugins/audit-guard.ts`);
+  client list/detail minimised by role. Tests `admin-hardening.test.ts` (7);
+  API 32/32, unit 37/37, tsc 46. Gotcha: Prisma reports a SQLite trigger
+  RAISE(ABORT) as "Foreign key constraint violated", not the trigger's text.
+- **Phase 4 done (two-way sync, ADR-025 §Two-way sync):** `cancelProject()`
+  (project + plan `cancelled` + contract) used by the project screen and
+  Agreements — a cancelled plan was still charged by auto-pay before; charge,
+  waive and kickoff refuse it, credit and overdue counts skip it, the
+  client schedule shows payments stopped; no un-cancelling. Hand-setting In
+  progress before the kickoff payment is 409. Milestone edits recompute
+  progress. New notices both ways (status, target date, stage, request
+  resolved/new/reopened/call, withdrawal, files on hold, credit application,
+  assignment) via `notifyTicketHandler` and `notify`. Open pages refresh on
+  a new notification (`useClientLiveRefresh`, 60 s while visible); admin
+  counts every 2 min. No staff bell (not in the design). Tests
+  `panel-sync.test.ts` (5); API 37/37, unit 37/37, tsc 46.
+- **Phase 5 done (tests, ADR-025 §Tests):** `admin-roles.test.ts` — 58
+  routes × 8 roles + customer (403) + anonymous (401), expected answers read
+  from `shared/permissions.ts`, fails on a route file with no row. Found and
+  fixed: withdrawal approve and instalment waive needed only `money.view`
+  (Admin could pay out/forgive but not refund) → now `money.refund`, buttons
+  hidden. Playwright 1.56.1 smoke (`pnpm e2e`, Edge via `channel: msedge`,
+  no browser download): 8 tests. API 47/47, unit 37/37, e2e 8/8, tsc 46.
+  Gotchas: fill a form only after hydration (`hydrated()`), or it submits as
+  plain HTML; `pnpm add` failed its postinstall while the dev server held the
+  Prisma engine and never wrote package.json (added by hand); the dev
+  customer's avatar file is not on this machine (404, initials shown).
+- **Phase 6 done (docs):** `ADMIN_CONSOLE.md` at the repo root (architecture,
+  screens, sign-in, the role matrix, every endpoint with its permission,
+  money guardrails, audit and minimisation, the two migrations with the
+  deploy order, env vars, `pnpm admin:create`, tests, not built);
+  ARCHITECTURE §5/§7, REQUIREMENTS §5/§6, DESIGN_SYSTEM roadmap, CLAUDE.md
+  rule 11 point at it. Deploying needs both 2026-11 SQL files (DEPLOYMENT
+  order in `ADMIN_CONSOLE.md` §Migrations) and the owner's go-ahead.
+- **Test harness gotchas:** API suites now run `--test-concurrency=1` (they
+  share accounts; parallel enrolment overwrote each other's pending secret);
+  the harness keeps the dev owner's TOTP secret, last step and cookie in
+  `.demo/.data/test-staff.json` and resets via dev-only
+  `POST /api/_test/two-factor-reset` when they disagree. To sign in as the
+  dev owner by hand, compute a code from that secret. The RTK shell proxy
+  rejects `pnpm -s`; run scripts with `node` directly.
+- This checkout had no `node_modules` (root or `web/`); both installed
+  2026-11-01 from npmmirror (12 min for the root).
+
+## Admin console and website CMS removed (2026-10-31)
 
 The owner asked to "remove the existing panel and keep only the main site",
 then chose: remove the **admin console only** (the customer panel stays),
@@ -62,7 +157,6 @@ clean. Still on the box and now unused: panel `NUXT_WEBSITE_*`, site
   404, sitemap 15 code addresses, plan links preselect on Contact.
 
 ## Admin console — built, then removed (2026-10-31)
-
 
 The admin interface was replaced by the Claude Design "Admin Console"
 (project `eb7c3341-4385-4c1d-85a6-bf80958b6398`, `Admin Console.dc.html`,

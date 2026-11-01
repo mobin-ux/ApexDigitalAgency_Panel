@@ -531,7 +531,10 @@ const OVERLINE = 'text-fg-muted text-xs font-bold uppercase tracking-[.06em]'
               <span class="text-fg-heading min-w-[60px] text-right font-semibold tabular-nums">{{ formatCurrency(py.amount) }}</span>
               <span class="flex min-w-[86px] justify-end"><ApexStatusChip :tone="py.tone">{{ py.state }}</ApexStatusChip></span>
             </div>
-            <p v-if="!d.sched.rows.length" class="text-fg-body m-0 px-5 py-6 text-sm">
+            <p v-if="d.sched.cancelled" class="text-fg-body border-line-soft m-0 border-b px-5 py-4 text-sm">
+              This order was cancelled, so no further payments will be taken.{{ d.sched.rows.length ? ' The payments above were made before it was cancelled.' : '' }}
+            </p>
+            <p v-else-if="!d.sched.rows.length" class="text-fg-body m-0 px-5 py-6 text-sm">
               This order has no payment schedule.
             </p>
             <p v-if="!d.sched.started && d.sched.rows.length > 1" class="text-fg-muted border-line-soft m-0 border-b px-5 py-3 text-[12.5px]">
@@ -563,18 +566,18 @@ const OVERLINE = 'text-fg-muted text-xs font-bold uppercase tracking-[.06em]'
           <div v-if="d.sched.kind !== 'none'" :class="CARD" class="flex flex-col gap-3.5 p-5">
             <span :class="OVERLINE">Payment plan</span>
             <span class="font-heading text-fg-heading text-3xl font-extrabold leading-none tracking-[-0.03em] tabular-nums">
-              {{ formatCurrency(d.sched.monthly || d.sched.total) }}<span v-if="d.sched.monthly" class="text-fg-muted text-[13px] font-semibold"> /mo</span>
+              {{ formatCurrency(d.sched.cancelled ? d.sched.paid : d.sched.monthly || d.sched.total) }}<span v-if="d.sched.monthly && !d.sched.cancelled" class="text-fg-muted text-[13px] font-semibold"> /mo</span>
             </span>
-            <div v-if="!d.sched.retainer && d.sched.payments && d.sched.payments <= 24" aria-hidden="true" class="flex flex-wrap gap-[5px]">
+            <div v-if="!d.sched.cancelled && !d.sched.retainer && d.sched.payments && d.sched.payments <= 24" aria-hidden="true" class="flex flex-wrap gap-[5px]">
               <span v-for="i in d.sched.payments" :key="i" class="block size-2.5 rounded-full" :class="i <= d.sched.paidCount ? 'bg-accent' : 'bg-dot-unpaid'" />
             </div>
             <span class="text-fg-muted text-[13px]">
-              {{ d.sched.retainer ? `${d.sched.payments}-month minimum, then rolling monthly` : d.sched.payments ? `${d.sched.paidCount} of ${d.sched.payments} paid · no interest` : d.sched.kind === 'full' ? 'One payment at kickoff' : 'Fixed price' }}
+              {{ d.sched.cancelled ? (d.sched.paid > 0 ? 'Paid before the order was cancelled' : 'Cancelled before any payment') : d.sched.retainer ? `${d.sched.payments}-month minimum, then rolling monthly` : d.sched.payments ? `${d.sched.paidCount} of ${d.sched.payments} paid · no interest` : d.sched.kind === 'full' ? 'One payment at kickoff' : 'Fixed price' }}
             </span>
             <div class="border-line-soft flex flex-col gap-2.5 border-t pt-3.5">
               <div class="flex items-baseline justify-between gap-3 text-[13.5px]">
-                <span class="text-fg-body">{{ d.sched.started ? 'Next payment' : 'First payment' }}</span>
-                <span class="text-fg-heading text-right font-semibold tabular-nums">{{ d.sched.nextDue ? ukDate(d.sched.nextDue) : d.sched.started ? '—' : 'At kickoff' }}</span>
+                <span class="text-fg-body">{{ d.sched.cancelled ? 'Payments' : d.sched.started ? 'Next payment' : 'First payment' }}</span>
+                <span class="text-fg-heading text-right font-semibold tabular-nums">{{ d.sched.cancelled ? 'Stopped' : d.sched.nextDue ? ukDate(d.sched.nextDue) : d.sched.started ? '—' : 'At kickoff' }}</span>
               </div>
               <!-- A retainer's notice is the signed agreement's: 30 days, once the minimum term is served. -->
               <div v-if="d.sched.retainer" class="flex items-baseline justify-between gap-3 text-[13.5px]">

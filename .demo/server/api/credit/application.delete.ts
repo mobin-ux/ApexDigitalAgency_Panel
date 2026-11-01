@@ -1,6 +1,7 @@
 import { createError, defineEventHandler } from 'h3'
 import { recordAudit } from '../../utils/audit'
 import { requireAuth } from '../../utils/auth'
+import { notifyRoles } from '../../utils/notify'
 import prisma from '../../utils/prisma'
 import { deleteAttachments } from '../../utils/uploads'
 
@@ -33,6 +34,12 @@ export default defineEventHandler(async (event) => {
     targetType: 'CreditApplication',
     targetId: app.id,
     metadata: { filesDeleted: app.attachments.length },
+  })
+  await notifyRoles('credit.approve', {
+    title: 'Credit application withdrawn',
+    message: 'The client withdrew their application before a decision. Its documents were deleted.',
+    type: 'INFO',
+    link: `/admin/credit?application=${app.id}`,
   })
   return { status: 'withdrawn' }
 })

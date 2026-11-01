@@ -1,5 +1,5 @@
 import { defineEventHandler } from 'h3'
-import { clearAuthCookie, readAuthToken } from '../utils/auth'
+import { clearAuthCookie, readAuthToken, STAFF_IDLE_MS } from '../utils/auth'
 import prisma from '../utils/prisma'
 
 /**
@@ -15,6 +15,10 @@ import prisma from '../utils/prisma'
  *
  * Only `/api/` — pages read the session through `/api/auth/me`, which comes
  * through here too. Last seen is written at most every five minutes.
+ *
+ * Staff sessions (ADR-025) are also refused when the row was not made by the
+ * staff sign-in, and after two hours without a request; the five-minute
+ * granularity of last seen makes that two hours give or take five minutes.
  */
 const SEEN_EVERY_MS = 5 * 60_000
 
@@ -30,9 +34,13 @@ export default defineEventHandler(async (event) => {
   if (claims.sid) {
     const row = await prisma.session.findUnique({
       where: { id: claims.sid },
-      select: { userId: true, revokedAt: true, expiresAt: true, lastSeenAt: true },
+      select: { userId: true, revokedAt: true, expiresAt: true, lastSeenAt: true, kind: true },
     })
-    if (!row || row.userId !== claims.id || row.revokedAt || row.expiresAt.getTime() < now) {
+    const idle = claims.kind === 'staff' && row !== null && now - row.lastSeenAt.getTime() > STAFF_IDLE_MS
+    if (!row || row.userId !== claims.id || row.revokedAt || row.expiresAt.getTime() < now || row.kind !== claims.kind || idle) {
+      if (idle) {
+        await prisma.session.update({ where: { id: claims.sid }, data: { revokedAt: new Date(now) } })
+      }
       event.context.authRevoked = true
       clearAuthCookie(event)
       return
@@ -40,6 +48,12 @@ export default defineEventHandler(async (event) => {
     if (now - row.lastSeenAt.getTime() > SEEN_EVERY_MS) {
       await prisma.session.update({ where: { id: claims.sid }, data: { lastSeenAt: new Date(now) } })
     }
+    return
+  }
+  // A staff token always names its session; one without is not a staff session.
+  if (claims.kind === 'staff') {
+    event.context.authRevoked = true
+    clearAuthCookie(event)
     return
   }
   const user = await prisma.user.findUnique({ where: { id: claims.id }, select: { sessionsValidAfter: true } })

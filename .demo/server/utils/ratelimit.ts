@@ -140,6 +140,12 @@ export function rateLimit(event: H3Event, options: RateLimitOptions): void {
 export const RateLimits = {
   /** Credential endpoints: slow, and abuse locks the identity out. */
   login: { bucket: 'auth:login', limit: 5, windowMs: 60_000, blockMs: 15 * 60_000 },
+  /**
+   * The staff sign-in (ADR-025): five tries in fifteen minutes, then half an
+   * hour, per address and per account. Stricter than the customer one because
+   * a staff password opens every client's records once the code is also known.
+   */
+  staffLogin: { bucket: 'auth:staff', limit: 5, windowMs: 15 * 60_000, blockMs: 30 * 60_000 },
   signup: { bucket: 'auth:signup', limit: 3, windowMs: 60 * 60_000, blockMs: 60 * 60_000 },
   passwordReset: { bucket: 'auth:reset', limit: 3, windowMs: 15 * 60_000, blockMs: 30 * 60_000 },
   /*

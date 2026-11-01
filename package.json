@@ -26,12 +26,14 @@
     "web:typecheck": "pnpm --dir web typecheck",
     "clean:all": "pnpm -r clean && rimraf .nuxt .output node_modules",
     "verify:payments": "node scripts/verify-payments.mjs",
+    "admin:create": "node scripts/create-super-admin.mjs",
     "test": "run-p test:*",
     "test:tsc-demo": "pnpm --filter=demo typecheck",
     "test:lint": "eslint --cache .",
     "lint": "eslint --cache --fix .",
     "test:cms:unit": "node --test \".demo/tests/unit/*.test.ts\" \"web/tests/unit/*.test.ts\"",
-    "test:cms:api": "node --test \".demo/tests/api/*.test.ts\""
+    "test:cms:api": "node --test --test-concurrency=1 \".demo/tests/api/*.test.ts\"",
+    "e2e": "playwright test"
   },
   "dependencies": {
     "@pinia/nuxt": "^0.11.3",
@@ -45,6 +47,7 @@
   },
   "devDependencies": {
     "@antfu/eslint-config": "^4.11.0",
+    "@playwright/test": "1.56.1",
     "@prisma/engines": "^7.3.0",
     "@types/jsonwebtoken": "^9.0.10",
     "eslint": "9.24.0",

@@ -3,7 +3,8 @@ import { getAuthSession } from '../../utils/auth'
 import prisma from '../../utils/prisma'
 
 /**
- * GET /api/auth/me — resolve the cookie to a fresh user record.
+ * GET /api/auth/me — resolve the session cookie (customer or staff) to a
+ * fresh user record.
  * Returns `{ user: null }` (not a 401) for anonymous/invalid sessions:
  * the client boot plugin calls this unconditionally to hydrate state.
  */
@@ -35,5 +36,7 @@ export default defineEventHandler(async (event) => {
     },
   })
 
-  return { user: user ?? null }
+  // Which sign-in this browser used (ADR-025): the admin guard needs a staff
+  // session, the customer guard sends one to /admin. The server re-checks.
+  return { user: user ? { ...user, sessionKind: session.kind } : null }
 })

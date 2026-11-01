@@ -5,7 +5,7 @@ import { getSetting } from './settings'
  * Apex Credit — how much a customer may have in open instalment plans at once.
  *
  * Since 2026-10-25 (Wallet.dc.html) a credit line is applied for and approved
- * by staff (`CreditApplication`); before that every account was
+ * by staff (`CreditApplication`, /admin/credit); before that every account was
  * given one automatically. Lines that already existed were kept as they were.
  * Without a line a customer can still run one fixed monthly plan at a time —
  * see `creditAllows()`.
@@ -34,7 +34,8 @@ export function creditLimit(): Promise<number> {
 export async function computeCreditUsed(userId: string): Promise<number> {
   const plans = await prisma.installment.findMany({
     // Retainers are a subscription, not a balance owed: they never draw credit.
-    where: { userId, status: { not: 'settled' }, kind: { not: 'retainer' } },
+    // A cancelled project's plan is owed no more (`cancelProject`).
+    where: { userId, status: { notIn: ['settled', 'cancelled'] }, kind: { not: 'retainer' } },
     select: {
       monthsTotal: true,
       monthsPaid: true,

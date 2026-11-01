@@ -21,4 +21,10 @@ export default defineNuxtRouteMiddleware(async (to) => {
     // Remember the destination, so sign-in returns there (utils/authRedirect).
     return navigateTo(signInFor(to))
   }
+
+  // A staff session is for the admin console (ADR-025); the customer pages
+  // would only show a staff member an empty account of their own.
+  if (user.value.sessionKind === 'staff') {
+    return navigateTo('/admin')
+  }
 })

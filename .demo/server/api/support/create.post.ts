@@ -4,6 +4,7 @@ import { requireAuth } from '../../utils/auth'
 import prisma from '../../utils/prisma'
 import { rateLimit, RateLimits } from '../../utils/ratelimit'
 import { getSetting } from '../../utils/settings'
+import { notifyTicketHandler } from '../../utils/support'
 import { unclaimedBy } from '../../utils/uploads'
 import { validateBody } from '../../utils/validate'
 
@@ -14,7 +15,8 @@ import { validateBody } from '../../utils/validate'
  * something else — and, for a project, optionally which order it is about;
  * the subject may be left blank, in which case the first line of the message
  * stands in for it. Files arrive as ids from `POST /api/uploads`. A request
- * about an order is assigned to that order's project manager.
+ * about an order is assigned to that order's project manager, who is told;
+ * anything else goes to everyone who answers support.
  */
 const bodySchema = z.object({
   subject: z.string().trim().max(200).optional(),
@@ -73,6 +75,9 @@ export default defineEventHandler(async (event) => {
     }
     return created
   })
+
+  const preview = body.message.length > 160 ? `${body.message.slice(0, 157).trim()}…` : body.message
+  await notifyTicketHandler({ id: ticket.id, assigneeId }, { title: `New request: ${subject}`, message: preview, type: 'INFO' })
 
   return { status: 'success', ticket: { id: ticket.id, subject: ticket.subject } }
 })

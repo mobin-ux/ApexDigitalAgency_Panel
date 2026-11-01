@@ -160,6 +160,9 @@ model User {
 
   // Panel v2: things the agency is waiting on this customer for.
   clientActions ClientAction[]
+
+  // Admin Clients directory: by role, newest first (ADR-025).
+  @@index([role, createdAt])
 }
 
 model Company {
@@ -268,6 +271,11 @@ model Project {
 
   // Files the client uploaded to this project (Panel v2).
   attachments Attachment[]
+
+  // Admin console directory: stage tabs by activity; per client; per owner (ADR-025).
+  @@index([status, updatedAt])
+  @@index([userId])
+  @@index([managerId])
 }
 
 model Milestone {
@@ -305,6 +313,8 @@ model Transaction {
 
   @@index([userId, createdAt])
   @@index([installmentId])
+  // Admin console ledger filtered by type, newest first (ADR-025).
+  @@index([type, createdAt])
 }
 
 model Card {
@@ -509,6 +519,11 @@ model Ticket {
   callSlot String?
 
   messages TicketMessage[]
+
+  // Admin support inbox: by status, newest activity first; per customer; per assignee (ADR-025).
+  @@index([status, updatedAt])
+  @@index([userId])
+  @@index([assigneeId])
 }
 
 model TicketMessage {
@@ -990,6 +1005,10 @@ model Session {
   lastSeenAt DateTime  @default(now())
   expiresAt  DateTime
   revokedAt  DateTime?
+  /// "customer" (the panel's own sign-in) or "staff" (the admin console's,
+  /// ADR-025): a staff session needs two-step verification, lasts hours not
+  /// days, and is the only kind the admin API accepts.
+  kind       String    @default("customer")
 
   @@index([userId])
 }

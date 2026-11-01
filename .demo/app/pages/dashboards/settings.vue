@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { encode } from 'uqr'
 import { AVATAR_MAX_BYTES, AVATAR_MIMES, AVATAR_MIN_PX, avatarPhoto } from '~~/shared/avatar'
 import { PASSWORD_MIN } from '~~/shared/password'
 
@@ -398,21 +397,9 @@ const tfError = ref('')
 const backupCodes = ref<string[]>([])
 const codesCopied = ref(false)
 
-/** The setup QR as one SVG path: a 1×1 square per dark module. */
-const qr = computed(() => {
-  if (!tfSetup.value) {
-    return null
-  }
-  const { data, size } = encode(tfSetup.value.uri, { border: 0 })
-  let d = ''
-  data.forEach((row, y) => row.forEach((on, x) => {
-    if (on) {
-      d += `M${x} ${y}h1v1h-1z`
-    }
-  }))
-  return { size, d }
-})
-const secretGroups = computed(() => tfSetup.value?.secret.match(/.{1,4}/g)?.join(' ') ?? '')
+/** The setup QR as one SVG path (utils/qr). */
+const qr = computed(() => (tfSetup.value ? qrPath(tfSetup.value.uri) : null))
+const secretGroups = computed(() => groupSecret(tfSetup.value?.secret))
 
 function openTf(step: TfStep) {
   tfCode.value = ''

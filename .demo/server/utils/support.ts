@@ -1,3 +1,5 @@
+import type { NotifyInput, NotifyResult } from './notify'
+import { notify, notifyRoles } from './notify'
 import prisma from './prisma'
 
 const ACTIVE = ['PENDING', 'IN_PROGRESS', 'IN_REVIEW']
@@ -31,4 +33,20 @@ export async function projectManagerFor(userId: string): Promise<ProjectManager 
 /** "Alex Kerr" from a staff row; empty when the row has no name. */
 export function staffName(u: { firstName: string | null, lastName: string | null } | null | undefined): string {
   return u ? [u.firstName, u.lastName].filter(Boolean).join(' ').trim() : ''
+}
+
+/**
+ * Tell whoever handles a request that the client did something on it (a new
+ * request, a reply, resolving or reopening, a call slot): the assignee, else
+ * the order's project manager, else everyone holding `support.answer` — the
+ * same people the admin Support queue puts it in front of. The link opens
+ * the request there.
+ */
+export function notifyTicketHandler(
+  ticket: { id: string, assigneeId: string | null, managerId?: string | null },
+  heads: Omit<NotifyInput, 'userIds' | 'link'>,
+): Promise<NotifyResult> {
+  const handler = ticket.assigneeId ?? ticket.managerId ?? null
+  const input = { ...heads, link: `/admin/tickets?ticket=${ticket.id}` }
+  return handler ? notify({ ...input, userIds: [handler] }) : notifyRoles('support.answer', input)
 }

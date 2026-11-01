@@ -1,4 +1,5 @@
 import process from 'node:process'
+import { staffCookie } from './staff-session.ts'
 
 /**
  * Helpers for the API suites, which run against a live panel dev server on a
@@ -10,8 +11,16 @@ import process from 'node:process'
  *
  * Without `CMS_TEST_URL` every suite skips rather than failing, so the unit
  * runner stays green on a machine with no server up. The owner and the
- * customer are the dev accounts `/api/create-admin` seeds; they live only
- * in the local database, which is never committed.
+ * customer are the dev accounts `/api/create-admin` seeds; a staff account
+ * for any other role is created on first use through the real invite flow
+ * (`cms-test-<role>@example.test`), which is also the test that acceptance
+ * grants exactly the invited role. Those accounts live only in the local
+ * database, which is never committed.
+ *
+ * Staff accounts sign in through the staff sign-in with an authenticator
+ * code (ADR-025); `login()` notices the customer sign-in turning a staff
+ * account away and goes through `staff-session.ts` instead, so a suite asks
+ * for the owner the same way it asks for the customer.
  */
 
 export const BASE = (process.env.CMS_TEST_URL ?? '').replace(/\/$/, '')
@@ -74,6 +83,39 @@ export async function resetRateLimits(): Promise<void> {
   await fetch(`${BASE}/api/_test/reset-rate-limits`, { method: 'POST', headers: { origin: BASE } })
 }
 
+async function postJson(path: string, json: unknown): Promise<{ status: number, body: any, cookie: string }> {
+  const res = await fetch(`${BASE}${path}`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'origin': BASE },
+    body: JSON.stringify(json),
+  })
+  const text = await res.text()
+  let body: any = text
+  try {
+    body = JSON.parse(text)
+  }
+  catch {}
+  return { status: res.status, body, cookie: res.headers.getSetCookie().map(c => c.split(';')[0]).join('; ') }
+}
+
+/** A client on a staff session, through the staff sign-in (ADR-025). */
+export async function staffLogin(email: string, password: string): Promise<Client> {
+  await resetRateLimits()
+  const cookie = await staffCookie(
+    email,
+    password,
+    postJson,
+    async (c) => {
+      const me = await client(c).json<any>('/api/auth/me')
+      return me.body?.user?.sessionKind === 'staff'
+    },
+    async () => {
+      await postJson('/api/_test/two-factor-reset', { email })
+    },
+  )
+  return client(cookie)
+}
+
 /** Sign in and return a client carrying the session cookie, or null on a 401. */
 export async function tryLogin(identifier: string, password: string): Promise<Client | null> {
   await resetRateLimits()
@@ -84,6 +126,13 @@ export async function tryLogin(identifier: string, password: string): Promise<Cl
   })
   if (res.status === 401) {
     return null
+  }
+  if (res.status === 403) {
+    const refusal = await res.json().catch(() => null)
+    if (refusal?.data?.signIn) {
+      return staffLogin(identifier, password)
+    }
+    throw new HarnessError(`login as ${identifier} answered 403: ${JSON.stringify(refusal)}`)
   }
   if (res.status !== 200) {
     throw new HarnessError(`login as ${identifier} answered ${res.status}: ${await res.text()}`)
@@ -108,3 +157,41 @@ export const DEV_ACCOUNTS = {
   owner: { identifier: 'admin@apex.com', password: 'admin123' },
   customer: { identifier: 'user@apex.com', password: 'user123' },
 } as const
+
+/** Throwaway local accounts, one per staff role, created through the invite flow on first use. */
+const TEST_STAFF_PASSWORD = process.env.CMS_TEST_STAFF_PASSWORD ?? 'cms-test-staff-password'
+
+export function staffEmailFor(role: string): string {
+  return `cms-test-${role}@example.test`
+}
+
+/**
+ * The owner invites the role and the invite is accepted through the real
+ * endpoints: role and email come from the invite row, never the request.
+ */
+export async function inviteAndAccept(owner: Client, role: string, email = staffEmailFor(role), password = TEST_STAFF_PASSWORD): Promise<Client> {
+  const invite = await owner.json<{ acceptUrl?: string }>('/api/admin/team/invites', {
+    method: 'POST',
+    json: { email, name: `CMS test ${role}`, role },
+  })
+  if (invite.status !== 200 && invite.status !== 201) {
+    throw new HarnessError(`invite as ${role} answered ${invite.status}: ${JSON.stringify(invite.body)}`)
+  }
+  const token = new URL(invite.body.acceptUrl ?? '', BASE).searchParams.get('token')
+  if (!token) {
+    throw new HarnessError('invite response carried no token')
+  }
+  const accept = await client().json('/api/auth/accept-invite', { method: 'POST', json: { token, password } })
+  if (accept.status !== 200) {
+    throw new HarnessError(`accept-invite answered ${accept.status}: ${JSON.stringify(accept.body)}`)
+  }
+  return staffLogin(email, password)
+}
+
+/** A signed-in client for a staff role: the existing test account, or a freshly invited one. */
+export async function staffClient(owner: Client, role: string): Promise<Client> {
+  if (role === 'owner') {
+    return owner
+  }
+  return (await tryLogin(staffEmailFor(role), TEST_STAFF_PASSWORD)) ?? inviteAndAccept(owner, role)
+}
