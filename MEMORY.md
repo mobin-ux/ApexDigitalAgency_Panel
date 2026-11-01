@@ -16,7 +16,40 @@
 - Stale branch `refactor/apex-dashboard` (local + origin) is superseded by master;
   deletable, but ask the user first.
 
-## Admin console reinstated, hardened (2026-11-01)  ⬅ LATEST WORKSTREAM
+## Website group rebuilt from the design (2026-11-01)  ⬅ LATEST WORKSTREAM
+
+The owner asked for the console's Website group (Pages, Insights, Case
+studies, Media, Navigation & footer, SEO & redirects, Enquiries, Analytics)
+and Site settings. Decided with the owner: **rebuild from
+`Admin Console.dc.html`** (not restore the October CMS), **the design's
+permission matrix**, **enquiries stored, 24 months**, **own cookieless
+analytics**. Branch `feature/admin-website` (not merged). ADR-026.
+Phases: A permissions + nav (done, `a02fd87`) · B content API + site
+reading it (done) · C Pages/Insights/Case studies + editor · D Media,
+Navigation, SEO, Site settings · E Enquiries · F Analytics · G tests, docs.
+
+- **Phase B done:** shared contract (`web/shared/cms/{sections,documents,resolve}.ts`),
+  panel workflow (`server/utils/website/content.ts`, 12 admin routes, 4
+  public `/api/site/*`), site reader (`web/server/utils/cms.ts`, 60 s cache,
+  disk snapshot, purge + cache generation), `middleware/cms.global.ts`,
+  built-document rendering (`components/cms/*`, `[...slug].vue`; the article
+  and case-study routes split into `ArticlePage` / `CaseStudyPage`),
+  `/preview/:token`. Legacy October documents archived by
+  `docs/migrations/2026-11-website-legacy.sql` (local: 44 archived;
+  **production not checked yet**: run the SELECT in that file first).
+  Tests: `website-content.test.ts` (4, needs `SITE_TEST_URL`), unit +11.
+- **Dev pairing:** panel :3000, site :3001 (`.demo/.env`, `web/.env`, tracked
+  since `d7780ac` in a **public** repo: dev-only values, never production).
+  Start both with the preview configs `demo` and `web` (autoPort gives the
+  site :3001), then `CMS_TEST_URL=http://localhost:3000 SITE_TEST_URL=http://localhost:3001`.
+- Gotchas: a stale-while-revalidate background refresh can outlive a purge
+  (fixed with a generation in the cache key); route files may not export
+  extra names (the preview purpose lives in the util); eslint autofix turned
+  `\u0300` escapes into literal combining marks (use `\p{M}`); shell
+  heredocs and inline scripts with backticks or apostrophes break through
+  the hook (write a script file instead).
+
+## Admin console reinstated, hardened (2026-11-01)
 
 The owner asked for `Admin Console.dc.html` as production code: separate
 staff sign-in, 2FA for staff, append-only audit, money guardrails, tests,

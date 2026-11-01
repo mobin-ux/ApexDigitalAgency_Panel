@@ -201,6 +201,19 @@ export default defineNuxtConfig({
       resendApiKey: '', // NUXT_MAIL_RESEND_API_KEY
       from: '', // NUXT_MAIL_FROM
     },
+    /**
+     * The public site the Website screens publish to (ADR-026). `siteUrl` is
+     * where the panel reads the site's code baseline and asks it to drop its
+     * content cache after a publish; in production both apps sit on the same
+     * box, so it is a loopback address. Empty: publishing still works and the
+     * site picks the change up within a minute.
+     */
+    website: {
+      siteUrl: '', // NUXT_WEBSITE_SITE_URL
+      revalidateSecret: '', // NUXT_WEBSITE_REVALIDATE_SECRET
+      /** The site's public address, for preview links staff open (NUXT_WEBSITE_PUBLIC_URL, e.g. https://apexdigi.co.uk). */
+      publicUrl: '',
+    },
     payments: {
       stripe: {
         secretKey: '', // NUXT_PAYMENTS_STRIPE_SECRET_KEY (sk_test_… / sk_live_…)

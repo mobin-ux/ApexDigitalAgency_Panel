@@ -60,6 +60,19 @@ export default defineNuxtConfig({
       to: '',
       from: '',
     },
+    /**
+     * The admin console that publishes this site's content (ADR-026), read
+     * server to server only: the browser never calls the panel. `url` is the
+     * panel's address from this server (loopback in production,
+     * NUXT_CMS_URL); `revalidateSecret` is the bearer the panel sends after a
+     * publish (NUXT_CMS_REVALIDATE_SECRET, the same value as the panel's
+     * NUXT_WEBSITE_REVALIDATE_SECRET). Empty `url`: the site renders its
+     * code baseline, exactly as it did before the console managed it.
+     */
+    cms: {
+      url: '',
+      revalidateSecret: '',
+    },
     public: {
       /** Baked at build so server and browser render the same © year. */
       buildYear: new Date().getFullYear(),
@@ -102,6 +115,17 @@ export default defineNuxtConfig({
         rateLimiter: { tokensPerInterval: 5, interval: 600_000 },
       },
     },
+    // The panel asks the site to drop its content cache after a publish
+    // (ADR-026). Server to server, authenticated by a bearer secret.
+    '/api/cms/revalidate': {
+      security: {
+        allowedMethodsRestricter: { methods: ['POST'] },
+        requestSizeLimiter: { maxRequestSizeInBytes: 8_000 },
+        rateLimiter: false,
+      },
+    },
+    // A draft preview is for staff only and changes with every save.
+    '/preview/**': { headers: { 'x-robots-tag': 'noindex, nofollow', 'cache-control': 'no-store' } },
     '/fonts/**': { headers: { 'cache-control': 'public, max-age=31536000, immutable' } },
     '/brand/**': { headers: { 'cache-control': 'public, max-age=604800' } },
     '/icons/**': { headers: { 'cache-control': 'public, max-age=604800' } },
@@ -109,6 +133,11 @@ export default defineNuxtConfig({
 
   nitro: {
     compressPublicAssets: { gzip: true, brotli: true },
+    // The last good answer from the panel, per document, so an outage serves
+    // the last published words rather than falling back to the code (ADR-026).
+    storage: {
+      cms: { driver: 'fs', base: './.data/cms' },
+    },
   },
 
   // ---------------------------------------------------------------------------

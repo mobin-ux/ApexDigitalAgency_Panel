@@ -82,6 +82,20 @@ const ROUTES: Route[] = [
   { method: 'GET', path: `/api/admin/contracts/${MISSING}`, needs: ['money.view'] },
   { method: 'PATCH', path: `/api/admin/contracts/${MISSING}`, needs: ['money.view'] },
   { method: 'GET', path: '/api/admin/payments/health', needs: ['money.view'] },
+  // Website (ADR-026)
+  { method: 'GET', path: '/api/admin/website/documents?collection=pages', needs: ['website.view'] },
+  { method: 'POST', path: '/api/admin/website/documents', needs: ['website.edit'] },
+  { method: 'GET', path: `/api/admin/website/documents/${MISSING}`, needs: ['website.view'] },
+  { method: 'PUT', path: `/api/admin/website/documents/${MISSING}/draft`, needs: ['website.edit'] },
+  { method: 'POST', path: `/api/admin/website/documents/${MISSING}/submit`, needs: ['website.edit'] },
+  { method: 'POST', path: `/api/admin/website/documents/${MISSING}/withdraw`, needs: ['website.edit'] },
+  { method: 'POST', path: `/api/admin/website/documents/${MISSING}/request-changes`, needs: ['website.publish'] },
+  { method: 'POST', path: `/api/admin/website/documents/${MISSING}/publish`, needs: ['website.publish'] },
+  { method: 'POST', path: `/api/admin/website/documents/${MISSING}/restore`, needs: ['website.edit'] },
+  { method: 'POST', path: `/api/admin/website/documents/${MISSING}/preview`, needs: ['website.view'] },
+  { method: 'GET', path: '/api/admin/website/history', needs: ['website.view'] },
+  // Idempotent: a permitted role re-reads the site's baseline and adds only what is missing.
+  { method: 'POST', path: '/api/admin/website/import', needs: ['website.publish'] },
   // System
   { method: 'GET', path: '/api/admin/settings', needs: ['platform.settings'] },
   { method: 'PUT', path: '/api/admin/settings', needs: ['platform.settings'] },
@@ -126,7 +140,8 @@ describe('every admin endpoint × every role', { skip: !enabled && 'CMS_TEST_URL
         const url = `/api/admin/${path!.replace(/\/?index$/, '').replace(/\[[^\]]+\]/g, MISSING)}`
         return `${method!.toUpperCase()} ${url}`
       })
-    const covered = new Set(ROUTES.map(r => `${r.method} ${r.path}`))
+    // A row may carry the query a list needs (`?collection=`); the file has none.
+    const covered = new Set(ROUTES.map(r => `${r.method} ${r.path.split('?')[0]}`))
     assert.deepEqual(onDisk.filter(r => !covered.has(r)), [], 'routes with no row in the matrix')
   })
 
