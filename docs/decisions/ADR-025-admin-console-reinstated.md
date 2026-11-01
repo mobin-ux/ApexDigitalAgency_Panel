@@ -181,3 +181,31 @@ other side, and that no staff action leaves the two panels disagreeing.
 - **Not built, by the design:** the console has no notification bell; staff
   see client activity in the Overview queue and the sidebar counts, and
   their notification rows are emailed once mail is configured (ADR-022).
+
+## Tests for every endpoint and role, and browser smoke tests (phase 5, 2026-11-01)
+
+- **The matrix is the test's expected answer.** `tests/api/admin-roles.test.ts`
+  calls all 58 admin routes as each of the eight staff roles, a customer and
+  nobody, and reads the expected outcome from `shared/permissions.ts`: a
+  role without the permission gets a 403 naming it, a role with it gets past
+  the guard (never a 401, 403 or 500), a customer gets a 403 and no session a
+  401. Writes go to an id that does not exist with an empty body, so nothing
+  in the database moves. The suite also fails when a route file exists that
+  has no row in its table, so a new endpoint cannot ship untested.
+- **Two money actions were tightened.** Approving a withdrawal (money out of
+  a wallet) and waiving an instalment (money forgiven) only needed
+  `money.view`, so the Admin role could do both while being refused a
+  refund. Both now need `money.refund` (Owner, Finance), the permission the
+  matrix describes as refunding; declining a withdrawal and collecting an
+  instalment still need only `money.view`. Payments hides Approve and Waive
+  for a role without it.
+- **Smoke tests in a browser** (Playwright 1.56.1, `pnpm e2e`,
+  `playwright.config.ts`, `.demo/tests/e2e`): the staff sign-in with a
+  computed authenticator code; every console screen and a project and client
+  record opening for the owner with no page error and no failed request; the
+  access wall for a support agent exactly where the matrix withholds; no
+  Waive button for an admin; a customer signing in and opening the five panel
+  pages; a staff account sent from the customer sign-in to the staff one; and
+  one support request crossing both panels. They drive the installed Edge
+  (`E2E_CHANNEL=chrome` for Chrome), so no browser is downloaded, and reuse
+  the API harness's sessions and authenticator secrets (`nextCodeFor`).

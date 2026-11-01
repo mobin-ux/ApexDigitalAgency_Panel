@@ -16,7 +16,7 @@ import { validateBody } from '../../../../utils/validate'
  *   rule as a payment, so a waiver never lengthens an interest-free plan
  *   past twelve months from signing (ADR-025).
  * There is deliberately no action that adds to what the customer owes.
- * Both audited with before/after counters.
+ * Both audited with before/after counters. Waiving needs `money.refund`.
  */
 
 const bodySchema = z.object({
@@ -31,6 +31,11 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, message: 'Plan id is required' })
   }
   const { action } = await validateBody(event, bodySchema)
+  // Forgiving a payment gives money away, so it is the refund permission's
+  // (Owner, Finance); collecting one is any money role's.
+  if (action === 'waive') {
+    await requireStaffPermission(event, 'money.refund')
+  }
 
   const before = await prisma.installment.findUnique({ where: { id }, include: { projectRef: { select: { signedAt: true } } } })
   if (!before) {

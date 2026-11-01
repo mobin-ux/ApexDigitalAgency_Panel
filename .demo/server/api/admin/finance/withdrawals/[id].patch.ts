@@ -11,7 +11,8 @@ import { validateBody } from '../../../../utils/validate'
  * withdrawal request. Approving debits the wallet atomically (conditional
  * on sufficient balance — no overdraft) and writes a WITHDRAWAL ledger
  * row; rejecting just flips the status. Only Processing requests can be
- * resolved, and only once. The client is told the outcome.
+ * resolved, and only once. The client is told the outcome. Approving needs
+ * `money.refund`; declining needs only `money.view`.
  */
 
 const bodySchema = z.object({
@@ -28,6 +29,11 @@ export default defineEventHandler(async (event) => {
   }
 
   const { action, note } = await validateBody(event, bodySchema)
+  // Paying money out of a wallet is the refund permission's (Owner, Finance),
+  // not every role that can see money; declining moves nothing.
+  if (action === 'approve') {
+    await requireStaffPermission(event, 'money.refund')
+  }
 
   const request = await prisma.withdrawalRequest.findUnique({
     where: { id },

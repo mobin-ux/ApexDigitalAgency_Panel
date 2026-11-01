@@ -77,6 +77,7 @@ Detail lives in the docs — read on demand, don't guess:
 | Install (mirror 403 workaround) | `pnpm install --registry=https://registry.npmmirror.com/` |
 | Dev server | `pnpm demo:dev` (or `./dev.sh` for `--host`) |
 | Lint / typecheck | `pnpm exec eslint --fix <files>` / `pnpm test:tsc-demo` |
+| API tests / browser smoke | `CMS_TEST_URL=http://localhost:3000 pnpm test:cms:api` / `E2E_URL=http://localhost:3000 pnpm e2e` (installed Edge; both need the dev server up) |
 | Prisma client | auto (`postinstall`); manual `pnpm exec prisma generate` |
 | Preview (agent) | `.claude/launch.json` config `demo` — autoPort, coexists with :3000 |
 

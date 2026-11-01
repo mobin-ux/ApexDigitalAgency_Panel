@@ -80,6 +80,21 @@ async function freshStep(lastStep: number): Promise<number> {
   }
 }
 
+/**
+ * A code for a sign-in typed in a browser (the smoke tests): the next step of
+ * the stored secret that nobody has used, recorded as used so the API suites
+ * do not try to spend it again.
+ */
+export async function nextCodeFor(email: string): Promise<string> {
+  const stored = load()[email]
+  if (!stored?.secret) {
+    throw new StaffHarnessError(`no authenticator secret is stored for ${email}; sign in through the API harness first`)
+  }
+  const step = await freshStep(stored.lastStep)
+  save(email, { ...stored, lastStep: step })
+  return totp(stored.secret, step)
+}
+
 interface Post { status: number, body: any, cookie: string }
 
 type PostFn = (path: string, json: unknown) => Promise<Post>

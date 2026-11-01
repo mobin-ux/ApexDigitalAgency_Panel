@@ -83,6 +83,17 @@ ADR-025. Phases: 0 restore (done) · 1 staff auth · 2 money guardrails ·
   a new notification (`useClientLiveRefresh`, 60 s while visible); admin
   counts every 2 min. No staff bell (not in the design). Tests
   `panel-sync.test.ts` (5); API 37/37, unit 37/37, tsc 46.
+- **Phase 5 done (tests, ADR-025 §Tests):** `admin-roles.test.ts` — 58
+  routes × 8 roles + customer (403) + anonymous (401), expected answers read
+  from `shared/permissions.ts`, fails on a route file with no row. Found and
+  fixed: withdrawal approve and instalment waive needed only `money.view`
+  (Admin could pay out/forgive but not refund) → now `money.refund`, buttons
+  hidden. Playwright 1.56.1 smoke (`pnpm e2e`, Edge via `channel: msedge`,
+  no browser download): 8 tests. API 47/47, unit 37/37, e2e 8/8, tsc 46.
+  Gotchas: fill a form only after hydration (`hydrated()`), or it submits as
+  plain HTML; `pnpm add` failed its postinstall while the dev server held the
+  Prisma engine and never wrote package.json (added by hand); the dev
+  customer's avatar file is not on this machine (404, initials shown).
 - **Test harness gotchas:** API suites now run `--test-concurrency=1` (they
   share accounts; parallel enrolment overwrote each other's pending secret);
   the harness keeps the dev owner's TOTP secret, last step and cookie in

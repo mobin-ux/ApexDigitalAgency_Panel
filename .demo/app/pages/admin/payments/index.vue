@@ -416,7 +416,7 @@ const TAB_CLS = 'apex-ring -mb-px inline-flex h-10 shrink-0 cursor-pointer items
           <span class="flex gap-2 lg:justify-end">
             <template v-if="!['settled', 'pending', 'cancelled'].includes(inst.status) && inst.monthsPaid < inst.monthsTotal">
               <AdminButton size="sm" :disabled="instBusy === inst.id" @click="askInstalment(inst, 'charge')">Collect</AdminButton>
-              <AdminButton size="sm" variant="danger-text" :disabled="instBusy === inst.id" @click="askInstalment(inst, 'waive')">Waive</AdminButton>
+              <AdminButton v-if="canRefund" size="sm" variant="danger-text" :disabled="instBusy === inst.id" @click="askInstalment(inst, 'waive')">Waive</AdminButton>
             </template>
             <AdminStatusChip v-else :tone="inst.status === 'settled' ? 'violet' : 'neutral'" :label="inst.status === 'settled' ? 'Complete' : inst.status === 'cancelled' ? 'Cancelled' : 'Not started'" />
           </span>
@@ -455,7 +455,7 @@ const TAB_CLS = 'apex-ring -mb-px inline-flex h-10 shrink-0 cursor-pointer items
               <AdminButton size="sm" variant="danger-text" :disabled="resolving" @click="askWithdrawal(w, 'reject')">
                 Reject
               </AdminButton>
-              <AdminButton size="sm" variant="primary" :disabled="resolving" @click="askWithdrawal(w, 'approve')">
+              <AdminButton v-if="canRefund" size="sm" variant="primary" :disabled="resolving" @click="askWithdrawal(w, 'approve')">
                 Approve
               </AdminButton>
             </template>
