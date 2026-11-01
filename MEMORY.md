@@ -25,7 +25,7 @@ and Site settings. Decided with the owner: **rebuild from
 permission matrix**, **enquiries stored, 24 months**, **own cookieless
 analytics**. Branch `feature/admin-website` (not merged). ADR-026.
 Phases: A permissions + nav (done, `a02fd87`) · B content API + site
-reading it (done) · C Pages/Insights/Case studies + editor (done) · D Media,
+reading it (done) · C Pages/Insights/Case studies + editor (done) · D (done) Media,
 Navigation, SEO, Site settings · E Enquiries · F Analytics · G tests, docs.
 
 - **Phase B done:** shared contract (`web/shared/cms/{sections,documents,resolve}.ts`),
@@ -50,6 +50,21 @@ Navigation, SEO, Site settings · E Enquiries · F Analytics · G tests, docs.
   (`CMS_PANEL_ORIGINS` adds more at build time); the panel's CSP
   `frame-src` adds `NUXT_WEBSITE_PUBLIC_URL`'s origin. Redirect rows are
   written now; the site serves them from phase D.
+- **Phase D done:** Media library (`server/utils/website/media.ts`, sniffer
+  `shared/media-sniff.ts` restored from October; `NUXT_WEBSITE_MEDIA_DIR`,
+  production already has `/opt/apex/site-media`), Navigation & footer
+  (header/footer documents; chrome edits now need `website.seo`), SEO &
+  redirects (`utils/website/redirects.ts` restored; site
+  `server/middleware/00.redirects.ts` also does maintenance mode,
+  `server/plugins/robots.ts`), Site settings (`utils/website/settings.ts`,
+  keys `site.*` in `Setting`; site `useCompany()` over `data/site.ts`;
+  derivations in `data/about.ts`, `data/contact.ts`, `utils/studio.ts`
+  are now functions of a company). Site `/media/**` passes files through.
+  Test suite `website-structure.test.ts` (6). Found: the footer links to
+  seven pages the site does not have (/careers, six /legal/*).
+- Gotcha: an error thrown in a site server middleware is answered as JSON
+  unless the request sends `Accept: text/html`; tests must send it to see
+  the error page.
 - Gotcha: the console has `viewTransition: true`, and in the preview pane
   (a tab that is not drawing) every client-side navigation stalls with
   "Transition was skipped". Verify by loading URLs, not by clicking links.

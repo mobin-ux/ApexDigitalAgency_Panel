@@ -16,7 +16,14 @@ import { fixedBaselines } from '~/data/cms-baseline'
  * `middleware/cms.global.ts`; these read them synchronously.
  */
 
-export interface CmsDocumentLike { template: string, key: string, title?: string, content: unknown }
+export interface CmsDocumentLike {
+  template: string
+  key: string
+  title?: string
+  content: unknown
+  /** The media-library files a built document names (id → the site address, size, alt). */
+  media?: Record<string, { src: string, width: number | null, height: number | null, mime: string, alt: string }>
+}
 
 /** Published page documents by address (null: nothing published there). */
 export function useCmsPageState() {

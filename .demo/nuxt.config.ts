@@ -213,6 +213,8 @@ export default defineNuxtConfig({
       revalidateSecret: '', // NUXT_WEBSITE_REVALIDATE_SECRET
       /** The site's public address, for preview links staff open (NUXT_WEBSITE_PUBLIC_URL, e.g. https://apexdigi.co.uk). */
       publicUrl: '',
+      /** Where media-library files are stored (NUXT_WEBSITE_MEDIA_DIR); default `.data/site-media`. Outside the bundle in production. */
+      mediaDir: '',
     },
     payments: {
       stripe: {

@@ -158,3 +158,53 @@ stand behind, the screen states what is true instead:
 - **Not built:** the design's media picker list until the Media library
   exists (an image section says it shows nothing until an image is
   chosen); scheduled publishing (not in the design).
+
+## Media, menus, SEO and Site settings (phase D, 2026-11-02)
+
+The server logic the October CMS had for these (byte sniffing, header
+dimensions, the redirect checker, the settings registry, the site's
+redirect middleware and robots hook) was restored from git and fitted to
+today's contract; the screens are new, from the design.
+
+- **Media library** (`/admin/website/media`, `website.media` to change):
+  JPEG, PNG, GIF, WebP and PDF, 10 MB each, checked by their bytes (never
+  SVG), stored by UUID under `NUXT_WEBSITE_MEDIA_DIR`. The design's
+  filters (All · Images · Documents · Missing alt text · Unused), a detail
+  panel with where the file is used, alt text, Copy link and Delete. A file
+  a page uses (draft or live) or set as the default social image cannot be
+  deleted. A row whose bytes are gone says "File missing". The console
+  serves files at `/api/site/media/:id/:version/:name`; the site passes
+  them through at `/media/…` (same origin, so the strict CSP holds) and
+  image sections render a plain `<img>` with the file's size. No resizing:
+  upload images at the size they are shown. Built pages use their first
+  image as their social image.
+- **Navigation & footer** (`/admin/website/navigation`): the header menu,
+  its button and the footer's link columns, from the header and footer
+  documents; "Publish menus" saves and publishes both. Links to addresses
+  with no published page are marked "No page". The design's sub-items are
+  absent: the site's only dropdown is Services, built from the catalogue.
+  Menus are the design's `site.structure`, so the server now refuses
+  chrome-document edits without `website.seo` (Owner, Admin).
+- **SEO & redirects** (`/admin/website/seo`): Page SEO (title and
+  description lengths of what is live, or of the draft when nothing is;
+  a built page with no description counts the summary or hero intro the
+  site serves instead), Redirects (live check as typed: loops refused,
+  chains flattened, a live page at the old address warned about), and
+  Sitemap & robots (what is listed and left out; extra Disallow paths,
+  never `/`, `/_nuxt` or `/media`). The site answers redirects before
+  routing (`server/middleware/00.redirects.ts`, query kept) and adds the
+  paths to robots.txt (`server/plugins/robots.ts`).
+- **Site settings** (`/admin/site-settings`, Owner): registered and
+  trading name, company, VAT and ICO numbers, registered office, email,
+  phone, social profiles, the default social image, maintenance mode.
+  Each key is validated on the server; an empty one keeps the site's code
+  value, so nothing is ever printed as a placeholder. The site lays them
+  over `data/site.ts` (`useCompany()`, loaded with the chrome) in the
+  footer, About, Contact and the Organization markup. Maintenance mode
+  answers every page 503 with a holding page and the contact email
+  (`error.vue`, Retry-After) and the contact form 503; the preview,
+  assets and APIs keep working. Cookie switches and an analytics provider
+  are stated, not switched: the site sets no optional cookie and loads no
+  analytics script.
+- Public, read-only: `/api/site/{settings,redirects,media/…}`; page and
+  preview answers carry a `media` index for built documents.

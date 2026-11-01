@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { isDocumentTemplate, normalisePath } from '../../../shared/cms'
 import prisma from '../../utils/prisma'
 import { validateQuery } from '../../utils/validate'
-import { publicDocument } from '../../utils/website/content'
+import { publicDocument, withMedia } from '../../utils/website/content'
 
 /**
  * GET /api/site/page?path=/about — the published document at a site address
@@ -27,5 +27,5 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 404, message: 'Nothing is published at this address' })
   }
   setResponseHeader(event, 'cache-control', 'public, max-age=30')
-  return publicDocument(doc, doc.publishedRevision.content, doc.publishedRevision.number)
+  return withMedia(publicDocument(doc, doc.publishedRevision.content, doc.publishedRevision.number))
 })

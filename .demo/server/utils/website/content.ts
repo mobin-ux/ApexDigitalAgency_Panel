@@ -7,6 +7,7 @@ import { createError } from 'h3'
 import { collectionOf, documentTypeLabel, isBuiltTemplate, isDocumentTemplate, sectionMediaIds, statusChip, TEMPLATES, validateDocumentContent } from '../../../shared/cms'
 import { can } from '../../../shared/permissions'
 import prisma from '../prisma'
+import { mediaIndex } from './media'
 
 /**
  * The Website screens' documents (ADR-026): pages, articles, case studies
@@ -107,6 +108,11 @@ export async function loadDocument(id: string, db: Db = prisma): Promise<Documen
  * "Fields are locked so the reviewer sees what you submitted").
  */
 export function assertDraftOpen(doc: DocumentRow, role: StaffRole) {
+  // The menus, footer and announcement are the site's structure: the
+  // design gives them to `site.structure` (ours: website.seo), not to every editor.
+  if (collectionOf(templateOf(doc)) === 'chrome' && !can(role, 'website.seo')) {
+    throw createError({ statusCode: 403, message: 'Menus and the footer are changed by Owner or Admin.', data: { permission: 'website.seo' } })
+  }
   if (doc.review === 'IN_REVIEW' && !can(role, 'website.publish')) {
     throw createError({ statusCode: 409, message: 'This is waiting for review. Withdraw it to keep editing.', data: { reason: 'in_review' } })
   }
@@ -237,6 +243,18 @@ export function starterContent(template: 'built-page' | 'built-article' | 'built
     return { sections: [hero('Case study', 'Start a similar project'), section('image', { media: '', caption: '' }), section('text', { heading: 'The brief', body: '' }), section('text', { heading: 'What we did', body: '' }), cta], seo, meta: { sector: '', service: '', summary: '' } }
   }
   return { sections: [hero('Apex Digital', 'Book a free call'), section('text', { heading: '', body: '' }), cta], seo, meta: {} }
+}
+
+/**
+ * A public document with the media-library files its sections name (built
+ * documents only), as the site renders them: its own address, size, alt.
+ */
+export async function withMedia<T extends { template: string, content: unknown }>(doc: T): Promise<T & { media?: Awaited<ReturnType<typeof mediaIndex>> }> {
+  if (!isBuiltTemplate(doc.template)) {
+    return doc
+  }
+  const sections = (doc.content as { sections?: Parameters<typeof sectionMediaIds>[0] } | null)?.sections ?? []
+  return { ...doc, media: await mediaIndex(sectionMediaIds(sections)) }
 }
 
 /** The purpose a draft-preview token is signed for (`documents/:id/preview`, `/api/site/preview/:token`). */

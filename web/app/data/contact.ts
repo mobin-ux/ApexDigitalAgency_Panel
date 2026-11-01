@@ -11,7 +11,8 @@
 
 import type { ContactBudgetId, ContactReplyId, ContactServiceId } from '../../shared/contact'
 import type { ServiceSlug } from './routes'
-import { studio } from '../utils/studio'
+import type { Company } from './site'
+import { studioFor } from '../utils/studio'
 import { brandPlans, marketingPlans, ppcPlans, seoPlans, uxPlans, websitePlans } from './plans'
 import { routes } from './routes'
 import { services } from './services'
@@ -148,15 +149,19 @@ export interface ContactMethod {
 
 /** TODO(content): the booking page for the 15-minute call (the design links "#"). Empty hides the card. */
 const bookingUrl = ''
-const linkedin = company.social.find(profile => profile.label === 'LinkedIn')?.url ?? ''
 
 /** The four ways to reach us beside the form. A method shows only once its destination is real. */
-export const contactMethods: readonly ContactMethod[] = [
-  { glyph: '☎', label: 'Call', value: company.phone, note: company.openingHours, href: studio.telHref },
-  { glyph: '@', label: 'Email', value: company.email, note: `Reply ${replyWhen}`, href: `mailto:${company.email}` },
-  { glyph: '15', label: 'Book a call', value: '15-minute video chat', note: 'Pick a time that suits you', href: bookingUrl, external: true },
-  { glyph: 'in', label: 'LinkedIn', value: company.name, note: 'Message us directly', href: linkedin, external: true },
-].filter(method => method.href && method.value)
+export function contactMethodsFor(company: Company): ContactMethod[] {
+  const linkedin = company.social.find(profile => profile.label === 'LinkedIn')?.url ?? ''
+  return [
+    { glyph: '☎', label: 'Call', value: company.phone, note: company.openingHours, href: studioFor(company).telHref },
+    { glyph: '@', label: 'Email', value: company.email, note: `Reply ${replyWhen}`, href: `mailto:${company.email}` },
+    { glyph: '15', label: 'Book a call', value: '15-minute video chat', note: 'Pick a time that suits you', href: bookingUrl, external: true },
+    { glyph: 'in', label: 'LinkedIn', value: company.name, note: 'Message us directly', href: linkedin, external: true },
+  ].filter(method => method.href && method.value)
+}
+
+export const contactMethods: readonly ContactMethod[] = contactMethodsFor(company)
 
 export const contactSteps = {
   label: 'What happens next',

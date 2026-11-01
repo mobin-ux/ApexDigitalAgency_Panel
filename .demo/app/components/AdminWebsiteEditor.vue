@@ -94,7 +94,8 @@ useAdminCrumb(() => title.value, LIST[collection])
 
 /* ------------------------------------------------------------ sections --- */
 
-const tab = ref<'content' | 'seo' | 'rev'>('content')
+// SEO & redirects links a page straight to its SEO tab (?tab=seo).
+const tab = ref<'content' | 'seo' | 'rev'>(route.query.tab === 'seo' ? 'seo' : 'content')
 
 interface Row { id: string, label: string, summary: string, hidden: boolean, index: number | null }
 const sections = computed<Json[]>(() => (built.value && Array.isArray(draft.value.sections) ? draft.value.sections : []))

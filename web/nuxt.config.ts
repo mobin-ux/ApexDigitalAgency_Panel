@@ -114,7 +114,9 @@ export default defineNuxtConfig({
   routeRules: {
     '/**': { headers: { 'permissions-policy': permissionsPolicy } },
     '/api/__sitemap__/**': { security: { rateLimiter: false } },
-    // Images: many per page, no per-IP limiter.
+    // Images: many per page, no per-IP limiter. Media-library files likewise
+    // (passed through from the console with their own year-long cache).
+    '/media/**': { security: { rateLimiter: false } },
     '/_ipx/**': { security: { rateLimiter: false } },
     // The site's one write. POST is allowed here and nowhere else; the body is
     // small and each IP gets five messages per ten minutes.

@@ -2,30 +2,32 @@
 import type { SectionFields } from '#shared/cms'
 
 /**
- * An image from the media library. Until the image resolves to a library
- * file (the Media library screen arrives in phase D), the section renders
- * nothing rather than an empty frame on the live site.
+ * An image from the media library, served by this site at `/media/…` (the
+ * file passes through from the console). Until the section names a file
+ * the library still holds, it renders nothing rather than an empty frame.
+ * Width and height come from the file, so the page does not jump as it loads.
  */
 const props = defineProps<{ fields: SectionFields<'image'> }>()
 
 const media = useCmsMedia(() => props.fields.media)
+const image = computed(() => (media.value?.mime.startsWith('image/') ? media.value : null))
 </script>
 
 <template>
   <figure
-    v-if="media"
+    v-if="image"
     class="container-page flex flex-col gap-3 py-10 lg:py-14"
   >
     <div class="overflow-hidden rounded-2xl border border-line">
-      <NuxtImg
-        :src="media.src"
-        :alt="media.alt"
-        :width="media.width ?? undefined"
-        :height="media.height ?? undefined"
-        sizes="100vw lg:1200px"
+      <img
+        :src="image.src"
+        :alt="image.alt"
+        :width="image.width ?? undefined"
+        :height="image.height ?? undefined"
         loading="lazy"
+        decoding="async"
         class="h-auto w-full"
-      />
+      >
     </div>
     <figcaption
       v-if="fields.caption"

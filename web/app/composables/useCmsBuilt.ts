@@ -48,14 +48,15 @@ export function useCmsManifest() {
 export interface CmsMediaRef {
   src: string
   alt: string
+  mime: string
   width: number | null
   height: number | null
 }
 
 /**
- * The library file an image section names. The media library (phase D)
- * provides the index; until then nothing resolves and the image section
- * renders nothing.
+ * The library file an image section names, from the index the built page
+ * provides (`media` on its document). A file the index does not know
+ * (deleted, or not an image) renders nothing rather than a broken image.
  */
 export function useCmsMedia(id: MaybeRefOrGetter<string>) {
   const index = inject<Ref<Record<string, CmsMediaRef>> | null>('cms-media', null)

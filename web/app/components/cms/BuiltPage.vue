@@ -27,7 +27,17 @@ const first = content.sections.find(s => !s.hidden)
 const lead = first?.type === 'hero' ? String((first.fields as { body?: string }).body ?? '') : ''
 const summary = String((content.meta as { summary?: string }).summary ?? '')
 
-useCmsSeo(content.seo, { title: props.document.title, description: summary || lead.slice(0, 200) }, { ogType: props.ogType ?? 'website' })
+// The files its image sections name, for <CmsImage> (useCmsMedia).
+const media = computed(() => props.document.media ?? {})
+provide('cms-media', media)
+// Its first image is its social image when it has one.
+const firstImage = content.sections.find(s => s.type === 'image' && !s.hidden)
+const shared = firstImage ? media.value[String((firstImage.fields as { media?: string }).media ?? '')] : undefined
+
+useCmsSeo(content.seo, { title: props.document.title, description: summary || lead.slice(0, 200) }, {
+  ogType: props.ogType ?? 'website',
+  image: shared?.mime.startsWith('image/') ? { src: shared.src, width: shared.width, height: shared.height, alt: shared.alt } : null,
+})
 </script>
 
 <template>

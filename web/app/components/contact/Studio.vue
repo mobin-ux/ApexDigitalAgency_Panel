@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { contactStudio as studioData } from '~/data/contact'
-import { company } from '~/data/site'
 
 /**
  * The studio card. The address, the travel line and "Get directions" wait for
@@ -9,7 +8,10 @@ import { company } from '~/data/site'
  * image when one exists: an embedded map would load a third party's script
  * and send every visitor's IP to it.
  */
-const { addressLines, directionsUrl } = studio
+const company = useCompany()
+const place = computed(() => studioFor(company.value))
+const addressLines = computed(() => place.value.addressLines)
+const directionsUrl = computed(() => place.value.directionsUrl)
 const page = useCmsContent('contact')
 const contactStudio = computed(() => ({
   ...studioData,

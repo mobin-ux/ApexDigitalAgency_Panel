@@ -1,13 +1,15 @@
 <script setup lang="ts">
-import { contactMethods } from '~/data/contact'
+import { contactMethodsFor } from '~/data/contact'
 
+const company = useCompany()
+const contactMethods = computed(() => contactMethodsFor(company.value))
 const page = useCmsContent('contact')
 const contactSteps = computed(() => page.value.steps)
 
 /**
  * The other ways in, beside the form, and what happens after a message
  * arrives. A method card appears only once its destination is real (see
- * `contactMethods`), so today it is email alone.
+ * `contactMethodsFor`).
  */
 </script>
 

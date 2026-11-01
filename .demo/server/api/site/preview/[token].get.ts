@@ -2,7 +2,7 @@ import { createError, defineEventHandler, getRouterParam, setResponseHeader } fr
 import { isDocumentTemplate } from '../../../../shared/cms'
 import { readPurposeToken } from '../../../utils/auth'
 import prisma from '../../../utils/prisma'
-import { PREVIEW_PURPOSE, publicDocument } from '../../../utils/website/content'
+import { PREVIEW_PURPOSE, publicDocument, withMedia } from '../../../utils/website/content'
 
 /**
  * GET /api/site/preview/:token — a document's current draft, for the site's
@@ -19,5 +19,5 @@ export default defineEventHandler(async (event) => {
   if (!doc || doc.archivedAt || doc.kind !== 'page' || !isDocumentTemplate(doc.template)) {
     throw createError({ statusCode: 404, message: 'This preview link has expired or does not exist' })
   }
-  return { ...publicDocument(doc, doc.draft, doc.publishedRevision?.number ?? null), preview: true }
+  return { ...await withMedia(publicDocument(doc, doc.draft, doc.publishedRevision?.number ?? null)), preview: true }
 })

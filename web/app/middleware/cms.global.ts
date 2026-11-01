@@ -1,4 +1,5 @@
 import type { CmsDocumentLike } from '~/composables/useCmsContent'
+import type { CmsSettingsLike } from '~/composables/useCompany'
 import { normalisePath } from '#shared/cms'
 
 /**
@@ -26,8 +27,12 @@ export default defineNuxtRouteMiddleware(async (to) => {
       .catch(() => { pages.value = { ...pages.value, [path]: null } }))
   }
   if (globals.value === null) {
-    tasks.push($fetch<{ globals: Record<string, CmsDocumentLike> }>('/api/cms/globals')
-      .then((res) => { globals.value = res.globals })
+    const settings = useCmsSettingsState()
+    tasks.push($fetch<{ globals: Record<string, CmsDocumentLike>, settings: CmsSettingsLike | null }>('/api/cms/globals')
+      .then((res) => {
+        globals.value = res.globals
+        settings.value = res.settings
+      })
       .catch(() => { globals.value = {} }))
   }
   await Promise.all(tasks)

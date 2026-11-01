@@ -1,4 +1,5 @@
 import { validateContact } from '#shared/contact'
+import { fetchSettings } from '../utils/cms'
 import { contactMailConfigured, sendContactMail } from '../utils/contact-mail'
 
 /**
@@ -22,6 +23,11 @@ export default defineEventHandler(async (event) => {
   }
   if (!getHeader(event, 'content-type')?.startsWith('application/json')) {
     throw createError({ statusCode: 415, statusMessage: 'Send JSON' })
+  }
+
+  // Maintenance mode (Site settings) stops the form taking enquiries.
+  if ((await fetchSettings())?.maintenance) {
+    throw createError({ statusCode: 503, statusMessage: 'The site is down for maintenance' })
   }
 
   const body = await readBody<Record<string, unknown>>(event)

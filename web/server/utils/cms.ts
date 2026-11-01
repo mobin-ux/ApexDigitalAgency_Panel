@@ -136,6 +136,37 @@ export const fetchManifest = defineCachedFunction(
   { name: 'cms', getKey: () => `${generation}:manifest`, maxAge: CMS_CACHE_SECONDS, swr: true },
 )
 
+/** What Site settings in the console holds (empty strings are "not set"). */
+export interface CmsSettings {
+  name: string
+  legalName: string
+  email: string
+  phone: string
+  companyNumber: string
+  vatNumber: string
+  icoNumber: string
+  address: { street: string, locality: string, region: string, postcode: string }
+  social: { linkedin: string, instagram: string, x: string, youtube: string }
+  ogImage: { src: string, width: number | null, height: number | null, alt: string } | null
+  maintenance: boolean
+  robotsDisallow: string[]
+}
+
+/** Site settings, or null (no panel, or never reached). */
+export const fetchSettings = defineCachedFunction(
+  async (): Promise<CmsSettings | null> => fetchWithSnapshot<CmsSettings>('settings', '/api/site/settings'),
+  { name: 'cms', getKey: () => `${generation}:settings`, maxAge: CMS_CACHE_SECONDS, swr: true },
+)
+
+/** The redirects the console holds, for the redirect middleware. */
+export const fetchRedirects = defineCachedFunction(
+  async (): Promise<{ from: string, to: string, status: number }[]> => {
+    const data = await fetchWithSnapshot<{ redirects: { from: string, to: string, status: number }[] }>('redirects', '/api/site/redirects')
+    return data?.redirects ?? []
+  },
+  { name: 'cms', getKey: () => `${generation}:redirects`, maxAge: CMS_CACHE_SECONDS, swr: true },
+)
+
 /** A draft, by preview token. Never cached, never snapshotted. */
 export async function fetchPreview(token: string): Promise<CmsDocument | null> {
   const { url } = cmsConfig()

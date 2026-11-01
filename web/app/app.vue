@@ -1,12 +1,12 @@
 <script setup lang="ts">
 /**
- * The Organization identity for structured data, from the company facts in
- * `data/site.ts`. Only confirmed facts reach the markup: an empty phone,
+ * The Organization identity for structured data, from the company facts
+ * (`data/site.ts` with Site settings laid over them, `useCompany`). Only confirmed facts reach the markup: an empty phone,
  * address line or profile URL is left out.
  */
-import { company as c } from '~/data/site'
-
+const company = useCompany()
 const identity = computed(() => {
+  const c = company.value
   const profiles = c.social.filter(p => p.url).map(p => p.url)
   return {
     name: c.name,

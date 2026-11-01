@@ -96,6 +96,18 @@ const ROUTES: Route[] = [
   { method: 'PATCH', path: `/api/admin/website/documents/${MISSING}/path`, needs: ['website.edit'] },
   { method: 'GET', path: '/api/admin/website/history', needs: ['website.view'] },
   { method: 'GET', path: '/api/admin/website/review-counts', needs: ['website.view'] },
+  { method: 'GET', path: '/api/admin/website/media', needs: ['website.view'] },
+  { method: 'POST', path: '/api/admin/website/media', needs: ['website.media'] },
+  { method: 'PATCH', path: `/api/admin/website/media/${MISSING}`, needs: ['website.media'] },
+  { method: 'DELETE', path: `/api/admin/website/media/${MISSING}`, needs: ['website.media'] },
+  { method: 'GET', path: '/api/admin/website/redirects', needs: ['website.view'] },
+  { method: 'POST', path: '/api/admin/website/redirects', needs: ['website.seo'] },
+  { method: 'POST', path: '/api/admin/website/redirects/check', needs: ['website.seo'] },
+  { method: 'DELETE', path: `/api/admin/website/redirects/${MISSING}`, needs: ['website.seo'] },
+  { method: 'GET', path: '/api/admin/website/seo', needs: ['website.view'] },
+  // Per key after this gate: Site settings need website.settings, robots.txt website.seo (website-structure.test.ts).
+  { method: 'GET', path: '/api/admin/website/settings', needs: ['website.view'] },
+  { method: 'PUT', path: '/api/admin/website/settings', needs: ['website.view'] },
   // Idempotent: a permitted role re-reads the site's baseline and adds only what is missing.
   { method: 'POST', path: '/api/admin/website/import', needs: ['website.publish'] },
   // System
