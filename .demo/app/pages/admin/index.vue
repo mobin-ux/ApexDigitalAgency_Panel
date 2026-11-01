@@ -18,10 +18,13 @@ import { personName, ukDateTime, waitedSince } from '~/utils/adminFormat'
  * draws them, for the roles that handle them: a tile counting the ones
  * nobody has contacted, those in the queue, and the three newest.
  *
+ * "Website visits" (phase F) draws the last 14 days of visits the site
+ * counts itself, for roles holding `analytics.view`; the design's
+ * placeholder bars and "Example data" chip are not needed.
+ *
  * Real or absent: the design's "Signups awaiting approval" (accounts are
- * active from signup, there is no approval step) and the "Website visits"
- * placeholder bars (no analytics is connected) are left out, and so is the
- * design's website card and content-review queue. The delivery pipeline
+ * active from signup, there is no approval step) is left out, and so is
+ * the design's website card and content-review queue. The delivery pipeline
  * and money card the Overview already had stay, in the design's card
  * vocabulary.
  */
@@ -42,6 +45,8 @@ const { data: stats, pending, error, refresh } = await useFetch('/api/admin/stat
 const { data: credit } = useFetch<{ waiting: any[] }>('/api/admin/credit/applications', { server: false, immediate: can('money.view') })
 interface EnquiryRow { id: string, name: string, business: string, topic: string, status: EnquiryStatus, owner: string | null, receivedAt: string }
 const { data: enquiries } = useFetch<{ newCount: number, waiting: EnquiryRow[], latest: EnquiryRow[] }>('/api/admin/website/enquiries/summary', { server: false, immediate: can('leads.handle') })
+interface VisitDay { day: string, views: number, visits: number, counted: boolean }
+const { data: visits } = useFetch<{ firstDay: string | null, totals: { views: number, visits: number }, series: VisitDay[] }>('/api/admin/website/analytics', { query: { days: 14 }, server: false, immediate: can('analytics.view') })
 
 /* The greeting and the date are client facts (time of day, the reader's zone). */
 const greet = ref('Welcome back,')
@@ -149,6 +154,17 @@ const pipeline = computed(() => {
     pct: Math.max(row.count > 0 ? 3 : 0, Math.round((row.count / max) * 100)),
     bar: row.key === 'COMPLETED' ? 'bg-[#22B07D]' : row.key === 'CANCELLED' ? 'bg-[#EC6453]' : 'bg-accent',
     to: `/admin/projects?status=${row.key}`,
+  }))
+})
+
+const visitBars = computed(() => {
+  const series = visits.value?.series ?? []
+  const max = Math.max(1, ...series.map(s => s.visits))
+  return series.map(s => ({
+    day: s.day,
+    counted: s.counted,
+    pct: s.counted ? Math.max(s.visits ? 3 : 0, Math.round((s.visits / max) * 100)) : 100,
+    title: `${s.day.split('-').reverse().join('/')} · ${s.counted ? `${s.visits} ${s.visits === 1 ? 'visit' : 'visits'}` : 'not counted yet'}`,
   }))
 })
 
@@ -277,6 +293,35 @@ const moneyRows = computed(() => {
           </ul>
           <p v-else class="border-line-soft text-fg-body border-t px-[22px] py-4 text-[13px]">
             {{ enquiries ? 'No enquiries yet. Messages from the contact form arrive here.' : 'Loading…' }}
+          </p>
+        </AdminCard>
+
+        <AdminCard v-if="can('analytics.view')" padded>
+          <div class="flex items-center gap-2.5">
+            <ApexSectionLabel>Website visits</ApexSectionLabel>
+            <span class="flex-1" />
+            <NuxtLink to="/admin/website/analytics" class="apex-ring text-accent-ink rounded text-[13px] font-semibold">
+              Analytics →
+            </NuxtLink>
+          </div>
+          <div class="flex h-[72px] items-end gap-[5px]" aria-hidden="true">
+            <span
+              v-for="b in visitBars" :key="b.day" :title="b.title"
+              class="min-w-0 flex-1 rounded-t border"
+              :class="b.counted ? 'bg-accent border-transparent' : 'border-line-rule border-dashed'"
+              :style="{ height: `${b.pct}%` }"
+            />
+          </div>
+          <p class="text-fg-muted text-[12.5px] leading-normal">
+            <template v-if="!visits">
+              Loading…
+            </template>
+            <template v-else-if="visits.firstDay">
+              Last 14 days: {{ visits.totals.visits.toLocaleString('en-GB') }} {{ visits.totals.visits === 1 ? 'visit' : 'visits' }}, {{ visits.totals.views.toLocaleString('en-GB') }} page {{ visits.totals.views === 1 ? 'view' : 'views' }}. Counted by the site itself, without cookies.
+            </template>
+            <template v-else>
+              No visits counted yet. The site counts them itself, without cookies.
+            </template>
           </p>
         </AdminCard>
       </div>

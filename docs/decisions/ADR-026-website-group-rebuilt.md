@@ -257,3 +257,55 @@ The owner chose to store enquiries and keep them 24 months.
   (staff only) and the enquiry links to the client. No notification or
   email per enquiry inside the console: the team's inbox already gets the
   site's email, and the sidebar count and Overview show what is new.
+
+## Analytics (phase F, 2026-11-02)
+
+The owner chose the site's own cookieless counts over Plausible or Google
+Analytics.
+
+- **How a page counts itself.** `web/app/plugins/visits.client.ts` sends
+  one same-origin beacon (`POST /api/hit`) per page shown, with its path.
+  The first page of a load adds the referring host name (never the full
+  address) and any `utm_source`. Nothing is sent from an error page, a
+  staff preview, a frame, or a browser under automation. No cookie and no
+  browser storage are used, so there is nothing to ask consent for and no
+  banner.
+- **What the site keeps.** `/api/hit` (POST only, 2 KB, 120 a minute per
+  IP) leaves out cross-site beacons and self-declared bots. It drops the
+  query and fragment, ignores anything that is not a page, and adds 1 to
+  an in-memory total for (London day, path, source). The IP address, user
+  agent and referring address are read for that request and never stored.
+  The totals hold no identifier, so they are not personal data. A restart
+  loses at most a minute.
+- **Visits, not visitors.** With no cookie or identifier, two visits by one
+  person cannot be told apart. A *visit* is a page load that came from
+  outside the site; *page views* count every page shown. The screen says
+  so, and a reload counts again.
+- **Sources.** A tagged link's `utm_source` wins (`gbp` reads "Google
+  Business Profile"). Otherwise known hosts are named (Google search, Bing,
+  Facebook, LinkedIn, X, ChatGPT…), any other referring host is shown as
+  its host name, and no referrer is "Direct".
+- **To the console.** The site's `visits:flush` task runs every minute, and
+  once more when the server stops. It posts the totals to
+  `POST /api/site/visits`, signed like an enquiry but with a key derived
+  from the same secret. One secret pair serves both calls, and an
+  enquiry's signature does not pass here. A batch id seen in the last ten
+  minutes is counted once. Totals that fail to send are put back, up to
+  2,000 per call; past that, extra pages are counted as "(other)".
+- **Model.** `SiteVisit` (day, path, source, views, visits), unique per
+  day, path and source. Migration `docs/migrations/2026-11-site-visits.sql`
+  is additive, and its rollback was tested on a copy. No retention rule:
+  the rows are anonymous totals.
+- **Screen** (`/admin/website/analytics`, `analytics.view`): the design's
+  7/30/90-day switch (`?days=`), tiles for Visits (with page views),
+  Enquiries received, Enquiries won (of those received) and Orders placed
+  in the portal (all time), Visits per day, Top pages, Sources and
+  Enquiries by page. Days before counting began are drawn dashed as "not
+  counted", never as zero. The chart has a screen-reader table.
+  `GET /api/admin/website/analytics?days=7|14|30|90`.
+- **Overview.** "Website visits" draws the last 14 days for roles holding
+  `analytics.view`.
+- **Real or absent.** The design's "Example" chips, its warning banner and
+  "Connect Plausible or Google Analytics 4" are replaced by a note saying
+  how the site counts. Site settings states the same. The Insights
+  sub-line points at Analytics for views per page.

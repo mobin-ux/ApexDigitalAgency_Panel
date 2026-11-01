@@ -26,7 +26,7 @@ permission matrix**, **enquiries stored, 24 months**, **own cookieless
 analytics**. Branch `feature/admin-website` (not merged). ADR-026.
 Phases: A permissions + nav (done, `a02fd87`) · B content API + site
 reading it (done) · C Pages/Insights/Case studies + editor (done) · D (done) Media,
-Navigation, SEO, Site settings · E (done) Enquiries · F Analytics · G tests, docs.
+Navigation, SEO, Site settings · E (done) Enquiries · F (done) Analytics · G tests, docs.
 
 - **Phase B done:** shared contract (`web/shared/cms/{sections,documents,resolve}.ts`),
   panel workflow (`server/utils/website/content.ts`, 12 admin routes, 4
@@ -76,6 +76,21 @@ Navigation, SEO, Site settings · E (done) Enquiries · F Analytics · G tests, 
   months; audit names `ENQ-…` refs only. Tests `enquiries.test.ts` (6,
   back-dates through Prisma, runs the task through Nitro's dev-only
   `/_nitro/tasks/…`), unit `enquiry.test.ts` (4).
+- **Phase F done:** cookieless visit counts. Site: `plugins/visits.client.ts`
+  beacons `POST /api/hit` per page (path; first page adds referrer host
+  and `utm_source`), in-memory totals per (London day, path, source) in
+  `server/utils/visits.ts`, Nitro task `visits:flush` every minute (site
+  now has `experimental.tasks`) plus a flush on close. Rules shared in
+  `web/shared/visits.ts` (panel `.demo/shared/visits.ts`). Console:
+  `SiteVisit` (`docs/migrations/2026-11-site-visits.sql`, additive;
+  **production needs it**), signed `POST /api/site/visits` (key derived
+  from the enquiry secret, so no new env key), batch id counted once,
+  `GET /api/admin/website/analytics?days=`, screen
+  `/admin/website/analytics`, Overview "Website visits". Tests
+  `analytics.test.ts` (3; the site part flushes through
+  `/_nitro/tasks/visits:flush`), unit `visits.test.ts` (5).
+- Gotcha: a dashed 1px border makes a `flex-1` bar 2px wider than a
+  borderless one; give the solid bars `border-transparent` too.
 - Gotcha: an error thrown in a site server middleware is answered as JSON
   unless the request sends `Accept: text/html`; tests must send it to see
   the error page.

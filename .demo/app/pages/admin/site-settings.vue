@@ -10,8 +10,9 @@ import { ADMIN_INPUT } from '~/utils/adminUi'
  * prints a placeholder, so leaving a number blank hides it rather than
  * inventing one. Real or absent: the design's cookie switches and
  * analytics provider are stated, not switched. The site sets no optional
- * cookie and loads no analytics script, so there is no banner to show and
- * no provider to connect.
+ * cookie and loads no third-party script: it counts visits itself, without
+ * cookies (phase F), so there is no banner to show and no provider to
+ * connect.
  */
 definePageMeta({
   title: 'Site settings',
@@ -173,7 +174,10 @@ const LABEL = 'text-fg-heading text-[13.5px] font-semibold sm:w-[170px] sm:shrin
           </div>
           <div :class="ROW">
             <span :class="LABEL">Analytics</span>
-            <span class="text-fg-body flex-1 text-[13.5px] sm:pt-2.5">No provider and no tracking script. Visits are to be counted by the site itself, without cookies or stored IP addresses, and shown in Analytics.</span>
+            <span class="text-fg-body flex-1 text-[13.5px] sm:pt-2.5">
+              Counted by the site itself: no provider, no third-party script, no cookies and no IP addresses kept. Only totals per day, page and source are stored.
+              <NuxtLink to="/admin/website/analytics" class="apex-ring text-accent-ink rounded font-semibold">See Analytics</NuxtLink>
+            </span>
           </div>
         </AdminCard>
 

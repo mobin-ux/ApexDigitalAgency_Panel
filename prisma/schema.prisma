@@ -1016,6 +1016,27 @@ model EnquiryNote {
   @@index([enquiryId, createdAt])
 }
 
+// Website visits counted by the site itself (ADR-026, phase F): one row per
+// London day, page and source, holding totals only. No cookie, IP address,
+// user agent or visitor identifier exists anywhere in the count, so a row
+// is not about a person. `visits` counts page loads that arrived from
+// outside the site; `views` counts every page shown.
+model SiteVisit {
+  id        String   @id @default(uuid())
+  // YYYY-MM-DD in Europe/London.
+  day       String
+  path      String
+  // "Direct", "Google search", a referring host…; "" for views reached
+  // from another page of the site.
+  source    String   @default("")
+  views     Int      @default(0)
+  visits    Int      @default(0)
+  updatedAt DateTime @updatedAt
+
+  @@unique([day, path, source])
+  @@index([day])
+}
+
 model StaffInvite {
   id          String    @id @default(uuid())
   email       String

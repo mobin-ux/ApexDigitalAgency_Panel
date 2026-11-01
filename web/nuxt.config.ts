@@ -82,7 +82,10 @@ export default defineNuxtConfig({
     cms: {
       url: '',
       revalidateSecret: '',
-      /** Signs each contact message forwarded to the console (NUXT_CMS_ENQUIRY_SECRET). */
+      /**
+       * Signs each contact message forwarded to the console, and (through a
+       * derived key) the visit totals (NUXT_CMS_ENQUIRY_SECRET).
+       */
       enquirySecret: '',
     },
     public: {
@@ -129,6 +132,15 @@ export default defineNuxtConfig({
         rateLimiter: { tokensPerInterval: 5, interval: 600_000 },
       },
     },
+    // Pages counting themselves (ADR-026, phase F): a tiny same-origin
+    // beacon per page shown, so a generous per-IP allowance.
+    '/api/hit': {
+      security: {
+        allowedMethodsRestricter: { methods: ['POST'] },
+        requestSizeLimiter: { maxRequestSizeInBytes: 2_000 },
+        rateLimiter: { tokensPerInterval: 120, interval: 60_000 },
+      },
+    },
     // The panel asks the site to drop its content cache after a publish
     // (ADR-026). Server to server, authenticated by a bearer secret.
     '/api/cms/revalidate': {
@@ -157,6 +169,9 @@ export default defineNuxtConfig({
     storage: {
       cms: { driver: 'fs', base: './.data/cms' },
     },
+    // Visit totals go to the console once a minute (ADR-026, phase F).
+    experimental: { tasks: true },
+    scheduledTasks: { '* * * * *': ['visits:flush'] },
   },
 
   // ---------------------------------------------------------------------------
@@ -215,7 +230,7 @@ export default defineNuxtConfig({
       // browsers log as an unrecognised feature on every page load.
       permissionsPolicy: false,
     },
-    // Pages and static files only; /api/contact opens POST in its route rule.
+    // Pages and static files only; /api/contact and /api/hit open POST in their route rules.
     allowedMethodsRestricter: { methods: ['GET', 'HEAD'] },
     // No cross-origin API is exposed, so no CORS headers are emitted.
     corsHandler: false,

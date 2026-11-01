@@ -69,7 +69,7 @@ function historyTone(kind: string) {
 
 const copy = computed(() => isPages.value
   ? { title: 'Website', accent: 'pages', sub: 'Every page on apexdigi.co.uk. Service pages take their prices from Services & pricing.', new: 'New page', noun: 'pages' }
-  : { title: 'Insights', accent: 'articles', sub: 'Articles on /insights. View counts appear once analytics is connected.', new: 'New article', noun: 'articles' })
+  : { title: 'Insights', accent: 'articles', sub: 'Articles on /insights. Views per page are in Analytics.', new: 'New article', noun: 'articles' })
 
 const TAB_CLS = 'apex-ring -mb-px inline-flex h-10 shrink-0 cursor-pointer items-center border-b-2 text-sm'
 const PILL = 'apex-ring inline-flex h-8 cursor-pointer items-center gap-[7px] whitespace-nowrap rounded-full border px-[13px] text-[13px]'
