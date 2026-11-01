@@ -93,7 +93,9 @@ const ROUTES: Route[] = [
   { method: 'POST', path: `/api/admin/website/documents/${MISSING}/publish`, needs: ['website.publish'] },
   { method: 'POST', path: `/api/admin/website/documents/${MISSING}/restore`, needs: ['website.edit'] },
   { method: 'POST', path: `/api/admin/website/documents/${MISSING}/preview`, needs: ['website.view'] },
+  { method: 'PATCH', path: `/api/admin/website/documents/${MISSING}/path`, needs: ['website.edit'] },
   { method: 'GET', path: '/api/admin/website/history', needs: ['website.view'] },
+  { method: 'GET', path: '/api/admin/website/review-counts', needs: ['website.view'] },
   // Idempotent: a permitted role re-reads the site's baseline and adds only what is missing.
   { method: 'POST', path: '/api/admin/website/import', needs: ['website.publish'] },
   // System

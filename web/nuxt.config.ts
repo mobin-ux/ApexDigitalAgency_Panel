@@ -4,6 +4,16 @@ import { company, seoDefaults } from './app/data/site'
 
 const siteUrl = process.env.NUXT_PUBLIC_SITE_URL ?? 'https://apexdigi.co.uk'
 
+// Origins of the admin console, whose editor frames `/preview/**` (ADR-026).
+// Fixed at build time because route rules are; `CMS_PANEL_ORIGINS` (comma
+// separated) adds more, and a dev build also allows the local panel.
+const panelOrigins = [
+  'https://panel.apexdigi.co.uk',
+  'https://146-19-130-11.sslip.io',
+  ...(process.env.CMS_PANEL_ORIGINS ?? '').split(',').map(o => o.trim()).filter(Boolean),
+  ...(process.env.NODE_ENV === 'production' ? [] : ['http://localhost:3000', 'http://127.0.0.1:3000']),
+]
+
 // Every powerful browser feature is switched off: the site uses none of them.
 const permissionsPolicy = [
   'accelerometer',
@@ -124,8 +134,13 @@ export default defineNuxtConfig({
         rateLimiter: false,
       },
     },
-    // A draft preview is for staff only and changes with every save.
-    '/preview/**': { headers: { 'x-robots-tag': 'noindex, nofollow', 'cache-control': 'no-store' } },
+    // A draft preview is for staff only and changes with every save. The
+    // console's editor shows it in a frame, so the panel (and only the panel)
+    // may embed it; every other page keeps `frame-ancestors 'none'`.
+    '/preview/**': {
+      headers: { 'x-robots-tag': 'noindex, nofollow', 'cache-control': 'no-store' },
+      security: { headers: { contentSecurityPolicy: { 'frame-ancestors': panelOrigins }, xFrameOptions: false } },
+    },
     '/fonts/**': { headers: { 'cache-control': 'public, max-age=31536000, immutable' } },
     '/brand/**': { headers: { 'cache-control': 'public, max-age=604800' } },
     '/icons/**': { headers: { 'cache-control': 'public, max-age=604800' } },

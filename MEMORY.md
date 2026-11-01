@@ -25,7 +25,7 @@ and Site settings. Decided with the owner: **rebuild from
 permission matrix**, **enquiries stored, 24 months**, **own cookieless
 analytics**. Branch `feature/admin-website` (not merged). ADR-026.
 Phases: A permissions + nav (done, `a02fd87`) · B content API + site
-reading it (done) · C Pages/Insights/Case studies + editor · D Media,
+reading it (done) · C Pages/Insights/Case studies + editor (done) · D Media,
 Navigation, SEO, Site settings · E Enquiries · F Analytics · G tests, docs.
 
 - **Phase B done:** shared contract (`web/shared/cms/{sections,documents,resolve}.ts`),
@@ -38,6 +38,21 @@ Navigation, SEO, Site settings · E Enquiries · F Analytics · G tests, docs.
   `docs/migrations/2026-11-website-legacy.sql` (local: 44 archived;
   **production not checked yet**: run the SELECT in that file first).
   Tests: `website-content.test.ts` (4, needs `SITE_TEST_URL`), unit +11.
+- **Phase C done:** `AdminWebsiteDocList` (Pages, Insights; Publish history
+  tab; Import from site), the Case studies card grid, `AdminWebsiteEditor`
+  (sections · Content/SEO/Revisions · the site's `/preview/:token` in a
+  scaled frame; built docs add/remove/hide/reorder, coded docs edit words
+  only) over `AdminWebsiteField` (fields generated from the contract,
+  server errors by path). `PATCH documents/:id/path` (301 when the page
+  was ever live, needs `website.seo` then), `GET review-counts` (sidebar
+  counts for reviewers), `<ServicePage>` so service drafts preview. The
+  site lets only the panel origins frame `/preview/**`
+  (`CMS_PANEL_ORIGINS` adds more at build time); the panel's CSP
+  `frame-src` adds `NUXT_WEBSITE_PUBLIC_URL`'s origin. Redirect rows are
+  written now; the site serves them from phase D.
+- Gotcha: the console has `viewTransition: true`, and in the preview pane
+  (a tab that is not drawing) every client-side navigation stalls with
+  "Transition was skipped". Verify by loading URLs, not by clicking links.
 - **Dev pairing:** panel :3000, site :3001 (`.demo/.env`, `web/.env`, tracked
   since `d7780ac` in a **public** repo: dev-only values, never production).
   Start both with the preview configs `demo` and `web` (autoPort gives the

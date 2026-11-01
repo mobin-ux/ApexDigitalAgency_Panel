@@ -19,7 +19,7 @@ import { can, DEFAULT_STAFF_ROLE, isStaffRole } from '~~/shared/permissions'
  * in the group they belong to rather than being dropped.
  */
 
-export type AdminCountKey = 'support' | 'clients' | 'credit'
+export type AdminCountKey = 'support' | 'clients' | 'credit' | 'pages' | 'insights' | 'work'
 
 export interface AdminNavDef {
   /** Stable id, used by the palette and the counts. */
@@ -74,9 +74,9 @@ export const ADMIN_NAV: AdminNavGroup[] = [
   {
     heading: 'Website',
     items: [
-      { key: 'pages', label: 'Pages', icon: 'solar:document-text-linear', to: '/admin/website/pages', needs: 'website.view' },
-      { key: 'insights', label: 'Insights', icon: 'solar:notebook-linear', to: '/admin/website/insights', needs: 'website.view' },
-      { key: 'work', label: 'Case studies', icon: 'solar:case-round-linear', to: '/admin/website/case-studies', needs: 'website.view' },
+      { key: 'pages', label: 'Pages', icon: 'solar:document-text-linear', to: '/admin/website/pages', needs: 'website.view', count: 'pages' },
+      { key: 'insights', label: 'Insights', icon: 'solar:notebook-linear', to: '/admin/website/insights', needs: 'website.view', count: 'insights' },
+      { key: 'work', label: 'Case studies', icon: 'solar:case-round-linear', to: '/admin/website/case-studies', needs: 'website.view', count: 'work' },
       { key: 'media', label: 'Media library', icon: 'solar:gallery-linear', to: '/admin/website/media', needs: 'website.view' },
       { key: 'nav', label: 'Navigation & footer', icon: 'solar:list-linear', to: '/admin/website/navigation', needs: 'website.view' },
       { key: 'seo', label: 'SEO & redirects', icon: 'solar:magnifer-linear', to: '/admin/website/seo', needs: 'website.seo' },

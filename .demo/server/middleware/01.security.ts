@@ -16,6 +16,16 @@ const WEBHOOK_PREFIX = '/api/webhooks/'
 /** Writes that legitimately arrive without an Origin (server-to-server). */
 const CSRF_EXEMPT = [WEBHOOK_PREFIX]
 
+/** The scheme, host and port of a configured URL, or '' when unset or malformed. */
+function originOf(url: string | undefined): string {
+  try {
+    return url ? new URL(url).origin : ''
+  }
+  catch {
+    return ''
+  }
+}
+
 export default defineEventHandler((event) => {
   const url = getRequestURL(event)
   const path = url.pathname
@@ -55,6 +65,7 @@ export default defineEventHandler((event) => {
   const scriptSrc = import.meta.dev
     ? '\'self\' \'unsafe-inline\' \'unsafe-eval\''
     : '\'self\' \'unsafe-inline\''
+  const siteOrigin = originOf((useRuntimeConfig(event).website as { publicUrl?: string } | undefined)?.publicUrl)
   const connectSrc = import.meta.dev
     ? '\'self\' ws: wss:'
     // Provider JS (Stripe Elements, PayPal SDK) calls back to these origins.
@@ -67,8 +78,9 @@ export default defineEventHandler((event) => {
     'img-src \'self\' data: blob: https:',
     'font-src \'self\' data:',
     `connect-src ${connectSrc}`,
-    // Provider payment UIs render in iframes — they must be allowed.
-    'frame-src \'self\' https://js.stripe.com https://hooks.stripe.com https://www.paypal.com',
+    // Provider payment UIs render in iframes — they must be allowed. The
+    // website editor frames the public site's draft preview (ADR-026).
+    `frame-src 'self' https://js.stripe.com https://hooks.stripe.com https://www.paypal.com${siteOrigin ? ` ${siteOrigin}` : ''}`,
     'frame-ancestors \'none\'',
     'base-uri \'self\'',
     'form-action \'self\'',

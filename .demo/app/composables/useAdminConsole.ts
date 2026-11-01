@@ -90,7 +90,8 @@ export function useAdminPalette() {
 /**
  * The live counts on sidebar rows, from endpoints the role can already
  * read (no new route): open support requests from the Overview's stats
- * and credit applications waiting from the credit queue. A count the role
+ * credit applications waiting from the credit queue, and website documents
+ * in review for the roles that review them. A count the role
  * could not open is never fetched. Client-only, so the first render is the same on both sides.
  */
 export function useAdminNavCounts() {
@@ -109,6 +110,14 @@ export function useAdminNavCounts() {
     if (can('money.view')) {
       jobs.push($fetch<{ waiting: unknown[] }>('/api/admin/credit/applications').then((c) => {
         next.credit = c.waiting?.length ?? 0
+      }).catch(() => {}))
+    }
+    // Documents waiting for review, for the people who review them.
+    if (can('website.publish')) {
+      jobs.push($fetch<{ pages: number, insights: number, work: number }>('/api/admin/website/review-counts').then((w) => {
+        next.pages = w.pages
+        next.insights = w.insights
+        next.work = w.work
       }).catch(() => {}))
     }
     await Promise.all(jobs)

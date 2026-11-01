@@ -3,6 +3,7 @@ import type { CmsDocumentLike } from '~/composables/useCmsContent'
 import { isBuiltTemplate } from '#shared/cms'
 import { articleBySlug } from '~/data/articles'
 import { caseStudyBySlug } from '~/data/case-studies'
+import { loadServicePage } from '~/data/service-pages'
 import AboutPage from '~/pages/about.vue'
 import ContactPage from '~/pages/contact.vue'
 import HomePage from '~/pages/index.vue'
@@ -33,6 +34,7 @@ const slug = doc.key.split('/').pop() ?? ''
 const article = doc.template === 'article' ? articleBySlug(slug) : undefined
 const written = article?.body ? { ...article, body: article.body } : null
 const study = doc.template === 'case-study' ? caseStudyBySlug(slug) ?? null : null
+const service = doc.template === 'service' && loadServicePage(slug) ? slug : null
 const built = isBuiltTemplate(doc.template)
 </script>
 
@@ -59,6 +61,10 @@ const built = isBuiltTemplate(doc.template)
     <CaseStudyPage
       v-else-if="study"
       :found="study"
+    />
+    <ServicePage
+      v-else-if="service"
+      :slug="service"
     />
     <section
       v-else

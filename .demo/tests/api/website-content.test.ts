@@ -175,6 +175,53 @@ describe('website content loop', { skip: !enabled && 'CMS_TEST_URL is not set', 
       assert.ok(draft.html.includes('Preview of a draft'))
       assert.equal((await siteHtml('/preview/not.a.token')).status, 404)
       assert.equal((await siteHtml(`/nothing-here-${run}`)).status, 404, 'an unknown address is still a 404')
+      // The console's editor frames the preview; nothing else may.
+      const framed = await fetch(`${SITE}/preview/${preview.body.token}`)
+      assert.match(framed.headers.get('content-security-policy') ?? '', /frame-ancestors[^;]*http:\/\/localhost:3000/)
+      const home = await fetch(`${SITE}/`)
+      assert.match(home.headers.get('content-security-policy') ?? '', /frame-ancestors 'none'/)
+    }
+  })
+
+  it('moves a built page: a draft freely, a live one with a 301 and only for roles with website.seo', async () => {
+    const created = await support.json<any>('/api/admin/website/documents', { method: 'POST', json: { template: 'built-page', title: `Move ${run}`, path: `/move-${run}` } })
+    assert.equal(created.status, 200)
+    const id = created.body.document.id
+    const path = `/api/admin/website/documents/${id}/path`
+
+    const draftMove = await support.json<any>(path, { method: 'PATCH', json: { path: `/moved-${run}` } })
+    assert.equal(draftMove.status, 200, JSON.stringify(draftMove.body).slice(0, 300))
+    assert.equal(draftMove.body.redirect, null, 'nobody saw the old address, so no redirect')
+    assert.equal(draftMove.body.document.path, `/moved-${run}`)
+    assert.equal((await support.json<any>(path, { method: 'PATCH', json: { path: '/services/clash' } })).status, 400, 'the site\'s own routes stay reserved')
+    assert.equal((await finance.json<any>(path, { method: 'PATCH', json: { path: `/finance-${run}` } })).status, 403)
+
+    const detail = (await owner.json<any>(`/api/admin/website/documents/${id}`)).body
+    assert.equal((await owner.json<any>(`/api/admin/website/documents/${id}/publish`, { method: 'POST', json: { version: detail.draftVersion } })).status, 200)
+    const refused = await support.json<any>(path, { method: 'PATCH', json: { path: `/moved-again-${run}` } })
+    assert.equal(refused.status, 403, 'moving a live page adds a redirect, which needs website.seo')
+    assert.equal(refused.body.data?.permission, 'website.seo')
+
+    const liveMove = await owner.json<any>(path, { method: 'PATCH', json: { path: `/moved-again-${run}` } })
+    assert.equal(liveMove.status, 200, JSON.stringify(liveMove.body).slice(0, 300))
+    assert.deepEqual(liveMove.body.redirect, { from: `/moved-${run}`, to: `/moved-again-${run}` })
+
+    const counts = await finance.json<any>('/api/admin/website/review-counts')
+    assert.equal(counts.status, 200)
+    assert.equal(typeof counts.body.pages, 'number')
+
+    if (SITE) {
+      const about = await documentAt(owner, 'pages', '/about')
+      if (about) {
+        assert.equal((await owner.json<any>(`/api/admin/website/documents/${about.id}/path`, { method: 'PATCH', json: { path: `/about-${run}` } })).status, 400, 'a coded page keeps the address its code gives it')
+      }
+      const service = await documentAt(owner, 'pages', '/services/website-design')
+      if (service) {
+        const token = (await owner.json<any>(`/api/admin/website/documents/${service.id}/preview`, { method: 'POST', json: {} })).body.token
+        const draft = await siteHtml(`/preview/${token}`)
+        assert.equal(draft.status, 200)
+        assert.ok(!draft.html.includes('cannot be previewed here yet'), 'a service page previews as itself')
+      }
     }
   })
 })

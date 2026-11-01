@@ -106,9 +106,55 @@ stand behind, the screen states what is true instead:
   renders a draft (built, the six fixed pages, articles and case studies;
   service pages with the editor). The sitemap adds published built pages
   and leaves out anything set to noindex.
-- **Env** (both documented in `.env.example`): panel
+- **Env** (both documented in `.env.example`, plus `CMS_PANEL_ORIGINS` below): panel
   `NUXT_WEBSITE_SITE_URL`, `NUXT_WEBSITE_REVALIDATE_SECRET`,
   `NUXT_WEBSITE_PUBLIC_URL`; site `NUXT_CMS_URL`,
   `NUXT_CMS_REVALIDATE_SECRET`. The repository is public and its tracked
   `.demo/.env` and `web/.env` hold a dev-only pairing (panel :3000, site
   :3001): those values must never be used in production.
+
+## The screens and the editor (phase C, 2026-11-01)
+
+- **Lists.** Pages and Insights are one component (`AdminWebsiteDocList`):
+  the design's four status filters with counts over the whole collection,
+  one row per document, and on Pages an "All pages · Publish history" tab
+  read from the audit log. Case studies is the design's card grid without
+  its striped cover band (a study's pictures are its image sections; a
+  placeholder band would read as a missing picture). Pages carries
+  "Import from site" for Owner and Admin. "New …" creates an untitled
+  draft at a placeholder address and opens it, as the design does; the
+  SEO tab renames and moves it.
+- **Editor** (`AdminWebsiteEditor`, `/admin/website/{pages,insights,case-studies}/:id`):
+  sections, the selected section's fields with Content · SEO · Revisions,
+  and the preview, as drawn (252 / 372 / the rest from `xl`; stacked
+  below). Built documents add, remove, hide, reorder (buttons and drag)
+  sections; articles and case studies have a pinned "Listing details" row
+  for their category, sector and summary. Coded pages show their
+  template's parts as fixed sections with editable words. Every field is
+  generated from the contract (`AdminWebsiteField`), and the server's
+  errors come back by path onto the right input, with a dot on the
+  section. The workflow buttons, banners and confirmations are the
+  design's; leaving with unsaved changes asks first.
+- **Preview** is the site's `/preview/:token` page in a frame, scaled to
+  the pane (desktop 1200px, mobile 390px). It shows the draft as last
+  saved, and says so when there are unsaved edits. The site allows only
+  the panel's origins to frame `/preview/**` (`frame-ancestors`, fixed at
+  build time: the production panel hosts, `CMS_PANEL_ORIGINS`, and
+  localhost in a dev build); every other page keeps `frame-ancestors
+  'none'`. The panel's CSP adds the site's origin (from
+  `NUXT_WEBSITE_PUBLIC_URL`) to `frame-src`. Clicking a section inside
+  the preview does not select it: the frame is another origin. Service
+  pages now preview as themselves (`<ServicePage>`).
+- **Moving a page.** `PATCH /api/admin/website/documents/:id/path`, for
+  built documents only (a coded page's address is its code's). A draft
+  nobody has seen moves freely; a page that was ever live leaves a 301
+  from the old address (redirects that pointed at it are moved too, and a
+  redirect from the new address is dropped), and so needs `website.seo`
+  as well as `website.edit`. The site serves these redirects from phase D
+  (its redirect middleware is part of SEO & redirects).
+- **Sidebar counts.** Pages, Insights and Case studies show how many
+  documents wait for review, for the roles that review them
+  (`GET /api/admin/website/review-counts`).
+- **Not built:** the design's media picker list until the Media library
+  exists (an image section says it shows nothing until an image is
+  chosen); scheduled publishing (not in the design).
