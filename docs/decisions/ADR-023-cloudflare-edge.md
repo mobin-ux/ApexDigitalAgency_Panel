@@ -1,7 +1,21 @@
 # ADR-023 — Cloudflare in front of both apps, with the zone kept as code
 
 **Status:** Accepted (2026-10-28); applied to the live zone and the server
-on the user's go-ahead (2026-10-29).
+on the user's go-ahead (2026-10-29). **Amended 2026-11-01: the proxy is off.**
+
+> **Amendment (2026-11-01).** The owner reported both apps "very slow".
+> The origin answered in 12–20 ms and, from London, pages through the edge
+> loaded in 0.1–0.3 s; but from the owner's network (Iran, edge GYD) the
+> browser's follow-up connections to Cloudflare were reset or stalled for
+> ~20 s, so pages took 40–90 s, with or without HTTP/3. Straight to the
+> origin the same pages loaded in ~1.5 s. On the owner's choice all three
+> records (`apexdigi.co.uk`, `www`, `panel`) are **DNS-only**
+> (`deploy/cloudflare-zone.mjs`). What that gives up: edge caching, the
+> flood guard on sign-in and contact, and the WAF. The apps' own rate
+> limits, Caddy's Let's Encrypt certificates, HSTS, the CSP and Caddy's www
+> redirect are unaffected; Caddy's trusted-proxy list simply never matches,
+> so the client IP is the connecting address. The zone's settings and rules
+> stay in place, inert, for when the records are proxied again.
 **Context:** `apexdigi.co.uk` has been on Cloudflare's nameservers since
 before the site existed, but the zone held a single unproxied A record for
 the apex and nothing for `panel.apexdigi.co.uk` — so the panel's public

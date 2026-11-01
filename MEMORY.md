@@ -584,6 +584,8 @@ Gate 9 gotchas:
 
 ## Cloudflare — applied (2026-10-29)
 
+**Proxy turned off 2026-11-01 (ADR-023 amendment), on the user's choice ("Both go direct").** The user reported both apps very slow. Origin 12–20 ms, London through the edge 0.1–0.3 s, but from the owner's network (Iran, edge GYD) the browser's follow-up connections to Cloudflare were reset or stalled: 40–90 s per page, HTTP/3 off made no difference; straight to the origin ~1.5 s. All three records set DNS-only (ttl 300) with `cf dns records edit <id> -z <zone id> --body '{"proxied":false,"ttl":300}'`; `deploy/cloudflare-zone.mjs` now says `proxied: false` so an apply keeps it. After: every page ~1.5 s in Edge from the dev machine, certificates valid (Caddy, to Jan 2027), HSTS from the origin, www 301 by Caddy. Lost while off: edge cache, WAF, the flood-guard rate limit. Probe used: a Playwright script timing each request (`--host-resolver-rules=MAP host 146.19.130.11` to bypass the edge).
+
 The user asked for the project to be connected to Cloudflare end to end
 (DNS, TLS, caching, security, server and code in step). Design and
 decisions: ADR-023; operator steps: DEPLOYMENT §11.

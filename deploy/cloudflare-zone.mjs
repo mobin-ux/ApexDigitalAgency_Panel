@@ -36,11 +36,17 @@ export const WWW_HOST = 'www.apexdigi.co.uk'
  * writes every record unproxied, which is the first step (see
  * docs/DEPLOYMENT.md §11) so the origin can obtain its certificates before
  * the edge starts checking them.
+ *
+ * All three are DNS-only since 2026-11-01 (ADR-023 amendment): from the
+ * owner's network the connections to Cloudflare's edge were reset, and pages
+ * took 40-90 s through the proxy against ~1.5 s straight to the origin. The
+ * settings and rules below stay in place for the day the records are proxied
+ * again; with nothing proxied they do not apply.
  */
 export const records = [
-  { type: 'A', name: SITE_HOST, content: ORIGIN_IP, proxied: true, comment: 'apex:site (web/, Caddy :3100)' },
-  { type: 'A', name: PANEL_HOST, content: ORIGIN_IP, proxied: true, comment: 'apex:panel (.demo/, Caddy :3000)' },
-  { type: 'CNAME', name: WWW_HOST, content: SITE_HOST, proxied: true, comment: 'apex:www redirects to the apex at the edge and at the origin' },
+  { type: 'A', name: SITE_HOST, content: ORIGIN_IP, proxied: false, comment: 'apex:site (web/, Caddy :3100)' },
+  { type: 'A', name: PANEL_HOST, content: ORIGIN_IP, proxied: false, comment: 'apex:panel (.demo/, Caddy :3000)' },
+  { type: 'CNAME', name: WWW_HOST, content: SITE_HOST, proxied: false, comment: 'apex:www redirects to the apex at the origin' },
 ]
 
 /**
