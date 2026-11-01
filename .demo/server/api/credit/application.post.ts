@@ -4,6 +4,7 @@ import { APPLICANT_ROLES, BUSINESS_TYPES, CREDIT_REQUEST_MIN, CREDIT_REQUEST_STE
 import { recordAudit } from '../../utils/audit'
 import { requireAuth } from '../../utils/auth'
 import { creditLimit, ensureCredit } from '../../utils/credit'
+import { notify, notifyRoles } from '../../utils/notify'
 import prisma from '../../utils/prisma'
 import { rateLimit, RateLimits } from '../../utils/ratelimit'
 import { getSetting } from '../../utils/settings'
@@ -114,6 +115,13 @@ export default defineEventHandler(async (event) => {
     message: `We are checking your business details for ${creditRef(created.id)}. We will update your Wallet with our decision.`,
     type: 'INFO',
     link: '/dashboards/wallet?credit=status',
+  })
+  // The people who decide applications see it in their queue and hear about it.
+  await notifyRoles('credit.approve', {
+    title: 'New credit application',
+    message: `${creditRef(created.id)} asks for £${created.requestedLimit.toLocaleString('en-GB')}.`,
+    type: 'INFO',
+    link: `/admin/credit?application=${created.id}`,
   })
   await recordAudit(event, { id: session.id, email: session.email ?? session.id }, {
     action: 'credit.applied',

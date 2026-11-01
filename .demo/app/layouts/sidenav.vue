@@ -23,6 +23,8 @@ const { show: showAccount, open: accountOpen } = useApexAccountMenu()
 const { toggleTheme, toggleLabel, toggleIcon } = useApexTheme()
 const { user } = useUser()
 const searchOpen = useSearchOpen()
+// Staff changes (an order moved, a reply, a decision) reach an open page.
+useClientLiveRefresh()
 
 const title = computed(() => (route.meta.title as string | undefined) || current.value?.label || 'Dashboard')
 const crumb = computed(() => current.value?.crumb ?? 'Account')

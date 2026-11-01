@@ -47,6 +47,14 @@ export default defineEventHandler(async (event) => {
     if (before.status === 'settled' || before.monthsPaid >= before.monthsTotal) {
       throw createError({ statusCode: 400, message: 'This plan is already fully paid.' })
     }
+    // Waiving moves the schedule the way a payment would, so it follows the
+    // same gates: nothing before kickoff, nothing on a cancelled project.
+    if (before.status === 'pending') {
+      throw createError({ statusCode: 400, message: 'Monthly payments start after the kickoff payment.' })
+    }
+    if (before.status === 'cancelled') {
+      throw createError({ statusCode: 409, message: 'This project was cancelled, so its plan takes no more payments.' })
+    }
     const waived = Math.round(Math.min(before.monthlyAmount || before.amountDue, Math.max(0, before.total - before.paid)) * 100) / 100
     const monthsPaid = before.monthsPaid + 1
     const settled = monthsPaid >= before.monthsTotal

@@ -412,13 +412,13 @@ const TAB_CLS = 'apex-ring -mb-px inline-flex h-10 shrink-0 cursor-pointer items
           </span>
           <span class="text-fg-body text-[13px] tabular-nums">{{ inst.monthsPaid }} of {{ inst.monthsTotal }} · {{ formatCurrency(inst.paid) }}</span>
           <span class="text-fg-heading text-[13.5px] tabular-nums lg:text-end">{{ formatCurrency(inst.amountDue) }}</span>
-          <span class="text-fg-muted text-[12.5px]"><ClientOnly>{{ inst.status === 'settled' ? 'Settled' : inst.status === 'pending' ? 'After kickoff' : fmtDate(inst.nextDue) }}</ClientOnly></span>
+          <span class="text-fg-muted text-[12.5px]"><ClientOnly>{{ inst.status === 'settled' ? 'Settled' : inst.status === 'cancelled' ? 'Project cancelled' : inst.status === 'pending' ? 'After kickoff' : fmtDate(inst.nextDue) }}</ClientOnly></span>
           <span class="flex gap-2 lg:justify-end">
-            <template v-if="inst.status !== 'settled' && inst.status !== 'pending' && inst.monthsPaid < inst.monthsTotal">
+            <template v-if="!['settled', 'pending', 'cancelled'].includes(inst.status) && inst.monthsPaid < inst.monthsTotal">
               <AdminButton size="sm" :disabled="instBusy === inst.id" @click="askInstalment(inst, 'charge')">Collect</AdminButton>
               <AdminButton size="sm" variant="danger-text" :disabled="instBusy === inst.id" @click="askInstalment(inst, 'waive')">Waive</AdminButton>
             </template>
-            <AdminStatusChip v-else :tone="inst.status === 'settled' ? 'violet' : 'neutral'" :label="inst.status === 'settled' ? 'Complete' : 'Not started'" />
+            <AdminStatusChip v-else :tone="inst.status === 'settled' ? 'violet' : 'neutral'" :label="inst.status === 'settled' ? 'Complete' : inst.status === 'cancelled' ? 'Cancelled' : 'Not started'" />
           </span>
         </li>
       </ul>

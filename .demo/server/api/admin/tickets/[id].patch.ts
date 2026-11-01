@@ -1,6 +1,7 @@
 import { createError, defineEventHandler, getRouterParam } from 'h3'
 import { z } from 'zod'
 import { recordAudit } from '../../../utils/audit'
+import { notify } from '../../../utils/notify'
 import { requireStaffPermission } from '../../../utils/permissions'
 import prisma from '../../../utils/prisma'
 import { validateBody } from '../../../utils/validate'
@@ -9,6 +10,8 @@ import { validateBody } from '../../../utils/validate'
  * PATCH /api/admin/tickets/:id — triage controls: status, priority,
  * category, assignment. Status/priority values use the canonical
  * vocabulary the customer page's keyword normalization understands.
+ * The client is told when staff resolve or close their request, and a newly
+ * assigned agent is told it is theirs.
  */
 
 const bodySchema = z
@@ -40,7 +43,7 @@ export default defineEventHandler(async (event) => {
 
   const updates = await validateBody(event, bodySchema)
 
-  const before = await prisma.ticket.findUnique({ where: { id }, select: auditedFields })
+  const before = await prisma.ticket.findUnique({ where: { id }, select: { ...auditedFields, userId: true } })
   if (!before) {
     throw createError({ statusCode: 404, message: 'Ticket not found' })
   }
@@ -58,12 +61,35 @@ export default defineEventHandler(async (event) => {
     select: auditedFields,
   })
 
+  const { userId: customerId, ...beforeAudit } = before
   await recordAudit(event, admin, {
     action: 'admin.ticket.update',
     targetType: 'Ticket',
     targetId: id,
-    metadata: { before, after },
+    metadata: { before: beforeAudit, after },
   })
+
+  if (after.status !== before.status && (after.status === 'RESOLVED' || after.status === 'CLOSED')) {
+    await notify({
+      userIds: [customerId],
+      title: `Request ${after.status === 'RESOLVED' ? 'resolved' : 'closed'}: ${after.subject}`,
+      message: after.status === 'RESOLVED'
+        ? 'We have marked your request as resolved. Reply if anything is still not right and it will reopen.'
+        : 'We have closed your request. Start a new one if you need us again.',
+      type: 'SUCCESS',
+      link: `/dashboards/support?ticket=${id}`,
+    })
+  }
+  if (after.assigneeId && after.assigneeId !== before.assigneeId) {
+    await notify({
+      userIds: [after.assigneeId],
+      title: `Assigned to you: ${after.subject}`,
+      message: 'This support request is now yours.',
+      type: 'INFO',
+      link: `/admin/tickets?ticket=${id}`,
+      excludeUserId: admin.id,
+    })
+  }
 
   return after
 })

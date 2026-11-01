@@ -71,6 +71,18 @@ ADR-025. Phases: 0 restore (done) · 1 staff auth · 2 money guardrails ·
   client list/detail minimised by role. Tests `admin-hardening.test.ts` (7);
   API 32/32, unit 37/37, tsc 46. Gotcha: Prisma reports a SQLite trigger
   RAISE(ABORT) as "Foreign key constraint violated", not the trigger's text.
+- **Phase 4 done (two-way sync, ADR-025 §Two-way sync):** `cancelProject()`
+  (project + plan `cancelled` + contract) used by the project screen and
+  Agreements — a cancelled plan was still charged by auto-pay before; charge,
+  waive and kickoff refuse it, credit and overdue counts skip it, the
+  client schedule shows payments stopped; no un-cancelling. Hand-setting In
+  progress before the kickoff payment is 409. Milestone edits recompute
+  progress. New notices both ways (status, target date, stage, request
+  resolved/new/reopened/call, withdrawal, files on hold, credit application,
+  assignment) via `notifyTicketHandler` and `notify`. Open pages refresh on
+  a new notification (`useClientLiveRefresh`, 60 s while visible); admin
+  counts every 2 min. No staff bell (not in the design). Tests
+  `panel-sync.test.ts` (5); API 37/37, unit 37/37, tsc 46.
 - **Test harness gotchas:** API suites now run `--test-concurrency=1` (they
   share accounts; parallel enrolment overwrote each other's pending secret);
   the harness keeps the dev owner's TOTP secret, last step and cookie in

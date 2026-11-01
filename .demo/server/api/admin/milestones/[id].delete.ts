@@ -2,9 +2,11 @@ import { createError, defineEventHandler, getRouterParam } from 'h3'
 import { recordAudit } from '../../../utils/audit'
 import { requireStaffPermission } from '../../../utils/permissions'
 import prisma from '../../../utils/prisma'
+import { syncProgress } from '../../../utils/project-lifecycle'
 
 /**
- * DELETE /api/admin/milestones/:id — remove a milestone from a timeline.
+ * DELETE /api/admin/milestones/:id — remove a milestone from a timeline;
+ * the project's progress is recomputed from what is left.
  */
 
 export default defineEventHandler(async (event) => {
@@ -20,7 +22,10 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 404, message: 'Milestone not found' })
   }
 
-  await prisma.milestone.delete({ where: { id } })
+  await prisma.$transaction(async (tx) => {
+    await tx.milestone.delete({ where: { id } })
+    await syncProgress(tx, before.projectId)
+  })
 
   await recordAudit(event, admin, {
     action: 'admin.milestone.delete',

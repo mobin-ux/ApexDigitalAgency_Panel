@@ -1,5 +1,6 @@
 import { createError, defineEventHandler, getRouterParam } from 'h3'
 import { recordAudit } from '../../../../utils/audit'
+import { notify } from '../../../../utils/notify'
 import { requireStaffPermission } from '../../../../utils/permissions'
 import prisma from '../../../../utils/prisma'
 
@@ -30,7 +31,7 @@ export default defineEventHandler(async (event) => {
 
   const project = await prisma.project.findUnique({
     where: { id },
-    select: { id: true, name: true, progress: true, milestones: { orderBy: { date: { sort: 'asc', nulls: 'last' } } } },
+    select: { id: true, name: true, progress: true, userId: true, milestones: { orderBy: { date: { sort: 'asc', nulls: 'last' } } } },
   })
   if (!project) {
     throw createError({ statusCode: 404, message: 'Project not found' })
@@ -72,6 +73,17 @@ export default defineEventHandler(async (event) => {
       next: next?.title ?? null,
       progress: { before: project.progress, after: progress },
     },
+  })
+
+  // The client sees the same timeline on My orders; tell them it moved.
+  await notify({
+    userIds: [project.userId],
+    title: next ? `${completed.title} is done` : `Every stage of ${project.name} is done`,
+    message: next
+      ? `${project.name}: ${completed.title} is complete and ${next.title} has started.`
+      : `${project.name}: ${completed.title} was the last stage.`,
+    type: 'SUCCESS',
+    link: `/dashboards/orders?project=${id}`,
   })
 
   return { completed: completed.title, next: next?.title ?? null, progress }

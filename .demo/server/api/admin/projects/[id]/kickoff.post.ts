@@ -28,6 +28,9 @@ export default defineEventHandler(async (event) => {
 
   const result = await collectKickoff(id, { actorNote: 'after kickoff call' })
   if (!result.ok) {
+    if (result.reason === 'cancelled') {
+      throw createError({ statusCode: 409, message: 'This project was cancelled, so there is no kickoff to collect.' })
+    }
     if (result.reason === 'already_paid') {
       throw createError({ statusCode: 409, message: 'The kickoff payment has already been collected.' })
     }

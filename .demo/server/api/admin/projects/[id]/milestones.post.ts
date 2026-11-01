@@ -3,12 +3,13 @@ import { z } from 'zod'
 import { recordAudit } from '../../../../utils/audit'
 import { requireStaffPermission } from '../../../../utils/permissions'
 import prisma from '../../../../utils/prisma'
+import { syncProgress } from '../../../../utils/project-lifecycle'
 import { validateBody } from '../../../../utils/validate'
 
 /**
  * POST /api/admin/projects/:id/milestones — append a milestone to a
  * project's timeline. Status vocabulary matches the customer pages:
- * PENDING | CURRENT | COMPLETED.
+ * PENDING | CURRENT | COMPLETED. Progress is recomputed from the timeline.
  */
 
 const bodySchema = z.object({
@@ -32,8 +33,10 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 404, message: 'Project not found' })
   }
 
-  const milestone = await prisma.milestone.create({
-    data: { title, status, date: date ?? null, projectId },
+  const milestone = await prisma.$transaction(async (tx) => {
+    const row = await tx.milestone.create({ data: { title, status, date: date ?? null, projectId } })
+    await syncProgress(tx, projectId)
+    return row
   })
 
   await recordAudit(event, admin, {

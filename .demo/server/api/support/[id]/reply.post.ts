@@ -1,9 +1,9 @@
 import { createError, defineEventHandler, getRouterParam } from 'h3'
 import { z } from 'zod'
 import { requireAuth } from '../../../utils/auth'
-import { notify, notifyRoles } from '../../../utils/notify'
 import prisma from '../../../utils/prisma'
 import { rateLimit, RateLimits } from '../../../utils/ratelimit'
+import { notifyTicketHandler } from '../../../utils/support'
 import { unclaimedBy } from '../../../utils/uploads'
 import { validateBody } from '../../../utils/validate'
 
@@ -60,14 +60,10 @@ export default defineEventHandler(async (event) => {
   // Whoever handles the request hears about the reply (ADR-022): the
   // assignee, else the order's manager, else everyone who answers support.
   const preview = content ? (content.length > 160 ? `${content.slice(0, 157).trim()}…` : content) : `${attachmentIds.length} ${attachmentIds.length === 1 ? 'file' : 'files'} attached.`
-  const handler = ticket.assigneeId ?? ticket.relatedProject?.managerId ?? null
-  const heads = { title: `Customer replied: ${ticket.subject}`, message: preview, type: 'INFO' as const, link: `/admin/tickets?ticket=${ticketId}` }
-  if (handler) {
-    await notify({ userIds: [handler], ...heads })
-  }
-  else {
-    await notifyRoles('support.answer', heads)
-  }
+  await notifyTicketHandler(
+    { id: ticketId, assigneeId: ticket.assigneeId, managerId: ticket.relatedProject?.managerId },
+    { title: `Customer replied: ${ticket.subject}`, message: preview, type: 'INFO' },
+  )
 
   return { status: 'success', message }
 })

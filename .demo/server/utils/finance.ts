@@ -4,6 +4,7 @@ import { requireInterestBearingPlans } from './lending'
 import { deliverNow } from './mail/outbox'
 import { notify } from './notify'
 import prisma from './prisma'
+import { PLAN_CANCELLED } from './project-lifecycle'
 
 /**
  * Financing engine — the single server-side source of the locked ADR-011
@@ -76,7 +77,7 @@ export function dueAfter(current: Date, remaining: number, deadline: Date | null
 export interface ChargeResult {
   ok: boolean
   /** Machine-readable failure reason when !ok. */
-  reason?: 'not_found' | 'settled' | 'insufficient_funds' | 'not_started'
+  reason?: 'not_found' | 'settled' | 'insufficient_funds' | 'not_started' | 'cancelled'
   charged?: number
   settled?: boolean
 }
@@ -105,6 +106,10 @@ export async function chargeInstallment(planId: string, opts?: { actorNote?: str
     // (ADR-019): no monthly payment may be taken before the kickoff payment.
     if (plan.status === 'pending') {
       return { ok: false, reason: 'not_started' as const }
+    }
+    // A cancelled project's plan takes nothing more (`cancelProject`).
+    if (plan.status === PLAN_CANCELLED) {
+      return { ok: false, reason: 'cancelled' as const }
     }
     // A retainer runs past its minimum term until cancelled, so only a fixed
     // plan can run out of payments.
@@ -223,12 +228,15 @@ export function validationErrorFromCharge(reason: NonNullable<ChargeResult['reas
   if (reason === 'not_started') {
     throw createError({ statusCode: 400, message: 'Monthly payments start after the kickoff payment.' })
   }
+  if (reason === 'cancelled') {
+    throw createError({ statusCode: 409, message: 'This project was cancelled, so its plan takes no more payments.' })
+  }
   throw createError({ statusCode: 400, message: 'Insufficient wallet balance. Please top up first.' })
 }
 
 export type KickoffResult
   = | { ok: true, charged: number }
-    | { ok: false, reason: 'not_found' | 'already_paid' | 'insufficient_funds', shortBy?: number }
+    | { ok: false, reason: 'not_found' | 'already_paid' | 'insufficient_funds' | 'cancelled', shortBy?: number }
 
 class KickoffShortfall extends Error {
   constructor(public shortBy: number) {
@@ -254,6 +262,9 @@ export async function collectKickoff(projectId: string, opts?: { actorNote?: str
     })
     if (!project) {
       return { ok: false as const, reason: 'not_found' as const }
+    }
+    if (project.status === 'CANCELLED') {
+      return { ok: false as const, reason: 'cancelled' as const }
     }
     const claimed = await tx.project.updateMany({
       where: { id: projectId, kickoffPaidAt: null },

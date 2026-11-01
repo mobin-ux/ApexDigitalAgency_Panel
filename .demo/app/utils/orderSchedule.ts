@@ -16,6 +16,8 @@ import { ukDate } from '~/utils/panel'
  * estimate by the caller.
  */
 export interface ScheduleInput {
+  /** The project's status; a CANCELLED project takes no more payments. */
+  status?: string | null
   payMode?: string | null
   kickoffAmount?: number | null
   kickoffPaidAt?: string | Date | null
@@ -59,6 +61,8 @@ export interface Schedule {
   /** fixed: the deposit taken at kickoff; 0 when payment 1 was the kickoff. */
   deposit?: number
   kind: 'fixed' | 'full' | 'retainer' | 'scope' | 'legacy' | 'none'
+  /** The project was cancelled: only what was paid is shown, nothing is due. */
+  cancelled?: boolean
 }
 
 const TONE: Record<ScheduleRow['state'], ApexTone> = { Paid: 'success', Next: 'violet', Upcoming: 'neutral', Rolling: 'neutral' }
@@ -67,7 +71,19 @@ function row(label: string, date: string, amount: number, state: ScheduleRow['st
   return { label, date, amount, state, tone: TONE[state] }
 }
 
+/**
+ * A cancelled project stops its plan on the server (`cancelProject`), so the
+ * schedule keeps only the payments that were made and shows nothing as due.
+ */
 export function orderSchedule(p: ScheduleInput): Schedule {
+  const s = scheduleFor(p)
+  if (p.status !== 'CANCELLED' && p.installmentPlan?.status !== 'cancelled') {
+    return s
+  }
+  return { ...s, rows: s.rows.filter(r => r.state === 'Paid'), total: s.paid, nextDue: null, cancelled: true }
+}
+
+function scheduleFor(p: ScheduleInput): Schedule {
   const plan = p.installmentPlan ?? null
   const kickoff = p.kickoffAmount ?? 0
   const started = Boolean(p.kickoffPaidAt)

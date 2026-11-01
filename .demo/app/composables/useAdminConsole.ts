@@ -120,6 +120,9 @@ export function useAdminNavCounts() {
     // Counts move when someone acts, and acting means navigating or saving;
     // a route change is a cheap, honest moment to re-read them.
     watch(() => route.path, refresh)
+    // And clients act while staff sit on one screen: re-read on return to
+    // the tab and every two minutes while it is in view.
+    useLiveRefresh(refresh, 120_000)
   }
 
   return { counts, refresh }

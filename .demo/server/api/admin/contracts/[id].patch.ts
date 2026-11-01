@@ -3,11 +3,15 @@ import { z } from 'zod'
 import { recordAudit } from '../../../utils/audit'
 import { requireStaffPermission } from '../../../utils/permissions'
 import prisma from '../../../utils/prisma'
+import { cancelProject } from '../../../utils/project-lifecycle'
 import { validateBody } from '../../../utils/validate'
 
 /**
  * PATCH /api/admin/contracts/:id — administer a contract's lifecycle status.
  * Audited, and the customer is notified when their contract is cancelled.
+ * Cancelling ends the project and stops its plan through `cancelProject`,
+ * the same path as cancelling from the project screen, and a cancelled
+ * agreement cannot be brought back (ADR-025, phase 4).
  */
 
 const bodySchema = z.object({
@@ -27,17 +31,24 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 404, message: 'Contract not found' })
   }
 
-  const after = await prisma.contract.update({ where: { id }, data: { status } })
+  if (before.status === 'CANCELLED' && status !== 'CANCELLED') {
+    throw createError({ statusCode: 409, message: 'A cancelled agreement stays cancelled: its project and plan have ended.' })
+  }
 
-  // Cancelling a contract also cancels the underlying project.
-  if (status === 'CANCELLED' && before.status !== 'CANCELLED') {
-    await prisma.project.update({ where: { id: before.projectId }, data: { status: 'CANCELLED' } })
+  const cancelling = status === 'CANCELLED' && before.status !== 'CANCELLED'
+  const { after, ended } = await prisma.$transaction(async (tx) => {
+    const updated = await tx.contract.update({ where: { id }, data: { status } })
+    // Cancelling a contract also cancels the underlying project and its plan.
+    return { after: updated, ended: cancelling ? await cancelProject(tx, before.projectId) : null }
+  })
+
+  if (cancelling) {
     await notify({
       userIds: [before.userId],
       title: 'Contract cancelled',
-      message: `Your contract ${before.reference} for ${before.project?.name ?? 'your project'} has been cancelled.`,
+      message: `Your contract ${before.reference} for ${before.project?.name ?? 'your project'} has been cancelled.${ended?.planStopped ? ' No further payments will be taken for it.' : ''}`,
       type: 'WARNING',
-      link: '/dashboards/orders',
+      link: `/dashboards/orders?project=${before.projectId}`,
     })
   }
 
@@ -45,7 +56,7 @@ export default defineEventHandler(async (event) => {
     action: 'admin.contract.status',
     targetType: 'Contract',
     targetId: id,
-    metadata: { reference: before.reference, before: before.status, after: status },
+    metadata: { reference: before.reference, before: before.status, after: status, ...(ended ? { cancelled: ended } : {}) },
   })
 
   return { status: 'success', contract: after }

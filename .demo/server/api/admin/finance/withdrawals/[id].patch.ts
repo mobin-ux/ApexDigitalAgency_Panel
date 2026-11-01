@@ -1,6 +1,7 @@
 import { createError, defineEventHandler, getRouterParam } from 'h3'
 import { z } from 'zod'
 import { recordAudit } from '../../../../utils/audit'
+import { notify } from '../../../../utils/notify'
 import { requireStaffPermission } from '../../../../utils/permissions'
 import prisma from '../../../../utils/prisma'
 import { validateBody } from '../../../../utils/validate'
@@ -10,7 +11,7 @@ import { validateBody } from '../../../../utils/validate'
  * withdrawal request. Approving debits the wallet atomically (conditional
  * on sufficient balance — no overdraft) and writes a WITHDRAWAL ledger
  * row; rejecting just flips the status. Only Processing requests can be
- * resolved, and only once.
+ * resolved, and only once. The client is told the outcome.
  */
 
 const bodySchema = z.object({
@@ -85,6 +86,17 @@ export default defineEventHandler(async (event) => {
     targetType: 'WithdrawalRequest',
     targetId: id,
     metadata: { amount: request.amount, customer: request.user.email, note: note ?? null },
+  })
+
+  const amount = `£${request.amount.toLocaleString('en-GB', { minimumFractionDigits: 2 })}`
+  await notify({
+    userIds: [request.userId],
+    title: action === 'approve' ? 'Withdrawal approved' : 'Withdrawal declined',
+    message: action === 'approve'
+      ? `Your withdrawal of ${amount} was approved and taken from your wallet.`
+      : `Your withdrawal of ${amount} was declined. Your wallet balance has not changed.${note ? ` ${note}` : ''}`,
+    type: action === 'approve' ? 'SUCCESS' : 'WARNING',
+    link: '/dashboards/wallet',
   })
 
   return { status: 'success', result: action === 'approve' ? 'Completed' : 'Rejected' }

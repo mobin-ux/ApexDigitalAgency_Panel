@@ -3,10 +3,12 @@ import { z } from 'zod'
 import { recordAudit } from '../../../utils/audit'
 import { requireStaffPermission } from '../../../utils/permissions'
 import prisma from '../../../utils/prisma'
+import { syncProgress } from '../../../utils/project-lifecycle'
 import { validateBody } from '../../../utils/validate'
 
 /**
  * PATCH /api/admin/milestones/:id — update a milestone's title/status/date.
+ * The project's progress is recomputed from its timeline in the same write.
  */
 
 const bodySchema = z
@@ -33,7 +35,12 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 404, message: 'Milestone not found' })
   }
 
-  const after = await prisma.milestone.update({ where: { id }, data: updates })
+  // Progress follows the timeline, so the client's bar matches its stages.
+  const after = await prisma.$transaction(async (tx) => {
+    const row = await tx.milestone.update({ where: { id }, data: updates })
+    await syncProgress(tx, row.projectId)
+    return row
+  })
 
   await recordAudit(event, admin, {
     action: 'admin.milestone.update',

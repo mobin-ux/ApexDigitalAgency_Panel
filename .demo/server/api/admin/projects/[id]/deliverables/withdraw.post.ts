@@ -2,6 +2,7 @@ import { createError, defineEventHandler, getRouterParam } from 'h3'
 import { z } from 'zod'
 import { recordAudit } from '../../../../../utils/audit'
 import { activeRelease } from '../../../../../utils/deliverables'
+import { notify } from '../../../../../utils/notify'
 import { requireStaffPermission } from '../../../../../utils/permissions'
 import prisma from '../../../../../utils/prisma'
 import { validateBody } from '../../../../../utils/validate'
@@ -19,6 +20,7 @@ import { validateBody } from '../../../../../utils/validate'
  * `deliverables.hold-until-paid` is off, or the balance is settled, the
  * files stay available and the panel says so — the alternative would be a
  * button that reports success and changes nothing the client can see.
+ * The client is told, since the release told them the files were ready.
  */
 
 const bodySchema = z.object({
@@ -35,7 +37,7 @@ export default defineEventHandler(async (event) => {
 
   const { reason } = await validateBody(event, bodySchema)
 
-  const project = await prisma.project.findUnique({ where: { id }, select: { id: true, name: true } })
+  const project = await prisma.project.findUnique({ where: { id }, select: { id: true, name: true, userId: true } })
   if (!project) {
     throw createError({ statusCode: 404, message: 'Project not found' })
   }
@@ -71,6 +73,14 @@ export default defineEventHandler(async (event) => {
     subject: project.name,
     reason,
     metadata: { releaseId: release.id, releasedAt: release.releasedAt, releasedBy: release.actorEmail },
+  })
+
+  await notify({
+    userIds: [project.userId],
+    title: 'Files on hold',
+    message: `The files for ${project.name} are on hold again. Ask in Support if you have a question.`,
+    type: 'WARNING',
+    link: `/dashboards/orders?project=${id}`,
   })
 
   return { ok: true }

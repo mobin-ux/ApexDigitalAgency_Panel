@@ -136,3 +136,48 @@ the switch.
   designed has none, and erasure has to respect what UK law requires the
   business to keep (signed agreements, payment records); that is a policy
   decision to make before it is a screen.
+
+## Two-way sync with the client panel (phase 4, 2026-11-01)
+
+Staff and clients work on the same rows, so a change made in one panel is
+what the other reads next; this phase made sure each event also tells the
+other side, and that no staff action leaves the two panels disagreeing.
+
+- **Cancelling is one path.** `cancelProject()` (`server/utils/project-lifecycle.ts`)
+  sets the project CANCELLED, stops its unsettled plan (`Installment.status =
+  'cancelled'`, nothing due) and cancels its live contract, in the caller's
+  transaction. The project screen and Agreements both use it. Before this,
+  a cancelled project's plan stayed active: auto-pay, the client's Pay
+  button and the Overview's overdue list all still treated it as owed.
+  Now `chargeInstallment` and the waiver refuse it (409), the kickoff
+  refuses a cancelled project, the credit line stops counting it, and the
+  client's schedule (`orderSchedule`) keeps only what was paid and says
+  payments stopped. A cancelled project or agreement cannot be brought
+  back (409); a new order is the way. Money already taken is untouched;
+  a refund stays its own audited action.
+- **Status moves that would split the panels are refused.** A paid-kickoff
+  order cannot be set to In progress by hand (409 pointing at "Kickoff done
+  · collect", which takes the payment and starts the plan), and a project
+  whose kickoff was taken cannot go back to awaiting kickoff. A waiver is
+  refused on a plan that has not started.
+- **Progress follows the timeline.** Adding, editing or removing a
+  milestone recomputes the project's progress in the same write
+  (`syncProgress`), as advancing a stage already did.
+- **Staff actions the client now hears about:** a status change (in
+  progress, ready for review, complete, cancelled), a new target date, a
+  completed stage, a request resolved or closed, a withdrawal approved or
+  declined, files put back on hold. **Client actions staff now hear
+  about:** a new support request, resolving or reopening one, asking for
+  or moving a call (all through `notifyTicketHandler`: the assignee, else
+  the order's manager, else everyone holding `support.answer`), and a
+  credit application made or withdrawn (`credit.approve`). A project or
+  request assigned to someone tells that person. Client notices link into
+  `/dashboards/…`, staff notices into `/admin/…`.
+- **Open pages catch up.** The customer shell re-reads notifications when
+  the tab comes back into view and every minute while it is visible; a new
+  one reloads the order, support and wallet data on screen
+  (`useClientLiveRefresh`). The console's sidebar counts do the same every
+  two minutes. A hidden tab makes no requests.
+- **Not built, by the design:** the console has no notification bell; staff
+  see client activity in the Overview queue and the sidebar counts, and
+  their notification rows are emailed once mail is configured (ADR-022).

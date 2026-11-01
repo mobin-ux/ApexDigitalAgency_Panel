@@ -34,7 +34,8 @@ export function creditLimit(): Promise<number> {
 export async function computeCreditUsed(userId: string): Promise<number> {
   const plans = await prisma.installment.findMany({
     // Retainers are a subscription, not a balance owed: they never draw credit.
-    where: { userId, status: { not: 'settled' }, kind: { not: 'retainer' } },
+    // A cancelled project's plan is owed no more (`cancelProject`).
+    where: { userId, status: { notIn: ['settled', 'cancelled'] }, kind: { not: 'retainer' } },
     select: {
       monthsTotal: true,
       monthsPaid: true,
