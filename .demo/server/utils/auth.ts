@@ -3,6 +3,7 @@ import type { H3Event } from 'h3'
 import { useRuntimeConfig } from '#imports'
 import { createError, deleteCookie, getCookie, getRequestHeader, setCookie } from 'h3'
 import jwt from 'jsonwebtoken'
+import { actorOf, log, setLogActor } from './logger'
 import prisma from './prisma'
 
 /**
@@ -69,7 +70,7 @@ let warnedWeakSecret = false
 function jwtSecret(event: H3Event): string {
   const secret = useRuntimeConfig(event).jwtSecret || 'secret'
   if (secret === 'secret' && !import.meta.dev && !warnedWeakSecret) {
-    console.warn('[auth] SECURITY: production is running on the fallback JWT secret — set NUXT_JWT_SECRET')
+    log('security').error('security.jwt.fallback-secret', 'Production is running on the fallback JWT secret; set NUXT_JWT_SECRET')
     warnedWeakSecret = true
   }
   return secret
@@ -144,6 +145,7 @@ export function requireAuth(event: H3Event): AuthSession {
   if (!session) {
     throw createError({ statusCode: 401, statusMessage: 'Unauthorized', message: 'Authentication required' })
   }
+  setLogActor(event, actorOf(session))
   return session
 }
 
@@ -172,9 +174,11 @@ export async function requireRole(event: H3Event, ...roles: Role[]): Promise<Aut
    * states what was true when it was issued.
    */
   if (user.status === 'SUSPENDED') {
+    log('authz').warn('authz.suspended', 'A suspended account was refused', { outcome: 'denied' })
     throw createError({ statusCode: 403, statusMessage: 'Forbidden', message: 'This account has been suspended.' })
   }
   if (!roles.includes(user.role)) {
+    log('authz').warn('authz.role-denied', `Role ${user.role} is not one of ${roles.join(', ')}`, { outcome: 'denied', data: { role: user.role, required: roles } })
     throw createError({ statusCode: 403, statusMessage: 'Forbidden', message: 'Insufficient permissions' })
   }
   return { ...session, role: user.role }
@@ -188,6 +192,7 @@ export async function requireRole(event: H3Event, ...roles: Role[]): Promise<Aut
 export async function requireAdmin(event: H3Event): Promise<AuthSession> {
   const session = await requireRole(event, 'ADMIN')
   if (session.kind !== 'staff') {
+    log('authz').warn('authz.staff-session-required', 'An admin account used a customer session on the admin API', { outcome: 'denied' })
     throw createError({ statusCode: 401, statusMessage: 'Unauthorized', message: 'Sign in through the staff sign-in to use the admin console.', data: { signIn: '/admin/sign-in' } })
   }
   return session
@@ -216,6 +221,9 @@ export async function startSession(event: H3Event, user: { id: string, email: st
     { expiresIn: ttl },
   )
   setAuthCookie(event, token, kind)
+  const actor = actorOf({ id: user.id, role: user.role, kind })
+  setLogActor(event, actor)
+  log('auth').info('auth.session.started', `${kind === 'staff' ? 'Staff' : 'Customer'} session started`, { outcome: 'success', actor, data: { sessionId: row.id, kind, ttlSeconds: ttl } })
   return row.id
 }
 
@@ -226,6 +234,7 @@ export async function endSession(event: H3Event): Promise<void> {
     await prisma.session.updateMany({ where: { id: claims.sid, revokedAt: null }, data: { revokedAt: new Date() } })
   }
   clearAuthCookie(event)
+  log('auth').info('auth.session.ended', claims ? 'Signed out' : 'Sign-out without a session', { outcome: claims ? 'success' : 'skipped', ...(claims ? { actor: actorOf(claims) } : {}), data: { sessionId: claims?.sid ?? null } })
 }
 
 /**

@@ -1,6 +1,7 @@
 import { createError, defineEventHandler, getRouterParam } from 'h3'
 import { z } from 'zod'
 import { requireAuth } from '../../../utils/auth'
+import { logActivity } from '../../../utils/logger'
 import prisma from '../../../utils/prisma'
 import { unclaimedBy } from '../../../utils/uploads'
 import { validateBody } from '../../../utils/validate'
@@ -38,5 +39,6 @@ export default defineEventHandler(async (event) => {
       link: `/admin/projects/${project.id}`,
     })
   }
+  logActivity('customer.order.files-added', 'Customer added files to an order', { projectId: project.id, count: linked.count })
   return { ok: true, count: linked.count }
 })

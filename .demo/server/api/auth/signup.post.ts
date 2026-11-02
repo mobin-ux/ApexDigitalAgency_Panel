@@ -1,11 +1,14 @@
 import bcrypt from 'bcryptjs'
 import { createError, defineEventHandler } from 'h3'
 import { z } from 'zod'
+import { PASSWORD_MIN } from '../../../shared/password'
 import { startSession } from '../../utils/auth'
 import { identifierWhere, parseIdentifier } from '../../utils/identifier'
+import { log } from '../../utils/logger'
 import { queueVerificationMail } from '../../utils/mail/flows'
 import { deliverNow } from '../../utils/mail/outbox'
 import prisma from '../../utils/prisma'
+import { rateLimit, RateLimits } from '../../utils/ratelimit'
 import { validateBody } from '../../utils/validate'
 
 /**
@@ -24,7 +27,7 @@ const bodySchema = z
     // `identifier` is the new field; `email` is accepted for older callers.
     identifier: z.string().trim().min(1).max(200).optional(),
     email: z.string().trim().max(200).optional(),
-    password: z.string().min(8, 'Password must be at least 8 characters'),
+    password: z.string().min(PASSWORD_MIN, `Use at least ${PASSWORD_MIN} characters`).max(200),
     firstName: z.string().trim().max(100).optional(),
     lastName: z.string().trim().max(100).optional(),
     name: z.string().trim().max(200).optional(),
@@ -35,7 +38,10 @@ const bodySchema = z
   })
 
 export default defineEventHandler(async (event) => {
-  // No rate limit on registration — new users can sign up immediately.
+  // A generous per-address budget: a real person signs up at once, but each
+  // signup can send a verification email to any address typed, so an
+  // unlimited endpoint is a way to mail strangers and fill the user table.
+  rateLimit(event, RateLimits.signup)
   const body = await validateBody(event, bodySchema)
 
   const parsed = parseIdentifier(body.identifier ?? body.email ?? '')
@@ -83,9 +89,10 @@ export default defineEventHandler(async (event) => {
       void deliverNow([id])
     }
     catch (error) {
-      console.error('[signup] could not queue the verification email', (error as Error).message)
+      log('mail').error('mail.verification.queue-failed', 'Could not queue the verification email', { outcome: 'failure', error })
     }
   }
 
+  log('auth').info('auth.signup', `New customer account by ${parsed.kind}`, { outcome: 'success', data: { userId: newUser.id, identifierKind: parsed.kind } })
   return { status: 'success', user: newUser }
 })

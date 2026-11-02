@@ -354,6 +354,32 @@ Real money infrastructure, provider-agnostic by construction.
   in the caller's transaction. A link that cannot be built becomes a FAILED
   row with the reason rather than an exception.
 
+## 12. Platform log (2026-11-02, `feature/platform-hardening`)
+
+`web/shared/log.ts` (the panel re-exports it as `shared/log.ts`) is the one log
+for both apps; `web/shared/redact.ts` decides what a line may never carry.
+`ADMIN_CONSOLE.md` › Logging is the reference.
+
+- **Request scope.** `server/plugins/00.logging.ts` (one per app) gives each
+  request an id (`X-Request-Id`, also in an API error's `data.requestId`),
+  writes one `http.request` line when it ends, and `http.exception` with the
+  stack for a fault. Nitro's `asyncContext` makes the request reachable from
+  any code serving it, so a line written deep in a utility carries the
+  request id and the actor without being handed the event.
+- **Database.** `server/utils/prisma.ts` wraps the client in a query
+  extension: every write is a `db.<operation>` line, slow reads are
+  `db.slow`, failures `db.error`, and each query adds to the request's
+  counters. The exported type is still `PrismaClient` (a cast), so no caller
+  changed.
+- **Guards and audit.** `requireAuth` and `requireStaffPermission` set the
+  actor (with the staff role) and log refusals (`authz.*`); `recordAudit()`
+  also writes `audit.<action>`; sessions log `auth.session.*`; customer
+  actions log `customer.*`; scheduled tasks go through `runLoggedTask()`.
+- **Sinks.** stdout (JSON in production) and a file per app per UTC day in
+  `NUXT_LOG_DIR`, pruned nightly by `logs:prune`. System › Logs
+  (`/admin/logs`, `platform.settings`) and `scripts/log-report.mjs` read it.
+- `GET /api/health` checks the process and the database.
+
 ## 11. Known issues (technical detail)
 
 - ~~**Hydration mismatches**~~ fixed 2026-08-18 (V2 Phase 1). Both causes were in

@@ -4,6 +4,7 @@ import type { AuthSession } from './auth'
 import { createError } from 'h3'
 import { can, DEFAULT_STAFF_ROLE, isStaffRole, ROLES, rolesWith } from '../../shared/permissions'
 import { requireAdmin } from './auth'
+import { actorOf, log, setLogActor } from './logger'
 import prisma from './prisma'
 
 /**
@@ -44,8 +45,10 @@ export async function staffRoleOf(userId: string): Promise<StaffRole> {
 export async function requireStaffPermission(event: H3Event, permission: Permission): Promise<StaffSession> {
   const session = await requireAdmin(event)
   const staffRole = await staffRoleOf(session.id)
+  setLogActor(event, { ...actorOf(session), staffRole })
 
   if (!can(staffRole, permission)) {
+    log('authz').warn('authz.denied', `${staffRole} lacks ${permission}`, { outcome: 'denied', data: { permission, staffRole } })
     const labels = rolesWith(permission).map(r => r.label)
     // "Owner", "Owner or Admin", "Owner, Admin or Finance" — a bare join
     // gave "Owner or Admin or Finance" once three roles held a permission.
@@ -66,5 +69,7 @@ export async function requireStaffPermission(event: H3Event, permission: Permiss
 /** Admin-panel access with the staff role resolved, but no permission gate. */
 export async function requireStaff(event: H3Event): Promise<StaffSession> {
   const session = await requireAdmin(event)
-  return { ...session, staffRole: await staffRoleOf(session.id) }
+  const staffRole = await staffRoleOf(session.id)
+  setLogActor(event, { ...actorOf(session), staffRole })
+  return { ...session, staffRole }
 }

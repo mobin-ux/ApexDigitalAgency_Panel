@@ -61,6 +61,18 @@ export default defineNuxtConfig({
   // ---------------------------------------------------------------------------
   runtimeConfig: {
     /**
+     * The platform log (shared/log.ts): one JSON-lines file per day in
+     * `dir` (NUXT_LOG_DIR; default .data/logs), at `level` and above
+     * (NUXT_LOG_LEVEL; info, debug in development), files older than
+     * `retentionDays` deleted daily (NUXT_LOG_RETENTION_DAYS).
+     */
+    log: {
+      dir: '',
+      level: '',
+      retentionDays: 30,
+      slowRequestMs: 1500,
+    },
+    /**
      * Where contact-form messages go (server-only; NUXT_CONTACT_* variables).
      * Until all three are set, POST /api/contact answers 503 and the form
      * offers the visitor's own email instead of claiming it sent anything.
@@ -170,8 +182,10 @@ export default defineNuxtConfig({
       cms: { driver: 'fs', base: './.data/cms' },
     },
     // Visit totals go to the console once a minute (ADR-026, phase F).
-    experimental: { tasks: true },
-    scheduledTasks: { '* * * * *': ['visits:flush'] },
+    // asyncContext lets the platform log find the request being served
+    // (server/plugins/00.logging.ts); old log files are pruned daily.
+    experimental: { tasks: true, asyncContext: true },
+    scheduledTasks: { '* * * * *': ['visits:flush'], '43 3 * * *': ['logs:prune'] },
   },
 
   // ---------------------------------------------------------------------------

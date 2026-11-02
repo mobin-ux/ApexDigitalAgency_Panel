@@ -460,3 +460,22 @@ and every environment variable are in `ADMIN_CONSOLE.md`, under
 Once the secret pair is set, the contact form works even with the
 `NUXT_CONTACT_*` email keys empty. A message is stored in the console,
 which counts as delivered.
+
+## 14. Platform log (`feature/platform-hardening`) — what a deploy needs
+
+Not deployed. No schema change. Both apps write their log to stdout (journald
+keeps it, as before) and to a file per day:
+
+1. On the box: `mkdir -p /opt/apex/logs /opt/apex-web/logs` and
+   `chown apex:apex` both.
+2. Panel `/opt/apex/.env.production`: `NUXT_LOG_DIR=/opt/apex/logs` and
+   `NUXT_LOG_SITE_DIR=/opt/apex-web/logs` (so System › Logs shows the site's
+   lines too). Site `/opt/apex-web/.env`: `NUXT_LOG_DIR=/opt/apex-web/logs`.
+   Optional: `NUXT_LOG_LEVEL`, `NUXT_LOG_RETENTION_DAYS` (30). Unset, each
+   app writes `.data/logs` beside its process.
+3. Ship the panel, then the site, as usual. Check that `GET /api/health`
+   answers `{ status: 'ok', db: 'ok' }` and that a file appears in each
+   directory.
+4. Password rules tightened (12 characters wherever a password is set;
+   sign-in still accepts older, shorter passwords), and sign-up and password
+   change are rate-limited. Nothing to configure.

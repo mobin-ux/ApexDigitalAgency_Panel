@@ -1,6 +1,7 @@
 import { createError, defineEventHandler } from 'h3'
 import { z } from 'zod'
 import { requireAuth } from '../../utils/auth'
+import { logActivity } from '../../utils/logger'
 import prisma from '../../utils/prisma'
 import { validateBody } from '../../utils/validate'
 
@@ -52,5 +53,6 @@ export default defineEventHandler(async (event) => {
     })
   })
 
+  logActivity('customer.order.paid-in-full', 'Customer paid an order in full from the wallet', { projectId })
   return { status: 'success', message: 'Project paid and activated!' }
 })

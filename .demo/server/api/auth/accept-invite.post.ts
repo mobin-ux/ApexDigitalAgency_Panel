@@ -1,6 +1,7 @@
 import bcrypt from 'bcryptjs'
 import { createError, defineEventHandler } from 'h3'
 import { z } from 'zod'
+import { PASSWORD_MIN } from '../../../shared/password'
 import { isStaffRole } from '../../../shared/permissions'
 import { recordAudit } from '../../utils/audit'
 import prisma from '../../utils/prisma'
@@ -22,7 +23,7 @@ import { validateBody } from '../../utils/validate'
 
 const bodySchema = z.object({
   token: z.string().trim().min(16).max(200),
-  password: z.string().min(10, 'Password must be at least 10 characters').max(200),
+  password: z.string().min(PASSWORD_MIN, `Use at least ${PASSWORD_MIN} characters`).max(200),
 })
 
 export default defineEventHandler(async (event) => {

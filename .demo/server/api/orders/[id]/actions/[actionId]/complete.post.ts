@@ -1,5 +1,6 @@
 import { createError, defineEventHandler, getRouterParam } from 'h3'
 import { requireAuth } from '../../../../../utils/auth'
+import { logActivity } from '../../../../../utils/logger'
 import prisma from '../../../../../utils/prisma'
 
 /**
@@ -39,5 +40,6 @@ export default defineEventHandler(async (event) => {
       link: `/admin/projects/${projectId}`,
     })
   }
+  logActivity('customer.order.action-completed', 'Customer answered a request from the team', { actionId: action.id })
   return { ok: true, doneLine: action.doneLine }
 })

@@ -1,6 +1,7 @@
 import { createError, defineEventHandler, getRouterParam } from 'h3'
 import { requireAuth } from '../../../../utils/auth'
 import { chargeInstallment, validationErrorFromCharge } from '../../../../utils/finance'
+import { logActivity } from '../../../../utils/logger'
 import prisma from '../../../../utils/prisma'
 
 /**
@@ -28,5 +29,6 @@ export default defineEventHandler(async (event) => {
   }
 
   const updated = await prisma.installment.findUnique({ where: { id } })
+  logActivity('customer.installment.paid', 'Customer paid an instalment', { planId: updated?.id ?? null, charged: result.charged, settled: result.settled })
   return { status: 'success', charged: result.charged, settled: result.settled, plan: updated }
 })

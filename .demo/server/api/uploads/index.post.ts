@@ -1,5 +1,6 @@
 import { createError, defineEventHandler, readMultipartFormData } from 'h3'
 import { requireAuth } from '../../utils/auth'
+import { logActivity } from '../../utils/logger'
 import { rateLimit, RateLimits } from '../../utils/ratelimit'
 import { MAX_FILES_PER_REQUEST, storeUpload } from '../../utils/uploads'
 
@@ -26,5 +27,6 @@ export default defineEventHandler(async (event) => {
   for (const file of files) {
     stored.push(await storeUpload(session.id, file))
   }
+  logActivity('customer.upload.stored', `Stored ${stored.length} upload${stored.length === 1 ? '' : 's'}`, { ids: stored.map(f => f.id), bytes: stored.reduce((n, f) => n + f.size, 0), types: stored.map(f => f.mime) })
   return { files: stored }
 })

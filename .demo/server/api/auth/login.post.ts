@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { recordAudit } from '../../utils/audit'
 import { signTwoFactorTicket, startSession } from '../../utils/auth'
 import { identifierWhere, parseIdentifier } from '../../utils/identifier'
+import { log } from '../../utils/logger'
 import prisma from '../../utils/prisma'
 import { clientIp, rateLimit, RateLimits } from '../../utils/ratelimit'
 import { validateBody } from '../../utils/validate'
@@ -64,6 +65,7 @@ export default defineEventHandler(async (event) => {
   // Suspension check only after the password is verified, so this error
   // can't be used to probe which identifiers have accounts.
   if (user.status === 'SUSPENDED') {
+    log('auth').warn('auth.login.suspended', 'A suspended account entered the right password', { outcome: 'denied', data: { userId: user.id } })
     throw createError({ statusCode: 403, message: 'This account has been suspended. Contact support for assistance.' })
   }
 
@@ -72,11 +74,13 @@ export default defineEventHandler(async (event) => {
   // was right, like suspension, so it cannot tell a prober which addresses
   // belong to staff.
   if (user.role === 'ADMIN') {
+    log('auth').warn('auth.login.staff-at-customer-sign-in', 'A staff account used the customer sign-in', { outcome: 'denied', data: { userId: user.id } })
     throw createError({ statusCode: 403, message: 'Staff accounts sign in at /admin/sign-in.', data: { signIn: '/admin/sign-in' } })
   }
 
   const twoFactor = await prisma.twoFactor.findUnique({ where: { userId: user.id }, select: { enabledAt: true } })
   if (twoFactor?.enabledAt) {
+    log('auth').info('auth.login.second-step', 'Password accepted; waiting for the two-step code', { outcome: 'success', data: { userId: user.id } })
     return { status: 'two_factor', ticket: signTwoFactorTicket(event, user.id) }
   }
 

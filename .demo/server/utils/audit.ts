@@ -1,6 +1,7 @@
 import type { H3Event } from 'h3'
 import type { AuthSession } from './auth'
 import { getRequestIP } from 'h3'
+import { auditCategory, writeLog } from './logger'
 import prisma from './prisma'
 
 /**
@@ -48,6 +49,30 @@ export interface AuditEntry {
 export type AuditActor = (AuthSession | { id: string, email: string }) & { staffRole?: string }
 
 export async function recordAudit(event: H3Event, actor: AuditActor, entry: AuditEntry): Promise<void> {
+  // Every entry is also an `audit.<action>` line in the platform log, with
+  // the target and the role held. The metadata stays in the audit table; the
+  // log line carries only the names of its keys.
+  const failed = /\.(?:fail|failed|denied|refused|locked)\b/.test(entry.action)
+  const role = 'role' in actor ? actor.role : undefined
+  writeLog({
+    level: failed ? 'warn' : 'info',
+    category: auditCategory(entry.action),
+    event: `audit.${entry.action}`,
+    message: `${entry.action} on ${entry.targetType}${entry.targetId ? ` ${entry.targetId}` : ''}`,
+    outcome: failed ? 'failure' : 'success',
+    actor: {
+      id: actor.id,
+      kind: role === 'ADMIN' ? 'staff' : role ? 'customer' : 'anonymous',
+      ...(role ? { role } : {}),
+      ...(actor.staffRole ? { staffRole: actor.staffRole } : {}),
+    },
+    data: {
+      targetType: entry.targetType,
+      targetId: entry.targetId,
+      reasonGiven: Boolean(entry.reason?.trim()),
+      ...(entry.metadata && typeof entry.metadata === 'object' ? { metadataKeys: Object.keys(entry.metadata as object) } : {}),
+    },
+  })
   try {
     await prisma.auditLog.create({
       data: {
@@ -72,6 +97,6 @@ export async function recordAudit(event: H3Event, actor: AuditActor, entry: Audi
     })
   }
   catch (error) {
-    console.error(`[audit] failed to record "${entry.action}"`, error)
+    writeLog({ level: 'error', category: 'system', event: 'audit.write-failed', message: `Could not record audit entry "${entry.action}"`, outcome: 'failure', error, stack: true })
   }
 }

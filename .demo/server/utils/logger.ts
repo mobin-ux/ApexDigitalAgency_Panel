@@ -1,90 +1,61 @@
-import process from 'node:process'
+import type { H3Event } from 'h3'
+import type { LogActor, LogCategory, LogLevel, LogOutcome } from '../../shared/log'
+import type { AuthSession } from './auth'
+import { log, writeLog } from '../../shared/log'
+import { redact } from '../../shared/redact'
 
 /**
- * Structured logging for the server side.
+ * The panel's side of the platform log (`shared/log.ts`). The record shape,
+ * the redaction rules, the sinks and the request scope live there; this
+ * file adds what only the panel knows: who a session is, how the audit
+ * trail maps onto categories, and the older `createLogger(scope)` API that
+ * the payment rails and the mail outbox were written against.
  *
- * Payment code logs a lot and payment logs are exactly where PANs, CVVs and
- * API secrets leak in real incidents. `redact()` is defence in depth: card
- * data should never reach us at all (PCI SAQ-A, ADR-015 §8), but if a
- * provider ever echoes something sensitive in an error body, it must not
- * land in a log aggregator.
- *
- * Output is one JSON object per line in production (parseable by any log
- * pipeline) and a readable line in dev.
+ * Use `log('<category>').info('<event>', '<message>', { outcome, data })`
+ * for new code. The request id and the actor are filled in from the request
+ * being served (plugins/00.logging.ts), so a call deep in a utility still
+ * says which request and which person it belonged to.
  */
 
-export type LogLevel = 'debug' | 'info' | 'warn' | 'error'
+export { log, logTimed, writeLog } from '../../shared/log'
+export { redact }
 
-const LEVEL_ORDER: Record<LogLevel, number> = { debug: 10, info: 20, warn: 30, error: 40 }
-const MIN_LEVEL: LogLevel = (process.env.LOG_LEVEL as LogLevel) || (import.meta.dev ? 'debug' : 'info')
+export type { LogLevel }
 
-/** Keys whose values are replaced wholesale, whatever they contain. */
-const SECRET_KEYS = /^(?:password|secret|token|authorization|api[_-]?key|client[_-]?secret|signature|cvc|cvv|card[_-]?number|pan|iban|account[_-]?number|sort[_-]?code)$/i
-
-/** 13–19 digits with optional spaces/dashes — a card number shape. */
-const PAN_LIKE = /\b(?:\d[ -]?){13,19}\b/g
-
-function redactString(value: string): string {
-  return value.replace(PAN_LIKE, (match) => {
-    const digits = match.replace(/\D/g, '')
-    // Luhn check keeps ordinary long numbers (ids, timestamps) readable.
-    return luhn(digits) ? `[redacted-pan:${digits.slice(-4)}]` : match
-  })
+/** The actor a session describes, as the log records it (no email, no name). */
+export function actorOf(session: Pick<AuthSession, 'id' | 'role'> & { kind?: string, staffRole?: string | null } | null | undefined): LogActor {
+  if (!session) {
+    return { kind: 'anonymous' }
+  }
+  const staff = session.kind === 'staff'
+  return {
+    id: session.id,
+    kind: staff ? 'staff' : 'customer',
+    role: session.role,
+    ...(session.staffRole ? { staffRole: session.staffRole } : {}),
+  }
 }
 
-function luhn(digits: string): boolean {
-  if (digits.length < 13) {
-    return false
+/** Sets the actor for the rest of the request, once a route has identified who is asking. */
+export function setLogActor(event: H3Event, actor: LogActor): void {
+  const scope = event.context.$log as { actor?: LogActor } | undefined
+  if (scope) {
+    scope.actor = actor
   }
-  let sum = 0
-  let double = false
-  for (let i = digits.length - 1; i >= 0; i--) {
-    let d = digits.charCodeAt(i) - 48
-    if (double) {
-      d *= 2
-      if (d > 9) {
-        d -= 9
-      }
-    }
-    sum += d
-    double = !double
-  }
-  return sum % 10 === 0
 }
 
-export function redact(input: unknown, depth = 0): unknown {
-  if (depth > 6) {
-    return '[depth-limit]'
-  }
-  if (typeof input === 'string') {
-    return redactString(input)
-  }
-  if (Array.isArray(input)) {
-    return input.map(v => redact(v, depth + 1))
-  }
-  if (input && typeof input === 'object') {
-    const out: Record<string, unknown> = {}
-    for (const [key, value] of Object.entries(input as Record<string, unknown>)) {
-      out[key] = SECRET_KEYS.test(key) ? '[redacted]' : redact(value, depth + 1)
-    }
-    return out
-  }
-  return input
-}
+const SCOPE_CATEGORY: [RegExp, LogCategory][] = [
+  [/^payments?\b/, 'payment'],
+  [/^webhook/, 'payment'],
+  [/^mail\b/, 'mail'],
+  [/^audit\b/, 'admin'],
+  [/^auth\b/, 'auth'],
+  [/^(?:crypto|ratelimit|security)\b/, 'security'],
+  [/^(?:task|cron)\b/, 'task'],
+]
 
-function emit(level: LogLevel, scope: string, message: string, context?: Record<string, unknown>) {
-  if (LEVEL_ORDER[level] < LEVEL_ORDER[MIN_LEVEL]) {
-    return
-  }
-  const safe = context ? (redact(context) as Record<string, unknown>) : undefined
-  if (import.meta.dev) {
-    // eslint-disable-next-line no-console
-    console[level === 'debug' ? 'log' : level](`[${scope}] ${message}`, safe ?? '')
-    return
-  }
-  const line = JSON.stringify({ ts: new Date().toISOString(), level, scope, message, ...safe })
-  // eslint-disable-next-line no-console
-  console[level === 'debug' ? 'log' : level](line)
+function categoryOf(scope: string): LogCategory {
+  return SCOPE_CATEGORY.find(([re]) => re.test(scope))?.[1] ?? 'system'
 }
 
 export interface Logger {
@@ -95,13 +66,54 @@ export interface Logger {
   child: (childScope: string) => Logger
 }
 
-/** `const log = createLogger('payments:stripe')` */
+/**
+ * `const log = createLogger('payments:stripe')`. Each line's event is the
+ * scope with dots (`payments.stripe`), its category is derived from the
+ * scope, and an `error` key in the context is recorded as the error.
+ */
 export function createLogger(scope: string): Logger {
+  const category = categoryOf(scope)
+  const event = scope.replace(/:/g, '.')
+  const at = (level: LogLevel) => (message: string, context?: Record<string, unknown>) => {
+    const { error, outcome, ...data } = context ?? {}
+    writeLog({
+      level,
+      category,
+      event,
+      message,
+      ...(typeof outcome === 'string' ? { outcome: outcome as LogOutcome } : level === 'error' ? { outcome: 'failure' as const } : {}),
+      ...(error === undefined ? {} : { error: typeof error === 'string' ? new Error(error) : error, stack: level === 'error' && typeof error !== 'string' }),
+      data,
+    })
+  }
   return {
-    debug: (m, c) => emit('debug', scope, m, c),
-    info: (m, c) => emit('info', scope, m, c),
-    warn: (m, c) => emit('warn', scope, m, c),
-    error: (m, c) => emit('error', scope, m, c),
+    debug: at('debug'),
+    info: at('info'),
+    warn: at('warn'),
+    error: at('error'),
     child: (childScope: string) => createLogger(`${scope}:${childScope}`),
   }
+}
+
+/** The category an audited action belongs to, by its prefix. */
+export function auditCategory(action: string): LogCategory {
+  if (action.startsWith('auth.') || action.startsWith('admin.auth.') || action.includes('.two-factor')) {
+    return 'auth'
+  }
+  if (action.startsWith('admin.website.')) {
+    return 'content'
+  }
+  if (action.startsWith('admin.') || action.startsWith('system.')) {
+    return 'admin'
+  }
+  return 'customer'
+}
+
+/**
+ * A customer's own action, beside the request line: what they did, to which
+ * record, and how it went. `data` carries ids, amounts and states, never
+ * the words they typed.
+ */
+export function logActivity(eventName: string, message: string, data?: Record<string, unknown>, outcome: LogOutcome = 'success'): void {
+  log('customer').info(eventName, message, { outcome, data })
 }

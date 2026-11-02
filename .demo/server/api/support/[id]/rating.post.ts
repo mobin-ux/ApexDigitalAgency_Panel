@@ -1,6 +1,7 @@
 import { createError, defineEventHandler, getRouterParam } from 'h3'
 import { z } from 'zod'
 import { requireAuth } from '../../../utils/auth'
+import { logActivity } from '../../../utils/logger'
 import prisma from '../../../utils/prisma'
 import { rateLimit, RateLimits } from '../../../utils/ratelimit'
 import { validateBody } from '../../../utils/validate'
@@ -37,5 +38,6 @@ export default defineEventHandler(async (event) => {
   if (!claimed.count) {
     throw createError({ statusCode: 409, message: 'You have already rated this request.' })
   }
+  logActivity('customer.support.rated', 'Customer rated a request', { ticketId: id, rating })
   return { rating }
 })

@@ -4,16 +4,48 @@
     {
       "name": "demo",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["demo:dev"],
+      "runtimeArgs": [
+        "demo:dev"
+      ],
       "port": 3000,
       "autoPort": true
     },
     {
       "name": "web",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["web:dev"],
+      "runtimeArgs": [
+        "web:dev"
+      ],
       "port": 3000,
       "autoPort": true
+    },
+    {
+      "name": "demo-pair",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": [
+        "demo:dev"
+      ],
+      "port": 3010,
+      "autoPort": false,
+      "env": {
+        "PORT": "3010",
+        "NUXT_WEBSITE_SITE_URL": "http://localhost:3011",
+        "NUXT_WEBSITE_PUBLIC_URL": "http://localhost:3011"
+      }
+    },
+    {
+      "name": "web-pair",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": [
+        "web:dev"
+      ],
+      "port": 3011,
+      "autoPort": false,
+      "env": {
+        "PORT": "3011",
+        "NUXT_CMS_URL": "http://localhost:3010",
+        "CMS_PANEL_ORIGINS": "http://localhost:3010"
+      }
     }
   ]
 }

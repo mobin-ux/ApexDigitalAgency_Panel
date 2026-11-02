@@ -117,6 +117,8 @@ const ROUTES: Route[] = [
   { method: 'POST', path: `/api/admin/website/enquiries/${MISSING}/notes`, needs: ['leads.handle'] },
   { method: 'POST', path: `/api/admin/website/enquiries/${MISSING}/convert`, needs: ['leads.handle', 'clients.approve'] },
   { method: 'GET', path: '/api/admin/website/analytics', needs: ['analytics.view'] },
+  { method: 'GET', path: '/api/admin/logs', needs: ['platform.settings'] },
+  { method: 'GET', path: '/api/admin/logs/summary', needs: ['platform.settings'] },
   // System
   { method: 'GET', path: '/api/admin/settings', needs: ['platform.settings'] },
   { method: 'PUT', path: '/api/admin/settings', needs: ['platform.settings'] },
