@@ -37,11 +37,36 @@ const { ask } = useAdminConfirm()
 const { can } = useStaffAccess()
 const canMedia = computed(() => can('website.media'))
 
+// A page of files at a time, with Show more below the grid: the screen used
+// to ask for the first 100 and had no way to reach the 101st (AUD-13).
+const PAGE_SIZE = 60
 const filter = ref<Filter>('all')
-const { data, error, refresh } = await useFetch<{ items: MediaItem[], counts: Record<Filter, number> }>('/api/admin/website/media', {
-  query: computed(() => ({ filter: filter.value, pageSize: 100 })),
+const page = ref(1)
+const { data, error, refresh } = await useFetch<{ items: MediaItem[], counts: Record<Filter, number>, total: number, page: number }>('/api/admin/website/media', {
+  query: computed(() => ({ filter: filter.value, pageSize: PAGE_SIZE, page: page.value })),
   key: 'website-media',
 })
+watch(filter, () => {
+  page.value = 1
+})
+const loaded = ref<MediaItem[]>([])
+watch(data, (d) => {
+  if (!d) {
+    return
+  }
+  const seen = new Set(d.page === 1 ? [] : loaded.value.map(m => m.id))
+  loaded.value = d.page === 1 ? d.items : [...loaded.value, ...d.items.filter(m => !seen.has(m.id))]
+}, { immediate: true })
+const more = computed(() => (data.value?.total ?? 0) - loaded.value.length)
+/** After an upload, a delete or an edit: the list from the top again. */
+async function reload() {
+  if (page.value === 1) {
+    await refresh()
+  }
+  else {
+    page.value = 1
+  }
+}
 const FILTERS: { key: Filter, label: string }[] = [
   { key: 'all', label: 'All' },
   { key: 'image', label: 'Images' },
@@ -51,7 +76,7 @@ const FILTERS: { key: Filter, label: string }[] = [
 ]
 
 const selId = ref<string | null>(null)
-const sel = computed(() => data.value?.items.find(m => m.id === selId.value) ?? data.value?.items[0] ?? null)
+const sel = computed(() => loaded.value.find(m => m.id === selId.value) ?? loaded.value[0] ?? null)
 const alt = ref('')
 watch(sel, m => (alt.value = m?.alt ?? ''), { immediate: true })
 const altDirty = computed(() => Boolean(sel.value) && alt.value.trim() !== sel.value!.alt)
@@ -83,7 +108,7 @@ async function upload(event: Event) {
   try {
     const result = await $fetch<{ files: { id: string, name: string }[] }>('/api/admin/website/media', { method: 'POST', body })
     filter.value = 'all'
-    await refresh()
+    await reload()
     selId.value = result.files[0]?.id ?? null
     toaster.add({ title: result.files.length === 1 ? 'Uploaded' : `${result.files.length} files uploaded`, description: 'Add alt text before using an image on a page.', icon: 'lucide:check', progress: true })
   }
@@ -102,7 +127,7 @@ async function saveAlt() {
   busy.value = true
   try {
     await $fetch(`/api/admin/website/media/${sel.value.id}`, { method: 'PATCH', body: { alt: alt.value.trim() } })
-    await refresh()
+    await reload()
     toaster.add({ title: 'Alt text saved', description: 'Pages using this image read it out from now on.', icon: 'lucide:check', progress: true })
   }
   catch (err) {
@@ -139,7 +164,7 @@ async function remove() {
   try {
     await $fetch(`/api/admin/website/media/${m.id}`, { method: 'DELETE' })
     selId.value = null
-    await refresh()
+    await reload()
     toaster.add({ title: 'File deleted', description: m.name, icon: 'lucide:check', progress: true })
   }
   catch (err) {
@@ -186,27 +211,35 @@ const PILL = 'apex-ring inline-flex h-8 cursor-pointer items-center gap-[7px] wh
       </AdminButton>
     </AdminEmptyState>
     <div v-else class="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_330px]">
-      <p v-if="data && !data.items.length" class="text-fg-muted text-[13.5px]">
+      <p v-if="data && !loaded.length" class="text-fg-muted text-[13.5px]">
         Nothing matches this filter.
       </p>
-      <div v-else class="grid grid-cols-2 gap-3.5 md:grid-cols-3 2xl:grid-cols-4">
-        <button
-          v-for="m in data?.items ?? []" :key="m.id" type="button" :aria-pressed="sel?.id === m.id"
-          class="apex-ring bg-card flex flex-col overflow-hidden rounded-[14px] text-start"
-          :class="sel?.id === m.id ? 'border-accent border-2' : 'border-line-subtle border'"
-          @click="selId = m.id"
-        >
-          <span class="bg-raised border-line-subtle relative flex aspect-[4/3] items-center justify-center overflow-hidden border-b">
-            <span v-if="!m.stored" class="text-st-danger-fg px-2 text-center text-xs font-semibold">File missing</span>
-            <img v-else-if="m.kind === 'image'" :src="m.src" alt="" loading="lazy" class="size-full object-cover">
-            <span v-else class="bg-card text-fg-muted rounded-md px-2 py-1 text-xs font-bold tracking-[0.06em]">{{ ext(m.name) }}</span>
-            <AdminStatusChip v-if="m.kind === 'image' && !m.alt" tone="warning" label="No alt text" class="absolute end-2 top-2" />
-          </span>
-          <span class="flex flex-col gap-0.5 px-3 py-2.5">
-            <span class="text-fg-heading truncate text-[13px] font-semibold">{{ m.name }}</span>
-            <span class="text-fg-muted text-xs tabular-nums">{{ meta(m) }}</span>
-          </span>
-        </button>
+      <div v-else class="flex flex-col gap-4">
+        <div class="grid grid-cols-2 gap-3.5 md:grid-cols-3 2xl:grid-cols-4">
+          <button
+            v-for="m in loaded" :key="m.id" type="button" :aria-pressed="sel?.id === m.id"
+            class="apex-ring bg-card flex flex-col overflow-hidden rounded-[14px] text-start"
+            :class="sel?.id === m.id ? 'border-accent border-2' : 'border-line-subtle border'"
+            @click="selId = m.id"
+          >
+            <span class="bg-raised border-line-subtle relative flex aspect-[4/3] items-center justify-center overflow-hidden border-b">
+              <span v-if="!m.stored" class="text-st-danger-fg px-2 text-center text-xs font-semibold">File missing</span>
+              <img v-else-if="m.kind === 'image'" :src="m.src" alt="" loading="lazy" class="size-full object-cover">
+              <span v-else class="bg-card text-fg-muted rounded-md px-2 py-1 text-xs font-bold tracking-[0.06em]">{{ ext(m.name) }}</span>
+              <AdminStatusChip v-if="m.kind === 'image' && !m.alt" tone="warning" label="No alt text" class="absolute end-2 top-2" />
+            </span>
+            <span class="flex flex-col gap-0.5 px-3 py-2.5">
+              <span class="text-fg-heading truncate text-[13px] font-semibold">{{ m.name }}</span>
+              <span class="text-fg-muted text-xs tabular-nums">{{ meta(m) }}</span>
+            </span>
+          </button>
+        </div>
+        <div v-if="more > 0" class="flex flex-wrap items-center gap-3">
+          <AdminButton variant="light" @click="page++">
+            Show {{ Math.min(more, PAGE_SIZE) }} more
+          </AdminButton>
+          <span class="text-fg-muted text-[13px] tabular-nums">Showing {{ loaded.length }} of {{ data?.total }}</span>
+        </div>
       </div>
 
       <section v-if="sel" class="bg-card border-line-subtle flex flex-col gap-4 rounded-2xl border p-5 xl:sticky xl:top-[88px]" aria-label="Selected file">

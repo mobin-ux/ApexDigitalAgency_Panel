@@ -85,8 +85,8 @@ describe('public site', { skip: !SITE && 'SITE_TEST_URL is not set' }, () => {
     assert.equal((await site('/api/hit')).status, 405, 'GET is not allowed')
   })
 
-  // Known issue, kept visible rather than fixed (docs/audit/ISSUES-2026-11-02.md, AUD-12).
-  it('the visit beacon answers 204 to a malformed body', { todo: 'AUD-12: answers 400 "Invalid JSON body"' }, async () => {
+  // AUD-12: nuxt-security's XSS validator parsed the body first and answered 400.
+  it('the visit beacon answers 204 to a malformed body', async () => {
     assert.equal((await site('/api/hit', { method: 'POST', body: 'garbage', headers: { 'sec-fetch-site': 'same-origin', 'content-type': 'application/json' } })).status, 204)
   })
 

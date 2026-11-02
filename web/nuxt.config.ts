@@ -158,6 +158,10 @@ export default defineNuxtConfig({
         allowedMethodsRestricter: { methods: ['POST'] },
         requestSizeLimiter: { maxRequestSizeInBytes: 2_000 },
         rateLimiter: { tokensPerInterval: 120, interval: 60_000 },
+        // The XSS validator parses the body before the route and answered a
+        // malformed one with 400; the route reads the body itself, keeps only
+        // a path it validates, and always answers 204 (AUD-12).
+        xssValidator: false,
       },
     },
     // The panel asks the site to drop its content cache after a publish
@@ -241,6 +245,12 @@ export default defineNuxtConfig({
     // `strict` starts from the OWASP-style preset: default-src 'none', nonce /
     // hash based scripts and styles, COEP require-corp, 1-year preloadable HSTS.
     strict: true,
+    // nuxt-security's default in production: 150 requests per 5 minutes per
+    // address. A dev server answers the API suites, a site crawl and the
+    // browser sweep from one address, which ran into it and failed for that
+    // reason alone; it allows far more there. The route limits on
+    // /api/contact and /api/hit apply in both.
+    rateLimiter: { tokensPerInterval: process.env.NODE_ENV === 'production' ? 150 : 5000, interval: 300_000 },
     headers: {
       contentSecurityPolicy: {
         'frame-ancestors': ['\'none\''],

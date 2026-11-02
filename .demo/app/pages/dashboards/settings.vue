@@ -372,12 +372,17 @@ async function signOutOthers() {
 /* --------------------------------------------------- two-step verification */
 interface TwoFactorStatus { enabled: boolean, enabledAt: string | null, backupCodesLeft: number }
 const { data: tf, refresh: refreshTf, execute: loadTf } = useFetch<TwoFactorStatus>('/api/settings/two-factor', { key: 'two-factor', server: false, immediate: false })
-watch(section, (s) => {
-  if (s === 'security') {
-    loadDevices()
-    loadTf()
-  }
-}, { immediate: true })
+// Started once mounted: begun during setup, the loads could put both cards in
+// their loading state before the hydration render, which the server never
+// rendered, and Settings › Security mismatched now and then (AUD-07).
+onMounted(() => {
+  watch(section, (s) => {
+    if (s === 'security') {
+      loadDevices()
+      loadTf()
+    }
+  }, { immediate: true })
+})
 
 type TfStep = 'setup' | 'codes' | 'disable' | 'renew'
 const tfStep = ref<TfStep | null>(null)

@@ -29,9 +29,6 @@ export default defineEventHandler(async (event) => {
   const rows = await prisma.siteMedia.findMany({ where: { deletedAt: null }, select: MEDIA_SELECT, orderBy: { createdAt: 'desc' } })
   const usage = await mediaUsage(rows.map(r => r.id))
   const names = await namesOf(rows.map(r => r.uploadedById))
-  // A row whose bytes are gone (a lost disk, a restored database) says so rather than showing a broken image.
-  const dir = mediaDir()
-  const stored = new Set((await Promise.all(rows.map(r => stat(join(dir, r.key)).then(() => r.id).catch(() => null)))).filter(Boolean))
   const publicUrl = ((useRuntimeConfig(event).website as { publicUrl?: string } | undefined)?.publicUrl ?? '').replace(/\/$/, '')
 
   const items = rows.map((row) => {
@@ -48,7 +45,6 @@ export default defineEventHandler(async (event) => {
       alt: row.alt,
       version: row.version,
       src: mediaPath(row),
-      stored: stored.has(row.id),
       link: publicUrl ? `${publicUrl}${siteMediaPath(row)}` : null,
       uploadedAt: row.createdAt.toISOString(),
       uploadedBy: names.get(row.uploadedById) ?? 'Staff',
@@ -66,5 +62,10 @@ export default defineEventHandler(async (event) => {
   const counts = Object.fromEntries(Object.entries(tests).map(([key, test]) => [key, items.filter(test).length])) as Record<typeof query.filter, number>
   const list = items.filter(tests[query.filter]).filter(m => !query.kind || m.kind === query.kind)
   const start = (query.page - 1) * query.pageSize
-  return { items: list.slice(start, start + query.pageSize), total: list.length, page: query.page, pageSize: query.pageSize, pageCount: Math.max(1, Math.ceil(list.length / query.pageSize)), counts }
+  const slice = list.slice(start, start + query.pageSize)
+  // A row whose bytes are gone (a lost disk, a restored database) says so rather than
+  // showing a broken image. Checked for the page sent only, not the whole library.
+  const dir = mediaDir()
+  const pageItems = await Promise.all(slice.map(async m => ({ ...m, stored: await stat(join(dir, rows.find(r => r.id === m.id)!.key)).then(() => true, () => false) })))
+  return { items: pageItems, total: list.length, page: query.page, pageSize: query.pageSize, pageCount: Math.max(1, Math.ceil(list.length / query.pageSize)), counts }
 })

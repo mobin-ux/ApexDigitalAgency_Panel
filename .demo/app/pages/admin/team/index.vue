@@ -434,17 +434,21 @@ const SELECT = 'apex-ring border-line-rule bg-shell text-fg-heading h-9 w-full r
             <label :for="`role-${m.id}`" class="sr-only">Role for {{ displayName(m) }}</label>
             <select
               :id="`role-${m.id}`"
-              :value="m.staffRole"
+              :value="m.roleUnset ? '' : m.staffRole"
               :disabled="Boolean(noEditReason(m)) || busyMember === m.id"
               :class="SELECT"
-              @change="changeRole({ id: m.id, name: displayName(m), staffRole: m.staffRole as StaffRole }, ($event.target as HTMLSelectElement).value as StaffRole, $event.target as HTMLSelectElement)"
+              @change="changeRole({ id: m.id, name: displayName(m), staffRole: (m.roleUnset ? '' : m.staffRole) as StaffRole }, ($event.target as HTMLSelectElement).value as StaffRole, $event.target as HTMLSelectElement)"
             >
               <!-- `selected` per option: a select's `:value` is not rendered on the server. -->
-              <option v-for="r in STAFF_ROLES" :key="r" :value="r" :selected="r === m.staffRole">
+              <option v-if="m.roleUnset" value="" disabled selected>
+                Not set (acts as Owner)
+              </option>
+              <option v-for="r in STAFF_ROLES" :key="r" :value="r" :selected="!m.roleUnset && r === m.staffRole">
                 {{ ROLES[r].label }}
               </option>
             </select>
             <span v-if="noEditReason(m)" class="text-fg-muted text-[11.5px]">{{ noEditReason(m) }}.</span>
+            <span v-else-if="m.roleUnset" class="text-st-warning-fg text-[11.5px]">No role was chosen, so this account has an owner's access. Choose one.</span>
           </span>
           <span class="text-fg-muted text-[12.5px]">
             <span class="lg:hidden">Last action: </span><ClientOnly>{{ lastActionLabel(m.lastActionAt) }}</ClientOnly>

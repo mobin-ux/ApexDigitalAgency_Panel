@@ -4,7 +4,7 @@ import process from 'node:process'
 // eslint-disable-next-line test/no-import-node-test -- node --test is the runner (ADR-021)
 import { after, before, describe, it } from 'node:test'
 import { PrismaClient } from '@prisma/client'
-import { BASE, client, DEV_ACCOUNTS, enabled, login } from './helpers.ts'
+import { BASE, client, DEV_ACCOUNTS, enabled, login, staffClient, staffEmailFor } from './helpers.ts'
 
 /**
  * The Medium issues of docs/audit/ISSUES-2026-11-02.md, checked through the
@@ -104,5 +104,71 @@ describe('audit fixes (Medium)', { skip: !enabled && 'CMS_TEST_URL is not set', 
     assert.equal(res.status, 200)
     const csp = res.headers.get('content-security-policy') ?? ''
     assert.match(csp, new RegExp(`frame-ancestors[^;]*${new URL(BASE).origin.replace(/[.:/]/g, '\\$&')}`), csp)
+  })
+})
+
+/**
+ * The Low issues: a photo whose file is gone stops being asked for (AUD-11),
+ * the dev seeds sign in like every other route (AUD-15), and a staff account
+ * with no role is marked on Team & access (AUD-17). The photo row and the
+ * role-less account are set up in the local database, which no route can do.
+ */
+describe('audit fixes (Low)', { skip: !enabled && 'CMS_TEST_URL is not set', timeout: 180_000 }, () => {
+  let owner: Client
+  let customer: Client
+  let customerId = ''
+  const prisma = new PrismaClient(process.env.DATABASE_URL ? { datasources: { db: { url: process.env.DATABASE_URL } } } : undefined)
+
+  before(async () => {
+    owner = await login(DEV_ACCOUNTS.owner.identifier, DEV_ACCOUNTS.owner.password)
+    const stamp = Date.now().toString(36)
+    const signup = await client().fetch('/api/auth/signup', { method: 'POST', json: { identifier: `audit-low-${stamp}@example.test`, password: `Audit-${stamp}-pass`, name: 'Audit Low' } })
+    assert.equal(signup.status, 200, await signup.clone().text())
+    customer = client(signup.headers.getSetCookie().map(c => c.split(';')[0]).join('; '))
+    customerId = (await customer.json<any>('/api/auth/me')).body.user.id
+  })
+
+  after(async () => {
+    await prisma.$disconnect()
+  })
+
+  it('a profile photo whose file is gone goes back to initials (AUD-11)', async () => {
+    const file = await prisma.attachment.create({ data: { name: 'me.png', path: '00000000-0000-4000-8000-000000000000', size: 10, mime: 'image/png', uploaderId: customerId, avatarUserId: customerId } })
+    const url = `/api/avatars/${customerId}?v=${file.id.slice(0, 8)}`
+    await prisma.user.update({ where: { id: customerId }, data: { avatar: url } })
+    assert.equal((await customer.fetch(url)).status, 404)
+    assert.equal((await prisma.user.findUniqueOrThrow({ where: { id: customerId } })).avatar, null, 'the account has no photo now')
+    assert.equal((await prisma.attachment.findUniqueOrThrow({ where: { id: file.id } })).avatarUserId, null, 'the row is no longer the photo')
+    assert.equal((await customer.json<any>('/api/auth/me')).body.user.avatar ?? null, null)
+  })
+
+  it('the dev seeds run for the signed-in account (AUD-15)', async () => {
+    for (const seed of ['seed-notifs', 'seed-orders', 'seed-rich', 'seed-support', 'seed-wallet']) {
+      const res = await customer.fetch(`/api/${seed}`)
+      assert.equal(res.status, 200, `${seed}: ${(await res.text()).slice(0, 200)}`)
+    }
+    assert.equal((await client().fetch('/api/seed-orders')).status, 401, 'signed out')
+    const projects = await prisma.project.findMany({ where: { userId: customerId }, include: { milestones: true } })
+    assert.ok(projects.length > 0)
+    for (const p of projects.filter(p => p.milestones.length)) {
+      const share = Math.round(p.milestones.filter(m => m.status === 'COMPLETED').length / p.milestones.length * 100)
+      assert.equal(p.progress, share, `${p.name}: seeded progress follows its timeline`)
+    }
+  })
+
+  it('a staff account with no role is marked on Team & access (AUD-17)', async () => {
+    await staffClient(owner, 'readonly')
+    const email = staffEmailFor('readonly')
+    await prisma.user.update({ where: { email }, data: { staffRole: null } })
+    try {
+      const team = await owner.json<any>('/api/admin/team')
+      const member = team.body.members.find((m: any) => m.email === email)
+      assert.equal(member.roleUnset, true)
+      assert.equal(member.staffRole, 'owner', 'the documented fallback still applies')
+      assert.ok(team.body.members.filter((m: any) => m.email !== email).every((m: any) => typeof m.roleUnset === 'boolean'))
+    }
+    finally {
+      await prisma.user.update({ where: { email }, data: { staffRole: 'readonly' } })
+    }
   })
 })

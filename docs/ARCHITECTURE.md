@@ -171,8 +171,9 @@ verification), and the Tairo demo routes `/api/payments/*` and `/api/hello`.
 
 1. Login sets `auth_token` via `setAuthCookie()` (JWT signed with
    `runtimeConfig.jwtSecret` — override with `NUXT_JWT_SECRET`; sameSite=lax,
-   secure in prod; httpOnly:false until the client middleware stops reading
-   the cookie — see ADR-013). Session guards live in `server/utils/auth.ts`:
+   secure in prod; httpOnly since 2026-07-21, the route guard asking the
+   server through `fetchUser()` rather than reading the cookie — see
+   ADR-013). Session guards live in `server/utils/auth.ts`:
    `requireAuth` (401), `requireRole`/`requireAdmin` (403, DB-fresh role).
 2. `auth` middleware: no cookie → redirect `/auth/login-1`; else `fetchUser()`.
 3. `useUser().fetchUser()` uses **`useRequestFetch()`** so the incoming request's
@@ -388,8 +389,7 @@ for both apps; `web/shared/redact.ts` decides what a line may never carry.
   the hydration render — so the server said `ctrl` and the client's first render
   said `⌘`. Anything derived from `navigator` must resolve in `onMounted` (or sit
   inside `<ClientOnly>`), never earlier.
-- `auth_token` httpOnly:false — the client route middleware reads the cookie via
-  `useCookie`; flipping httpOnly requires reworking `app/middleware/auth.ts` to
-  rely on `fetchUser()` alone (tracked follow-up, ADR-013). sameSite/secure and
-  the runtimeConfig secret are already in place.
+- ~~`auth_token` httpOnly:false~~ — httpOnly since `5e22d31` (2026-07-21):
+  `app/middleware/auth.ts` relies on `fetchUser()` alone. This line lagged
+  behind until the 2026-11-02 audit (AUD-14).
 - Legacy pages carry Persian comments; convert to English on rewrite.

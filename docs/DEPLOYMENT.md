@@ -480,7 +480,7 @@ keeps it, as before) and to a file per day:
    sign-in still accepts older, shorter passwords), and sign-up and password
    change are rate-limited. Nothing to configure.
 
-## 15. Audit fixes AUD-01 to AUD-10 — what a deploy needs
+## 15. Audit fixes (AUD-01 to AUD-19) — what a deploy needs
 
 Not deployed. No schema change, no new environment variable.
 
@@ -533,3 +533,7 @@ Not deployed. No schema change, no new environment variable.
      production panel hosts are already allowed.
    - `GET /api/messaging` answers 404 after the deploy (it served the
      template's demo data).
+5. **The Low audit fixes** need nothing configured. After the panel starts,
+   look in its journal for `security.staff-role-unset`: it names any active
+   staff account with no role (which acts as an owner). If there is one, an
+   owner chooses its role in Team & access, where it shows as "Not set".

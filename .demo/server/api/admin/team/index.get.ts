@@ -72,6 +72,9 @@ export default defineEventHandler(async (event) => {
   const normalised = members.map(m => ({
     ...m,
     staffRole: isStaffRole(m.staffRole) ? m.staffRole : DEFAULT_STAFF_ROLE,
+    // No role was ever chosen: the guard treats the account as an owner
+    // (the documented fallback), and the screen asks for a real one (AUD-17).
+    roleUnset: !isStaffRole(m.staffRole),
     lastActionAt: lastActionBy.get(m.id) ?? null,
     isYou: m.id === admin.id,
   }))

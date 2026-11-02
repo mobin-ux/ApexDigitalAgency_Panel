@@ -1,19 +1,15 @@
-import process from 'node:process'
-import { PrismaClient } from '@prisma/client'
-import { createError, defineEventHandler, getCookie } from 'h3'
-import jwt from 'jsonwebtoken'
-
-const prisma = new PrismaClient()
+import { createError, defineEventHandler } from 'h3'
+import { requireAuth } from '../utils/auth'
+import prisma from '../utils/prisma'
 
 export default defineEventHandler(async (event) => {
   // Dev-only seed/bootstrap endpoint — must never exist in a production build.
   if (!import.meta.dev) {
     throw createError({ statusCode: 404, message: 'Not found' })
   }
-  const token = getCookie(event, 'auth_token')
-  if (!token)
-    return { error: 'Login first' }
-  const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret') as any
+  // The signed-in account, through the same check as every other route (the
+  // seeds used to verify the token with a fallback secret and 500'd, AUD-15).
+  const decoded = requireAuth(event)
 
   await prisma.notification.createMany({
     data: [

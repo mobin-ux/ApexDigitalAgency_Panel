@@ -81,6 +81,17 @@ merged, not deployed).
   (`NUXT_CMS_PANEL_ORIGINS` at run time, `web/server/plugins/preview-frame.ts`),
   AUD-10 (`sessions:prune` daily, 30 days). Suite `audit-fixes.test.ts`.
   Not deployed; DEPLOYMENT §15 item 4. The Low issues are still open.
+- **Low issues worked through (2026-11-03, "The Low ones"):** fixed AUD-11
+  (a photo whose file is gone is cleared on its next request), AUD-12
+  (`xssValidator: false` on `/api/hit`: nuxt-security parsed the body
+  first), AUD-13 (Media screen pages 60 at a time with Show more), AUD-15
+  (the five dev seeds use `requireAuth` and the shared client), AUD-17
+  (start-up warning `security.staff-role-unset`, Team marks the account;
+  the owner fallback stays). Not an issue: AUD-14 (cookie httpOnly since
+  July; the docs lagged), AUD-19 (Nuxt DevTools in the frame). Accepted:
+  AUD-18 (single process). Not deployed.
+- **Gotcha:** nuxt-security's XSS validator reads every POST body before the
+  route; a route that must accept any body needs `xssValidator: false`.
 - **Gotcha:** a `watch(..., { immediate: true })` in a page's setup runs
   during SSR too, and a plain `$fetch` there carries no cookie: guard it
   with `import.meta.server` (or use `useRequestFetch`). An error toast
@@ -91,9 +102,10 @@ merged, not deployed).
   database (git-ignored). Never `cp dev.db` while a server has it open;
   on the VPS back up with `sqlite3 … ".backup …"` and run `sqlite3` as
   `apex` (root-owned `-shm` makes the panel read-only).
-- **The site's rate limiter (nuxt-security default, 150 requests per
-  5 minutes per address) answers 429** after a couple of hand crawls; wait
-  five minutes before the API suites, which crawl the site once.
+- **The site's rate limiter** is nuxt-security's default in production
+  (150 requests per 5 minutes per address) and 5000 in development
+  (`web/nuxt.config.ts`), because the API suites, the site crawl and the
+  sweep all come from one address and were failing on 429s alone.
 
 ## Website group rebuilt from the design (2026-11-01)
 
