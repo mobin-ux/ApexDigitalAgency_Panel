@@ -175,6 +175,11 @@ substantially more compliance burden.
 > (panel) and `NUXT_CMS_URL`, `NUXT_CMS_REVALIDATE_SECRET` and
 > `NUXT_PUBLIC_PANEL_URL` (site) are unused and can be deleted from the env
 > files; the `Site*` tables and `/opt/apex/site-media` stay untouched.
+>
+> **But keep them if `feature/admin-website` is to be deployed** (ADR-026,
+> §13): the rebuilt Website group uses `NUXT_WEBSITE_*`, `NUXT_CMS_URL` and
+> `NUXT_CMS_REVALIDATE_SECRET` again. Only `NUXT_PUBLIC_PANEL_URL` stays
+> unused.
 
 The panel became the content system for the public site on 2026-10-28
 (commits `bbedafa` → `cc969a5`, nine gates). Nothing from it is deployed
@@ -398,7 +403,9 @@ proxy trust (harmless to keep).
 
 ## 12. Admin console (ADR-025) — staff sign-in
 
-Not deployed. When `feature/admin-console` is merged and shipped:
+Merged (PR #1) and deployed on 2026-11-01 following these steps; kept as
+the record and for a rebuild. The production database is
+`/opt/apex/prisma/dev.db` (not `/opt/apex/dev.db`, as step 3 used to say).
 
 1. **Schema, before the new build starts.** Panel stopped, backup taken,
    then `docs/migrations/2026-11-staff-sessions.sql` (one `ADD COLUMN` with a
@@ -411,7 +418,7 @@ Not deployed. When `feature/admin-console` is merged and shipped:
    app on the first sign-in; tell them before the deploy.
 3. **First owner, only if none exists.** On the server, against the live
    database:
-   `DATABASE_URL=file:/opt/apex/dev.db NUXT_PUBLIC_SITE_URL=https://panel.apexdigi.co.uk node scripts/create-super-admin.mjs --email … --name "…"`
+   `DATABASE_URL=file:/opt/apex/prisma/dev.db NUXT_PUBLIC_SITE_URL=https://panel.apexdigi.co.uk node scripts/create-super-admin.mjs --email … --name "…"`
    from a checkout that has `node_modules` (the script needs
    `@prisma/client`). It prints a 60-minute set-password link and nothing
    else secret. It refuses while an active owner exists.
@@ -426,3 +433,29 @@ Not deployed. When `feature/admin-console` is merged and shipped:
    stopped and after a backup, `docs/migrations/2026-11-admin-hardening.sql`
    (idempotent; rollback in the file). If a later `prisma db push` rebuilds
    "AuditLog", the start-up log says `[audit-append-only]`: re-run the file.
+
+## 13. Website group (ADR-026) — what a deploy needs
+
+Not deployed. `feature/admin-website` changes both apps, and the console
+and the site must go out together. The full order, the three migrations
+and every environment variable are in `ADMIN_CONSOLE.md`, under
+"Migrations" and "Environment variables". In short:
+
+1. Read what `docs/migrations/2026-11-website-legacy.sql` would archive
+   (its check `SELECT`) before running anything.
+2. Generate one new long random value and set it as the panel's
+   `NUXT_WEBSITE_ENQUIRY_SECRET` and the site's `NUXT_CMS_ENQUIRY_SECRET`.
+   Check that the October `NUXT_WEBSITE_*` / `NUXT_CMS_*` values are still
+   set and paired.
+3. Panel stopped, backup taken: run `2026-11-website-legacy.sql`, then
+   `2026-11-enquiries.sql`, then `2026-11-site-visits.sql`.
+4. Ship the panel (`ship-bundle.sh`), then the site (`ship-web.sh`, built
+   on the box). The site needs the panel up to read published content, but
+   falls back to its code baseline while it is not.
+5. As the owner: **Website › Pages › Import from site**. Then check that one
+   contact message arrives in Enquiries and that a visit shows in Analytics
+   a minute after browsing the site.
+
+Once the secret pair is set, the contact form works even with the
+`NUXT_CONTACT_*` email keys empty. A message is stored in the console,
+which counts as delivered.

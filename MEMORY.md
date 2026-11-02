@@ -26,7 +26,7 @@ permission matrix**, **enquiries stored, 24 months**, **own cookieless
 analytics**. Branch `feature/admin-website` (not merged). ADR-026.
 Phases: A permissions + nav (done, `a02fd87`) · B content API + site
 reading it (done) · C Pages/Insights/Case studies + editor (done) · D (done) Media,
-Navigation, SEO, Site settings · E (done) Enquiries · F (done) Analytics · G tests, docs.
+Navigation, SEO, Site settings · E (done) Enquiries · F (done) Analytics · G (done) tests, docs.
 
 - **Phase B done:** shared contract (`web/shared/cms/{sections,documents,resolve}.ts`),
   panel workflow (`server/utils/website/content.ts`, 12 admin routes, 4
@@ -89,6 +89,14 @@ Navigation, SEO, Site settings · E (done) Enquiries · F (done) Analytics · G 
   `/admin/website/analytics`, Overview "Website visits". Tests
   `analytics.test.ts` (3; the site part flushes through
   `/_nitro/tasks/visits:flush`), unit `visits.test.ts` (5).
+- **Phase G done:** `.demo/tests/e2e/website.spec.ts` (the nine Website
+  screens for the owner, plus the first page editor; the access wall for
+  admin, pm, support, finance and readonly exactly where `can()` says).
+  ADMIN_CONSOLE.md gained "The website and the console", the Website
+  endpoints, the three 2026-11 website SQL files with the deploy order and
+  the env table; DEPLOYMENT §13 says what a deploy needs. Final run: unit
+  62/62, API 67/67, e2e 14/14, panel tsc 46, site tsc clean, lint clean,
+  both production builds pass (site 18 min on Windows).
 - Gotcha: a dashed 1px border makes a `flex-1` bar 2px wider than a
   borderless one; give the solid bars `border-transparent` too.
 - Gotcha: an error thrown in a site server middleware is answered as JSON

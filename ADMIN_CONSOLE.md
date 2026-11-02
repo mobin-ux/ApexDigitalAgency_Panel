@@ -8,11 +8,19 @@ so a change made on one side is what the other side reads next.
 
 Merged to master in PR #1 (`53c25d8`) and deployed to production on
 2026-11-01, migrations included (see [Migrations](#migrations)). Decision record:
-[ADR-025](docs/decisions/ADR-025-admin-console-reinstated.md). The website
-CMS stays removed ([ADR-024](docs/decisions/ADR-024-remove-admin-console.md));
-the design's Website group is not built.
+[ADR-025](docs/decisions/ADR-025-admin-console-reinstated.md).
 
-Contents: [Architecture](#architecture) · [Sign-in and sessions](#sign-in-and-sessions) ·
+**The Website group** (Pages, Insights, Case studies, Media library,
+Navigation & footer, SEO & redirects, Enquiries, Analytics, and Site
+settings under System) was rebuilt from the same design on
+**`feature/admin-website`**. It is not merged and not deployed. Decision
+record: [ADR-026](docs/decisions/ADR-026-website-group-rebuilt.md), which
+supersedes the CMS half of [ADR-024](docs/decisions/ADR-024-remove-admin-console.md).
+The public site (`web/`) reads what the console publishes; see
+[The website and the console](#the-website-and-the-console).
+
+Contents: [Architecture](#architecture) · [The website and the console](#the-website-and-the-console) ·
+[Sign-in and sessions](#sign-in-and-sessions) ·
 [Roles and permissions](#roles-and-permissions) · [Endpoints](#endpoints) ·
 [Money guardrails](#money-guardrails) · [Audit log and data](#audit-log-and-data) ·
 [Migrations](#migrations) · [Environment variables](#environment-variables) ·
@@ -25,7 +33,7 @@ Contents: [Architecture](#architecture) · [Sign-in and sessions](#sign-in-and-s
 
 ```
 .demo/
-  app/pages/admin/            the screens (17 routes, listed below)
+  app/pages/admin/            the screens (29 page files, listed below)
   app/pages/admin/sign-in.vue the staff sign-in (password, then authenticator code)
   app/layouts/admin.vue       the shell: 236px sidebar (drawer below lg), 64px top bar,
                               breadcrumb, ⌘K palette, theme switch, access wall
@@ -37,7 +45,13 @@ Contents: [Architecture](#architecture) · [Sign-in and sessions](#sign-in-and-s
   app/composables/            useStaffAccess (role → can()), useAdminConsole
                               (useAdminConfirm, useAdminCrumb), useAdminSort,
                               useLiveRefresh
-  server/api/admin/**         the console's API (55 route files) + /api/admin/auth/*
+  server/api/admin/**         the console's API (91 route files, /api/admin/auth/* included)
+  server/api/site/**          what the public site reads (published content, media,
+                              redirects, settings) and the two signed calls it makes
+                              (enquiries, visit totals)
+  server/utils/website/**     content workflow, media, redirects, settings,
+                              enquiries, analytics
+  server/tasks/website/       enquiries-retention (daily, 03:17)
   server/utils/auth.ts        sessions, cookies, requireAuth / requireRole / requireAdmin
   server/utils/staff.ts       requireStaffPermission(event, permission)
   server/utils/staff-auth.ts  the staff sign-in steps and their rate limits
@@ -46,8 +60,11 @@ Contents: [Architecture](#architecture) · [Sign-in and sessions](#sign-in-and-s
   server/plugins/audit-guard.ts      start-up warning when the audit triggers are missing
   shared/permissions.ts       the role × permission matrix, read by BOTH halves
   shared/catalog.ts           pricing, FIXED_PLAN_MAX_PAYMENTS, planDueDates()
+  shared/{cms,enquiry,visits}.ts  re-exports of web/shared/*: one contract, both apps
 scripts/create-super-admin.mjs       the first owner (pnpm admin:create)
-docs/migrations/2026-11-*.sql        the two schema changes, with rollback
+docs/migrations/2026-11-*.sql        the schema changes, each with its rollback
+web/shared/{cms/*,enquiry,visits}.ts  content contract, enquiry signature, visit rules
+web/server/utils/{cms,enquiry-forward,visits}.ts  the site's side of each call
 ```
 
 **One matrix, enforced on the server and drawn in the browser.** Every
@@ -82,7 +99,16 @@ convenience; the server is the gate.
 | Money | Payments & credit (ledger, instalments, withdrawals, credit lines, rails) | `/admin/payments` | `money.view` |
 | | Credit applications | `/admin/credit` | `money.view` (decide: `credit.approve`) |
 | | Agreements | `/admin/contracts`, `/admin/contracts/:id` | `money.view` |
-| System | Platform settings | `/admin/settings` | `platform.settings` |
+| Website | Pages, with Publish history | `/admin/website/pages` | `website.view` (draft: `website.edit`; publish: `website.publish`) |
+| | Page editor (sections, Content/SEO/Revisions, live preview) | `/admin/website/pages/:id` | as above; changing an address that was live needs `website.seo` |
+| | Insights, Case studies (and their editors) | `/admin/website/insights`, `/admin/website/case-studies` (+ `/:id`) | as Pages |
+| | Media library | `/admin/website/media` | `website.view` (upload, edit, delete: `website.media`) |
+| | Navigation & footer | `/admin/website/navigation` | `website.view` (edit and publish: `website.seo`) |
+| | SEO & redirects (page SEO, redirects, sitemap & robots) | `/admin/website/seo` | `website.seo` |
+| | Enquiries | `/admin/website/enquiries` | `leads.handle` (convert: also `clients.approve`) |
+| | Analytics | `/admin/website/analytics` | `analytics.view` |
+| System | Site settings (company facts, social, sharing image, maintenance) | `/admin/site-settings` | `website.settings` |
+| | Platform settings | `/admin/settings` | `platform.settings` |
 | | Audit log | `/admin/audit` | `team.manage` |
 | | Email (outbox) | `/admin/mail` | `team.manage` |
 | | Tools (broadcast) | `/admin/tools` | `catalogue.edit` |
@@ -106,6 +132,40 @@ only when a signed webhook settles an intent, and webhook handling is
 idempotent twice over (unique `(provider, providerEventId)` and a
 conditional claim on the intent). See [ARCHITECTURE.md §9](docs/ARCHITECTURE.md).
 Development and tests use Stripe test mode and the mock rail only.
+
+---
+
+## The website and the console
+
+ADR-026, on `feature/admin-website`. The two apps run on the same box in
+production and talk server to server over loopback; a visitor's browser
+never calls the console.
+
+| Direction | Call | Authenticated by | If it fails |
+|---|---|---|---|
+| Site reads content | `GET /api/site/{manifest,page,globals,settings,redirects}`, `/api/site/media/**` | public, read-only (published content only) | the site serves its last good copy from disk (`.data/cms`), else its code baseline |
+| Console tells the site to refresh | `POST <site>/api/cms/revalidate` after a publish | bearer `NUXT_WEBSITE_REVALIDATE_SECRET` = site `NUXT_CMS_REVALIDATE_SECRET` | the site's 60-second cache catches up on its own |
+| Editor previews a draft | the site's `/preview/:token` in a frame | a 30-minute purpose token; only the panel origins may frame it | saving still works; only the preview is missing |
+| Site hands over a contact message | `POST /api/site/enquiries` | HMAC with `NUXT_CMS_ENQUIRY_SECRET` = panel `NUXT_WEBSITE_ENQUIRY_SECRET`, five-minute window | the message still counts as sent if the site's email went; the visitor sees "not sent" only when both failed |
+| Site hands over visit totals | `POST /api/site/visits`, once a minute | HMAC with a key derived from the same secret | the totals are kept and retried, up to 2,000 rows |
+
+- **Content.** Pages the site already had are "coded": the editor changes
+  their words, not their sections. New pages, articles and case studies are
+  "built" from the section types the site renders. Every publish keeps a
+  revision, and a revision can be restored. Changing the address of a page
+  that was ever live writes a 301 redirect.
+- **The site's words stay safe.** An empty field keeps what the code says,
+  and no placeholder is ever printed. "Import from site" adds only documents
+  that are missing.
+- **Enquiries** are kept 24 months unless they became a client. The audit
+  log names them by reference (`ENQ-…`), never the person.
+- **Visits** are counted without cookies, browser storage, a third-party
+  script or a stored IP address. Only totals per London day, page and source
+  are kept (`SiteVisit`). A "visit" is a page load that arrived from outside
+  the site.
+- **Maintenance mode** (Site settings) answers every site page 503 with a
+  holding page and the contact email, and closes the contact form (503).
+  Staff previews and assets keep working.
 
 ---
 
@@ -156,7 +216,7 @@ Staff sign in at **`/admin/sign-in`**, never at the customer sign-in.
 
 ## Roles and permissions
 
-Eight fixed roles, seventeen permissions, one table: `shared/permissions.ts`.
+Eight fixed roles, nineteen permissions, one table: `shared/permissions.ts`.
 No per-person overrides. An `ADMIN` account with no `staffRole`, or one the
 code does not recognise, is treated as **Owner** (`DEFAULT_STAFF_ROLE`) — the
 backfill rule from ADR-016 — so never remove a role from the table.
@@ -174,11 +234,19 @@ backfill rule from ADR-016 — so never remove a role from the table.
 | `catalogue.edit` | Services and prices; broadcast notifications | ✓ | ✓ | | | | | | |
 | `team.manage` | Invite, change role, suspend staff; audit log; email outbox | ✓ | ✓ | | | | | | |
 | `platform.settings` | Platform settings | ✓ | | | | | | | |
-| `website.*` (6) | The removed website CMS — nothing in the console uses them | ✓ | ✓ | | | | read | ✓ | ✓ |
+| `website.view` | See pages, articles, case studies, media, menus, SEO | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `website.edit` | Draft content and send it for review | ✓ | ✓ | ✓ | ✓ | | | ✓ | ✓ |
+| `website.media` | Upload, describe and delete media | ✓ | ✓ | ✓ | ✓ | | | ✓ | ✓ |
+| `website.publish` | Publish, request changes, restore, import from the site | ✓ | ✓ | | | | | ✓ | |
+| `website.seo` | Menus, page addresses, redirects, sitemap and robots | ✓ | ✓ | | | | | ✓ | |
+| `website.settings` | Site settings (company facts, sharing image, maintenance) | ✓ | | | | | | | |
+| `leads.handle` | Enquiries: read, assign, note, mark won or lost | ✓ | ✓ | ✓ | ✓ | | | | |
+| `analytics.view` | Website analytics | ✓ | ✓ | ✓ | | ✓ | ✓ | | |
 
-Publisher and Editor hold only `website.*`, so in this console they reach the
-access wall and nothing else; they stay in the table so such an account is
-not promoted to Owner by the fallback.
+The Website rows are the design's matrix (ADR-026), with its keys mapped
+to ours. Publisher and Editor are not in the design and hold only
+`website.*` permissions. They stay in the table so an account holding one
+keeps working and is not promoted to Owner by the fallback.
 
 Rules the API enforces besides the matrix:
 
@@ -252,6 +320,39 @@ take `page`, `pageSize`, their filters, and `sort` / `dir` where noted.
 | POST | `credit/applications/:id/decide` | `credit.approve` (approving also needs the lending switch) |
 | GET · PATCH | `contracts` (sort: created, signed, value) · `contracts/:id` | `money.view` |
 | GET | `payments/health` | `money.view` |
+
+**Website** (`feature/admin-website`, ADR-026)
+
+| Method | Path | Needs |
+|---|---|---|
+| GET · POST | `website/documents` (`?collection=pages\|insights\|work\|chrome`) | `website.view` · `website.edit` |
+| GET | `website/documents/:id` | `website.view` |
+| PUT | `website/documents/:id/draft` | `website.edit` (chrome documents: `website.seo`) |
+| POST | `website/documents/:id/submit` · `/withdraw` · `/restore` | `website.edit` |
+| POST | `website/documents/:id/publish` · `/request-changes` | `website.publish` |
+| POST | `website/documents/:id/preview` | `website.view` (a 30-minute link to the site's `/preview/:token`) |
+| PATCH | `website/documents/:id/path` | `website.edit`; `website.seo` once the page was live (writes a 301) |
+| GET | `website/history` · `website/review-counts` · `website/seo` | `website.view` |
+| POST | `website/import` | `website.publish` (adds only missing documents) |
+| GET · POST | `website/media` | `website.view` · `website.media` |
+| PATCH · DELETE | `website/media/:id` | `website.media` (delete refused while in use) |
+| GET · POST | `website/redirects` | `website.view` · `website.seo` |
+| POST · DELETE | `website/redirects/check` · `website/redirects/:id` | `website.seo` |
+| GET · PUT | `website/settings` | `website.view`, then per key: `site.*` needs `website.settings`, robots needs `website.seo` |
+| GET | `website/enquiries` (`?filter=&q=`) · `website/enquiries/summary` · `website/enquiries/:id` | `leads.handle` |
+| PATCH · POST | `website/enquiries/:id` · `website/enquiries/:id/notes` | `leads.handle` |
+| POST | `website/enquiries/:id/convert` | `leads.handle` + `clients.approve` |
+| GET | `website/analytics?days=7\|14\|30\|90` | `analytics.view` |
+
+**Public, for the site** (no session; under `/api/site/`)
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `manifest` · `page?path=` · `globals` · `settings` · `redirects` | published content only; cacheable |
+| GET · HEAD | `media/**` | media-library files, a year's immutable cache |
+| GET | `preview/:token` | a draft, for a valid 30-minute token only |
+| POST | `enquiries` | signed (HMAC, five minutes); idempotent on the site's id; 503 without the secret |
+| POST | `visits` | signed with the derived visits key; a batch id counts once; 503 without the secret |
 
 **System**
 
@@ -351,6 +452,37 @@ previous schema beside it). Production's database is
 Locally, `pnpm exec prisma db push` applies the column and indexes; run the
 hardening SQL afterwards for the triggers.
 
+### The Website group (`feature/admin-website`, not applied anywhere but locally)
+
+The content tables (`SiteDocument`, `SiteRevision`, `SiteRedirect`,
+`SiteMedia`, `SiteMediaRef`) have been in production since 2026-10-28
+(ADR-021), so the branch adds only these:
+
+| File | What | Rollback |
+|---|---|---|
+| [`docs/migrations/2026-11-website-legacy.sql`](docs/migrations/2026-11-website-legacy.sql) | archives the October CMS's documents and moves their addresses aside (`~legacy-<id>`); deletes nothing. Run **once**, before the first Import | in the file |
+| [`docs/migrations/2026-11-enquiries.sql`](docs/migrations/2026-11-enquiries.sql) | `Enquiry`, `EnquiryNote` and their indexes | drop both tables |
+| [`docs/migrations/2026-11-site-visits.sql`](docs/migrations/2026-11-site-visits.sql) | `SiteVisit` and its indexes | drop the table |
+
+The enquiry and visit migrations were applied and rolled back on copies of
+the local database. Order for a deployment (only on the owner's go-ahead):
+
+1. On the box, run the check `SELECT` at the top of
+   `2026-11-website-legacy.sql` and read what it would archive. Production
+   has not been checked yet.
+2. Set the secret pair (below) in both env files, and
+   `NUXT_WEBSITE_PUBLIC_URL` on the panel if it is not there.
+3. Stop the panel, back up the database
+   (`cp -p /opt/apex/prisma/dev.db /opt/apex/backups/dev.db.$(date +%Y%m%d-%H%M%S).pre-website`),
+   then run the three files in the order above.
+4. Copy the branch's `prisma/schema.prisma` beside the database, ship the
+   panel (`scripts/ship-bundle.sh`) and then the site (`scripts/ship-web.sh`).
+5. Sign in as the owner and run **Website › Pages › Import from site**. Until
+   then the site renders its code baseline, which is identical.
+6. Check: a site page 200; `/api/site/manifest` 200; an unsigned
+   `POST /api/site/enquiries` 401; one contact message arrives in
+   Enquiries; a minute after browsing the site, Analytics shows a visit.
+
 ---
 
 ## Environment variables
@@ -361,6 +493,23 @@ New on this branch (documented in [`.env.example`](.env.example)):
 |---|---|---|
 | `NUXT_LENDING_INTEREST_BEARING_PLANS` | unset = off | Allows the legacy 24-month plan at 1% a month. Leave off until the owner confirms the lending position. |
 | `NUXT_LENDING_CREDIT_DECISIONS` | unset = off | Allows approving credit applications, raising a limit and releasing a held line. Set to `true` only on the owner's word. |
+
+For the Website group (`feature/admin-website`; panel in [`.env.example`](.env.example),
+site in [`web/.env.example`](web/.env.example)):
+
+| Panel | Site | Meaning |
+|---|---|---|
+| `NUXT_WEBSITE_SITE_URL` | `NUXT_CMS_URL` | each app's loopback address for the other (production: `http://127.0.0.1:3100` and `http://127.0.0.1:3000`) |
+| `NUXT_WEBSITE_REVALIDATE_SECRET` | `NUXT_CMS_REVALIDATE_SECRET` | the same long random value; unset, the site picks up a publish within a minute |
+| `NUXT_WEBSITE_ENQUIRY_SECRET` | `NUXT_CMS_ENQUIRY_SECRET` | the same long random value. **New.** Signs contact messages and, through a derived key, the visit totals; unset, neither reaches the console |
+| `NUXT_WEBSITE_PUBLIC_URL` | | the site's public address, for preview links and the editor's frame |
+| `NUXT_WEBSITE_MEDIA_DIR` | | media-library files, outside the bundle (production: `/opt/apex/site-media`, already there) |
+| | `CMS_PANEL_ORIGINS` | build time: extra console origins allowed to frame `/preview/**` |
+
+The first three pairs and the media directory were set in production for
+the October CMS and are still there; check each value before deploying.
+Only the enquiry pair is certainly missing. Never reuse the dev values
+from the tracked `.demo/.env` and `web/.env`.
 
 Existing variables the console depends on:
 
@@ -388,7 +537,7 @@ pnpm admin:create --email owner@apexdigi.co.uk --name "First Last"
 On a server, point it at the database and the panel's public address:
 
 ```bash
-DATABASE_URL=file:/opt/apex/dev.db NUXT_PUBLIC_SITE_URL=https://panel.apexdigi.co.uk node scripts/create-super-admin.mjs --email owner@apexdigi.co.uk --name "First Last"
+DATABASE_URL=file:/opt/apex/prisma/dev.db NUXT_PUBLIC_SITE_URL=https://panel.apexdigi.co.uk node scripts/create-super-admin.mjs --email owner@apexdigi.co.uk --name "First Last"
 ```
 
 What happens:
@@ -419,8 +568,12 @@ pnpm test:cms:unit
 ```
 
 ```bash
-CMS_TEST_URL=http://localhost:3000 pnpm test:cms:api
+CMS_TEST_URL=http://localhost:3000 SITE_TEST_URL=http://localhost:3001 pnpm test:cms:api
 ```
+
+The Website suites need the site's dev server too (`pnpm web:dev`, or the
+preview config `web`, on :3001); without `SITE_TEST_URL` the tests that go
+through the site are skipped.
 
 ```bash
 E2E_URL=http://localhost:3000 pnpm e2e
@@ -430,37 +583,9 @@ E2E_URL=http://localhost:3000 pnpm e2e
 pnpm test:tsc-demo
 ```
 
-| Suite | What it covers | Last run (2026-11-01) |
+| Suite | What it covers | Last run (2026-11-02) |
 |---|---|---|
-| Unit (`.demo/tests/unit`, `web/tests/unit`) | permissions, plan limits and dates, mail rendering, recipient rules | 37/37 |
-| API (`.demo/tests/api`) | staff sign-in and enrolment, money guardrails, sorting and audit triggers, panel sync, **every admin route × every role** (58 route-and-body rows × 8 roles + customer + anonymous), mail flows | 47/47 |
-| Browser (`.demo/tests/e2e`, Playwright on installed Edge) | staff sign-in with a code, every screen for the owner, the access wall for Support, no Waive for Admin, customer pages, staff refused at the customer sign-in, one request across both panels | 8/8 |
-| Types | `vue-tsc` over the panel | 46 errors, the pre-existing baseline (none in console files) |
-
-The API harness keeps the dev owner's authenticator secret in
-`.demo/.data/test-staff.json` and creates `cms-test-<role>@example.test`
-staff accounts through the real invite flow on first use.
-
----
-
-## Not built
-
-Drawn in the design, left out because nothing real stands behind them (the
-full list with reasons is in [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md), "Admin
-console"):
-
-- The **Website** group, website visits and content review (CMS removed, ADR-024).
-- Signups awaiting approval, enquiries, analytics.
-- Project lifecycle steps the platform does not record (countersigning, brief
-  acceptance, booking the kickoff call, on hold).
-- Credit checks with agencies, a second review, generated credit agreements.
-- A staff notification bell (staff see client activity in the Overview queue
-  and sidebar counts, and by email once mail is configured).
-- A data export or erasure-request screen (needs a retention policy first).
-- Refunding a Direct Debit collection from the panel (refused with a pointer
-  to GoCardless).
-
-Flagged for the owner and deliberately not built: any control that adds a
-charge to the interest-free plan, prices it differently from paying in full,
-or runs it past 12 months; and switching on interest-bearing plans or credit
-decisions from the console.
+| Unit (`.demo/tests/unit`, `web/tests/unit`) | permissions, plan limits and dates, mail rendering, recipient rules, the site content contract and documents, media sniffing, enquiry and visit signing, visit paths and sources | 62/62 |
+| API (`.demo/tests/api`) | staff sign-in and enrolment, money guardrails, sorting and audit triggers, panel sync, **every admin route × every role**, mail flows, website content and publishing through the site, media, redirects and settings, enquiries and their retention, visit totals and the analytics report | 67/67 |
+| Browser (`.demo/tests/e2e`, Playwright on installed Edge) | staff sign-in with a code, every screen for the owner, the access wall for Support, no Waive for Admin, customer pages, staff refused at the customer sign-in, one request across both panels, every Website screen for the owner and the wall for each other role | 14/14 (one customer-page timeout under a parallel production build, passed on rerun) |
+| Types | `vue-tsc` over the panel; `nuxi typecheck` over the site | 46 errors, the pre-existing baseline (none in console files); site clean |

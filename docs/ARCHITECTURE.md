@@ -99,7 +99,10 @@ removed; the table lists what remains. On `feature/admin-console`
 (ADR-025) the console, `/api/admin/**` (without `/api/admin/website/**`)
 and the invite routes are back; their endpoints, permissions and sign-in
 are in `ADMIN_CONSOLE.md`. `/api/config` no longer carries
-`legal` or `announcement`.
+`legal` or `announcement`. On `feature/admin-website` (ADR-026)
+`/api/admin/website/**` and a rebuilt `/api/site/**` return: published
+content, media, redirects and settings for the site, plus two signed calls
+from it (enquiries, visit totals). `ADMIN_CONSOLE.md` lists them.
 
 **Server conventions (ADR-013)**: every Prisma-backed route uses the shared
 utils in `.demo/server/utils/` — `requireAuth(event)` for customer routes and
@@ -235,6 +238,11 @@ All customer pages: `definePageMeta({ layout: 'sidenav', middleware: 'auth' })`.
   sign-in with a required authenticator code, an append-only audit log and
   the money guardrails. `ADMIN_CONSOLE.md` is its reference: screens, roles
   and permissions, endpoints, migrations, env vars, the first Super Admin.
+  Merged and deployed 2026-11-01. The Website group (Pages, Insights, Case
+  studies, Media, Navigation, SEO & redirects, Enquiries, Analytics, Site
+  settings) is rebuilt from the design on `feature/admin-website`
+  (ADR-026, not merged); the public site renders what it publishes over
+  its code baseline.
 
 Shared UI vocabulary (see DESIGN_SYSTEM.md + CLAUDE.md): status accents
 (`#22B07D`/`#F2C14E`/`#EC6453`/`#6EA8FE`), payment-state taxonomy

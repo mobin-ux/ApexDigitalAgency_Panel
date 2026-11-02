@@ -1,6 +1,7 @@
 # ADR-026 — The console's Website group, rebuilt from the design
 
-**Status:** Accepted (2026-11-01), in progress on `feature/admin-website`.
+**Status:** Accepted (2026-11-01). Built on `feature/admin-website`,
+phases A–G complete on 2026-11-02; not merged, not deployed.
 Supersedes the CMS half of ADR-024 and the "no Website group" part of
 ADR-025. Builds on the content tables ADR-021 left in the schema.
 
