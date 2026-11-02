@@ -362,6 +362,7 @@ export default defineNuxtConfig({
     scheduledTasks: {
       '* * * * *': ['mail:deliver'],
       '17 3 * * *': ['website:enquiries-retention'],
+      '29 3 * * *': ['sessions:prune'],
       '41 3 * * *': ['logs:prune'],
     },
     // Minifying the server bundle is the peak-memory stage of the build and

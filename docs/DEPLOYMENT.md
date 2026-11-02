@@ -480,7 +480,7 @@ keeps it, as before) and to a file per day:
    sign-in still accepts older, shorter passwords), and sign-up and password
    change are rate-limited. Nothing to configure.
 
-## 15. Audit fixes AUD-01 to AUD-03 — what a deploy needs
+## 15. Audit fixes AUD-01 to AUD-10 — what a deploy needs
 
 Not deployed. No schema change, no new environment variable.
 
@@ -516,3 +516,20 @@ Not deployed. No schema change, no new environment variable.
    `/careers`); the link appears within a minute of publishing. Until then
    the footer has no Legal column, and the contact form still has no privacy
    notice to point at.
+4. **The Medium audit fixes (AUD-04 to AUD-10)** need no schema change.
+   - After the panel is up, list the projects whose stored progress
+     disagrees with their milestones, then fix them once the list looks
+     right (the panel can stay running):
+     `sudo -u apex env DATABASE_URL=file:/opt/apex/prisma/dev.db node /opt/apex/.output/server/sync-progress.mjs`,
+     then the same with `--apply`. The script ships in the repo, not the
+     bundle, and needs `@prisma/client`: copy `scripts/sync-progress.mjs`
+     into `/opt/apex/.output/server/` so it resolves from the bundle's
+     `node_modules` (not yet tried on the box), or run it from a checkout
+     with `node_modules`, as for `create-super-admin.mjs`.
+   - New daily task `sessions:prune` (03:29) deletes sessions that ended
+     more than 30 days ago; nothing to configure.
+   - Optional, site `/opt/apex-web/.env`: `NUXT_CMS_PANEL_ORIGINS` adds
+     console origins allowed to frame `/preview/**`, read at start-up. The
+     production panel hosts are already allowed.
+   - `GET /api/messaging` answers 404 after the deploy (it served the
+     template's demo data).

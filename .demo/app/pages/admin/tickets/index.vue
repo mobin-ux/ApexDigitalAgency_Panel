@@ -81,9 +81,18 @@ function statusOf(s: string) {
   return STATUS[s?.toUpperCase()] ?? { label: s, tone: 'neutral' as const, order: 4 }
 }
 
+// The clock waits are measured against. It starts as the server's, carried
+// in the payload, so the hydration render sorts and colours the rows exactly
+// as the server did; a request crossing its target in between used to flip
+// its "late" class and mismatch. After mounting it is the browser's.
+const now = useState('admin-tickets-now', () => Date.now())
+onMounted(() => {
+  now.value = Date.now()
+})
+
 /** Minutes the customer has waited for a first answer to their latest message. */
 function waitedMinutes(since: string | Date | null) {
-  return since ? Math.max(0, Math.round((Date.now() - new Date(since).getTime()) / 60_000)) : 0
+  return since ? Math.max(0, Math.round((now.value - new Date(since).getTime()) / 60_000)) : 0
 }
 function fmtMinutes(m: number) {
   if (m < 60) {

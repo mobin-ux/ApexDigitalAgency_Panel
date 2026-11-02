@@ -590,6 +590,7 @@ site in [`web/.env.example`](web/.env.example)):
 | `NUXT_WEBSITE_PUBLIC_URL` | | the site's public address, for preview links and the editor's frame |
 | `NUXT_WEBSITE_MEDIA_DIR` | | media-library files, outside the bundle (production: `/opt/apex/site-media`, already there) |
 | | `CMS_PANEL_ORIGINS` | build time: extra console origins allowed to frame `/preview/**` |
+| | `NUXT_CMS_PANEL_ORIGINS` | the same, read when the site starts, so a new console host needs a restart rather than a rebuild |
 
 The first three pairs and the media directory were set in production for
 the October CMS and are still there; check each value before deploying.

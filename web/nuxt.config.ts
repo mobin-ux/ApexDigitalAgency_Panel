@@ -5,8 +5,9 @@ import { company, seoDefaults } from './app/data/site'
 const siteUrl = process.env.NUXT_PUBLIC_SITE_URL ?? 'https://apexdigi.co.uk'
 
 // Origins of the admin console, whose editor frames `/preview/**` (ADR-026).
-// Fixed at build time because route rules are; `CMS_PANEL_ORIGINS` (comma
-// separated) adds more, and a dev build also allows the local panel.
+// These are fixed at build time because route rules are; `CMS_PANEL_ORIGINS`
+// (comma separated) adds more at build time, `NUXT_CMS_PANEL_ORIGINS` at run
+// time (server/plugins/preview-frame.ts), and a dev build allows the local panel.
 const panelOrigins = [
   'https://panel.apexdigi.co.uk',
   'https://146-19-130-11.sslip.io',
@@ -99,6 +100,12 @@ export default defineNuxtConfig({
        * derived key) the visit totals (NUXT_CMS_ENQUIRY_SECRET).
        */
       enquirySecret: '',
+      /**
+       * Extra console origins allowed to frame `/preview/**`, comma separated,
+       * read when the server starts (NUXT_CMS_PANEL_ORIGINS), so moving the
+       * console needs a restart, not a rebuild (AUD-09).
+       */
+      panelOrigins: '',
     },
     public: {
       /** Baked at build so server and browser render the same © year. */

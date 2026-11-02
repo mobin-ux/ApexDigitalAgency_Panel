@@ -1266,7 +1266,10 @@ const TAB_CLS = 'apex-ring -mb-px inline-flex h-10 shrink-0 cursor-pointer items
             </div>
             <div>
               <label for="pd-progress" :class="ADMIN_LABEL">Progress (%)</label>
-              <input id="pd-progress" v-model.number="form.progress" type="number" min="0" max="100" :class="ADMIN_INPUT">
+              <input id="pd-progress" v-model.number="form.progress" type="number" min="0" max="100" :readonly="milestones.length > 0" :aria-describedby="milestones.length > 0 ? 'pd-progress-hint' : undefined" :class="ADMIN_INPUT">
+              <p v-if="milestones.length > 0" id="pd-progress-hint" class="text-fg-muted mt-1 text-[12px]">
+                Follows the milestone timeline: complete a stage to move it.
+              </p>
             </div>
           </form>
           <div class="flex justify-end">

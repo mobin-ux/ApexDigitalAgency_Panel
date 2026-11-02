@@ -4,7 +4,7 @@ import { requireInterestBearingPlans } from './lending'
 import { deliverNow } from './mail/outbox'
 import { notify } from './notify'
 import prisma from './prisma'
-import { PLAN_CANCELLED } from './project-lifecycle'
+import { PLAN_CANCELLED, syncProgress } from './project-lifecycle'
 
 /**
  * Financing engine — the single server-side source of the locked ADR-011
@@ -326,6 +326,9 @@ export async function collectKickoff(projectId: string, opts?: { actorNote?: str
         await tx.milestone.update({ where: { id: next.id }, data: { status: 'CURRENT' } })
       }
     }
+    // Progress is the share of the timeline done, as everywhere else; the
+    // fixed 5% above stands only for a project with no milestones (AUD-05).
+    await syncProgress(tx, projectId)
     // The rest of the plan's dates, compressed if a late kickoff would carry
     // the last one past twelve months from signing (ADR-025).
     let compressedUntil: Date | null = null

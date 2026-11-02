@@ -70,6 +70,23 @@ merged, not deployed).
   pages), AUD-02 (`enqueueForEach()`: one write per fan-out; support
   actions 8.3 s → 0.4 s), AUD-03 (WAL at start-up, `01.database.ts`).
   Not deployed; DEPLOYMENT §15. The rest of the register is still open.
+- **Medium issues fixed (2026-11-03, "The Medium ones"):** AUD-04 (demo
+  `/api/messaging` deleted), AUD-05 (kickoff and full payment call
+  `syncProgress()`; a typed progress on a project with milestones is 409;
+  `scripts/sync-progress.mjs` repairs old rows), AUD-06 (both apps' logging
+  plugins fill a missing `statusMessage` from `STATUS_CODES`), AUD-07 (the
+  real cause was the support thread fetched during SSR without the cookie →
+  401 toast; now client-only; `/admin/tickets` measures waits from a
+  `useState` clock), AUD-08 (baseline import: 3 tries × 15 s), AUD-09
+  (`NUXT_CMS_PANEL_ORIGINS` at run time, `web/server/plugins/preview-frame.ts`),
+  AUD-10 (`sessions:prune` daily, 30 days). Suite `audit-fixes.test.ts`.
+  Not deployed; DEPLOYMENT §15 item 4. The Low issues are still open.
+- **Gotcha:** a `watch(..., { immediate: true })` in a page's setup runs
+  during SSR too, and a plain `$fetch` there carries no cookie: guard it
+  with `import.meta.server` (or use `useRequestFetch`). An error toast
+  added on the server is a hydration mismatch.
+- **Gotcha:** `/preview/<bad token>` is the site's 404 page and keeps
+  `frame-ancestors 'none'`; check the preview CSP on a real draft's token.
 - **SQLite is in WAL mode now:** `prisma/dev.db-wal`/`-shm` sit beside the
   database (git-ignored). Never `cp dev.db` while a server has it open;
   on the VPS back up with `sqlite3 … ".backup …"` and run `sqlite3` as

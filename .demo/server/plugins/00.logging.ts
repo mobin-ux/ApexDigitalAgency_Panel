@@ -1,6 +1,7 @@
 import type { H3Event } from 'h3'
 import type { LogHttp, LogLevel, LogOutcome, RequestScope } from '../../shared/log'
 import { randomUUID } from 'node:crypto'
+import { STATUS_CODES } from 'node:http'
 import path from 'node:path'
 import process from 'node:process'
 import { getQuery, getRequestHeader, getRequestIP, getResponseHeader, setResponseHeader } from 'h3'
@@ -97,6 +98,17 @@ function outcomeFor(status: number): LogOutcome {
 
 export default defineNitroPlugin((nitroApp) => {
   const config = useRuntimeConfig()
+
+  // An error thrown without a statusMessage went out as "Server Error" whatever
+  // its status, 404s included (AUD-06): give it the standard reason phrase
+  // before the error handler writes the response.
+  const handleError = nitroApp.h3App.options.onError
+  nitroApp.h3App.options.onError = (error, event) => {
+    if (!error.statusMessage && STATUS_CODES[error.statusCode]) {
+      error.statusMessage = STATUS_CODES[error.statusCode]!
+    }
+    return handleError?.(error, event)
+  }
   const logConfig = (config.log ?? {}) as { dir?: string, level?: string, slowRequestMs?: number | string }
   const level = isLogLevel(logConfig.level) ? logConfig.level : (import.meta.dev ? 'debug' : 'info')
   const slowRequestMs = Number(logConfig.slowRequestMs) || 1500

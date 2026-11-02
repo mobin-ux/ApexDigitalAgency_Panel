@@ -194,6 +194,13 @@ watch(() => current.value?.id, async (id) => {
     return
   }
   threadLoading.value = true
+  // The thread loads in the browser only: on the server $fetch carries no
+  // cookie, so it answered 401 and rendered an error toast the client then
+  // could not hydrate (AUD-07), and opening a thread also marks it read.
+  // Both renders start from the same skeleton.
+  if (import.meta.server) {
+    return
+  }
   try {
     await loadThread(id)
     toBottom()

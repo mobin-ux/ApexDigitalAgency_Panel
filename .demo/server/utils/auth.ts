@@ -237,6 +237,21 @@ export async function endSession(event: H3Event): Promise<void> {
   log('auth').info('auth.session.ended', claims ? 'Signed out' : 'Sign-out without a session', { outcome: claims ? 'success' : 'skipped', ...(claims ? { actor: actorOf(claims) } : {}), data: { sessionId: claims?.sid ?? null } })
 }
 
+/** How long a session that has ended (expired or signed out) is kept before it is deleted. */
+export const ENDED_SESSION_RETENTION_DAYS = 30
+
+/**
+ * Delete session rows that ended more than `ENDED_SESSION_RETENTION_DAYS`
+ * ago (AUD-10: one row per sign-in, and nothing removed them). Safe for any
+ * token still around: the session middleware refuses a token whose row is
+ * missing, exactly as it refuses an expired or revoked one.
+ */
+export async function pruneEndedSessions(now = new Date()): Promise<number> {
+  const cutoff = new Date(now.getTime() - ENDED_SESSION_RETENTION_DAYS * 86_400_000)
+  const { count } = await prisma.session.deleteMany({ where: { OR: [{ expiresAt: { lt: cutoff } }, { revokedAt: { lt: cutoff } }] } })
+  return count
+}
+
 /**
  * Sign an account out everywhere except, optionally, one session: revoke the
  * rows and stamp `sessionsValidAfter`, which also ends tokens issued before

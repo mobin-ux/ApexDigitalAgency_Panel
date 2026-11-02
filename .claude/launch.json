@@ -44,7 +44,7 @@
       "env": {
         "PORT": "3011",
         "NUXT_CMS_URL": "http://localhost:3010",
-        "CMS_PANEL_ORIGINS": "http://localhost:3010"
+        "NUXT_CMS_PANEL_ORIGINS": "http://localhost:3010"
       }
     }
   ]
