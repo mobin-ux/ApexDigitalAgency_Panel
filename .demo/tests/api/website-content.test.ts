@@ -183,6 +183,18 @@ describe('website content loop', { skip: !enabled && 'CMS_TEST_URL is not set', 
     }
   })
 
+  it('a page under /legal/ can be built and published, so the footer\'s legal links have somewhere to go (AUD-01)', async () => {
+    const created = await support.json<any>('/api/admin/website/documents', { method: 'POST', json: { template: 'built-page', title: `Terms ${run}`, path: `/legal/t-${run}` } })
+    assert.equal(created.status, 200, JSON.stringify(created.body).slice(0, 300))
+    const id = created.body.document.id
+    const detail = (await owner.json<any>(`/api/admin/website/documents/${id}`)).body
+    const published = await owner.json<any>(`/api/admin/website/documents/${id}/publish`, { method: 'POST', json: { version: detail.draftVersion } })
+    assert.equal(published.status, 200, JSON.stringify(published.body).slice(0, 300))
+    if (SITE) {
+      assert.ok(await siteShows(`/legal/t-${run}`, `Terms ${run}`), 'the site renders it')
+    }
+  })
+
   it('moves a built page: a draft freely, a live one with a 301 and only for roles with website.seo', async () => {
     const created = await support.json<any>('/api/admin/website/documents', { method: 'POST', json: { template: 'built-page', title: `Move ${run}`, path: `/move-${run}` } })
     assert.equal(created.status, 200)

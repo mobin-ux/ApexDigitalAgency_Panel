@@ -5,15 +5,22 @@ import { services } from '~/data/services'
 const company = useCompany()
 const footer = useCmsContent('footer')
 const { linkAttrs } = useCmsLink()
+const pageExists = usePageExists()
 const year = useRuntimeConfig().public.buildYear
 
 const phoneHref = computed(() => (company.value.phone ? `tel:${company.value.phone.replace(/\s+/g, '')}` : ''))
 const social = computed(() => company.value.social.filter(profile => profile.url))
 
-const groups = computed(() => footer.value.groups.map(group => ({
-  label: group.label,
-  links: group.links.map(link => ({ text: link.label, ...linkAttrs(link.link) })),
-})))
+// A link to a page that is not there yet (the legal pages, careers) is left out until
+// the console publishes it; a group with nothing left is left out with it.
+const groups = computed(() => footer.value.groups
+  .map(group => ({
+    label: group.label,
+    links: group.links
+      .filter(link => link.link.kind !== 'internal' || pageExists(link.link.path))
+      .map(link => ({ text: link.label, ...linkAttrs(link.link) })),
+  }))
+  .filter(group => group.links.length))
 
 const linkClass = 'text-[0.9063rem] text-body transition-colors hover:text-violet-600'
 </script>

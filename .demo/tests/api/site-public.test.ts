@@ -33,6 +33,37 @@ describe('public site', { skip: !SITE && 'SITE_TEST_URL is not set' }, () => {
     assert.equal((await site('/sitemap.xml')).status, 200)
   })
 
+  it('no link on the site leads to a page that is not there (AUD-01)', { timeout: 180_000 }, async () => {
+    const status = new Map<string, number>()
+    const linkedFrom = new Map<string, string>()
+    const queue = ['/']
+    while (queue.length) {
+      const path = queue.shift()!
+      if (status.has(path)) {
+        continue
+      }
+      const res = await site(path, { headers: { accept: 'text/html' } })
+      status.set(path, res.status)
+      if (res.status !== 200 || !(res.headers.get('content-type') ?? '').includes('html')) {
+        continue
+      }
+      for (const [, href] of (await res.text()).matchAll(/href="(\/[^"#?]*)/g)) {
+        const target = href || '/'
+        // Assets and API calls are not pages.
+        if (/^\/(?:_nuxt|_ipx|brand|fonts|img|icons|media|api)\b/.test(target) || /\.\w{2,4}$/.test(target)) {
+          continue
+        }
+        if (!status.has(target) && !queue.includes(target)) {
+          linkedFrom.set(target, path)
+          queue.push(target)
+        }
+      }
+    }
+    const broken = [...status].filter(([, code]) => code !== 200).map(([path, code]) => `${code} ${path} (linked from ${linkedFrom.get(path)})`)
+    assert.ok(status.size > 20, `crawled ${status.size} pages`)
+    assert.deepEqual(broken, [])
+  })
+
   it('the contact form refuses what it should', async () => {
     const sameOrigin = { 'sec-fetch-site': 'same-origin', 'origin': SITE }
     assert.equal((await site('/api/contact')).status, 405, 'GET is not allowed')

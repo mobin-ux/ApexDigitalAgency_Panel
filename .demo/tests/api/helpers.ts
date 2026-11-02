@@ -5,7 +5,9 @@ import { staffCookie } from './staff-session.ts'
  * Helpers for the API suites, which run against a live panel dev server on a
  * copy* of the local database:
  *
- *   cp prisma/dev.db .data/test.db
+ *   cp prisma/dev.db .data/test.db   # with no dev server open on it: the
+ *                                    # database is in WAL mode, and recent
+ *                                    # writes may still be in dev.db-wal
  *   DATABASE_URL=file:<absolute>/.data/test.db pnpm demo:dev   # any port
  *   CMS_TEST_URL=http://localhost:<port> pnpm test:cms:api
  *

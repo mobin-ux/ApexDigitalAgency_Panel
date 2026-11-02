@@ -16,6 +16,9 @@ const team = computed(() => ({
  * HTML; the filter is local state added after hydration. Cards animate in only
  * after a filter change, so first paint never waits on an animation.
  */
+// "See open roles" goes to a page published from the console; until it exists the card has no link.
+const pageExists = usePageExists()
+
 const selected = ref<Department | null>(null)
 const animate = ref(false)
 
@@ -122,6 +125,7 @@ function pick(id: Department | null) {
           <span class="text-[0.90625rem] text-body">{{ team.hiring.body }}</span>
         </p>
         <NuxtLink
+          v-if="pageExists(team.hiring.to)"
           :to="team.hiring.to"
           class="group text-[0.90625rem] font-semibold whitespace-nowrap text-violet-600 hover:underline sm:ml-auto"
         >

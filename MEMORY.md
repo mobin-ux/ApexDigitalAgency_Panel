@@ -64,6 +64,19 @@ merged, not deployed).
   commands through the hook; write scripts or doc fragments to files.
   Editing server files while e2e runs makes the dev server rebuild and
   page loads time out.
+- **Issues fixed with the owner (2026-11-02, "Start with the High ones"):**
+  AUD-01 (links to missing pages hidden by `usePageExists()`; `legal` no
+  longer reserved, so the business publishes its legal pages as built
+  pages), AUD-02 (`enqueueForEach()`: one write per fan-out; support
+  actions 8.3 s → 0.4 s), AUD-03 (WAL at start-up, `01.database.ts`).
+  Not deployed; DEPLOYMENT §15. The rest of the register is still open.
+- **SQLite is in WAL mode now:** `prisma/dev.db-wal`/`-shm` sit beside the
+  database (git-ignored). Never `cp dev.db` while a server has it open;
+  on the VPS back up with `sqlite3 … ".backup …"` and run `sqlite3` as
+  `apex` (root-owned `-shm` makes the panel read-only).
+- **The site's rate limiter (nuxt-security default, 150 requests per
+  5 minutes per address) answers 429** after a couple of hand crawls; wait
+  five minutes before the API suites, which crawl the site once.
 
 ## Website group rebuilt from the design (2026-11-01)
 

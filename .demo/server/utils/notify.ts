@@ -1,7 +1,7 @@
 import type { Permission } from '../../shared/permissions'
 import type { Db } from './mail/outbox'
 import { rolesWith } from '../../shared/permissions'
-import { deliverNow, enqueueMail, loadBrand } from './mail/outbox'
+import { deliverNow, enqueueForEach, loadBrand } from './mail/outbox'
 import { absoluteUrl, MailRenderError } from './mail/render'
 import { notificationMail } from './mail/templates'
 import { selectRecipients } from './notify-rules'
@@ -59,7 +59,7 @@ export async function notify(input: NotifyInput, tx?: Db): Promise<NotifyResult>
     data: rows.map(userId => ({ userId, title: input.title.slice(0, 200), message: input.message, type, link })),
   })
 
-  const mailIds: string[] = []
+  let mailIds: string[] = []
   if (emails.length) {
     const brand = await loadBrand(db)
     let url: string | null = null
@@ -76,17 +76,14 @@ export async function notify(input: NotifyInput, tx?: Db): Promise<NotifyResult>
       }
     }
     const draft = notificationMail(brand, { title: input.title, message: input.message, url })
-    const kind = 'notification'
-    for (const { id, email } of emails) {
-      if (linkError) {
-        // The row is written as failed with the reason, where the Email screen shows it; the in-app notification still stands.
-        const row = await db.mailMessage.create({ data: { to: email, toUserId: id, kind, subject: draft.subject, text: '', html: '', status: 'FAILED', lastError: linkError.slice(0, 300) }, select: { id: true } })
-        mailIds.push(row.id)
-        continue
-      }
-      const row = await enqueueMail({ to: email, toUserId: id, kind, ...draft }, db)
-      mailIds.push(row.id)
-    }
+    // One write for every recipient. With a link that cannot be built the rows are written
+    // failed with the reason, where the Email screen shows it; the in-app notification still stands.
+    mailIds = await enqueueForEach(
+      emails.map(({ id, email }) => ({ to: email, toUserId: id })),
+      { kind: 'notification', ...draft, replyTo: brand.supportEmail },
+      db,
+      linkError ?? undefined,
+    )
   }
 
   if (!tx && mailIds.length) {

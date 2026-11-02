@@ -5,8 +5,11 @@
  * a page never means touching the components that point at it.
  * Built so far: `home`, `services`, all seven `service(slug)` pages, `ourWork`,
  * `caseStudy(slug)`, `insights`, `article(slug)` for written articles, `about`
- * and `contact`; every other URL is a page still to come. Link an article with
- * `articleLink()`, which gives '' for one that is not written yet.
+ * and `contact`; every other URL is a page still to come. `careers` and the
+ * `legal` pages have no code: the business publishes them from the console as
+ * built pages at these addresses, and the footer shows each link only once its
+ * page exists (`usePageExists()`). Link an article with `articleLink()`, which
+ * gives '' for one that is not written yet.
  */
 
 export const routes = {

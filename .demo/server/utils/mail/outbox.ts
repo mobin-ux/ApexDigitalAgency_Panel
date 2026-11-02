@@ -106,6 +106,41 @@ export async function enqueueMail(input: EnqueueInput, db: Db = prisma): Promise
   })
 }
 
+export interface Recipient {
+  to: string
+  toUserId?: string | null
+}
+
+/**
+ * Queue one message to many people in a single write: rendered once, one
+ * row each. A fan-out (every staff member holding a permission) used to
+ * render, write, claim and mark one row at a time, holding SQLite's write
+ * lock for seconds per request (docs/audit AUD-02). With `failedWith` the
+ * rows are written FAILED with that reason instead of queued.
+ */
+export async function enqueueForEach(recipients: Recipient[], message: Omit<EnqueueInput, 'to' | 'toUserId'>, db: Db = prisma, failedWith?: string): Promise<string[]> {
+  if (recipients.length === 0) {
+    return []
+  }
+  const text = failedWith ? '' : renderText(message.content)
+  const html = failedWith ? '' : renderHtml(message.content)
+  const replyTo = message.replyTo === undefined ? (await loadBrand(db)).supportEmail : message.replyTo
+  const rows = await db.mailMessage.createManyAndReturn({
+    data: recipients.map(r => ({
+      to: r.to.trim(),
+      toUserId: r.toUserId ?? null,
+      kind: message.kind,
+      subject: message.subject,
+      text,
+      html,
+      replyTo: replyTo || null,
+      ...(failedWith ? { status: 'FAILED', lastError: failedWith.slice(0, 300) } : {}),
+    })),
+    select: { id: true },
+  })
+  return rows.map(row => row.id)
+}
+
 export interface DeliveryOutcome {
   id: string
   status: MailStatus
@@ -158,6 +193,17 @@ async function attempt(id: string, from: MailStatus[], now: Date): Promise<Deliv
  * for fan-outs; either way the scheduler picks up anything still queued.
  */
 export async function deliverNow(ids: string[]): Promise<DeliveryOutcome[]> {
+  if (ids.length === 0) {
+    return []
+  }
+  if (!mailConfigured()) {
+    // Nothing to attempt: mark every still-queued row in two queries rather than three per row.
+    const queued = await prisma.mailMessage.findMany({ where: { id: { in: ids }, status: 'QUEUED' }, select: { id: true } })
+    if (queued.length) {
+      await prisma.mailMessage.updateMany({ where: { id: { in: queued.map(row => row.id) }, status: 'QUEUED' }, data: { status: 'FAILED', lastError: NOT_CONFIGURED_ERROR } })
+    }
+    return queued.map(row => ({ id: row.id, status: 'FAILED' as const, error: NOT_CONFIGURED_ERROR }))
+  }
   const now = new Date()
   const outcomes: DeliveryOutcome[] = []
   for (const id of ids) {
