@@ -4,10 +4,10 @@ import { describe, it } from 'node:test'
 import { AUDIT_KIND_DEFS, AUDIT_KINDS, auditKindOf, kindFilter } from '../../shared/audit-kinds.ts'
 import { can, PERMISSION_KEYS, PERMISSIONS, permissionsOf, ROLES, rolesWith, STAFF_ROLES } from '../../shared/permissions.ts'
 
-describe('permission matrix (ADR-016 + ADR-021)', () => {
-  it('declares eight roles and seventeen permissions, each defined once', () => {
+describe('permission matrix (ADR-016 + ADR-021 + ADR-026)', () => {
+  it('declares eight roles and nineteen permissions, each defined once', () => {
     assert.equal(STAFF_ROLES.length, 8)
-    assert.equal(PERMISSION_KEYS.length, 17)
+    assert.equal(PERMISSION_KEYS.length, 19)
     assert.deepEqual(PERMISSIONS.map(p => p.key).sort(), [...PERMISSION_KEYS].sort())
     for (const role of STAFF_ROLES) {
       assert.ok(ROLES[role], `${role} has a definition`)
@@ -30,9 +30,27 @@ describe('permission matrix (ADR-016 + ADR-021)', () => {
     assert.equal(can('editor', 'website.publish'), false)
     assert.equal(can('publisher', 'website.publish'), true)
     assert.equal(can('publisher', 'website.settings'), false)
-    assert.equal(can('admin', 'website.settings'), true)
     assert.equal(can('readonly', 'website.view'), true)
     assert.equal(can('readonly', 'website.edit'), false)
+  })
+
+  it('the Website group follows Admin Console.dc.html (ADR-026)', () => {
+    // The design's keys on the left, ours on the right; its `read` is our `readonly`.
+    const design: Record<string, string[]> = {
+      'website.view': ['owner', 'admin', 'pm', 'support', 'finance', 'readonly'], // site.see
+      'website.edit': ['owner', 'admin', 'pm', 'support'], // site.edit
+      'website.publish': ['owner', 'admin'], // site.publish
+      'website.media': ['owner', 'admin', 'pm', 'support'], // media
+      'website.seo': ['owner', 'admin'], // site.structure
+      'leads.handle': ['owner', 'admin', 'pm', 'support'], // leads
+      'analytics.view': ['owner', 'admin', 'pm', 'finance', 'readonly'], // analytics
+      'website.settings': ['owner'], // site.settings
+    }
+    const designRoles = ['owner', 'admin', 'pm', 'support', 'finance', 'readonly'] as const
+    for (const [key, allow] of Object.entries(design)) {
+      const held = designRoles.filter(role => can(role, key as Parameters<typeof can>[1]))
+      assert.deepEqual(held, allow, key)
+    }
   })
 
   it('the pre-CMS grants are unchanged', () => {

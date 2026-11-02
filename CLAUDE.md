@@ -36,8 +36,10 @@ Detail lives in the docs — read on demand, don't guess:
 8. **Never kill the user's dev server on port 3000**; preview uses `autoPort` (launch.json).
 9. **Never fabricate financial actions** — no fake charges; route to Wallet + `TODO(api)`.
 10. Rewrite Persian comments to English whenever touching a legacy file.
-11. **The admin console is back without the website CMS** (ADR-025, on
-    `feature/admin-console`; removed on master by ADR-024). Every staff-only
+11. **The admin console is back** (ADR-025, merged and deployed 2026-11-01),
+    and its Website group is rebuilt from the design on
+    `feature/admin-website` (ADR-026, not merged): content the public site
+    reads, enquiries, cookieless analytics. Every staff-only
     route gates on a permission from `shared/permissions.ts` via
     `requireStaffPermission()` or `can()`, never on bare `requireAdmin`. Do not
     drop roles from the matrix: an unknown `staffRole` falls back to `owner`.

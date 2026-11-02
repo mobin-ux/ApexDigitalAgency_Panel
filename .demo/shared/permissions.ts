@@ -24,7 +24,13 @@ export const STAFF_ROLES = ['owner', 'admin', 'pm', 'support', 'finance', 'publi
 
 export type StaffRole = typeof STAFF_ROLES[number]
 
-/** The seventeen things a staff member can be allowed to do. */
+/**
+ * The nineteen things a staff member can be allowed to do. The Website group
+ * (ADR-026) follows `Admin Console.dc.html`: project managers and support
+ * agents draft content and handle enquiries, Owner and Admin publish and
+ * run navigation, SEO and redirects, and only the Owner changes site
+ * settings.
+ */
 export const PERMISSION_KEYS = [
   'work.view',
   'work.assign',
@@ -40,6 +46,8 @@ export const PERMISSION_KEYS = [
   'website.publish',
   'website.seo',
   'website.settings',
+  'leads.handle',
+  'analytics.view',
   'catalogue.edit',
   'team.manage',
   'platform.settings',
@@ -68,17 +76,17 @@ export const ROLES: Record<StaffRole, RoleDef> = {
   pm: {
     key: 'pm',
     label: 'Project manager',
-    covers: 'projects, briefs, deliverables and support',
+    covers: 'projects, briefs, deliverables, support, website drafts and enquiries',
   },
   support: {
     key: 'support',
     label: 'Support agent',
-    covers: 'support requests and client contact details',
+    covers: 'support requests, client contact details, website drafts and enquiries',
   },
   finance: {
     key: 'finance',
     label: 'Finance',
-    covers: 'payments, refunds and reporting',
+    covers: 'payments, refunds, reporting and website analytics',
   },
   publisher: {
     key: 'publisher',
@@ -93,7 +101,7 @@ export const ROLES: Record<StaffRole, RoleDef> = {
   readonly: {
     key: 'readonly',
     label: 'Read-only',
-    covers: 'reading projects, clients and website content',
+    covers: 'reading projects, clients, website content and analytics',
   },
 }
 
@@ -118,12 +126,14 @@ export const PERMISSIONS: PermissionDef[] = [
   { key: 'money.refund', label: 'Refund a payment', detail: 'Full or partial', allow: ['owner', 'finance'] },
   { key: 'clients.approve', label: 'Approve client accounts', detail: 'Portal signup, suspend, restore', allow: ['owner', 'admin'] },
   { key: 'support.answer', label: 'Answer support', detail: 'Reply, assign, resolve', allow: ['owner', 'admin', 'pm', 'support'] },
-  { key: 'website.view', label: 'See website content', detail: 'Pages, drafts, media, revisions', allow: ['owner', 'admin', 'publisher', 'editor', 'readonly'] },
-  { key: 'website.edit', label: 'Edit website content', detail: 'Draft pages, menus, submit for review', allow: ['owner', 'admin', 'publisher', 'editor'] },
-  { key: 'website.media', label: 'Manage media', detail: 'Upload, replace, delete files', allow: ['owner', 'admin', 'publisher', 'editor'] },
-  { key: 'website.publish', label: 'Publish the website', detail: 'Approve, publish, schedule, unpublish', allow: ['owner', 'admin', 'publisher'] },
-  { key: 'website.seo', label: 'SEO and redirects', detail: 'Metadata, sitemap, robots, redirects', allow: ['owner', 'admin', 'publisher'] },
-  { key: 'website.settings', label: 'Site settings', detail: 'Company facts, identity, defaults', allow: ['owner', 'admin'] },
+  { key: 'website.view', label: 'See website content', detail: 'Pages, articles, case studies, media, menus', allow: ['owner', 'admin', 'pm', 'support', 'finance', 'publisher', 'editor', 'readonly'] },
+  { key: 'website.edit', label: 'Draft website content', detail: 'Pages, articles and case studies, sent for review', allow: ['owner', 'admin', 'pm', 'support', 'publisher', 'editor'] },
+  { key: 'website.media', label: 'Upload and edit media', detail: 'Upload, alt text, delete unused files', allow: ['owner', 'admin', 'pm', 'support', 'publisher', 'editor'] },
+  { key: 'website.publish', label: 'Approve and publish', detail: 'Publish, request changes, restore', allow: ['owner', 'admin', 'publisher'] },
+  { key: 'website.seo', label: 'Navigation, SEO and redirects', detail: 'Menus, search settings, sitemap, redirects', allow: ['owner', 'admin', 'publisher'] },
+  { key: 'website.settings', label: 'Site settings', detail: 'Company details, sharing, availability', allow: ['owner'] },
+  { key: 'leads.handle', label: 'Handle enquiries', detail: 'Read, assign, note, mark won or lost', allow: ['owner', 'admin', 'pm', 'support'] },
+  { key: 'analytics.view', label: 'See website analytics', detail: 'Visits, pages, sources, enquiries', allow: ['owner', 'admin', 'pm', 'finance', 'readonly'] },
   { key: 'catalogue.edit', label: 'Edit services and prices', detail: 'Catalogue and help articles', allow: ['owner', 'admin'] },
   { key: 'team.manage', label: 'Manage team and roles', detail: 'Invite, change role, suspend', allow: ['owner', 'admin'] },
   { key: 'platform.settings', label: 'Platform settings', detail: 'Reply promise, credit rules', allow: ['owner'] },

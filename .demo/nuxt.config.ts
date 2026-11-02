@@ -201,6 +201,23 @@ export default defineNuxtConfig({
       resendApiKey: '', // NUXT_MAIL_RESEND_API_KEY
       from: '', // NUXT_MAIL_FROM
     },
+    /**
+     * The public site the Website screens publish to (ADR-026). `siteUrl` is
+     * where the panel reads the site's code baseline and asks it to drop its
+     * content cache after a publish; in production both apps sit on the same
+     * box, so it is a loopback address. Empty: publishing still works and the
+     * site picks the change up within a minute.
+     */
+    website: {
+      siteUrl: '', // NUXT_WEBSITE_SITE_URL
+      revalidateSecret: '', // NUXT_WEBSITE_REVALIDATE_SECRET
+      /** The site's public address, for preview links staff open (NUXT_WEBSITE_PUBLIC_URL, e.g. https://apexdigi.co.uk). */
+      publicUrl: '',
+      /** Where media-library files are stored (NUXT_WEBSITE_MEDIA_DIR); default `.data/site-media`. Outside the bundle in production. */
+      mediaDir: '',
+      /** Checks the signature on contact messages the site forwards (NUXT_WEBSITE_ENQUIRY_SECRET). */
+      enquirySecret: '',
+    },
     payments: {
       stripe: {
         secretKey: '', // NUXT_PAYMENTS_STRIPE_SECRET_KEY (sk_test_… / sk_live_…)
@@ -321,6 +338,7 @@ export default defineNuxtConfig({
     },
     scheduledTasks: {
       '* * * * *': ['mail:deliver'],
+      '17 3 * * *': ['website:enquiries-retention'],
     },
     // Minifying the server bundle is the peak-memory stage of the build and
     // repeatedly OOM-killed the 4GB production VPS (the rollup pass holds the

@@ -82,6 +82,41 @@ const ROUTES: Route[] = [
   { method: 'GET', path: `/api/admin/contracts/${MISSING}`, needs: ['money.view'] },
   { method: 'PATCH', path: `/api/admin/contracts/${MISSING}`, needs: ['money.view'] },
   { method: 'GET', path: '/api/admin/payments/health', needs: ['money.view'] },
+  // Website (ADR-026)
+  { method: 'GET', path: '/api/admin/website/documents?collection=pages', needs: ['website.view'] },
+  { method: 'POST', path: '/api/admin/website/documents', needs: ['website.edit'] },
+  { method: 'GET', path: `/api/admin/website/documents/${MISSING}`, needs: ['website.view'] },
+  { method: 'PUT', path: `/api/admin/website/documents/${MISSING}/draft`, needs: ['website.edit'] },
+  { method: 'POST', path: `/api/admin/website/documents/${MISSING}/submit`, needs: ['website.edit'] },
+  { method: 'POST', path: `/api/admin/website/documents/${MISSING}/withdraw`, needs: ['website.edit'] },
+  { method: 'POST', path: `/api/admin/website/documents/${MISSING}/request-changes`, needs: ['website.publish'] },
+  { method: 'POST', path: `/api/admin/website/documents/${MISSING}/publish`, needs: ['website.publish'] },
+  { method: 'POST', path: `/api/admin/website/documents/${MISSING}/restore`, needs: ['website.edit'] },
+  { method: 'POST', path: `/api/admin/website/documents/${MISSING}/preview`, needs: ['website.view'] },
+  { method: 'PATCH', path: `/api/admin/website/documents/${MISSING}/path`, needs: ['website.edit'] },
+  { method: 'GET', path: '/api/admin/website/history', needs: ['website.view'] },
+  { method: 'GET', path: '/api/admin/website/review-counts', needs: ['website.view'] },
+  { method: 'GET', path: '/api/admin/website/media', needs: ['website.view'] },
+  { method: 'POST', path: '/api/admin/website/media', needs: ['website.media'] },
+  { method: 'PATCH', path: `/api/admin/website/media/${MISSING}`, needs: ['website.media'] },
+  { method: 'DELETE', path: `/api/admin/website/media/${MISSING}`, needs: ['website.media'] },
+  { method: 'GET', path: '/api/admin/website/redirects', needs: ['website.view'] },
+  { method: 'POST', path: '/api/admin/website/redirects', needs: ['website.seo'] },
+  { method: 'POST', path: '/api/admin/website/redirects/check', needs: ['website.seo'] },
+  { method: 'DELETE', path: `/api/admin/website/redirects/${MISSING}`, needs: ['website.seo'] },
+  { method: 'GET', path: '/api/admin/website/seo', needs: ['website.view'] },
+  // Per key after this gate: Site settings need website.settings, robots.txt website.seo (website-structure.test.ts).
+  { method: 'GET', path: '/api/admin/website/settings', needs: ['website.view'] },
+  { method: 'PUT', path: '/api/admin/website/settings', needs: ['website.view'] },
+  // Idempotent: a permitted role re-reads the site's baseline and adds only what is missing.
+  { method: 'POST', path: '/api/admin/website/import', needs: ['website.publish'] },
+  { method: 'GET', path: '/api/admin/website/enquiries', needs: ['leads.handle'] },
+  { method: 'GET', path: '/api/admin/website/enquiries/summary', needs: ['leads.handle'] },
+  { method: 'GET', path: `/api/admin/website/enquiries/${MISSING}`, needs: ['leads.handle'] },
+  { method: 'PATCH', path: `/api/admin/website/enquiries/${MISSING}`, needs: ['leads.handle'] },
+  { method: 'POST', path: `/api/admin/website/enquiries/${MISSING}/notes`, needs: ['leads.handle'] },
+  { method: 'POST', path: `/api/admin/website/enquiries/${MISSING}/convert`, needs: ['leads.handle', 'clients.approve'] },
+  { method: 'GET', path: '/api/admin/website/analytics', needs: ['analytics.view'] },
   // System
   { method: 'GET', path: '/api/admin/settings', needs: ['platform.settings'] },
   { method: 'PUT', path: '/api/admin/settings', needs: ['platform.settings'] },
@@ -126,7 +161,8 @@ describe('every admin endpoint × every role', { skip: !enabled && 'CMS_TEST_URL
         const url = `/api/admin/${path!.replace(/\/?index$/, '').replace(/\[[^\]]+\]/g, MISSING)}`
         return `${method!.toUpperCase()} ${url}`
       })
-    const covered = new Set(ROUTES.map(r => `${r.method} ${r.path}`))
+    // A row may carry the query a list needs (`?collection=`); the file has none.
+    const covered = new Set(ROUTES.map(r => `${r.method} ${r.path.split('?')[0]}`))
     assert.deepEqual(onDisk.filter(r => !covered.has(r)), [], 'routes with no row in the matrix')
   })
 

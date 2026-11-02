@@ -3,9 +3,9 @@ import { can, DEFAULT_STAFF_ROLE, isStaffRole } from '~~/shared/permissions'
 
 /**
  * The admin console's destinations, grouped the way `Admin Console.dc.html`
- * draws the sidebar (Overview · Work · People · Money · System), each with
- * the permission its screens need. The design's Website group is not
- * built: the site's words live in code since ADR-024.
+ * draws the sidebar (Overview · Work · People · Money · Website · System),
+ * each with the permission its screens need. The Website group came back
+ * with ADR-026, rebuilt from the design.
  *
  * Defined once so the sidebar, the header breadcrumb, the ⌘K palette, the
  * invite landing and the `/admin` guard agree: a role is sent to the first
@@ -19,7 +19,7 @@ import { can, DEFAULT_STAFF_ROLE, isStaffRole } from '~~/shared/permissions'
  * in the group they belong to rather than being dropped.
  */
 
-export type AdminCountKey = 'support' | 'clients' | 'credit'
+export type AdminCountKey = 'support' | 'clients' | 'credit' | 'pages' | 'insights' | 'work' | 'leads'
 
 export interface AdminNavDef {
   /** Stable id, used by the palette and the counts. */
@@ -72,8 +72,22 @@ export const ADMIN_NAV: AdminNavGroup[] = [
     ],
   },
   {
+    heading: 'Website',
+    items: [
+      { key: 'pages', label: 'Pages', icon: 'solar:document-text-linear', to: '/admin/website/pages', needs: 'website.view', count: 'pages' },
+      { key: 'insights', label: 'Insights', icon: 'solar:notebook-linear', to: '/admin/website/insights', needs: 'website.view', count: 'insights' },
+      { key: 'work', label: 'Case studies', icon: 'solar:case-round-linear', to: '/admin/website/case-studies', needs: 'website.view', count: 'work' },
+      { key: 'media', label: 'Media library', icon: 'solar:gallery-linear', to: '/admin/website/media', needs: 'website.view' },
+      { key: 'nav', label: 'Navigation & footer', icon: 'solar:list-linear', to: '/admin/website/navigation', needs: 'website.view' },
+      { key: 'seo', label: 'SEO & redirects', icon: 'solar:magnifer-linear', to: '/admin/website/seo', needs: 'website.seo' },
+      { key: 'leads', label: 'Enquiries', icon: 'solar:inbox-linear', to: '/admin/website/enquiries', needs: 'leads.handle', count: 'leads' },
+      { key: 'analytics', label: 'Analytics', icon: 'solar:chart-2-linear', to: '/admin/website/analytics', needs: 'analytics.view' },
+    ],
+  },
+  {
     heading: 'System',
     items: [
+      { key: 'sitesettings', label: 'Site settings', icon: 'solar:global-linear', to: '/admin/site-settings', needs: 'website.settings' },
       { key: 'platform', label: 'Platform settings', icon: 'solar:settings-linear', to: '/admin/settings', needs: 'platform.settings' },
       { key: 'audit', label: 'Audit log', icon: 'solar:history-linear', to: '/admin/audit', needs: 'team.manage' },
       { key: 'mail', label: 'Email', icon: 'solar:letter-linear', to: '/admin/mail', needs: 'team.manage' },
@@ -119,9 +133,9 @@ export function adminSignInFor(to: { fullPath: string }) {
 
 /**
  * The first destination a role can open — where that role lands after
- * sign-in or invite acceptance. Null for a role that can open nothing here
- * (Publisher and Editor held only `website.*`, whose screens left with
- * ADR-024); the layout's access wall answers that rather than a redirect.
+ * sign-in or invite acceptance (Publisher and Editor land on Pages). Null
+ * only for a role that can open nothing here; the layout's access wall
+ * answers that rather than a redirect.
  */
 export function homeFor(roleValue: unknown): string | null {
   const role: StaffRole = isStaffRole(roleValue) ? roleValue : DEFAULT_STAFF_ROLE

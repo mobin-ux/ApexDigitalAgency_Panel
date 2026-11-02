@@ -117,9 +117,13 @@ function detailOf(entry: { action: string, metadata: string | null }) {
     case 'admin.website.document.create':
       return meta?.template ? `Created a ${meta.template} document` : 'Created a website document'
     case 'admin.website.document.save':
-      return meta?.revision ? `Saved draft revision ${meta.revision}` : 'Saved a draft'
+      return meta?.version ? `Saved draft version ${meta.version}` : 'Saved a draft'
     case 'admin.website.document.submit':
       return 'Submitted a draft for review'
+    case 'admin.website.document.withdraw':
+      return 'Withdrew a draft from review'
+    case 'admin.website.document.import':
+      return Array.isArray(meta?.created) ? `Imported ${meta.created.length} page${meta.created.length === 1 ? '' : 's'} from the site` : 'Imported pages from the site'
     case 'admin.website.document.approve':
       return 'Approved a draft for publishing'
     case 'admin.website.document.reject':
@@ -141,7 +145,7 @@ function detailOf(entry: { action: string, metadata: string | null }) {
     case 'admin.website.document.duplicate':
       return 'Duplicated a document'
     case 'admin.website.document.key':
-      return meta?.from && meta?.to ? `Moved ${meta.from} to ${meta.to}` : 'Changed a document address'
+      return meta?.from && meta?.to ? `Moved ${meta.from} to ${meta.to}${meta.redirect ? ' with a 301 redirect' : ''}` : 'Changed a document address'
     case 'admin.website.document.delete':
       return 'Deleted a never-published draft'
     case 'admin.website.publish.failed':

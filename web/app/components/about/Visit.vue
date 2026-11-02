@@ -1,13 +1,16 @@
 <script setup lang="ts">
 import { aboutPhotos, visit as visitData } from '~/data/about'
 import { routes } from '~/data/routes'
-import { company } from '~/data/site'
 
 /**
  * The studio card. The address, the phone number and the directions link
- * appear only once they are confirmed in `site.ts`.
+ * appear only once they are confirmed (in `site.ts` or Site settings).
  */
-const { addressLines, directionsUrl: directions, telHref } = studio
+const company = useCompany()
+const place = computed(() => studioFor(company.value))
+const addressLines = computed(() => place.value.addressLines)
+const directions = computed(() => place.value.directionsUrl)
+const telHref = computed(() => place.value.telHref)
 const page = useCmsContent('about')
 const visit = computed(() => ({ ...page.value.visit, labels: visitData.labels }))
 </script>

@@ -1,7 +1,6 @@
 import type { ContactBudgetId, ContactField, ContactReplyId, ContactServiceId } from '#shared/contact'
 import { contactFieldError, contactLimits, validateContact } from '#shared/contact'
 import { contactBudgets, contactForm, contactReplies, contactServiceLabels, resolvePlan } from '~/data/contact'
-import { company } from '~/data/site'
 
 /**
  * Why a send did not go through. `unavailable` means nothing reached the team
@@ -16,6 +15,7 @@ export type ContactFailure = 'unavailable' | 'failed' | 'rateLimited' | 'invalid
  * mounted, as the services finder reads `?goal=`.
  */
 export function useContactForm() {
+  const company = useCompany()
   const services = ref<ContactServiceId[]>([])
   const budget = ref<ContactBudgetId | null>(null)
   const reply = ref<ContactReplyId>('email')
@@ -68,6 +68,8 @@ export function useContactForm() {
       plan: plan.value,
       ...fields,
       fax: trap.value,
+      // Where the form was sent from, shown to staff on the enquiry.
+      source: route.fullPath,
     }
   }
 
@@ -144,7 +146,7 @@ export function useContactForm() {
     ].filter(line => line !== '')
     const query = new URLSearchParams({ subject: contactForm.mailSubject, body: lines.join('\n') })
     // URLSearchParams writes spaces as "+", which mail clients print literally.
-    return `mailto:${company.email}?${query.toString().replace(/\+/g, '%20')}`
+    return `mailto:${company.value.email}?${query.toString().replace(/\+/g, '%20')}`
   })
 
   return {

@@ -16,7 +16,107 @@
 - Stale branch `refactor/apex-dashboard` (local + origin) is superseded by master;
   deletable, but ask the user first.
 
-## Admin console reinstated, hardened (2026-11-01)  ⬅ LATEST WORKSTREAM
+## Website group rebuilt from the design (2026-11-01)  ⬅ LATEST WORKSTREAM
+
+The owner asked for the console's Website group (Pages, Insights, Case
+studies, Media, Navigation & footer, SEO & redirects, Enquiries, Analytics)
+and Site settings. Decided with the owner: **rebuild from
+`Admin Console.dc.html`** (not restore the October CMS), **the design's
+permission matrix**, **enquiries stored, 24 months**, **own cookieless
+analytics**. Branch `feature/admin-website` (not merged). ADR-026.
+Phases: A permissions + nav (done, `a02fd87`) · B content API + site
+reading it (done) · C Pages/Insights/Case studies + editor (done) · D (done) Media,
+Navigation, SEO, Site settings · E (done) Enquiries · F (done) Analytics · G (done) tests, docs.
+
+- **Phase B done:** shared contract (`web/shared/cms/{sections,documents,resolve}.ts`),
+  panel workflow (`server/utils/website/content.ts`, 12 admin routes, 4
+  public `/api/site/*`), site reader (`web/server/utils/cms.ts`, 60 s cache,
+  disk snapshot, purge + cache generation), `middleware/cms.global.ts`,
+  built-document rendering (`components/cms/*`, `[...slug].vue`; the article
+  and case-study routes split into `ArticlePage` / `CaseStudyPage`),
+  `/preview/:token`. Legacy October documents archived by
+  `docs/migrations/2026-11-website-legacy.sql` (local: 44 archived;
+  **production not checked yet**: run the SELECT in that file first).
+  Tests: `website-content.test.ts` (4, needs `SITE_TEST_URL`), unit +11.
+- **Phase C done:** `AdminWebsiteDocList` (Pages, Insights; Publish history
+  tab; Import from site), the Case studies card grid, `AdminWebsiteEditor`
+  (sections · Content/SEO/Revisions · the site's `/preview/:token` in a
+  scaled frame; built docs add/remove/hide/reorder, coded docs edit words
+  only) over `AdminWebsiteField` (fields generated from the contract,
+  server errors by path). `PATCH documents/:id/path` (301 when the page
+  was ever live, needs `website.seo` then), `GET review-counts` (sidebar
+  counts for reviewers), `<ServicePage>` so service drafts preview. The
+  site lets only the panel origins frame `/preview/**`
+  (`CMS_PANEL_ORIGINS` adds more at build time); the panel's CSP
+  `frame-src` adds `NUXT_WEBSITE_PUBLIC_URL`'s origin. Redirect rows are
+  written now; the site serves them from phase D.
+- **Phase D done:** Media library (`server/utils/website/media.ts`, sniffer
+  `shared/media-sniff.ts` restored from October; `NUXT_WEBSITE_MEDIA_DIR`,
+  production already has `/opt/apex/site-media`), Navigation & footer
+  (header/footer documents; chrome edits now need `website.seo`), SEO &
+  redirects (`utils/website/redirects.ts` restored; site
+  `server/middleware/00.redirects.ts` also does maintenance mode,
+  `server/plugins/robots.ts`), Site settings (`utils/website/settings.ts`,
+  keys `site.*` in `Setting`; site `useCompany()` over `data/site.ts`;
+  derivations in `data/about.ts`, `data/contact.ts`, `utils/studio.ts`
+  are now functions of a company). Site `/media/**` passes files through.
+  Test suite `website-structure.test.ts` (6). Found: the footer links to
+  seven pages the site does not have (/careers, six /legal/*).
+- **Phase E done:** `Enquiry` + `EnquiryNote`
+  (`docs/migrations/2026-11-enquiries.sql`, additive; **production needs
+  it**). The site's `/api/contact` stores via a signed
+  `POST /api/site/enquiries` (`web/shared/enquiry.ts`; secrets
+  `NUXT_WEBSITE_ENQUIRY_SECRET` = site `NUXT_CMS_ENQUIRY_SECRET`, dev pair
+  in the tracked `.env` files) and emails; either one is "delivered", so
+  in production the form starts working once the secret pair is set even
+  with the contact mail keys empty. Screen `/admin/website/enquiries`,
+  Overview tile/queue/latest, sidebar count, ⌘K. Convert makes a customer
+  with a 72-hour `client-welcome` set-password link. Daily
+  `website:enquiries-retention` (03:17) deletes non-clients after 24
+  months; audit names `ENQ-…` refs only. Tests `enquiries.test.ts` (6,
+  back-dates through Prisma, runs the task through Nitro's dev-only
+  `/_nitro/tasks/…`), unit `enquiry.test.ts` (4).
+- **Phase F done:** cookieless visit counts. Site: `plugins/visits.client.ts`
+  beacons `POST /api/hit` per page (path; first page adds referrer host
+  and `utm_source`), in-memory totals per (London day, path, source) in
+  `server/utils/visits.ts`, Nitro task `visits:flush` every minute (site
+  now has `experimental.tasks`) plus a flush on close. Rules shared in
+  `web/shared/visits.ts` (panel `.demo/shared/visits.ts`). Console:
+  `SiteVisit` (`docs/migrations/2026-11-site-visits.sql`, additive;
+  **production needs it**), signed `POST /api/site/visits` (key derived
+  from the enquiry secret, so no new env key), batch id counted once,
+  `GET /api/admin/website/analytics?days=`, screen
+  `/admin/website/analytics`, Overview "Website visits". Tests
+  `analytics.test.ts` (3; the site part flushes through
+  `/_nitro/tasks/visits:flush`), unit `visits.test.ts` (5).
+- **Phase G done:** `.demo/tests/e2e/website.spec.ts` (the nine Website
+  screens for the owner, plus the first page editor; the access wall for
+  admin, pm, support, finance and readonly exactly where `can()` says).
+  ADMIN_CONSOLE.md gained "The website and the console", the Website
+  endpoints, the three 2026-11 website SQL files with the deploy order and
+  the env table; DEPLOYMENT §13 says what a deploy needs. Final run: unit
+  62/62, API 67/67, e2e 14/14, panel tsc 46, site tsc clean, lint clean,
+  both production builds pass (site 18 min on Windows).
+- Gotcha: a dashed 1px border makes a `flex-1` bar 2px wider than a
+  borderless one; give the solid bars `border-transparent` too.
+- Gotcha: an error thrown in a site server middleware is answered as JSON
+  unless the request sends `Accept: text/html`; tests must send it to see
+  the error page.
+- Gotcha: the console has `viewTransition: true`, and in the preview pane
+  (a tab that is not drawing) every client-side navigation stalls with
+  "Transition was skipped". Verify by loading URLs, not by clicking links.
+- **Dev pairing:** panel :3000, site :3001 (`.demo/.env`, `web/.env`, tracked
+  since `d7780ac` in a **public** repo: dev-only values, never production).
+  Start both with the preview configs `demo` and `web` (autoPort gives the
+  site :3001), then `CMS_TEST_URL=http://localhost:3000 SITE_TEST_URL=http://localhost:3001`.
+- Gotchas: a stale-while-revalidate background refresh can outlive a purge
+  (fixed with a generation in the cache key); route files may not export
+  extra names (the preview purpose lives in the util); eslint autofix turned
+  `\u0300` escapes into literal combining marks (use `\p{M}`); shell
+  heredocs and inline scripts with backticks or apostrophes break through
+  the hook (write a script file instead).
+
+## Admin console reinstated, hardened (2026-11-01)
 
 The owner asked for `Admin Console.dc.html` as production code: separate
 staff sign-in, 2FA for staff, append-only audit, money guardrails, tests,

@@ -4,7 +4,7 @@ import { signPurposeToken } from '../auth'
 import prisma from '../prisma'
 import { enqueueMail, loadBrand } from './outbox'
 import { absoluteUrl, MailRenderError } from './render'
-import { passwordResetMail, staffInviteMail, verifyEmailMail } from './templates'
+import { clientWelcomeMail, passwordResetMail, staffInviteMail, verifyEmailMail } from './templates'
 
 /**
  * The account emails (ADR-022): what each flow queues, in one place, so the
@@ -21,6 +21,8 @@ import { passwordResetMail, staffInviteMail, verifyEmailMail } from './templates
 export const VERIFY_EMAIL_PURPOSE = 'verify-email'
 export const VERIFY_EMAIL_TTL_HOURS = 24
 export const RESET_LINK_TTL_MINUTES = 60
+/** A new client from an enquiry has longer than a reset link to set a password: they did not ask for the email. */
+export const WELCOME_LINK_TTL_HOURS = 72
 
 async function unsendable(input: { to: string, toUserId: string | null, kind: MailKind, subject: string, error: string }, db: Db): Promise<{ id: string }> {
   return db.mailMessage.create({
@@ -60,6 +62,17 @@ export async function queuePasswordResetMail(user: { id: string, email: string }
   }
   const draft = passwordResetMail(brand, { url: link.url, expiresMinutes: RESET_LINK_TTL_MINUTES })
   return enqueueMail({ to: user.email, toUserId: user.id, kind: 'password-reset', ...draft }, db)
+}
+
+/** A client account made from an enquiry (ADR-026, phase E): a set-password link on the reset token the caller created. */
+export async function queueClientWelcomeMail(user: { id: string, email: string, firstName?: string | null }, token: string, db: Db = prisma): Promise<{ id: string }> {
+  const brand = await loadBrand(db)
+  const link = linkOrError(`/auth/recover?token=${encodeURIComponent(token)}`)
+  if ('error' in link) {
+    return unsendable({ to: user.email, toUserId: user.id, kind: 'client-welcome', subject: `${brand.siteName}: your client account is ready`, error: link.error }, db)
+  }
+  const draft = clientWelcomeMail(brand, { name: user.firstName ?? null, url: link.url, expiresHours: WELCOME_LINK_TTL_HOURS })
+  return enqueueMail({ to: user.email, toUserId: user.id, kind: 'client-welcome', ...draft }, db)
 }
 
 export async function queueInviteMail(invite: { name: string, email: string, roleLabel: string, expiresAt: Date }, inviter: string, token: string, db: Db = prisma): Promise<{ id: string }> {

@@ -1,4 +1,5 @@
 import type { MediaImage } from './content'
+import type { Company } from './site'
 import { routes } from './routes'
 import { company, reviewRating, teamSize } from './site'
 
@@ -120,38 +121,49 @@ export interface CompanyFact {
   link?: { label: string, href: string }
 }
 
-/** Each row is shown only when its fact is confirmed in `site.ts`, so no placeholder number is ever printed. */
-export const companyFacts: readonly CompanyFact[] = ([
-  { label: 'Registered name', value: company.legalName },
-  {
-    label: 'Company number',
-    value: company.companyNumber,
-    link: { label: 'Companies House', href: `https://find-and-update.company-information.service.gov.uk/company/${company.companyNumber}` },
-  },
-  { label: 'Incorporated', value: company.incorporated && `${company.incorporated}, ${company.registeredIn}` },
-  {
-    label: 'Registered office',
-    value: company.address.street && [company.address.street, company.address.locality, company.address.postcode].filter(Boolean).join(', '),
-  },
-  {
-    label: 'VAT number',
-    value: company.vatNumber,
-    link: { label: 'HMRC check', href: 'https://www.tax.service.gov.uk/check-vat-number/enter-vat-details' },
-  },
-  {
-    label: 'Data protection',
-    value: company.icoNumber && `ICO registration ${company.icoNumber}`,
-    link: { label: 'ICO register', href: `https://ico.org.uk/ESDWebPages/Entry/${company.icoNumber}` },
-  },
-  { label: 'Insurance', value: company.insurance },
-] satisfies CompanyFact[]).filter(fact => fact.value)
+/**
+ * Each row is shown only when its fact is confirmed (in `site.ts` or Site
+ * settings), so no placeholder number is ever printed.
+ */
+export function companyFactsFor(company: Company): CompanyFact[] {
+  return ([
+    { label: 'Registered name', value: company.legalName },
+    {
+      label: 'Company number',
+      value: company.companyNumber,
+      link: { label: 'Companies House', href: `https://find-and-update.company-information.service.gov.uk/company/${company.companyNumber}` },
+    },
+    { label: 'Incorporated', value: company.incorporated && `${company.incorporated}, ${company.registeredIn}` },
+    {
+      label: 'Registered office',
+      value: company.address.street && [company.address.street, company.address.locality, company.address.postcode].filter(Boolean).join(', '),
+    },
+    {
+      label: 'VAT number',
+      value: company.vatNumber,
+      link: { label: 'HMRC check', href: 'https://www.tax.service.gov.uk/check-vat-number/enter-vat-details' },
+    },
+    {
+      label: 'Data protection',
+      value: company.icoNumber && `ICO registration ${company.icoNumber}`,
+      link: { label: 'ICO register', href: `https://ico.org.uk/ESDWebPages/Entry/${company.icoNumber}` },
+    },
+    { label: 'Insurance', value: company.insurance },
+  ] satisfies CompanyFact[]).filter(fact => fact.value)
+}
+
+export const companyFacts: readonly CompanyFact[] = companyFactsFor(company)
 
 /** The ticks beside the paperwork: each one only when the fact behind it is confirmed. */
-export const companyChecks: readonly string[] = [
-  company.companyNumber && 'Registered UK limited company',
-  company.icoNumber && 'ICO registered for data protection',
-  company.insurance && 'Professional indemnity insured',
-].filter(Boolean)
+export function companyChecksFor(company: Company): string[] {
+  return [
+    company.companyNumber && 'Registered UK limited company',
+    company.icoNumber && 'ICO registered for data protection',
+    company.insurance && 'Professional indemnity insured',
+  ].filter((check): check is string => Boolean(check))
+}
+
+export const companyChecks: readonly string[] = companyChecksFor(company)
 
 export const story = {
   eyebrow: 'Our story',

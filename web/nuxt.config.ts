@@ -4,6 +4,16 @@ import { company, seoDefaults } from './app/data/site'
 
 const siteUrl = process.env.NUXT_PUBLIC_SITE_URL ?? 'https://apexdigi.co.uk'
 
+// Origins of the admin console, whose editor frames `/preview/**` (ADR-026).
+// Fixed at build time because route rules are; `CMS_PANEL_ORIGINS` (comma
+// separated) adds more, and a dev build also allows the local panel.
+const panelOrigins = [
+  'https://panel.apexdigi.co.uk',
+  'https://146-19-130-11.sslip.io',
+  ...(process.env.CMS_PANEL_ORIGINS ?? '').split(',').map(o => o.trim()).filter(Boolean),
+  ...(process.env.NODE_ENV === 'production' ? [] : ['http://localhost:3000', 'http://127.0.0.1:3000']),
+]
+
 // Every powerful browser feature is switched off: the site uses none of them.
 const permissionsPolicy = [
   'accelerometer',
@@ -60,6 +70,24 @@ export default defineNuxtConfig({
       to: '',
       from: '',
     },
+    /**
+     * The admin console that publishes this site's content (ADR-026), read
+     * server to server only: the browser never calls the panel. `url` is the
+     * panel's address from this server (loopback in production,
+     * NUXT_CMS_URL); `revalidateSecret` is the bearer the panel sends after a
+     * publish (NUXT_CMS_REVALIDATE_SECRET, the same value as the panel's
+     * NUXT_WEBSITE_REVALIDATE_SECRET). Empty `url`: the site renders its
+     * code baseline, exactly as it did before the console managed it.
+     */
+    cms: {
+      url: '',
+      revalidateSecret: '',
+      /**
+       * Signs each contact message forwarded to the console, and (through a
+       * derived key) the visit totals (NUXT_CMS_ENQUIRY_SECRET).
+       */
+      enquirySecret: '',
+    },
     public: {
       /** Baked at build so server and browser render the same © year. */
       buildYear: new Date().getFullYear(),
@@ -91,7 +119,9 @@ export default defineNuxtConfig({
   routeRules: {
     '/**': { headers: { 'permissions-policy': permissionsPolicy } },
     '/api/__sitemap__/**': { security: { rateLimiter: false } },
-    // Images: many per page, no per-IP limiter.
+    // Images: many per page, no per-IP limiter. Media-library files likewise
+    // (passed through from the console with their own year-long cache).
+    '/media/**': { security: { rateLimiter: false } },
     '/_ipx/**': { security: { rateLimiter: false } },
     // The site's one write. POST is allowed here and nowhere else; the body is
     // small and each IP gets five messages per ten minutes.
@@ -102,6 +132,31 @@ export default defineNuxtConfig({
         rateLimiter: { tokensPerInterval: 5, interval: 600_000 },
       },
     },
+    // Pages counting themselves (ADR-026, phase F): a tiny same-origin
+    // beacon per page shown, so a generous per-IP allowance.
+    '/api/hit': {
+      security: {
+        allowedMethodsRestricter: { methods: ['POST'] },
+        requestSizeLimiter: { maxRequestSizeInBytes: 2_000 },
+        rateLimiter: { tokensPerInterval: 120, interval: 60_000 },
+      },
+    },
+    // The panel asks the site to drop its content cache after a publish
+    // (ADR-026). Server to server, authenticated by a bearer secret.
+    '/api/cms/revalidate': {
+      security: {
+        allowedMethodsRestricter: { methods: ['POST'] },
+        requestSizeLimiter: { maxRequestSizeInBytes: 8_000 },
+        rateLimiter: false,
+      },
+    },
+    // A draft preview is for staff only and changes with every save. The
+    // console's editor shows it in a frame, so the panel (and only the panel)
+    // may embed it; every other page keeps `frame-ancestors 'none'`.
+    '/preview/**': {
+      headers: { 'x-robots-tag': 'noindex, nofollow', 'cache-control': 'no-store' },
+      security: { headers: { contentSecurityPolicy: { 'frame-ancestors': panelOrigins }, xFrameOptions: false } },
+    },
     '/fonts/**': { headers: { 'cache-control': 'public, max-age=31536000, immutable' } },
     '/brand/**': { headers: { 'cache-control': 'public, max-age=604800' } },
     '/icons/**': { headers: { 'cache-control': 'public, max-age=604800' } },
@@ -109,6 +164,14 @@ export default defineNuxtConfig({
 
   nitro: {
     compressPublicAssets: { gzip: true, brotli: true },
+    // The last good answer from the panel, per document, so an outage serves
+    // the last published words rather than falling back to the code (ADR-026).
+    storage: {
+      cms: { driver: 'fs', base: './.data/cms' },
+    },
+    // Visit totals go to the console once a minute (ADR-026, phase F).
+    experimental: { tasks: true },
+    scheduledTasks: { '* * * * *': ['visits:flush'] },
   },
 
   // ---------------------------------------------------------------------------
@@ -167,7 +230,7 @@ export default defineNuxtConfig({
       // browsers log as an unrecognised feature on every page load.
       permissionsPolicy: false,
     },
-    // Pages and static files only; /api/contact opens POST in its route rule.
+    // Pages and static files only; /api/contact and /api/hit open POST in their route rules.
     allowedMethodsRestricter: { methods: ['GET', 'HEAD'] },
     // No cross-origin API is exposed, so no CORS headers are emitted.
     corsHandler: false,
