@@ -241,7 +241,7 @@ All customer pages: `definePageMeta({ layout: 'sidenav', middleware: 'auth' })`.
   Merged and deployed 2026-11-01. The Website group (Pages, Insights, Case
   studies, Media, Navigation, SEO & redirects, Enquiries, Analytics, Site
   settings) is rebuilt from the design on `feature/admin-website`
-  (ADR-026, not merged); the public site renders what it publishes over
+  (ADR-026, merged and deployed 2026-11-02); the public site renders what it publishes over
   its code baseline.
 
 Shared UI vocabulary (see DESIGN_SYSTEM.md + CLAUDE.md): status accents

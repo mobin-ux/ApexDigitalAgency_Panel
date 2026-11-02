@@ -25,7 +25,7 @@ implementation. Hard rules live in CLAUDE.md; rationale in docs/decisions/.
 > website CMS; the site's copy is edited in code. The list below records
 > what was built and is no longer in the product.
 >
-> **Rebuilt (ADR-026, `feature/admin-website`, not merged).** The console's
+> **Rebuilt (ADR-026, merged and deployed 2026-11-02).** The console's
 > Website group, from `Admin Console.dc.html`:
 > - [x] Pages, insights and case studies: drafts, review, publish,
 >   revisions, a live preview, and new pages built from section types
@@ -188,7 +188,7 @@ generation, drag-and-drop page building, email notifications, a CDN.
 | No invoice model/endpoint | invoices requirement (§1) |
 | Unread-message counts per project | unread chips in My Orders list (designed, hidden) |
 | ~~Broken seeds (`seed-rich`, `seed-wallet`)~~ fixed (schema-valid, dev-gated); `prisma/seed.js` still stale | realistic local test data |
-| ~~Admin UI pages~~ built, then **removed 2026-10-31** (ADR-024); **reinstated without the CMS** (ADR-025, `ADMIN_CONSOLE.md`), merged and deployed 2026-11-01; the Website group rebuilt on `feature/admin-website` (ADR-026), not merged | — |
+| ~~Admin UI pages~~ built, then **removed 2026-10-31** (ADR-024); **reinstated without the CMS** (ADR-025, `ADMIN_CONSOLE.md`), merged and deployed 2026-11-01; the Website group rebuilt (ADR-026), merged and deployed 2026-11-02 | — |
 | ~~No mail provider: staff invites, password resets and notifications cannot be emailed~~ **done** (ADR-022, 2026-10-28): Resend over REST behind a durable outbox; invites, resets, a soft verification link and every notification are emailed, with one switch per account and an Email screen for failures. Delivery needs the sender's domain verified in Resend (its records go into the Cloudflare zone, ADR-023); until then the keys stay unset and every screen says what did not go | a verified sending domain |
 | ~~No `DeliverableRelease` model~~ **done** (ADR-017): releasing and withholding project files is real, the platform rule governs it, and the audit log's Files bucket is populated. Clients can now upload to their order (Panel v2, `/api/uploads`); **still missing: a staff uploader** — deliverable `ProjectFile` rows arrive by seed or direct record | an uploader for project deliverables |
 | Instalment pricing is fixed to 12 and 24 months (ADR-011), so the platform cannot offer the design's 3/6/36-month terms | a per-service term catalogue (Phase 9 Support & Catalogue, badge 21) |

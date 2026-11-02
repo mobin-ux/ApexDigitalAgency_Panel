@@ -13,7 +13,7 @@ Merged to master in PR #1 (`53c25d8`) and deployed to production on
 **The Website group** (Pages, Insights, Case studies, Media library,
 Navigation & footer, SEO & redirects, Enquiries, Analytics, and Site
 settings under System) was rebuilt from the same design on
-**`feature/admin-website`**. It is not merged and not deployed. Decision
+**`feature/admin-website`**, merged in PR #2 and deployed on 2026-11-02. Decision
 record: [ADR-026](docs/decisions/ADR-026-website-group-rebuilt.md), which
 supersedes the CMS half of [ADR-024](docs/decisions/ADR-024-remove-admin-console.md).
 The public site (`web/`) reads what the console publishes; see
@@ -452,7 +452,7 @@ previous schema beside it). Production's database is
 Locally, `pnpm exec prisma db push` applies the column and indexes; run the
 hardening SQL afterwards for the triggers.
 
-### The Website group (`feature/admin-website`, not applied anywhere but locally)
+### The Website group (ADR-026, applied in production 2026-11-02)
 
 The content tables (`SiteDocument`, `SiteRevision`, `SiteRedirect`,
 `SiteMedia`, `SiteMediaRef`) have been in production since 2026-10-28
@@ -465,11 +465,17 @@ The content tables (`SiteDocument`, `SiteRevision`, `SiteRedirect`,
 | [`docs/migrations/2026-11-site-visits.sql`](docs/migrations/2026-11-site-visits.sql) | `SiteVisit` and its indexes | drop the table |
 
 The enquiry and visit migrations were applied and rolled back on copies of
-the local database. Order for a deployment (only on the owner's go-ahead):
+the local database. **Applied in production on 2026-11-02**: the check
+showed the 33 documents of the October import (all published, no media,
+no redirects) and archived all 33; backup
+`/opt/apex/backups/dev.db.20261102-005815.pre-website`, the three SQL files
+and the previous schema beside it; integrity ok, other row counts
+unchanged. The enquiry pair and `NUXT_WEBSITE_PUBLIC_URL=https://apexdigi.co.uk`
+were added to both env files (backups `*.bak.20261102-005755`). Order for a
+deployment (only on the owner's go-ahead):
 
 1. On the box, run the check `SELECT` at the top of
-   `2026-11-website-legacy.sql` and read what it would archive. Production
-   has not been checked yet.
+   `2026-11-website-legacy.sql` and read what it would archive.
 2. Set the secret pair (below) in both env files, and
    `NUXT_WEBSITE_PUBLIC_URL` on the panel if it is not there.
 3. Stop the panel, back up the database

@@ -95,7 +95,7 @@ ships as a `.dc.html` mockup plus a `PHASE-N-*.md` implementation spec.
 | 9B | **Admin — Overview & work** — a work queue, an orders table with counts, the deliverable release gate | ⛔ Removed (ADR-024) |
 | CMS | **Admin — Website module** (ADR-021) — pages, editor, navigation, media, SEO & redirects, site settings, panel content; the public site renders published documents over its code baseline | ⛔ Removed (ADR-024) |
 | AC | **Admin console** (`Admin Console.dc.html`) — new shell for every `/admin/**` screen, light and dark, ⌘K search, confirmations with reasons, record drawers; see "Admin console" below | ✅ Reinstated without the Website group on `feature/admin-console` (ADR-025), hardened and tested; reference in `ADMIN_CONSOLE.md`; merged and deployed 2026-11-01 |
-| AW | **Admin console — Website group** (`Admin Console.dc.html`) — Pages, Insights, Case studies and the editor, Media, Navigation & footer, SEO & redirects, Enquiries, Analytics, Site settings | ✅ Rebuilt on `feature/admin-website` (ADR-026), phases A–G, tested; not merged |
+| AW | **Admin console — Website group** (`Admin Console.dc.html`) — Pages, Insights, Case studies and the editor, Media, Navigation & footer, SEO & redirects, Enquiries, Analytics, Site settings | ✅ Rebuilt on `feature/admin-website` (ADR-026), phases A–G, tested; merged (PR #2) and deployed 2026-11-02 |
 
 #### Phase 1 — the shell standard (applies to every page from here on)
 

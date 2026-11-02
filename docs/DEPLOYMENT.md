@@ -436,7 +436,8 @@ the record and for a rebuild. The production database is
 
 ## 13. Website group (ADR-026) — what a deploy needs
 
-Not deployed. `feature/admin-website` changes both apps, and the console
+**Deployed 2026-11-02** (PR #2): migrations, env pair, panel, then site,
+as below. Still by hand: step 5. `feature/admin-website` changed both apps, and the console
 and the site must go out together. The full order, the three migrations
 and every environment variable are in `ADMIN_CONSOLE.md`, under
 "Migrations" and "Environment variables". In short:

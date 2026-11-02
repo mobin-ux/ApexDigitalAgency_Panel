@@ -23,7 +23,8 @@ studies, Media, Navigation & footer, SEO & redirects, Enquiries, Analytics)
 and Site settings. Decided with the owner: **rebuild from
 `Admin Console.dc.html`** (not restore the October CMS), **the design's
 permission matrix**, **enquiries stored, 24 months**, **own cookieless
-analytics**. Branch `feature/admin-website` (not merged). ADR-026.
+analytics**. Branch `feature/admin-website`, **merged in PR #2 and deployed
+2026-11-02**. ADR-026.
 Phases: A permissions + nav (done, `a02fd87`) · B content API + site
 reading it (done) · C Pages/Insights/Case studies + editor (done) · D (done) Media,
 Navigation, SEO, Site settings · E (done) Enquiries · F (done) Analytics · G (done) tests, docs.
@@ -36,7 +37,7 @@ Navigation, SEO, Site settings · E (done) Enquiries · F (done) Analytics · G 
   and case-study routes split into `ArticlePage` / `CaseStudyPage`),
   `/preview/:token`. Legacy October documents archived by
   `docs/migrations/2026-11-website-legacy.sql` (local: 44 archived;
-  **production not checked yet**: run the SELECT in that file first).
+  production: the 33 October documents, archived on 2026-11-02).
   Tests: `website-content.test.ts` (4, needs `SITE_TEST_URL`), unit +11.
 - **Phase C done:** `AdminWebsiteDocList` (Pages, Insights; Publish history
   tab; Import from site), the Case studies card grid, `AdminWebsiteEditor`
@@ -97,6 +98,23 @@ Navigation, SEO, Site settings · E (done) Enquiries · F (done) Analytics · G 
   the env table; DEPLOYMENT §13 says what a deploy needs. Final run: unit
   62/62, API 67/67, e2e 14/14, panel tsc 46, site tsc clean, lint clean,
   both production builds pass (site 18 min on Windows).
+- **Deployed 2026-11-02** on the user's go-ahead ("commit and push to
+  github and pull to VPS and deploy"; the VPS has no git checkout, the ship
+  scripts upload). PR #2 merged into master (`2084b34`). Production check:
+  33 October documents, all archived; backup
+  `/opt/apex/backups/dev.db.20261102-005815.pre-website`; the three SQL
+  files applied, integrity ok, counts unchanged (5 users, 5 projects, 14 tx,
+  72 audit rows); schema copied beside the DB. Enquiry secret generated on
+  the box and set in both env files (pair checked by hash), panel gained
+  `NUXT_WEBSITE_PUBLIC_URL=https://apexdigi.co.uk`. Panel via
+  `ship-bundle.sh` (health 200, Stripe keys intact, previous build kept),
+  site via `ship-web.sh` (health 200). Verified: unsigned
+  `/api/site/enquiries` and `/visits` 401 (secret loaded), manifest 200,
+  admin APIs 401, dev routes 404, eleven site addresses 200 and unknown 404,
+  start-up checks passed; a real browser visit to /services reached
+  `SiteVisit` within a minute. **Still by hand (owner sign-in):** Website ›
+  Pages › Import from site (the site serves its code baseline until then),
+  and one real contact message to see it in Enquiries.
 - Gotcha: a dashed 1px border makes a `flex-1` bar 2px wider than a
   borderless one; give the solid bars `border-transparent` too.
 - Gotcha: an error thrown in a site server middleware is answered as JSON

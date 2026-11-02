@@ -38,7 +38,7 @@ Detail lives in the docs — read on demand, don't guess:
 10. Rewrite Persian comments to English whenever touching a legacy file.
 11. **The admin console is back** (ADR-025, merged and deployed 2026-11-01),
     and its Website group is rebuilt from the design on
-    `feature/admin-website` (ADR-026, not merged): content the public site
+    `feature/admin-website` (ADR-026, merged and deployed 2026-11-02): content the public site
     reads, enquiries, cookieless analytics. Every staff-only
     route gates on a permission from `shared/permissions.ts` via
     `requireStaffPermission()` or `can()`, never on bare `requireAdmin`. Do not
