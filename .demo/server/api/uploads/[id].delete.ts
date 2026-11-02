@@ -1,5 +1,6 @@
 import { createError, defineEventHandler, getRouterParam } from 'h3'
 import { requireAuth } from '../../utils/auth'
+import { logActivity } from '../../utils/logger'
 import prisma from '../../utils/prisma'
 import { deleteAttachments, unclaimedBy } from '../../utils/uploads'
 
@@ -20,5 +21,6 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 404, message: 'File not found' })
   }
   await deleteAttachments([row])
+  logActivity('customer.upload.deleted', 'Customer discarded an upload', { id })
   return { status: 'deleted' }
 })

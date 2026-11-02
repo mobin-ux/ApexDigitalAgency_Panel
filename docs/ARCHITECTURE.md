@@ -171,8 +171,9 @@ verification), and the Tairo demo routes `/api/payments/*` and `/api/hello`.
 
 1. Login sets `auth_token` via `setAuthCookie()` (JWT signed with
    `runtimeConfig.jwtSecret` — override with `NUXT_JWT_SECRET`; sameSite=lax,
-   secure in prod; httpOnly:false until the client middleware stops reading
-   the cookie — see ADR-013). Session guards live in `server/utils/auth.ts`:
+   secure in prod; httpOnly since 2026-07-21, the route guard asking the
+   server through `fetchUser()` rather than reading the cookie — see
+   ADR-013). Session guards live in `server/utils/auth.ts`:
    `requireAuth` (401), `requireRole`/`requireAdmin` (403, DB-fresh role).
 2. `auth` middleware: no cookie → redirect `/auth/login-1`; else `fetchUser()`.
 3. `useUser().fetchUser()` uses **`useRequestFetch()`** so the incoming request's
@@ -354,6 +355,32 @@ Real money infrastructure, provider-agnostic by construction.
   in the caller's transaction. A link that cannot be built becomes a FAILED
   row with the reason rather than an exception.
 
+## 12. Platform log (2026-11-02, `feature/platform-hardening`)
+
+`web/shared/log.ts` (the panel re-exports it as `shared/log.ts`) is the one log
+for both apps; `web/shared/redact.ts` decides what a line may never carry.
+`ADMIN_CONSOLE.md` › Logging is the reference.
+
+- **Request scope.** `server/plugins/00.logging.ts` (one per app) gives each
+  request an id (`X-Request-Id`, also in an API error's `data.requestId`),
+  writes one `http.request` line when it ends, and `http.exception` with the
+  stack for a fault. Nitro's `asyncContext` makes the request reachable from
+  any code serving it, so a line written deep in a utility carries the
+  request id and the actor without being handed the event.
+- **Database.** `server/utils/prisma.ts` wraps the client in a query
+  extension: every write is a `db.<operation>` line, slow reads are
+  `db.slow`, failures `db.error`, and each query adds to the request's
+  counters. The exported type is still `PrismaClient` (a cast), so no caller
+  changed.
+- **Guards and audit.** `requireAuth` and `requireStaffPermission` set the
+  actor (with the staff role) and log refusals (`authz.*`); `recordAudit()`
+  also writes `audit.<action>`; sessions log `auth.session.*`; customer
+  actions log `customer.*`; scheduled tasks go through `runLoggedTask()`.
+- **Sinks.** stdout (JSON in production) and a file per app per UTC day in
+  `NUXT_LOG_DIR`, pruned nightly by `logs:prune`. System › Logs
+  (`/admin/logs`, `platform.settings`) and `scripts/log-report.mjs` read it.
+- `GET /api/health` checks the process and the database.
+
 ## 11. Known issues (technical detail)
 
 - ~~**Hydration mismatches**~~ fixed 2026-08-18 (V2 Phase 1). Both causes were in
@@ -362,8 +389,7 @@ Real money infrastructure, provider-agnostic by construction.
   the hydration render — so the server said `ctrl` and the client's first render
   said `⌘`. Anything derived from `navigator` must resolve in `onMounted` (or sit
   inside `<ClientOnly>`), never earlier.
-- `auth_token` httpOnly:false — the client route middleware reads the cookie via
-  `useCookie`; flipping httpOnly requires reworking `app/middleware/auth.ts` to
-  rely on `fetchUser()` alone (tracked follow-up, ADR-013). sameSite/secure and
-  the runtimeConfig secret are already in place.
+- ~~`auth_token` httpOnly:false~~ — httpOnly since `5e22d31` (2026-07-21):
+  `app/middleware/auth.ts` relies on `fetchUser()` alone. This line lagged
+  behind until the 2026-11-02 audit (AUD-14).
 - Legacy pages carry Persian comments; convert to English on rewrite.

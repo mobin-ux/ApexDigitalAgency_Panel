@@ -918,10 +918,6 @@ function getRouteSidebarId() {
         </TairoSidebarSubsidebarContent>
       </TairoSidebarSubsidebar>
 
-      <TairoSidebarSubsidebar value="Messaging">
-        <DemoSubsidebarMessaging />
-      </TairoSidebarSubsidebar>
-
       <TairoSidebarSubsidebar value="Inbox" class="flex flex-col items-center">
         <TairoSidebarSubsidebarContent>
           <div class="flex h-12 w-full items-center justify-center shrink-0">

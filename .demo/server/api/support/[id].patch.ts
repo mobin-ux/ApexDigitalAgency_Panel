@@ -1,6 +1,7 @@
 import { createError, defineEventHandler, getRouterParam } from 'h3'
 import { z } from 'zod'
 import { requireAuth } from '../../utils/auth'
+import { logActivity } from '../../utils/logger'
 import prisma from '../../utils/prisma'
 import { notifyTicketHandler } from '../../utils/support'
 import { validateBody } from '../../utils/validate'
@@ -36,5 +37,6 @@ export default defineEventHandler(async (event) => {
         : { title: `Customer reopened: ${ticket.subject}`, message: 'The client reopened this request.', type: 'INFO' },
     )
   }
+  logActivity(status === 'RESOLVED' ? 'customer.support.resolved' : 'customer.support.reopened', status === 'RESOLVED' ? 'Customer resolved a request' : 'Customer reopened a request', { ticketId: id })
   return updated
 })

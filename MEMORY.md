@@ -16,7 +16,98 @@
 - Stale branch `refactor/apex-dashboard` (local + origin) is superseded by master;
   deletable, but ask the user first.
 
-## Website group rebuilt from the design (2026-11-01)  ⬅ LATEST WORKSTREAM
+## Platform hardening, logging and audit (2026-11-02)  ⬅ LATEST WORKSTREAM
+
+The owner asked for the backend hardened, a centralized detailed log of
+every operation, every feature tested end to end, and every issue found
+**documented, not fixed** ("review and resolve them together in the next
+phase"). Branch `feature/platform-hardening` (from master after PR #2; not
+merged, not deployed).
+
+- **Platform log:** `web/shared/log.ts` + `web/shared/redact.ts` (panel
+  re-exports `shared/log.ts`, `shared/redact.ts`). One JSON line per event:
+  level, app, category, event, outcome, requestId, actor, http, durationMs,
+  db counters, error, data. Plugins `server/plugins/00.logging.ts` in both
+  apps (request id → `X-Request-Id` and API error `data.requestId`; one
+  `http.request` per request; `http.exception` with stack for faults);
+  `nitro.experimental.asyncContext` on both apps so `useEvent()` finds the
+  request from any code. Prisma query extension in `server/utils/prisma.ts`
+  (writes `db.<op>`, `db.slow`, `db.error`, per-request counters; exported
+  type cast back to `PrismaClient`). Guards set the actor and log
+  `authz.*`; `recordAudit` also logs `audit.<action>`; sessions log
+  `auth.session.*`; `logActivity()` in 17 customer routes; tasks through
+  `runLoggedTask()`; `logs:prune` nightly. Files: `NUXT_LOG_DIR` (default
+  `.data/logs`), per app per UTC day. Console screen System › Logs
+  (`/admin/logs`, `platform.settings`), APIs `GET /api/admin/logs`,
+  `/summary`; `GET /api/health`; `scripts/log-report.mjs`.
+- **Hardening fixed:** password minimum 12 (`shared/password.ts`) on
+  signup, reset, invite and Settings' change (was 8/8/10/6); password
+  change rate-limited (5/15 min/account) and audited; reset audited;
+  signup rate-limited (10/hour/address; the route said "no rate limit" on
+  purpose, but each signup can email any address).
+- **Tests added:** `logs.test.ts` (5), `customer-dashboard.test.ts` (13),
+  `site-public.test.ts` (5 + 1 todo for AUD-12), `web/tests/unit/redact.test.ts`
+  (11), `sweep.spec.ts` (browser sweep; writes `.demo/.data/e2e-sweep.json`).
+- **Issue register:** `docs/audit/ISSUES-2026-11-02.md` (AUD-01…), with
+  the log report beside it. Top items: footer legal pages 404 in production
+  (AUD-01); support actions fan out notifications one email at a time,
+  3.5–8.5 s (AUD-02); SQLite `journal_mode=delete` blocks readers (AUD-03);
+  public `/api/messaging` demo data in production (AUD-04).
+- **Dev pairing changed:** the owner's own Next.js app holds :3000 (never
+  touch it). Use the preview configs `demo-pair` (:3010) and `web-pair`
+  (:3011), which pair the two apps through env overrides in
+  `.claude/launch.json`; tests take `CMS_TEST_URL=http://localhost:3010
+  SITE_TEST_URL=http://localhost:3011`, e2e `E2E_URL=http://localhost:3010`.
+- Gotchas: h3 calls `afterResponse` only on success; an error response
+  is summarised from the `error` hook (Nuxt's error handler ends the
+  request). Shell heredocs and `node -e` with backticks run them as
+  commands through the hook; write scripts or doc fragments to files.
+  Editing server files while e2e runs makes the dev server rebuild and
+  page loads time out.
+- **Issues fixed with the owner (2026-11-02, "Start with the High ones"):**
+  AUD-01 (links to missing pages hidden by `usePageExists()`; `legal` no
+  longer reserved, so the business publishes its legal pages as built
+  pages), AUD-02 (`enqueueForEach()`: one write per fan-out; support
+  actions 8.3 s → 0.4 s), AUD-03 (WAL at start-up, `01.database.ts`).
+  Not deployed; DEPLOYMENT §15. The rest of the register is still open.
+- **Medium issues fixed (2026-11-03, "The Medium ones"):** AUD-04 (demo
+  `/api/messaging` deleted), AUD-05 (kickoff and full payment call
+  `syncProgress()`; a typed progress on a project with milestones is 409;
+  `scripts/sync-progress.mjs` repairs old rows), AUD-06 (both apps' logging
+  plugins fill a missing `statusMessage` from `STATUS_CODES`), AUD-07 (the
+  real cause was the support thread fetched during SSR without the cookie →
+  401 toast; now client-only; `/admin/tickets` measures waits from a
+  `useState` clock), AUD-08 (baseline import: 3 tries × 15 s), AUD-09
+  (`NUXT_CMS_PANEL_ORIGINS` at run time, `web/server/plugins/preview-frame.ts`),
+  AUD-10 (`sessions:prune` daily, 30 days). Suite `audit-fixes.test.ts`.
+  Not deployed; DEPLOYMENT §15 item 4. The Low issues are still open.
+- **Low issues worked through (2026-11-03, "The Low ones"):** fixed AUD-11
+  (a photo whose file is gone is cleared on its next request), AUD-12
+  (`xssValidator: false` on `/api/hit`: nuxt-security parsed the body
+  first), AUD-13 (Media screen pages 60 at a time with Show more), AUD-15
+  (the five dev seeds use `requireAuth` and the shared client), AUD-17
+  (start-up warning `security.staff-role-unset`, Team marks the account;
+  the owner fallback stays). Not an issue: AUD-14 (cookie httpOnly since
+  July; the docs lagged), AUD-19 (Nuxt DevTools in the frame). Accepted:
+  AUD-18 (single process). Not deployed.
+- **Gotcha:** nuxt-security's XSS validator reads every POST body before the
+  route; a route that must accept any body needs `xssValidator: false`.
+- **Gotcha:** a `watch(..., { immediate: true })` in a page's setup runs
+  during SSR too, and a plain `$fetch` there carries no cookie: guard it
+  with `import.meta.server` (or use `useRequestFetch`). An error toast
+  added on the server is a hydration mismatch.
+- **Gotcha:** `/preview/<bad token>` is the site's 404 page and keeps
+  `frame-ancestors 'none'`; check the preview CSP on a real draft's token.
+- **SQLite is in WAL mode now:** `prisma/dev.db-wal`/`-shm` sit beside the
+  database (git-ignored). Never `cp dev.db` while a server has it open;
+  on the VPS back up with `sqlite3 … ".backup …"` and run `sqlite3` as
+  `apex` (root-owned `-shm` makes the panel read-only).
+- **The site's rate limiter** is nuxt-security's default in production
+  (150 requests per 5 minutes per address) and 5000 in development
+  (`web/nuxt.config.ts`), because the API suites, the site crawl and the
+  sweep all come from one address and were failing on 429s alone.
+
+## Website group rebuilt from the design (2026-11-01)
 
 The owner asked for the console's Website group (Pages, Insights, Case
 studies, Media, Navigation & footer, SEO & redirects, Enquiries, Analytics)

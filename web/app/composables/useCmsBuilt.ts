@@ -1,5 +1,5 @@
 import type { MaybeRefOrGetter } from 'vue'
-import { isHttpsUrl, isSafeInternalPath } from '#shared/cms'
+import { isHttpsUrl, isSafeInternalPath, normalisePath } from '#shared/cms'
 
 /**
  * Helpers for the pages, articles and case studies built in the admin
@@ -43,6 +43,25 @@ export function useCmsManifest() {
     default: () => ({ pages: [] }),
   })
   return computed(() => data.value?.pages ?? [])
+}
+
+/**
+ * Whether an internal address leads to a page: a route of the site's own,
+ * or a page the console has published. Anything else falls to the
+ * catch-all and is a 404, so a link to it is left out until it exists
+ * (the footer's legal pages, docs/audit AUD-01).
+ */
+export function usePageExists() {
+  const router = useRouter()
+  const manifest = useCmsManifest()
+  return (target: string) => {
+    const path = normalisePath(target.split(/[?#]/)[0] || '/')
+    const record = router.resolve(path).matched.at(-1)
+    if (record && !record.path.startsWith('/:slug')) {
+      return true
+    }
+    return manifest.value.some(entry => entry.key === path)
+  }
 }
 
 export interface CmsMediaRef {

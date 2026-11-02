@@ -149,8 +149,13 @@ export function seoOf(content: unknown): SeoValue {
 
 // ---------------------------------------------------------------- addresses
 
-/** First path segments a built page may not take: the site's own routes and files. */
-const RESERVED = new Set(['services', 'our-work', 'insights', 'about', 'contact', 'api', '_nuxt', '_ipx', 'media', 'preview', 'admin', 'portal', 'fonts', 'brand', 'img', 'icons', 'legal', '__sitemap__', 'sitemap.xml', 'robots.txt', 'favicon.ico'])
+/**
+ * First path segments a built page may not take: the site's own routes and
+ * files. `/legal/*` and `/careers` are not among them: the footer links to
+ * them and the site has no code for them, so the business publishes them
+ * here, in its own words (docs/audit AUD-01).
+ */
+const RESERVED = new Set(['services', 'our-work', 'insights', 'about', 'contact', 'api', '_nuxt', '_ipx', 'media', 'preview', 'admin', 'portal', 'fonts', 'brand', 'img', 'icons', '__sitemap__', 'sitemap.xml', 'robots.txt', 'favicon.ico'])
 
 const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 

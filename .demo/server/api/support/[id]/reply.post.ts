@@ -1,6 +1,7 @@
 import { createError, defineEventHandler, getRouterParam } from 'h3'
 import { z } from 'zod'
 import { requireAuth } from '../../../utils/auth'
+import { logActivity } from '../../../utils/logger'
 import prisma from '../../../utils/prisma'
 import { rateLimit, RateLimits } from '../../../utils/ratelimit'
 import { notifyTicketHandler } from '../../../utils/support'
@@ -65,5 +66,6 @@ export default defineEventHandler(async (event) => {
     { title: `Customer replied: ${ticket.subject}`, message: preview, type: 'INFO' },
   )
 
+  logActivity('customer.support.replied', 'Customer replied to a support request', { ticketId, messageId: message.id, attachments: attachmentIds.length })
   return { status: 'success', message }
 })

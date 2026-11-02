@@ -153,6 +153,27 @@ export default defineNuxtConfig({
 
   runtimeConfig: {
     /**
+     * The platform log (shared/log.ts, server/plugins/00.logging.ts):
+     * - `dir` (NUXT_LOG_DIR): one JSON-lines file per day; default
+     *   `.data/logs` beside the process.
+     * - `level` (NUXT_LOG_LEVEL): debug, info, warn or error; default info,
+     *   debug in development.
+     * - `retentionDays` (NUXT_LOG_RETENTION_DAYS): older files are deleted
+     *   by the daily `logs:prune` task.
+     * - `slowQueryMs` / `slowRequestMs`: a slower query or request is logged
+     *   as a warning.
+     * - `siteDir` (NUXT_LOG_SITE_DIR): where the public site writes its
+     *   files, so the console's Logs screen shows both apps.
+     */
+    log: {
+      dir: '',
+      level: '',
+      retentionDays: 30,
+      slowQueryMs: 200,
+      slowRequestMs: 1500,
+      siteDir: '',
+    },
+    /**
      * Lending switches (ADR-025), off unless the owner turns them on in the
      * environment after taking advice — never from the admin console:
      * - `interestBearingPlans` (NUXT_LENDING_INTEREST_BEARING_PLANS): the
@@ -332,13 +353,17 @@ export default defineNuxtConfig({
     compressPublicAssets: { gzip: true, brotli: true },
     // The mail outbox scheduler (ADR-022): one in-process cron that retries
     // queued email. The panel runs as a single node-server process, so there
-    // is exactly one.
+    // is exactly one. asyncContext lets the platform log find the request
+    // being served from any code that serves it (plugins/00.logging.ts).
     experimental: {
       tasks: true,
+      asyncContext: true,
     },
     scheduledTasks: {
       '* * * * *': ['mail:deliver'],
       '17 3 * * *': ['website:enquiries-retention'],
+      '29 3 * * *': ['sessions:prune'],
+      '41 3 * * *': ['logs:prune'],
     },
     // Minifying the server bundle is the peak-memory stage of the build and
     // repeatedly OOM-killed the 4GB production VPS (the rollup pass holds the

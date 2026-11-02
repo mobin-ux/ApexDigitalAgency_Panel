@@ -66,6 +66,8 @@ const compareOrders = computed(() => Object.fromEntries(
 const termsLink = plans.kind === 'monthly' && plans.items[0]?.billing.kind === 'retainer'
   ? routes.legal.terms
   : routes.legal.instalmentTerms
+// The terms are published from the console; until they are, there is no link to a 404.
+const pageExists = usePageExists()
 </script>
 
 <template>
@@ -153,6 +155,7 @@ const termsLink = plans.kind === 'monthly' && plans.items[0]?.billing.kind === '
         </div>
         <div class="flex flex-wrap items-center gap-x-5.5 gap-y-3">
           <NuxtLink
+            v-if="pageExists(termsLink)"
             :to="termsLink"
             class="text-sm font-semibold text-violet-600 hover:underline"
           >

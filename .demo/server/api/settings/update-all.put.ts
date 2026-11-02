@@ -1,6 +1,7 @@
 import { defineEventHandler } from 'h3'
 import { z } from 'zod'
 import { requireAuth } from '../../utils/auth'
+import { logActivity } from '../../utils/logger'
 import prisma from '../../utils/prisma'
 import { validateBody } from '../../utils/validate'
 
@@ -131,5 +132,6 @@ export default defineEventHandler(async (event) => {
     },
   })
 
+  logActivity('customer.settings.saved', 'Customer saved their settings', { userFields: Object.keys(user ?? {}), companyFields: company ? Object.keys(company) : [] })
   return { status: 'success', message: 'Settings saved successfully' }
 })

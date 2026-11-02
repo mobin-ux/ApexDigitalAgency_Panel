@@ -2,6 +2,7 @@ import { createError, defineEventHandler } from 'h3'
 import { z } from 'zod'
 import { AVATAR_MAX_BYTES, AVATAR_MIMES, avatarUrl } from '../../../shared/avatar'
 import { requireAuth } from '../../utils/auth'
+import { logActivity } from '../../utils/logger'
 import prisma from '../../utils/prisma'
 import { deleteAttachments, unclaimedBy } from '../../utils/uploads'
 import { validateBody } from '../../utils/validate'
@@ -39,5 +40,6 @@ export default defineEventHandler(async (event) => {
   if (previous) {
     await deleteAttachments([previous])
   }
+  logActivity('customer.settings.avatar-set', 'Customer set a profile photo', { fileId })
   return { avatar }
 })

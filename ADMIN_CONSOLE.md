@@ -23,6 +23,7 @@ Contents: [Architecture](#architecture) · [The website and the console](#the-we
 [Sign-in and sessions](#sign-in-and-sessions) ·
 [Roles and permissions](#roles-and-permissions) · [Endpoints](#endpoints) ·
 [Money guardrails](#money-guardrails) · [Audit log and data](#audit-log-and-data) ·
+[Logging](#logging) ·
 [Migrations](#migrations) · [Environment variables](#environment-variables) ·
 [The first Super Admin](#the-first-super-admin) · [Tests](#tests) ·
 [Not built](#not-built)
@@ -361,11 +362,14 @@ take `page`, `pageSize`, their filters, and `sort` / `dir` where noted.
 | GET · PUT | `settings` | `platform.settings` |
 | GET | `audit` (sort: date; kind filter; the screen exports the filtered set as CSV) | `team.manage` |
 | GET · POST | `mail` · `mail/test` · `mail/:id/retry` | `team.manage` |
+| GET | `logs` (date, days ≤ 14, app, level, category, event, outcome, requestId, actorId, status, q, before, limit) · `logs/summary` | `platform.settings` |
 | POST | `notifications/broadcast` | `catalogue.edit` |
 
 **Development only** (404 in a production build): `POST /api/_test/reset-rate-limits`,
 `GET /api/_test/mail`, `POST /api/_test/two-factor-reset` — used by the test
 harness.
+
+**Public**: `GET /api/health` — `{ status, db, dbMs, uptimeSeconds }`, 503 when the database does not answer.
 
 Answers: 401 without a staff session (`data.signIn` names the staff
 sign-in), 403 with `data.permission` when the role lacks it, 400 with
@@ -420,6 +424,76 @@ financing" switch and the client record's wallet adjustment.
   only for an account with no email); a client record leaves out money for
   roles without `money.view` and date of birth and gender for roles without
   `clients.approve`.
+
+---
+
+## Logging
+
+Both apps write one platform log (`web/shared/log.ts`, re-exported by the
+panel as `shared/log.ts`). The audit log above is the business record of
+who changed what; this log is the technical record of everything that
+happened, and the place to start when something went wrong.
+
+**A line** is one JSON object: `ts`, `level` (debug, info, warn, error),
+`app` (panel or site), `category`, `event` (a dotted name such as
+`http.request`, `auth.session.started`, `db.create`, `audit.admin.user.update`,
+`task.mail:deliver`), `message`, `outcome` (success, failure, denied,
+skipped), `requestId`, `actor` (id, customer or staff, the staff role),
+and where relevant `http` (method, path, route, status, query, the names of
+the body's fields, bytes, masked client address, user agent), `durationMs`,
+`db` (queries, milliseconds and writes for the whole request), `error`
+(name, message, status, code, the fields that failed validation, the top
+of the stack for unexpected failures) and `data`.
+
+**What is logged:**
+
+| Category | Events |
+|---|---|
+| `http` | `http.request` for every request when it ends (5xx error, 4xx and slow requests warn, assets and HEAD probes debug); `http.exception` with the stack for an unhandled throw or a 500/502/504 |
+| `auth` | sessions started and ended, sign-ups, failed and second-step sign-ins, staff at the customer sign-in, password resets asked for, and every `auth.*` audit entry |
+| `authz` | a permission, role, suspension or staff-session refusal, with the permission and role |
+| `admin`, `content`, `customer` | every audit entry (`audit.<action>`, keys of its metadata only), and the customer's own actions (`customer.support.*`, `customer.order.*`, `customer.upload.*`, `customer.settings.*`, `customer.notification.*`, `customer.installment.paid`), and the site's `site.contact.*` |
+| `db` | every write (`db.<operation>` with the model and the row id or count; last-seen stamps and empty prunes are debug), a read slower than `NUXT_LOG_SLOW_QUERY_MS` (`db.slow`), and every failed query (`db.error`) |
+| `payment`, `mail`, `security` | the payment rails, the mail outbox, rate-limit refusals, start-up configuration warnings |
+| `task` | each run of `mail:deliver`, `website:enquiries-retention`, `logs:prune`, `visits:flush` with its result (an empty run is debug) |
+| `system` | start, stop, health-check failures, errors outside a request |
+
+**What never is.** `redact()` (`web/shared/redact.ts`) runs over every line:
+passwords, tokens, tickets, signatures, keys, one-time and backup codes and
+card or bank numbers are replaced; email addresses keep their first letter
+and domain, phone numbers their last two digits; addresses, postcodes,
+dates of birth and message bodies keep only their length; free text has
+card numbers, JWTs, bearer tokens and addresses masked; client addresses
+are cut to their network (IPv4 /24, IPv6 /48). Request bodies are never
+logged, only the names of their fields. Database errors keep only their
+last line, because Prisma quotes the query's arguments above it.
+
+**Tracing a request.** Every response carries `X-Request-Id`, and an API
+error carries the same id in its `data.requestId`. Every line written while
+that request was served (its database writes, audit entries, refusals and
+the summary) has it, so one id finds the whole story.
+
+**Where.** `NUXT_LOG_DIR` (default `.data/logs` beside the process), one
+file per app per UTC day (`panel-2026-11-02.jsonl`, `site-2026-11-02.jsonl`),
+and stdout (JSON in production, so journald has it too). `logs:prune` deletes
+files older than `NUXT_LOG_RETENTION_DAYS` (30) every night.
+
+**System › Logs** (`/admin/logs`, owner only: `platform.settings`) reads the
+files of both apps back: a summary for today or the last 3 or 7 days (lines,
+warnings, errors, refusals; the warnings and errors that recur; failing
+routes), and every line, newest first, filtered by level, category, app,
+status class, text or request id, each opening to its full record.
+`GET /api/admin/logs` and `GET /api/admin/logs/summary` serve it.
+
+**Reports.** `node scripts/log-report.mjs --dir .demo/.data/logs --dir
+web/.data/logs [--since ISO] --out report.md` writes a Markdown report:
+totals, exceptions, warnings and errors grouped with counts and example
+request ids, failing routes, slow requests and queries, requests with many
+queries, and a scan for anything that looks like a secret or an address.
+
+**Health.** `GET /api/health` answers `{ status, db, dbMs, uptimeSeconds }`
+(503 when the database does not answer), with no session and nothing about
+the configuration.
 
 ---
 
@@ -499,6 +573,11 @@ New on this branch (documented in [`.env.example`](.env.example)):
 |---|---|---|
 | `NUXT_LENDING_INTEREST_BEARING_PLANS` | unset = off | Allows the legacy 24-month plan at 1% a month. Leave off until the owner confirms the lending position. |
 | `NUXT_LENDING_CREDIT_DECISIONS` | unset = off | Allows approving credit applications, raising a limit and releasing a held line. Set to `true` only on the owner's word. |
+| `NUXT_LOG_DIR` | `.data/logs` | where the platform log's daily files go (production: `/opt/apex/logs`) |
+| `NUXT_LOG_LEVEL` | `info` (`debug` in development) | the lowest level written |
+| `NUXT_LOG_RETENTION_DAYS` | 30 | older files are deleted nightly |
+| `NUXT_LOG_SLOW_REQUEST_MS` · `NUXT_LOG_SLOW_QUERY_MS` | 1500 · 200 | slower requests and queries are warnings |
+| `NUXT_LOG_SITE_DIR` | unset | the site's log directory, so System › Logs shows both apps (production: `/opt/apex-web/logs`); the site itself takes `NUXT_LOG_DIR`, `NUXT_LOG_LEVEL`, `NUXT_LOG_RETENTION_DAYS` |
 
 For the Website group (`feature/admin-website`; panel in [`.env.example`](.env.example),
 site in [`web/.env.example`](web/.env.example)):
@@ -511,6 +590,7 @@ site in [`web/.env.example`](web/.env.example)):
 | `NUXT_WEBSITE_PUBLIC_URL` | | the site's public address, for preview links and the editor's frame |
 | `NUXT_WEBSITE_MEDIA_DIR` | | media-library files, outside the bundle (production: `/opt/apex/site-media`, already there) |
 | | `CMS_PANEL_ORIGINS` | build time: extra console origins allowed to frame `/preview/**` |
+| | `NUXT_CMS_PANEL_ORIGINS` | the same, read when the site starts, so a new console host needs a restart rather than a rebuild |
 
 The first three pairs and the media directory were set in production for
 the October CMS and are still there; check each value before deploying.
@@ -589,9 +669,9 @@ E2E_URL=http://localhost:3000 pnpm e2e
 pnpm test:tsc-demo
 ```
 
-| Suite | What it covers | Last run (2026-11-02) |
+| Suite | What it covers | Last run (2026-11-02, platform hardening) |
 |---|---|---|
-| Unit (`.demo/tests/unit`, `web/tests/unit`) | permissions, plan limits and dates, mail rendering, recipient rules, the site content contract and documents, media sniffing, enquiry and visit signing, visit paths and sources | 62/62 |
-| API (`.demo/tests/api`) | staff sign-in and enrolment, money guardrails, sorting and audit triggers, panel sync, **every admin route × every role**, mail flows, website content and publishing through the site, media, redirects and settings, enquiries and their retention, visit totals and the analytics report | 67/67 |
-| Browser (`.demo/tests/e2e`, Playwright on installed Edge) | staff sign-in with a code, every screen for the owner, the access wall for Support, no Waive for Admin, customer pages, staff refused at the customer sign-in, one request across both panels, every Website screen for the owner and the wall for each other role | 14/14 (one customer-page timeout under a parallel production build, passed on rerun) |
-| Types | `vue-tsc` over the panel; `nuxi typecheck` over the site | 46 errors, the pre-existing baseline (none in console files); site clean |
+| Unit (`.demo/tests/unit`, `web/tests/unit`) | permissions, plan limits and dates, mail rendering, recipient rules, the site content contract and documents, media sniffing, enquiry and visit signing, visit paths and sources, **log redaction and error serialisation** | 73/73 |
+| API (`.demo/tests/api`) | staff sign-in and enrolment, money guardrails, sorting and audit triggers, panel sync, every admin route × every role, mail flows, website content, structure, enquiries and analytics; **the platform log** (`logs.test.ts`), **every customer feature with bad inputs and a second customer probing isolation** (`customer-dashboard.test.ts`), **the public site's own server** (`site-public.test.ts`) | 90/90, plus 1 `todo` for a known issue (AUD-12) |
+| Browser (`.demo/tests/e2e`, Playwright on installed Edge) | staff sign-in with a code, the access walls, customer pages, one request across both panels, every Website screen by role, and **a sweep of 45 screens** recording console errors and failed requests (`sweep.spec.ts`, report in `.demo/.data/e2e-sweep.json`) | 16/16 |
+| Types | `vue-tsc` over the panel; `nuxi typecheck` over the site | 46 errors, the pre-existing baseline; site clean |

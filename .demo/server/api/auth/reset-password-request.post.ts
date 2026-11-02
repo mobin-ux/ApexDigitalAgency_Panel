@@ -1,6 +1,7 @@
 import { defineEventHandler } from 'h3'
 import { z } from 'zod'
 import { randomToken } from '../../utils/crypto'
+import { log } from '../../utils/logger'
 import { queuePasswordResetMail, RESET_LINK_TTL_MINUTES } from '../../utils/mail/flows'
 import { deliverNow } from '../../utils/mail/outbox'
 import prisma from '../../utils/prisma'
@@ -32,6 +33,8 @@ export default defineEventHandler(async (event) => {
 
   const user = await prisma.user.findUnique({ where: { email }, select: { id: true, email: true } })
   if (!user?.email) {
+    // Answered the same as a real one, so the endpoint does not reveal accounts.
+    log('auth').info('auth.password-reset.requested', 'Reset asked for an address with no account', { outcome: 'skipped' })
     return RESPONSE
   }
 
@@ -45,6 +48,7 @@ export default defineEventHandler(async (event) => {
   // The person is told to check their inbox either way; the outbox and the
   // scheduler own what happens next, and the Email screen shows it.
   void deliverNow([id])
+  log('auth').info('auth.password-reset.requested', 'Reset link queued', { outcome: 'success', data: { userId: user.id, mailId: id } })
 
   return RESPONSE
 })

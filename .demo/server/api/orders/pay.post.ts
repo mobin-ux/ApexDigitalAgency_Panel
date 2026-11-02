@@ -1,7 +1,9 @@
 import { createError, defineEventHandler } from 'h3'
 import { z } from 'zod'
 import { requireAuth } from '../../utils/auth'
+import { logActivity } from '../../utils/logger'
 import prisma from '../../utils/prisma'
+import { syncProgress } from '../../utils/project-lifecycle'
 import { validateBody } from '../../utils/validate'
 
 /**
@@ -42,6 +44,8 @@ export default defineEventHandler(async (event) => {
       where: { id: projectId },
       data: { status: 'IN_PROGRESS', progress: 5 },
     })
+    // The share of the timeline done wins over the 5% start figure (AUD-05).
+    await syncProgress(tx, projectId)
     await tx.transaction.create({
       data: {
         userId: session.id,
@@ -52,5 +56,6 @@ export default defineEventHandler(async (event) => {
     })
   })
 
+  logActivity('customer.order.paid-in-full', 'Customer paid an order in full from the wallet', { projectId })
   return { status: 'success', message: 'Project paid and activated!' }
 })

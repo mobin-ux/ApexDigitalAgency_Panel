@@ -60,6 +60,9 @@ describe('addresses', () => {
     for (const taken of ['/', '/services/x', '/our-work', '/api/x', '/_nuxt/a', '/preview/t', '/a/b/c/d', '/has space']) {
       assert.equal(checkBuiltPath('built-page', taken).ok, false, taken)
     }
+    // The footer's legal pages and careers have no code; they are published from the console (AUD-01).
+    assert.deepEqual(checkBuiltPath('built-page', '/legal/privacy'), { ok: true, path: '/legal/privacy' })
+    assert.equal(checkBuiltPath('built-page', '/careers').ok, true)
     assert.equal(checkBuiltPath('built-article', '/insights/a-guide').ok, true)
     assert.equal(checkBuiltPath('built-article', '/blog/a-guide').ok, false)
     assert.equal(checkBuiltPath('built-case-study', '/our-work/kent-tiles').ok, true)

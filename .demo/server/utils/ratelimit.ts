@@ -146,8 +146,14 @@ export const RateLimits = {
    * a staff password opens every client's records once the code is also known.
    */
   staffLogin: { bucket: 'auth:staff', limit: 5, windowMs: 15 * 60_000, blockMs: 30 * 60_000 },
-  signup: { bucket: 'auth:signup', limit: 3, windowMs: 60 * 60_000, blockMs: 60 * 60_000 },
+  /** Ten an hour per address: generous for an office behind one address, a wall for a script. */
+  signup: { bucket: 'auth:signup', limit: 10, windowMs: 60 * 60_000, blockMs: 60 * 60_000 },
   passwordReset: { bucket: 'auth:reset', limit: 3, windowMs: 15 * 60_000, blockMs: 30 * 60_000 },
+  /**
+   * Settings' password change, per account: the current password is checked
+   * here, so without a budget a stolen session could guess it.
+   */
+  passwordChange: { bucket: 'auth:password', limit: 5, windowMs: 15 * 60_000, blockMs: 15 * 60_000 },
   /*
    * Staff invitations (Phase 9 Admin). Deliberately looser than the reset
    * bucket they used to share: `auth:invite:read` runs on every load of

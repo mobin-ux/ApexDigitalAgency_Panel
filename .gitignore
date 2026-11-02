@@ -7,6 +7,9 @@ nuxt.d.ts
 dist
 .env
 .data
+# SQLite's write-ahead log beside the database (WAL mode, docs/audit AUD-03)
+*.db-wal
+*.db-shm
 *Zone.Identifier
 .eslintcache
 layers/tairo/node-compile-cache/

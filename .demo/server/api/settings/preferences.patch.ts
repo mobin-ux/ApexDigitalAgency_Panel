@@ -1,6 +1,7 @@
 import { defineEventHandler } from 'h3'
 import { z } from 'zod'
 import { requireAuth } from '../../utils/auth'
+import { logActivity } from '../../utils/logger'
 import prisma from '../../utils/prisma'
 import { validateBody } from '../../utils/validate'
 
@@ -25,5 +26,6 @@ export default defineEventHandler(async (event) => {
     select: { autoPayInstallments: true, emailNotifications: true },
   })
 
+  logActivity('customer.settings.preferences', 'Customer changed a preference', { ...user })
   return { status: 'success', preferences: user }
 })

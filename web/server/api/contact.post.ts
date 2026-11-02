@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { validateContact } from '#shared/contact'
 import { enquirySource } from '#shared/enquiry'
+import { writeLog } from '#shared/log'
 import { fetchSettings } from '../utils/cms'
 import { contactMailConfigured, sendContactMail } from '../utils/contact-mail'
 import { enquiryForwardConfigured, forwardedEnquiry, forwardEnquiry } from '../utils/enquiry-forward'
@@ -63,14 +64,23 @@ export default defineEventHandler(async (event) => {
     store ? forwardEnquiry(forwardedEnquiry(randomUUID(), result.data, enquirySource(body.source))) : Promise.reject(new Error('off')),
     email ? sendContactMail(mail, result.data) : Promise.reject(new Error('off')),
   ])
-  // Log the failure, never the message: it is a visitor's personal data.
+  // Log the outcome, never the message: it is a visitor's personal data.
   if (store && stored.status === 'rejected') {
-    console.error('[contact] storing in the console failed', (stored.reason as { statusCode?: number }).statusCode ?? (stored.reason as Error).name)
+    writeLog({ level: 'error', category: 'customer', event: 'site.contact.store-failed', message: 'Storing the enquiry in the console failed', outcome: 'failure', error: stored.reason })
   }
   if (email && emailed.status === 'rejected') {
-    console.error('[contact] email delivery failed', (emailed.reason as { statusCode?: number }).statusCode ?? (emailed.reason as Error).name)
+    writeLog({ level: 'error', category: 'mail', event: 'site.contact.email-failed', message: 'Emailing the enquiry failed', outcome: 'failure', error: emailed.reason })
   }
-  if (stored.status === 'rejected' && emailed.status === 'rejected') {
+  const delivered = stored.status === 'fulfilled' || emailed.status === 'fulfilled'
+  writeLog({
+    level: delivered ? 'info' : 'error',
+    category: 'customer',
+    event: 'site.contact.received',
+    message: delivered ? 'Contact message delivered' : 'Contact message could not be delivered',
+    outcome: delivered ? 'success' : 'failure',
+    data: { stored: stored.status === 'fulfilled', emailed: emailed.status === 'fulfilled', services: result.data.services.length, source: enquirySource(body.source) },
+  })
+  if (!delivered) {
     throw createError({ statusCode: 502, statusMessage: 'Delivery failed' })
   }
 

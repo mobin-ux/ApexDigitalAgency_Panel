@@ -5,8 +5,9 @@ import { company, seoDefaults } from './app/data/site'
 const siteUrl = process.env.NUXT_PUBLIC_SITE_URL ?? 'https://apexdigi.co.uk'
 
 // Origins of the admin console, whose editor frames `/preview/**` (ADR-026).
-// Fixed at build time because route rules are; `CMS_PANEL_ORIGINS` (comma
-// separated) adds more, and a dev build also allows the local panel.
+// These are fixed at build time because route rules are; `CMS_PANEL_ORIGINS`
+// (comma separated) adds more at build time, `NUXT_CMS_PANEL_ORIGINS` at run
+// time (server/plugins/preview-frame.ts), and a dev build allows the local panel.
 const panelOrigins = [
   'https://panel.apexdigi.co.uk',
   'https://146-19-130-11.sslip.io',
@@ -61,6 +62,18 @@ export default defineNuxtConfig({
   // ---------------------------------------------------------------------------
   runtimeConfig: {
     /**
+     * The platform log (shared/log.ts): one JSON-lines file per day in
+     * `dir` (NUXT_LOG_DIR; default .data/logs), at `level` and above
+     * (NUXT_LOG_LEVEL; info, debug in development), files older than
+     * `retentionDays` deleted daily (NUXT_LOG_RETENTION_DAYS).
+     */
+    log: {
+      dir: '',
+      level: '',
+      retentionDays: 30,
+      slowRequestMs: 1500,
+    },
+    /**
      * Where contact-form messages go (server-only; NUXT_CONTACT_* variables).
      * Until all three are set, POST /api/contact answers 503 and the form
      * offers the visitor's own email instead of claiming it sent anything.
@@ -87,6 +100,12 @@ export default defineNuxtConfig({
        * derived key) the visit totals (NUXT_CMS_ENQUIRY_SECRET).
        */
       enquirySecret: '',
+      /**
+       * Extra console origins allowed to frame `/preview/**`, comma separated,
+       * read when the server starts (NUXT_CMS_PANEL_ORIGINS), so moving the
+       * console needs a restart, not a rebuild (AUD-09).
+       */
+      panelOrigins: '',
     },
     public: {
       /** Baked at build so server and browser render the same © year. */
@@ -139,6 +158,10 @@ export default defineNuxtConfig({
         allowedMethodsRestricter: { methods: ['POST'] },
         requestSizeLimiter: { maxRequestSizeInBytes: 2_000 },
         rateLimiter: { tokensPerInterval: 120, interval: 60_000 },
+        // The XSS validator parses the body before the route and answered a
+        // malformed one with 400; the route reads the body itself, keeps only
+        // a path it validates, and always answers 204 (AUD-12).
+        xssValidator: false,
       },
     },
     // The panel asks the site to drop its content cache after a publish
@@ -170,8 +193,10 @@ export default defineNuxtConfig({
       cms: { driver: 'fs', base: './.data/cms' },
     },
     // Visit totals go to the console once a minute (ADR-026, phase F).
-    experimental: { tasks: true },
-    scheduledTasks: { '* * * * *': ['visits:flush'] },
+    // asyncContext lets the platform log find the request being served
+    // (server/plugins/00.logging.ts); old log files are pruned daily.
+    experimental: { tasks: true, asyncContext: true },
+    scheduledTasks: { '* * * * *': ['visits:flush'], '43 3 * * *': ['logs:prune'] },
   },
 
   // ---------------------------------------------------------------------------
@@ -220,6 +245,12 @@ export default defineNuxtConfig({
     // `strict` starts from the OWASP-style preset: default-src 'none', nonce /
     // hash based scripts and styles, COEP require-corp, 1-year preloadable HSTS.
     strict: true,
+    // nuxt-security's default in production: 150 requests per 5 minutes per
+    // address. A dev server answers the API suites, a site crawl and the
+    // browser sweep from one address, which ran into it and failed for that
+    // reason alone; it allows far more there. The route limits on
+    // /api/contact and /api/hit apply in both.
+    rateLimiter: { tokensPerInterval: process.env.NODE_ENV === 'production' ? 150 : 5000, interval: 300_000 },
     headers: {
       contentSecurityPolicy: {
         'frame-ancestors': ['\'none\''],

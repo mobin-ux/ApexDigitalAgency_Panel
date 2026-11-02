@@ -1,3 +1,5 @@
+import { writeLog } from '#shared/log'
+
 /**
  * The site's read side of the admin console's Website screens (ADR-026).
  *
@@ -93,7 +95,7 @@ async function fetchWithSnapshot<T>(name: string, path: string): Promise<T | nul
       await storage.setItem(snapshotKey(name), { at: Date.now(), data })
     }
     catch (error) {
-      console.warn(`[cms] could not store the snapshot for ${name}: ${(error as Error).message}`)
+      writeLog({ level: 'warn', category: 'content', event: 'site.cms.snapshot-failed', message: `Could not store the snapshot for ${name}`, outcome: 'failure', error })
     }
     return data
   }
@@ -106,7 +108,7 @@ async function fetchWithSnapshot<T>(name: string, path: string): Promise<T | nul
     const stored = await storage.getItem<{ at: number, data: T }>(snapshotKey(name)).catch(() => null)
     if (!warned.has(name)) {
       warned.add(name)
-      console.warn(`[cms] ${path} unavailable (${status ?? (error as Error).message}); ${stored ? 'serving the last good snapshot' : 'rendering the code baseline'}`)
+      writeLog({ level: 'warn', category: 'content', event: 'site.cms.unavailable', message: `${path} unavailable; ${stored ? 'serving the last good snapshot' : 'rendering the code baseline'}`, outcome: 'failure', error, data: { status } })
     }
     return stored?.data ?? null
   }

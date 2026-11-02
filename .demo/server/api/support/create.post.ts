@@ -1,6 +1,7 @@
 import { createError, defineEventHandler } from 'h3'
 import { z } from 'zod'
 import { requireAuth } from '../../utils/auth'
+import { logActivity } from '../../utils/logger'
 import prisma from '../../utils/prisma'
 import { rateLimit, RateLimits } from '../../utils/ratelimit'
 import { getSetting } from '../../utils/settings'
@@ -79,5 +80,6 @@ export default defineEventHandler(async (event) => {
   const preview = body.message.length > 160 ? `${body.message.slice(0, 157).trim()}…` : body.message
   await notifyTicketHandler({ id: ticket.id, assigneeId }, { title: `New request: ${subject}`, message: preview, type: 'INFO' })
 
+  logActivity('customer.support.created', 'Support request opened', { ticketId: ticket.id, category: body.category, attachments: body.attachmentIds?.length ?? 0, projectId: body.relatedProjectId ?? null })
   return { status: 'success', ticket: { id: ticket.id, subject: ticket.subject } }
 })

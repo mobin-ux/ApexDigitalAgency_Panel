@@ -460,3 +460,80 @@ and every environment variable are in `ADMIN_CONSOLE.md`, under
 Once the secret pair is set, the contact form works even with the
 `NUXT_CONTACT_*` email keys empty. A message is stored in the console,
 which counts as delivered.
+
+## 14. Platform log (`feature/platform-hardening`) — what a deploy needs
+
+Not deployed. No schema change. Both apps write their log to stdout (journald
+keeps it, as before) and to a file per day:
+
+1. On the box: `mkdir -p /opt/apex/logs /opt/apex-web/logs` and
+   `chown apex:apex` both.
+2. Panel `/opt/apex/.env.production`: `NUXT_LOG_DIR=/opt/apex/logs` and
+   `NUXT_LOG_SITE_DIR=/opt/apex-web/logs` (so System › Logs shows the site's
+   lines too). Site `/opt/apex-web/.env`: `NUXT_LOG_DIR=/opt/apex-web/logs`.
+   Optional: `NUXT_LOG_LEVEL`, `NUXT_LOG_RETENTION_DAYS` (30). Unset, each
+   app writes `.data/logs` beside its process.
+3. Ship the panel, then the site, as usual. Check that `GET /api/health`
+   answers `{ status: 'ok', db: 'ok' }` and that a file appears in each
+   directory.
+4. Password rules tightened (12 characters wherever a password is set;
+   sign-in still accepts older, shorter passwords), and sign-up and password
+   change are rate-limited. Nothing to configure.
+
+## 15. Audit fixes (AUD-01 to AUD-19) — what a deploy needs
+
+Not deployed. No schema change, no new environment variable.
+
+1. **The database switches to WAL on its first start (AUD-03).** The panel
+   runs `PRAGMA journal_mode = WAL` at start-up and logs `db.journal-mode`
+   (info "SQLite is in WAL mode", or a warning saying it stayed in another
+   mode). The mode is stored in the file, so it happens once. From then on
+   SQLite keeps recent writes in `dev.db-wal` and `dev.db-shm` beside
+   `/opt/apex/prisma/dev.db`, and two habits change:
+   - **Back up with SQLite, not `cp`.** `cp dev.db` alone can miss writes
+     still in the WAL file. Use
+     `sudo -u apex sqlite3 /opt/apex/prisma/dev.db ".backup '/opt/apex/backups/dev.db.$(date +%Y%m%d-%H%M%S)'"`,
+     which is consistent even while the panel runs. The `cp` lines in the
+     earlier sections are the record of what was done then; do not copy them.
+   - **Run `sqlite3` as `apex`.** In WAL mode opening the database creates
+     the `-wal` and `-shm` files when they are absent; created by root they
+     leave the panel unable to write ("attempt to write a readonly
+     database"). Apply migration SQL with
+     `sudo -u apex sqlite3 /opt/apex/prisma/dev.db < file.sql`, and if a
+     root-owned `-wal` or `-shm` ever appears, `chown apex:apex` it.
+   Rollback, if ever needed: stop the panel, then
+   `sudo -u apex sqlite3 /opt/apex/prisma/dev.db "PRAGMA journal_mode = DELETE"`
+   and remove the switch from `server/plugins/01.database.ts`.
+2. **Support and broadcast notifications (AUD-02)** write all their emails
+   in one statement and, while the mail keys are unset, mark them in one
+   more. Nothing to configure.
+3. **Missing pages are no longer linked (AUD-01).** The footer's legal links
+   and Careers, the service pages' "Read the full terms" and the About page's
+   "See open roles" show only once a page exists at their address. The
+   business publishes them in the console (Website › Pages › New page, a
+   built page at `/legal/privacy`, `/legal/terms`, `/legal/instalment-terms`,
+   `/legal/cookies`, `/legal/complaints`, `/legal/accessibility` or
+   `/careers`); the link appears within a minute of publishing. Until then
+   the footer has no Legal column, and the contact form still has no privacy
+   notice to point at.
+4. **The Medium audit fixes (AUD-04 to AUD-10)** need no schema change.
+   - After the panel is up, list the projects whose stored progress
+     disagrees with their milestones, then fix them once the list looks
+     right (the panel can stay running):
+     `sudo -u apex env DATABASE_URL=file:/opt/apex/prisma/dev.db node /opt/apex/.output/server/sync-progress.mjs`,
+     then the same with `--apply`. The script ships in the repo, not the
+     bundle, and needs `@prisma/client`: copy `scripts/sync-progress.mjs`
+     into `/opt/apex/.output/server/` so it resolves from the bundle's
+     `node_modules` (not yet tried on the box), or run it from a checkout
+     with `node_modules`, as for `create-super-admin.mjs`.
+   - New daily task `sessions:prune` (03:29) deletes sessions that ended
+     more than 30 days ago; nothing to configure.
+   - Optional, site `/opt/apex-web/.env`: `NUXT_CMS_PANEL_ORIGINS` adds
+     console origins allowed to frame `/preview/**`, read at start-up. The
+     production panel hosts are already allowed.
+   - `GET /api/messaging` answers 404 after the deploy (it served the
+     template's demo data).
+5. **The Low audit fixes** need nothing configured. After the panel starts,
+   look in its journal for `security.staff-role-unset`: it names any active
+   staff account with no role (which acts as an owner). If there is one, an
+   owner chooses its role in Team & access, where it shows as "Not set".

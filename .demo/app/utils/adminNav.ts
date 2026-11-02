@@ -91,6 +91,7 @@ export const ADMIN_NAV: AdminNavGroup[] = [
       { key: 'platform', label: 'Platform settings', icon: 'solar:settings-linear', to: '/admin/settings', needs: 'platform.settings' },
       { key: 'audit', label: 'Audit log', icon: 'solar:history-linear', to: '/admin/audit', needs: 'team.manage' },
       { key: 'mail', label: 'Email', icon: 'solar:letter-linear', to: '/admin/mail', needs: 'team.manage' },
+      { key: 'logs', label: 'Logs', icon: 'solar:document-text-linear', to: '/admin/logs', needs: 'platform.settings' },
       { key: 'tools', label: 'Tools', icon: 'solar:tuning-2-linear', to: '/admin/tools', needs: 'catalogue.edit' },
     ],
   },

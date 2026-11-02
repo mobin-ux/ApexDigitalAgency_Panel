@@ -153,8 +153,10 @@ generation, drag-and-drop page building, email notifications, a CDN.
   codes cannot be replayed; code checks are rate-limited per IP and per
   account; turning it off needs the password and a code; staff can turn it
   off for a customer only with a typed, audited reason.
-- Remaining hardening backlog: httpOnly cookie (blocked on reworking the client
-  auth middleware — ADR-013), rate limiting on auth endpoints. ~~Real mail
+- Remaining hardening backlog: ~~httpOnly cookie~~ done (httpOnly since
+  2026-07-21; confirmed by the 2026-11-02 audit, AUD-14), ~~rate limiting on
+  auth endpoints~~ done (sign-in, sign-up, reset and password change are
+  budgeted; in-process, accepted for the single panel process, AUD-18). ~~Real mail
   provider for password reset~~ done (ADR-022): the reset link goes through
   the outbox and is never logged.
 - **Soft email verification** (ADR-022): an email signup is sent a 24-hour

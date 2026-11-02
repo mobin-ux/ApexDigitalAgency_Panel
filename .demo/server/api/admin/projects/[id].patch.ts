@@ -76,6 +76,12 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 409, message: 'The client has signed an agreement for this project, so its value is fixed. Cancel and re-quote instead.' })
   }
 
+  // With a timeline, progress is the share of it done (syncProgress); a typed
+  // figure would disagree with the stages the client sees (AUD-05).
+  if (updates.progress !== undefined && updates.progress !== before.progress && await prisma.milestone.count({ where: { projectId: id } }) > 0) {
+    throw createError({ statusCode: 409, message: 'Progress follows the milestone timeline on this project. Complete a stage to move it.' })
+  }
+
   const statusChange = updates.status !== undefined && updates.status !== before.status ? updates.status : null
   if (statusChange) {
     if (before.status === 'CANCELLED') {

@@ -2,6 +2,7 @@ import { createError, defineEventHandler } from 'h3'
 import { z } from 'zod'
 import { callLabel, isCallSlot } from '../../../shared/support-call'
 import { requireAuth } from '../../utils/auth'
+import { logActivity } from '../../utils/logger'
 import prisma from '../../utils/prisma'
 import { rateLimit, RateLimits } from '../../utils/ratelimit'
 import { notifyTicketHandler, projectManagerFor } from '../../utils/support'
@@ -76,5 +77,6 @@ export default defineEventHandler(async (event) => {
     select: { id: true, assigneeId: true },
   })
   await notifyTicketHandler(ticket, { title: `Call requested: ${label}`, message: 'The client asked for a 30-minute video call. Reply to confirm.', type: 'INFO' })
+  logActivity('customer.support.call-requested', 'Customer asked for a call', { ticketId: ticket.id })
   return { ticket: { id: ticket.id }, slot }
 })

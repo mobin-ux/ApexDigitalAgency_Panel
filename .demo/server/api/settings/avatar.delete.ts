@@ -1,5 +1,6 @@
 import { defineEventHandler } from 'h3'
 import { requireAuth } from '../../utils/auth'
+import { logActivity } from '../../utils/logger'
 import prisma from '../../utils/prisma'
 import { deleteAttachments } from '../../utils/uploads'
 
@@ -11,5 +12,6 @@ export default defineEventHandler(async (event) => {
   if (photo) {
     await deleteAttachments([photo])
   }
+  logActivity('customer.settings.avatar-removed', 'Customer removed their profile photo')
   return { avatar: null }
 })

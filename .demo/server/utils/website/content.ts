@@ -6,6 +6,7 @@ import type { Db } from '../mail/outbox'
 import { createError } from 'h3'
 import { collectionOf, documentTypeLabel, isBuiltTemplate, isDocumentTemplate, sectionMediaIds, statusChip, TEMPLATES, validateDocumentContent } from '../../../shared/cms'
 import { can } from '../../../shared/permissions'
+import { log } from '../logger'
 import prisma from '../prisma'
 import { mediaIndex } from './media'
 
@@ -196,6 +197,9 @@ export async function revalidateSite(event: H3Event): Promise<boolean> {
   }
 }
 
+const BASELINE_ATTEMPTS = 3
+const BASELINE_TIMEOUT_MS = 15_000
+
 /** The site's code baseline, read over HTTP from the site itself. */
 export async function fetchSiteBaseline(event: H3Event): Promise<{ template: string, key: string, title: string, content: unknown }[]> {
   const config = useRuntimeConfig(event).website as { siteUrl?: string } | undefined
@@ -203,17 +207,31 @@ export async function fetchSiteBaseline(event: H3Event): Promise<{ template: str
   if (!url) {
     throw createError({ statusCode: 503, message: 'The public site address is not configured (NUXT_WEBSITE_SITE_URL).' })
   }
-  try {
-    const res = await fetch(`${url}/api/cms/baseline`, { signal: AbortSignal.timeout(8000), headers: { accept: 'application/json' } })
-    if (!res.ok) {
-      throw new Error(`HTTP ${res.status}`)
+  // The first import after a deploy meets a cold site (its home page once
+  // took 19 s), so each try waits longer than the old 8 s and a timeout, a
+  // dropped connection or a 5xx is tried again; a 4xx is an answer (AUD-08).
+  let lastError = ''
+  for (let attempt = 1; attempt <= BASELINE_ATTEMPTS; attempt++) {
+    try {
+      const res = await fetch(`${url}/api/cms/baseline`, { signal: AbortSignal.timeout(BASELINE_TIMEOUT_MS), headers: { accept: 'application/json' } })
+      if (res.ok) {
+        const body = await res.json() as { documents?: { template: string, key: string, title: string, content: unknown }[] }
+        return body.documents ?? []
+      }
+      lastError = `HTTP ${res.status}`
+      if (res.status < 500 && res.status !== 429) {
+        break
+      }
     }
-    const body = await res.json() as { documents?: { template: string, key: string, title: string, content: unknown }[] }
-    return body.documents ?? []
+    catch (error) {
+      lastError = (error as Error).message
+    }
+    if (attempt < BASELINE_ATTEMPTS) {
+      log('content').warn('website.baseline.retry', `The public site did not answer the baseline request (${lastError}); trying again`, { data: { attempt } })
+      await new Promise(resolve => setTimeout(resolve, attempt * 1000))
+    }
   }
-  catch (error) {
-    throw createError({ statusCode: 502, message: `The public site did not answer (${(error as Error).message}). Try again in a minute.` })
-  }
+  throw createError({ statusCode: 502, message: `The public site did not answer (${lastError}). Try again in a minute.` })
 }
 
 /** The kind a template's documents are stored under. */

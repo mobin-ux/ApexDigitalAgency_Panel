@@ -1,5 +1,6 @@
 import { createError, defineEventHandler, getRouterParam } from 'h3'
 import { requireAuth } from '../../../utils/auth'
+import { logActivity } from '../../../utils/logger'
 import prisma from '../../../utils/prisma'
 
 /**
@@ -19,5 +20,6 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 404, statusMessage: 'Notification not found' })
   }
 
+  logActivity('customer.notification.read', 'Notification marked read', { notificationId: id })
   return { status: 'success' }
 })

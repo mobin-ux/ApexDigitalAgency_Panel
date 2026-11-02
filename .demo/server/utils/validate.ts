@@ -24,6 +24,10 @@ function validationError(error: z.ZodError): never {
 /** Parse + validate the JSON body. A missing/non-JSON body fails validation, not with a 500. */
 export async function validateBody<T extends z.ZodTypeAny>(event: H3Event, schema: T): Promise<z.infer<T>> {
   const body = await readBody(event).catch(() => undefined)
+  // The request log records which fields were sent, never their values.
+  if (body && typeof body === 'object' && !Array.isArray(body)) {
+    event.context.$logBodyKeys = Object.keys(body).slice(0, 40)
+  }
   const result = schema.safeParse(body)
   if (!result.success) {
     validationError(result.error)
