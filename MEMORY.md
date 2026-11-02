@@ -21,8 +21,25 @@
 The owner asked for the backend hardened, a centralized detailed log of
 every operation, every feature tested end to end, and every issue found
 **documented, not fixed** ("review and resolve them together in the next
-phase"). Branch `feature/platform-hardening` (from master after PR #2; not
-merged, not deployed).
+phase"). Branch `feature/platform-hardening`, **merged in PR #3
+(`1f1d7fe`) and deployed 2026-11-02** on the user's go-ahead ("Merge and
+deploy").
+
+- **Deploy 2026-11-02:** no schema change (server `schema.prisma` hash equal
+  to the repo's). Backup `/opt/apex/backups/dev.db.20261102-230202.pre-hardening`
+  (`sqlite3 -readonly … .backup` as root: `apex` cannot write to
+  `/opt/apex/backups`), env backups `*.bak.20261102-230202`. Log dirs
+  `/opt/apex/logs`, `/opt/apex-web/logs` (apex); panel env gained
+  `NUXT_LOG_DIR` + `NUXT_LOG_SITE_DIR`, site env `NUXT_LOG_DIR`. Site via
+  `ship-web.sh`, panel via `ship-bundle.sh` (health 200, Stripe live keys
+  intact, previous build kept). After: `journal_mode` **wal**, `-wal`/`-shm`
+  owned by apex, integrity ok, counts unchanged (5 users, 5 projects, 14 tx,
+  77 audit), start-up checks passed, no `security.staff-role-unset`, both
+  log files written, `/api/messaging` 404, errors "400 Bad Request",
+  `/api/hit` malformed 204, site pages without legal/careers links.
+  `sync-progress.mjs` dry run (copied into the live bundle
+  `/opt/apex/.demo/.output/server/`, **not** `/opt/apex/.output`): 1 of 5
+  projects ("Test", d725ec91, 0% → 60%); **not applied**, waiting on the user.
 
 - **Platform log:** `web/shared/log.ts` + `web/shared/redact.ts` (panel
   re-exports `shared/log.ts`, `shared/redact.ts`). One JSON line per event:

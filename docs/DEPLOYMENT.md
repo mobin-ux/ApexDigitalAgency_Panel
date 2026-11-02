@@ -492,8 +492,10 @@ Not deployed. No schema change, no new environment variable.
    `/opt/apex/prisma/dev.db`, and two habits change:
    - **Back up with SQLite, not `cp`.** `cp dev.db` alone can miss writes
      still in the WAL file. Use
-     `sudo -u apex sqlite3 /opt/apex/prisma/dev.db ".backup '/opt/apex/backups/dev.db.$(date +%Y%m%d-%H%M%S)'"`,
-     which is consistent even while the panel runs. The `cp` lines in the
+     `sqlite3 -readonly /opt/apex/prisma/dev.db ".backup '/opt/apex/backups/dev.db.$(date +%Y%m%d-%H%M%S)'"`
+     as root while the panel runs: consistent, and `-readonly` creates no
+     file beside the database (`/opt/apex/backups` is root's, so `apex`
+     cannot write there). The `cp` lines in the
      earlier sections are the record of what was done then; do not copy them.
    - **Run `sqlite3` as `apex`.** In WAL mode opening the database creates
      the `-wal` and `-shm` files when they are absent; created by root they
@@ -520,11 +522,11 @@ Not deployed. No schema change, no new environment variable.
    - After the panel is up, list the projects whose stored progress
      disagrees with their milestones, then fix them once the list looks
      right (the panel can stay running):
-     `sudo -u apex env DATABASE_URL=file:/opt/apex/prisma/dev.db node /opt/apex/.output/server/sync-progress.mjs`,
+     `sudo -u apex env DATABASE_URL=file:/opt/apex/prisma/dev.db node /opt/apex/.demo/.output/server/sync-progress.mjs`,
      then the same with `--apply`. The script ships in the repo, not the
      bundle, and needs `@prisma/client`: copy `scripts/sync-progress.mjs`
-     into `/opt/apex/.output/server/` so it resolves from the bundle's
-     `node_modules` (not yet tried on the box), or run it from a checkout
+     into `/opt/apex/.demo/.output/server/` (the live bundle) so it resolves from its
+     `node_modules` (works: run on 2026-11-02), or run it from a checkout
      with `node_modules`, as for `create-super-admin.mjs`.
    - New daily task `sessions:prune` (03:29) deletes sessions that ended
      more than 30 days ago; nothing to configure.
