@@ -39,7 +39,8 @@ deploy").
   `/api/hit` malformed 204, site pages without legal/careers links.
   `sync-progress.mjs` dry run (copied into the live bundle
   `/opt/apex/.demo/.output/server/`, **not** `/opt/apex/.output`): 1 of 5
-  projects ("Test", d725ec91, 0% → 60%); **not applied**, waiting on the user.
+  projects ("Test", d725ec91, 0% → 60%); applied with `--apply` on the
+  user's yes ("Apply it"), a second dry run reports 0 of 5, integrity ok.
 
 - **Platform log:** `web/shared/log.ts` + `web/shared/redact.ts` (panel
   re-exports `shared/log.ts`, `shared/redact.ts`). One JSON line per event:
