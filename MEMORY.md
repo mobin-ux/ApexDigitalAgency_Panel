@@ -40,6 +40,15 @@ amendment. Site-only change (no panel code, no contract change).
   at 375/768/1024/1280, signed-out → sign-in with `?redirect=` → wizard
   opens Brand + Web; unit 76/76, site-public 7/7, site typecheck and lint
   clean.
+- **Deployed 2026-11-03** on the user's go-ahead ("proceed with the
+  deployment … using the server's resources"): `ship-web.sh` (built on the
+  VPS, health 200, previous build kept). Site only; the panel was not
+  rebuilt (nothing in it changed). Verified through the live hosts: header,
+  menu and footer links on every page, each plan's button carries its panel
+  ids (Branding `brandweb`, PPC `multi`, UI/UX `uiux`), software keeps
+  its scoping call, the live panel answers a signed-out order link with
+  302 to sign-in keeping `?redirect=`, login and signup 200, site journal
+  clean.
 - **Open (owner):** the site's cards quote a deposit (Website Starter: £299 +
   12 × £149) and a 6-month term; the panel charges no deposit and offers no
   6-month term, so the checkout shows a different total. Change one catalogue.
