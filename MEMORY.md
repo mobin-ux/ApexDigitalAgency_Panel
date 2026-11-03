@@ -55,7 +55,16 @@ screenshots of every screen in four views reviewed as contact sheets.
   text `#84B6FE`. Probe after: 62 → 0 low-contrast elements, 0 overflow,
   0 console or hydration warnings.
 - Verified: unit 78/78, API 101/101 (dev pair), e2e 16 passed (probe skipped
-  without `PROBE`), panel tsc 46, lint clean. **Not deployed.**
+  without `PROBE`), panel tsc 46, lint clean.
+- **Deployed 2026-11-03** on the user's go-ahead ("Deploy it"): local
+  `pnpm demo:build` of `5d1f96b`, `ship-bundle.sh` (Linux Prisma engine
+  present, health 200, Stripe live keys intact, previous build at
+  `/opt/apex/.output.previous`). No schema or env change. Verified on the
+  live host: health, `/auth/login-1` and `/admin/sign-in` 200,
+  `/api/admin/nav-counts` and `/api/admin/stats` 401 anonymous, guarded
+  pages 302, start-up checks passed, journal clean, the bundle carries
+  `nav-counts`, integrity ok (5 users, 5 projects). Not seen signed in
+  (no owner credentials here).
 - Gotcha: stopping the background bash that ran the local build's server
   left `node.exe` alive and holding `query_engine-windows.dll.node`, so the
   next `pnpm demo:build` failed with EPERM at the very end. Stop the node
