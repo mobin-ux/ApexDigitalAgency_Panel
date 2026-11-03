@@ -113,8 +113,10 @@ prisma/schema.prisma          User/Project/Milestone/Transaction/Installment/Tic
 
 ## Public website (`web/`)
 
-The marketing site (apexdigi.co.uk) is a **separate Nuxt 4 app**, `@apex/web`; orders
-start on its contact form and nothing links to or reads from the panel (ADR-024) —
+The marketing site (apexdigi.co.uk) is a **separate Nuxt 4 app**, `@apex/web`. It reads
+nothing from the panel at run time but links to it (`NUXT_PUBLIC_PANEL_URL`,
+`usePanelLinks()`): Log in and Sign up, a footer column, and every plan's "Start your
+order" opening the panel's New order (ADR-024 amendment, 2026-11-03) —
 see @docs/decisions/ADR-018-public-marketing-site.md and `web/README.md`. Its words
 live in code: `app/data/cms-baseline.ts` over the templates in `shared/cms/`.
 Run `pnpm web:dev` · lint `pnpm exec eslint --fix web` · types `pnpm web:typecheck`.

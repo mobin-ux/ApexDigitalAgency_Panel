@@ -9,6 +9,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from 'reka-ui'
+import { panelLabels } from '~/data/panel'
 import { routes } from '~/data/routes'
 import { services } from '~/data/services'
 
@@ -20,6 +21,7 @@ const open = ref(false)
 const header = useCmsContent('header')
 const { linkHref } = useCmsLink()
 const mainNav = computed(() => header.value.nav.map(item => ({ label: item.label, to: linkHref(item.link) })))
+const panel = usePanelLinks()
 
 watch(() => useRoute().fullPath, () => (open.value = false))
 </script>
@@ -124,6 +126,27 @@ watch(() => useRoute().fullPath, () => (open.value = false))
         </nav>
 
         <div class="mt-auto flex flex-col gap-3">
+          <div
+            v-if="panel.enabled"
+            class="grid grid-cols-2 gap-3"
+          >
+            <UiButton
+              :href="panel.logIn"
+              variant="light"
+              shape="pill"
+              block
+            >
+              {{ panelLabels.logIn }}
+            </UiButton>
+            <UiButton
+              :href="panel.signUp"
+              variant="light"
+              shape="pill"
+              block
+            >
+              {{ panelLabels.signUp }}
+            </UiButton>
+          </div>
           <UiButton
             :to="routes.contact"
             shape="pill"

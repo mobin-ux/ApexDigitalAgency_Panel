@@ -3,7 +3,9 @@
 **Status:** Accepted (2026-10-15) — begins the "public website" phase, the work
 that sells and then hands the visitor to the customer panel. Amended by ADR-024
 (2026-10-31): the site no longer links to or reads from the panel; orders start
-on its contact form and its words come from code only.
+on its contact form and its words come from code only. ADR-024's 2026-11-03
+amendment brings the links back: Log in, Sign up, a footer column and ordering
+from the plans go to the panel through `NUXT_PUBLIC_PANEL_URL`.
 **Context:** the panel (`.demo/`) is a logged-in product. The marketing site is a
 different job: be found, be fast, be trusted, and convert. Its design comes from
 the same Claude Design project (`Homepage.dc.html` first; About, Services,

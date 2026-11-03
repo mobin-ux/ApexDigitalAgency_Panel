@@ -1,10 +1,13 @@
 <script setup lang="ts">
+import { panelLabels } from '~/data/panel'
 import { routes } from '~/data/routes'
 
 const header = useCmsContent('header')
 const { linkHref } = useCmsLink()
 const mainNav = computed(() => header.value.nav.map(item => ({ label: item.label, to: linkHref(item.link) })))
 const route = useRoute()
+// Log in and Sign up go to the client panel; both are left out when no panel is set.
+const panel = usePanelLinks()
 
 // The section's own page is "page"; its child pages, such as a case study
 // under Our work, mark the section link "true". Homepage anchors are never current.
@@ -58,6 +61,22 @@ function currentFor(to: string): 'page' | 'true' | undefined {
       </nav>
 
       <div class="ml-auto flex items-center gap-5">
+        <template v-if="panel.enabled">
+          <a
+            :href="panel.logIn"
+            class="hidden text-[0.9375rem] font-semibold text-heading transition-colors hover:text-violet-600 md:inline"
+          >{{ panelLabels.logIn }}</a>
+          <div class="hidden lg:block">
+            <UiButton
+              :href="panel.signUp"
+              variant="light"
+              size="sm"
+              shape="pill"
+            >
+              {{ panelLabels.signUp }}
+            </UiButton>
+          </div>
+        </template>
         <div class="hidden sm:block">
           <UiButton
             :to="routes.contact"

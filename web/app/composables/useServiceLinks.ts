@@ -4,9 +4,12 @@ import { routes } from '~/data/routes'
 
 /**
  * Where a service page's calls to action go, as `{ to }` ready to bind onto
- * `<UiButton>`. Orders start on the contact form with the service named.
+ * `<UiButton>`. A plan's order opens the client panel's New order with the
+ * plan chosen; questions and calls go to the contact form.
  */
 export function useServiceLinks(slug: ServiceSlug) {
+  const panel = usePanelLinks()
+
   /** The contact form with the service (and optionally a plan) named. */
   function contact(plan?: string) {
     const query = new URLSearchParams({ service: slug })
@@ -14,6 +17,11 @@ export function useServiceLinks(slug: ServiceSlug) {
       query.set('plan', plan)
     }
     return `${routes.contact}?${query}`
+  }
+
+  /** Ordering a plan: the panel when it is configured, else the contact form. */
+  function order(plan: string) {
+    return panel.order(slug, plan) || contact(plan)
   }
 
   function linkTo(target: CtaTarget): { to: string } {
@@ -27,5 +35,5 @@ export function useServiceLinks(slug: ServiceSlug) {
     }
   }
 
-  return { contact, linkTo }
+  return { contact, order, linkTo }
 }

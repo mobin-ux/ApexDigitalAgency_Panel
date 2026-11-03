@@ -110,6 +110,13 @@ export default defineNuxtConfig({
     public: {
       /** Baked at build so server and browser render the same © year. */
       buildYear: new Date().getFullYear(),
+      /**
+       * The client panel's public address (NUXT_PUBLIC_PANEL_URL, read at
+       * run time), for the header's Log in and Sign up, the footer's panel
+       * column and the plans' "Start your order". Empty: those links are
+       * left out and the plan buttons open Contact.
+       */
+      panelUrl: '',
     },
   },
 

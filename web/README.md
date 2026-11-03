@@ -148,6 +148,9 @@ layout and env are documented at the top of the script.
 See `.env.example`. In production set `NUXT_PUBLIC_SITE_URL`,
 `NUXT_PUBLIC_PANEL_URL` and `NUXT_SITE_ENV=production` — without the last one
 the site serves `noindex` and a disallow-all `robots.txt` on purpose.
+`NUXT_PUBLIC_PANEL_URL` (read at run time) is where the header's Log in and
+Sign up, the footer's Client panel column and every plan's "Start your order"
+lead; unset, those links are left out and the plans open Contact.
 
 The contact form delivers through Resend when `NUXT_CONTACT_RESEND_API_KEY`,
 `NUXT_CONTACT_TO` and `NUXT_CONTACT_FROM` are all set (the sender must be on

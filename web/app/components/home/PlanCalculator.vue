@@ -14,8 +14,10 @@ const selectedId = ref<PaymentPlan['id']>('starter')
 const plan = computed(() => paymentPlans.find(p => p.id === selectedId.value) ?? paymentPlans[0]!)
 const total = computed(() => plan.value.deposit + plan.value.monthly * planTermMonths)
 
+// The panel's New order with this plan chosen; Contact when no panel is set.
+const panel = usePanelLinks()
 const orderLink = computed(
-  () => `${routes.contact}?service=website-design&plan=${plan.value.id}`,
+  () => panel.order('website-design', plan.value.id) || `${routes.contact}?service=website-design&plan=${plan.value.id}`,
 )
 </script>
 

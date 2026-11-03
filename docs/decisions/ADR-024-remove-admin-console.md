@@ -1,6 +1,6 @@
 # ADR-024 — The admin console and the website CMS are removed
 
-**Status:** Accepted (2026-10-31). Supersedes ADR-021 (website CMS) and the
+**Status:** Accepted (2026-10-31); amended 2026-11-03 (the site links to the client panel again, below). Supersedes ADR-021 (website CMS) and the
 admin screens of ADR-013, ADR-016 and ADR-017. Amends ADR-018: the site no
 longer links to the panel at all.
 
@@ -70,3 +70,33 @@ order" opens `/contact?service=…&plan=…`.
   server's env files. Anything that was published through the CMS in
   production stops showing, and the site renders its code baseline.
 - Rolling back is `git revert` of the removal commit; the data is intact.
+
+## Amendment (2026-11-03): the site links to the client panel again
+
+The owner asked for links to the client panel on the site: Log in and Sign
+up in the header, a column in the footer, and ordering from the service
+plans. The site still reads nothing from the panel (its content comes from
+the console server to server, ADR-026); it only links to it.
+
+- `NUXT_PUBLIC_PANEL_URL` is in use again, read at run time by
+  `usePanelLinks()` (`web/app/composables`). Empty or not an http(s)
+  origin: every panel link is left out and the plan buttons open Contact,
+  as before.
+- Header: "Log in" (from `md`) and "Sign up" (from `lg`) beside "Get in
+  touch"; both in the mobile menu. Footer: a "Client panel" column with Log
+  in, Create an account and Start an order.
+- Every plan's "Start your order", and the homepage plan explainer's, opens
+  the panel's New order at `/dashboards/services?service=&plan=` with the
+  panel's own ids (`web/app/data/panel.ts` maps the site's slugs and the
+  two plan ids the panel spells differently). A signed-out visitor goes
+  through sign-in or sign-up and arrives at the order (`?redirect=`).
+  `.demo/tests/unit/site-order-links.test.ts` checks every plan the site
+  sells lands on itself, since the wizard falls back to the featured plan
+  for an id it does not know.
+- Software keeps its scoping call on Contact; questions and "Book a call"
+  stay on Contact.
+- The words live in `web/app/data/panel.ts`, not the header and footer
+  templates, so the change needed no panel deploy.
+- Still open (`web/app/data/plans.ts` TODO): the panel prices from its own
+  catalogue, which has no deposits and no 6-month term, so a card's figures
+  and the checkout's can differ until one of the two catalogues is changed.

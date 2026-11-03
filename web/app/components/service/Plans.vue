@@ -13,12 +13,13 @@ import { formatGbp } from '~/utils/format'
  *   the switch can never show a sum that does not add up.
  * - `monthly`: one monthly figure per plan.
  *
- * In both, "Start your order" opens the contact form with the plan named.
+ * In both, "Start your order" opens the client panel's New order with the
+ * plan chosen (the contact form, with the plan named, when no panel is set).
  * - `scoping`: no price list; the steps from a free call to a quoted build.
  */
 const props = defineProps<{ page: ServicePageContent }>()
 
-const { contact } = useServiceLinks(props.page.slug)
+const { contact, order } = useServiceLinks(props.page.slug)
 const plans = props.page.plans
 const term = ref<PlanTerm>(defaultPlanTerm)
 
@@ -38,7 +39,7 @@ const cards = computed<PlanCardView[]>(() => {
         price: monthly,
         detail: `${formatGbp(plan.deposit)} deposit, then ${term.value} × ${monthly}`,
         chip: `Total ${formatGbp(planTotal(plan, term.value))} inc. VAT · 0% interest`,
-        order: { to: contact(card.id) },
+        order: { to: order(card.id) },
         orderContext: `${plan.name}, ${term.value} months`,
       }
     })
@@ -49,7 +50,7 @@ const cards = computed<PlanCardView[]>(() => {
       featured: plan.id === plans.featured,
       price: formatGbp(plan.monthly),
       chip: billingNote(plan),
-      order: { to: contact(plan.id) },
+      order: { to: order(plan.id) },
       orderContext: `${plan.name} plan`,
     }))
   }

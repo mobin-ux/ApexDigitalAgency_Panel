@@ -16,7 +16,35 @@
 - Stale branch `refactor/apex-dashboard` (local + origin) is superseded by master;
   deletable, but ask the user first.
 
-## Platform hardening, logging and audit (2026-11-02)  ⬅ LATEST WORKSTREAM
+## Site links to the client panel (2026-11-03)  ⬅ LATEST WORKSTREAM
+
+The owner asked for the panel to be linked from the site: Log in / Sign up
+in the header, the footer, and ordering from the service plans. ADR-024
+amendment. Site-only change (no panel code, no contract change).
+
+- `NUXT_PUBLIC_PANEL_URL` (run time; production already had
+  `https://panel.apexdigi.co.uk`) → `usePanelLinks()`; empty or not an
+  http(s) origin hides every panel link and the plans fall back to Contact.
+  Words and paths in `web/app/data/panel.ts`.
+- Header: Log in (from md), Sign up (from lg), both in the mobile menu.
+  Footer: "Client panel" column; the grid's track count follows the columns
+  shown (the legal column comes and goes with its pages).
+- "Start your order" on every plan card and the homepage explainer →
+  `/dashboards/services?service=<panel id>&plan=<panel id>`. The site's
+  slugs `software-development`/`ui-ux-design` are not panel aliases, and
+  plans `multi-channel`/`brand-web` are `multi`/`brandweb` there, so
+  `panelOrderPath()` maps them; the wizard silently picks the featured plan
+  for an unknown id. Test `.demo/tests/unit/site-order-links.test.ts`.
+  Production has no `catalog.v2` Setting, so it runs `DEFAULT_CATALOG`.
+- Verified locally (web-pair + demo-pair): links on every page, no overflow
+  at 375/768/1024/1280, signed-out → sign-in with `?redirect=` → wizard
+  opens Brand + Web; unit 76/76, site-public 7/7, site typecheck and lint
+  clean.
+- **Open (owner):** the site's cards quote a deposit (Website Starter: £299 +
+  12 × £149) and a 6-month term; the panel charges no deposit and offers no
+  6-month term, so the checkout shows a different total. Change one catalogue.
+
+## Platform hardening, logging and audit (2026-11-02)
 
 The owner asked for the backend hardened, a centralized detailed log of
 every operation, every feature tested end to end, and every issue found

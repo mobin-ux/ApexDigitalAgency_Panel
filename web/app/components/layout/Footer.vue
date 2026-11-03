@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { panelLabels } from '~/data/panel'
 import { routes } from '~/data/routes'
 import { services } from '~/data/services'
 
@@ -21,6 +22,28 @@ const groups = computed(() => footer.value.groups
       .map(link => ({ text: link.label, ...linkAttrs(link.link) })),
   }))
   .filter(group => group.links.length))
+
+// The client panel's own column, present only when a panel address is set.
+const panel = usePanelLinks()
+const panelLinks = panel.enabled
+  ? [
+      { text: panelLabels.footerLogIn, href: panel.logIn },
+      { text: panelLabels.footerSignUp, href: panel.signUp },
+      { text: panelLabels.footerOrder, href: panel.newOrder },
+    ]
+  : []
+
+// One track for the brand block, one per column shown: the legal column comes
+// and goes with its pages, so the count is not fixed.
+const gridCols: Record<number, string> = {
+  2: 'lg:grid-cols-[1.6fr_1fr]',
+  3: 'lg:grid-cols-[1.6fr_1fr_1fr]',
+  4: 'lg:grid-cols-[1.6fr_1fr_1fr_1fr]',
+  5: 'lg:grid-cols-[1.6fr_1fr_1fr_1fr_1fr]',
+  6: 'lg:grid-cols-[1.4fr_1fr_1fr_1fr_1fr_1fr]',
+  7: 'lg:grid-cols-[1.3fr_1fr_1fr_1fr_1fr_1fr_1fr]',
+}
+const columns = computed(() => gridCols[2 + groups.value.length + (panelLinks.length ? 1 : 0)])
 
 const linkClass = 'text-[0.9063rem] text-body transition-colors hover:text-violet-600'
 </script>
@@ -56,7 +79,10 @@ const linkClass = 'text-[0.9063rem] text-body transition-colors hover:text-viole
         </div>
       </div>
 
-      <div class="grid grid-cols-2 gap-x-6 gap-y-10 py-14 lg:grid-cols-[1.6fr_1fr_1fr_1fr_1fr] lg:gap-11">
+      <div
+        class="grid grid-cols-2 gap-x-6 gap-y-10 py-14 lg:gap-11"
+        :class="columns"
+      >
         <div class="col-span-2 flex flex-col gap-5.5 lg:col-span-1">
           <NuxtLink
             :to="routes.home"
@@ -140,6 +166,26 @@ const linkClass = 'text-[0.9063rem] text-body transition-colors hover:text-viole
               >
                 {{ link.text }}
               </NuxtLink>
+            </li>
+          </ul>
+        </nav>
+
+        <nav
+          v-if="panelLinks.length"
+          :aria-label="panelLabels.footerHeading"
+        >
+          <p class="mb-4 text-[0.6875rem] font-bold tracking-widest text-muted uppercase">
+            {{ panelLabels.footerHeading }}
+          </p>
+          <ul class="flex flex-col gap-3.25">
+            <li
+              v-for="link in panelLinks"
+              :key="link.text"
+            >
+              <a
+                :href="link.href"
+                :class="linkClass"
+              >{{ link.text }}</a>
             </li>
           </ul>
         </nav>

@@ -4,10 +4,10 @@
  * sets its service's "from" price, so a price can never differ between pages.
  *
  * Totals are always derived (`deposit + monthly × term`), never typed in.
- * TODO(content): the customer panel's order wizard prices plans from its own
- * admin catalogue, on 12 or 24 months with no deposit. These figures (and the
- * 6-month term) must be mirrored there before launch, or a visitor will see a
- * different price at checkout.
+ * TODO(content): "Start your order" opens the client panel's New order with
+ * the plan chosen (2026-11-03), and the panel prices from its own catalogue:
+ * no deposit and no 6-month term. These figures and the panel's must be made
+ * to agree, or a visitor sees a different price at checkout.
  */
 
 import { formatGbp } from '../utils/format'
