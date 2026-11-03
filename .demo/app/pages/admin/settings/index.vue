@@ -266,8 +266,9 @@ const securityRows = [
   { label: 'Failed sign-ins before lockout', hint: 'Counted per IP address and per identifier, over a rolling minute', value: '5 attempts', chip: false },
   { label: 'Lockout length', hint: 'The response tells the person how long is left', value: '15 minutes', chip: false },
   { label: 'Password reset link validity', hint: 'Single use — the token is burned when the password is set', value: '60 minutes', chip: false },
-  { label: 'Session length', hint: 'Stateless JWT; changing a password does not end other sessions', value: '7 days', chip: false },
-  { label: 'Two-factor authentication', hint: 'Authenticator app for staff and clients', value: 'Not built', chip: true },
+  { label: 'Client session length', hint: 'Each sign-in is a session the client can sign out from Settings; a password reset ends them all', value: '7 days', chip: false },
+  { label: 'Staff session length', hint: 'Ends after two idle hours; staff sign in at /admin/sign-in', value: '12 hours', chip: false },
+  { label: 'Two-step verification', hint: 'Authenticator app: always asked of staff, optional for clients', value: 'Staff: required', chip: true },
 ]
 
 const CARD = 'bg-card border-line-subtle rounded-2xl border p-5'

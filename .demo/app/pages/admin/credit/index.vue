@@ -450,7 +450,7 @@ const GRID = 'xl:grid-cols-[96px_minmax(0,1fr)_110px_190px_150px_130px]'
           :class="[PILL, filter === k ? 'bg-accent border-transparent font-semibold text-white' : 'border-line-subtle text-fg-heading hover:bg-hover font-medium']"
           @click="filter = k"
         >
-          {{ l }} <span class="tabular-nums opacity-70">{{ counts[k] }}</span>
+          {{ l }} <span class="tabular-nums">{{ counts[k] }}</span>
         </button>
       </div>
 

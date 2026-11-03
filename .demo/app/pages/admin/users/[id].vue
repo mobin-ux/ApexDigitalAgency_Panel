@@ -440,7 +440,8 @@ const labelClass = 'mb-[7px] block text-[13px] font-semibold text-fg-heading'
         <!-- ========== RIGHT RAIL ========== -->
         <div class="flex flex-col gap-6">
           <!-- wallet -->
-          <section v-if="detail.canMoney" class="relative overflow-hidden rounded-[20px] border border-primary-500/30 p-6" style="background: linear-gradient(150deg, #241846, #16252A 72%);" aria-label="Wallet">
+          <!-- Navy in both themes: apex-dark resolves the tokens inside to their dark values, or light mode drew dark text on navy. -->
+          <section v-if="detail.canMoney" class="apex-dark relative overflow-hidden rounded-[20px] border border-primary-500/30 p-6" style="background: linear-gradient(150deg, #241846, #16252A 72%);" aria-label="Wallet">
             <div class="mb-4 flex items-center justify-between">
               <span class="inline-flex items-center gap-3 text-[12.5px] font-bold tracking-[0.06em] text-accent-ink">
                 <span class="flex size-9 items-center justify-center rounded-[10px] bg-chip text-fg-heading"><Icon name="lucide:wallet" class="size-[18px]" /></span>WALLET BALANCE
@@ -467,18 +468,18 @@ const labelClass = 'mb-[7px] block text-[13px] font-semibold text-fg-heading'
                 <label for="acc-role" :class="labelClass">Role</label>
                 <select
                   id="acc-role"
-                  :value="detail.role"
                   :disabled="isSelf || savingAccount"
                   class="w-full cursor-pointer rounded-[11px] border border-line-subtle bg-raised px-3.5 py-3 sm:py-2.5 text-sm text-fg-heading outline-none focus:border-primary-400 disabled:cursor-not-allowed disabled:opacity-50"
                   @change="patchAccount({ role: ($event.target as HTMLSelectElement).value }, 'Role updated')"
                 >
-                  <option value="CUSTOMER">
+                  <!-- `selected` on the option, not `:value` on the select: the select's value did not pick an option, so every account read "Customer". -->
+                  <option value="CUSTOMER" :selected="detail.role === 'CUSTOMER'">
                     Customer
                   </option>
-                  <option value="EMPLOYEE">
+                  <option value="EMPLOYEE" :selected="detail.role === 'EMPLOYEE'">
                     Employee
                   </option>
-                  <option value="ADMIN">
+                  <option value="ADMIN" :selected="detail.role === 'ADMIN'">
                     Admin
                   </option>
                 </select>

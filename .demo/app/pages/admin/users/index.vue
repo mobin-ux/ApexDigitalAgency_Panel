@@ -156,7 +156,7 @@ const GRID = 'xl:grid-cols-[minmax(0,1fr)_180px_80px_190px_120px_130px]'
         </button>
       </div>
       <span class="hidden flex-1 xl:block" />
-      <input v-model="search" type="search" placeholder="Search name, email or company" aria-label="Search clients" :class="ADMIN_INPUT" class="h-9! min-w-0 flex-1 xl:w-[260px]! xl:flex-none">
+      <input v-model="search" type="search" placeholder="Search name, email or company" aria-label="Search clients" :class="ADMIN_INPUT" class="h-9! min-w-48 flex-1 xl:w-[260px]! xl:flex-none">
     </div>
 
     <section class="bg-card border-line-subtle overflow-hidden rounded-2xl border">

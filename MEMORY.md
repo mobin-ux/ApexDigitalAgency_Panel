@@ -16,7 +16,54 @@
 - Stale branch `refactor/apex-dashboard` (local + origin) is superseded by master;
   deletable, but ask the user first.
 
-## Site links to the client panel (2026-11-03)  ⬅ LATEST WORKSTREAM
+## Panel speed and looks pass (2026-11-03)  ⬅ LATEST WORKSTREAM
+
+The owner asked to "fix performance and visual issues in the admin panel
+and the customer panel". Measured on a **local production build** (a dev
+server's numbers mean nothing): `node .demo/.output/server/index.mjs` on
+:3020 over the dev DB, with `NUXT_ENCRYPTION_KEY=apex-dev-only-encryption-key`
+(the dev data's two-step secrets were encrypted with the dev fallback; any
+other key makes the staff sign-in 500) and a throwaway 32+ char JWT secret.
+New on-demand probe `.demo/tests/e2e/probe.spec.ts` (`PROBE=1`, writes
+`.demo/.data/e2e-probe.json`): per screen TTFB, hydration, LCP, CLS, long
+tasks, bytes by kind, API calls; at 1440 and 390 in light and dark: sideways
+scroll, broken images, sub-AA text, failed fonts, hydration warnings. Plus
+screenshots of every screen in four views reviewed as contact sheets.
+
+- **Server is not the bottleneck:** warm, every API under 50 ms and every
+  page under 160 ms; the 0.7–1.5 s `db.slow` lines were the cold start.
+  Production compresses HTML (Caddy `encode zstd gzip`).
+- **Fixed, speed:** `GET /api/admin/nav-counts` (any staff; each count only
+  with its permission; row in admin-roles.test) replaces four calls per
+  navigation, one of them the whole `/api/admin/stats`: 117 → 36 API
+  requests across all console screens. Logs renders a line's JSON only when
+  opened: 710 → 338 KB, 3,478 → 2,278 elements, hydration 1.0 → 0.45 s.
+  `useNotifications` shares one request in flight (both bells were
+  fetching). "Waiting on you" shows 6 (dashboard) / 5 (support) with Show all.
+- **Fixed, looks/truth:** client page wallet card `apex-dark` (light mode
+  drew dark text on navy); Role select used `:value` and read "Customer" for
+  admins (now `:selected`); a cancelled project said "This project has
+  started" and offered Assign owner; Payments "Collected" was negative
+  (PAYMENT rows are stored negative: `finance/summary` and `stats` negate);
+  catalogue slugs `software`/`uiux` → the site's `software-development`/
+  `ui-ux-design` (+ aliases; `resolveCatalog` takes the slug from code, so
+  the local saved `catalog.v2` cannot keep the old one); Platform settings
+  said two-step "Not built" and "Stateless JWT"; staff sign-ins were filed as
+  Config in the audit log (`auth.staff.` → Access); My orders names wrap to
+  two lines; console search fields keep 12rem on phones; counts in filter
+  pills no longer at 70–75% opacity; the "?" unassigned avatar; dark info
+  text `#84B6FE`. Probe after: 62 → 0 low-contrast elements, 0 overflow,
+  0 console or hydration warnings.
+- Verified: unit 78/78, API 101/101 (dev pair), e2e 16 passed (probe skipped
+  without `PROBE`), panel tsc 46, lint clean. **Not deployed.**
+- Gotcha: stopping the background bash that ran the local build's server
+  left `node.exe` alive and holding `query_engine-windows.dll.node`, so the
+  next `pnpm demo:build` failed with EPERM at the very end. Stop the node
+  process itself (by its command line, never the owner's :3000).
+- Gotcha: a CSS `uppercase` chip makes `innerText` upper-case; check text
+  in the HTML, not `innerText`.
+
+## Site links to the client panel (2026-11-03)
 
 The owner asked for the panel to be linked from the site: Log in / Sign up
 in the header, the footer, and ordering from the service plans. ADR-024

@@ -84,6 +84,21 @@ watch(query, () => {
   olderMore.value = null
 })
 const lines = computed<LogLine[]>(() => [...((data.value?.items ?? []) as LogLine[]), ...older.value])
+
+// A closed line renders its summary row only: its detail (the whole line as
+// JSON) is drawn when it is opened, so 200 lines are not sent twice.
+const openLines = ref(new Set<string>())
+const lineKey = (line: LogLine, i: number) => `${line.ts}-${i}`
+function onToggle(key: string, event: Event) {
+  const next = new Set(openLines.value)
+  if ((event.target as HTMLDetailsElement).open) {
+    next.add(key)
+  }
+  else {
+    next.delete(key)
+  }
+  openLines.value = next
+}
 const more = computed(() => olderMore.value ?? data.value?.more ?? false)
 
 async function loadOlder() {
@@ -286,8 +301,8 @@ const INPUT = 'apex-focus bg-card border-line-subtle text-fg-heading h-10 rounde
           subtitle="Try a longer period, a lower level or fewer filters."
         />
         <ul v-else role="list" class="mt-4 flex flex-col divide-y divide-muted-200 dark:divide-white/5">
-          <li v-for="(line, i) in lines" :key="`${line.ts}-${i}`" class="py-2">
-            <details class="group">
+          <li v-for="(line, i) in lines" :key="lineKey(line, i)" class="py-2">
+            <details class="group" @toggle="onToggle(lineKey(line, i), $event)">
               <summary class="apex-focus flex cursor-pointer list-none flex-col gap-1 rounded-xl px-2 py-1.5 hover:bg-hover sm:flex-row sm:items-center sm:gap-3">
                 <span class="text-fg-muted w-[150px] shrink-0 font-mono text-[12px] tabular-nums">{{ fmtTime(line.ts) }}</span>
                 <span class="inline-flex w-fit shrink-0 items-center rounded-full px-2 py-0.5 text-[11px] font-bold uppercase" :class="LEVEL_TONE[line.level]">{{ line.level }}</span>
@@ -300,7 +315,7 @@ const INPUT = 'apex-focus bg-card border-line-subtle text-fg-heading h-10 rounde
                   <template v-if="actorLabel(line.actor)"> · {{ actorLabel(line.actor) }}</template>
                 </span>
               </summary>
-              <div class="mt-2 flex flex-col gap-2 px-2">
+              <div v-if="openLines.has(lineKey(line, i))" class="mt-2 flex flex-col gap-2 px-2">
                 <p v-if="line.error" class="m-0 text-[13px] text-st-danger-fg">
                   {{ line.error.name }}: {{ line.error.message }}
                 </p>

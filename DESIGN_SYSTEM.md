@@ -1335,8 +1335,10 @@ groups: Overview · Work · People · Money · Website · System, from
 to the access wall, which the layout renders for any destination whose
 permission the role lacks ("<area> needs <roles>", what your role covers,
 back to overview). Live counts on rows (open support requests, credit
-applications to decide, documents in review) come client-side from
-endpoints the role can already read.
+applications to decide, documents in review, new enquiries) come
+client-side from one call, `GET /api/admin/nav-counts`, which leaves out
+any count the role could not open (2026-11-03; it replaced four calls
+made on every navigation, one of them the whole Overview statistics).
 
 **Tokens.** The design's variables are the Panel v2 tokens already in
 `main.css`, plus three planes it names: `bg-shell` (`--bg-page`, sidebar and
@@ -1466,6 +1468,10 @@ and the V2 Phase 1 customer shell; the admin panel keeps the V2 shell.
   were adjusted: light success text #137050 (was 3.7:1), dark success #2BC48D
   (4.5), dark violet text #AE96F9 (4.2). After that the only sub-AA text on
   the six pages in either theme is decorative (✓ in green discs, `·`).
+  The 2026-11-03 probe (`tests/e2e/probe.spec.ts`) added dark info text
+  #84B6FE (the completed-blue was 4.4:1 on its tint over a raised row) and
+  found counts inside filter pills dimmed to 70–75% opacity (3.0–4.0:1);
+  a count keeps the pill's own text colour now.
 - **Real or absent, again.** The mockups draw a card "Pay from" option, auto
   top-up, invoice downloads, two-step verification, a device list, email
   notification switches, an editable sign-in email and "we emailed you" copy.

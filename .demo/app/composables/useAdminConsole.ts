@@ -88,46 +88,23 @@ export function useAdminPalette() {
 /* ------------------------------------------------------------- counts --- */
 
 /**
- * The live counts on sidebar rows, from endpoints the role can already
- * read (no new route): open support requests from the Overview's stats
- * credit applications waiting from the credit queue, and website documents
- * in review for the roles that review them. A count the role
- * could not open is never fetched. Client-only, so the first render is the same on both sides.
+ * The live counts on sidebar rows (open support requests, credit
+ * applications to decide, website documents in review, enquiries not yet
+ * contacted), in one call to `/api/admin/nav-counts`, which leaves out any
+ * count the role could not open. Client-only, so the first render is the
+ * same on both sides.
  */
 export function useAdminNavCounts() {
   const counts = useState<Partial<Record<AdminCountKey, number>>>('admin-nav-counts', () => ({}))
-  const { can } = useStaffAccess()
   const route = useRoute()
 
   async function refresh() {
-    const next: Partial<Record<AdminCountKey, number>> = {}
-    const jobs: Promise<unknown>[] = []
-    if (can('support.answer') && can('work.view')) {
-      jobs.push($fetch<{ openTickets: number }>('/api/admin/stats').then((s) => {
-        next.support = s.openTickets ?? 0
-      }).catch(() => {}))
+    try {
+      counts.value = await $fetch<Partial<Record<AdminCountKey, number>>>('/api/admin/nav-counts')
     }
-    if (can('money.view')) {
-      jobs.push($fetch<{ waiting: unknown[] }>('/api/admin/credit/applications').then((c) => {
-        next.credit = c.waiting?.length ?? 0
-      }).catch(() => {}))
+    catch {
+      // A count is a hint; the screen it points at says the same thing.
     }
-    // Documents waiting for review, for the people who review them.
-    if (can('website.publish')) {
-      jobs.push($fetch<{ pages: number, insights: number, work: number }>('/api/admin/website/review-counts').then((w) => {
-        next.pages = w.pages
-        next.insights = w.insights
-        next.work = w.work
-      }).catch(() => {}))
-    }
-    // Enquiries nobody has contacted yet, for the people who handle them.
-    if (can('leads.handle')) {
-      jobs.push($fetch<{ newCount: number }>('/api/admin/website/enquiries/summary').then((e) => {
-        next.leads = e.newCount
-      }).catch(() => {}))
-    }
-    await Promise.all(jobs)
-    counts.value = next
   }
 
   if (import.meta.client) {

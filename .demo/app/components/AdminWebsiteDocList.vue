@@ -104,7 +104,7 @@ const COLS = 'xl:grid-cols-[minmax(0,1fr)_140px_190px_150px_140px_72px]'
           :class="[PILL, filter === f.key ? 'bg-accent border-transparent font-semibold text-white' : 'border-line-subtle text-fg-heading hover:bg-hover font-medium']"
           @click="filter = f.key"
         >
-          {{ f.label }} <span class="tabular-nums opacity-70">{{ data?.counts?.[f.key] ?? 0 }}</span>
+          {{ f.label }} <span class="tabular-nums">{{ data?.counts?.[f.key] ?? 0 }}</span>
         </button>
       </div>
 

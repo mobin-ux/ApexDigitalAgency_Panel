@@ -93,7 +93,7 @@ export const DEFAULT_CATALOG: Catalog = {
     },
     {
       id: 'soft',
-      slug: 'software',
+      slug: 'software-development',
       name: 'Software Development',
       line: 'Web apps, portals and internal tools.',
       kind: 'scope',
@@ -155,7 +155,7 @@ export const DEFAULT_CATALOG: Catalog = {
     },
     {
       id: 'uiux',
-      slug: 'uiux',
+      slug: 'ui-ux-design',
       name: 'UI/UX Design',
       line: 'Research, flows and prototypes before any code.',
       kind: 'fixed',
@@ -197,6 +197,7 @@ export const SERVICE_ALIASES: Record<string, ServiceId> = {
   'web': 'web',
   'development': 'web',
   'dev': 'web',
+  'software-development': 'soft',
   'software': 'soft',
   'soft': 'soft',
   'digital-marketing': 'mkt',
@@ -204,6 +205,7 @@ export const SERVICE_ALIASES: Record<string, ServiceId> = {
   'mkt': 'mkt',
   'seo': 'seo',
   'ppc': 'ppc',
+  'ui-ux-design': 'uiux',
   'uiux': 'uiux',
   'design': 'uiux',
   'branding': 'brand',
@@ -351,7 +353,10 @@ export function underPlanLimit(plan: { kind?: string | null, interestRate?: numb
 export function resolveCatalog(stored: unknown): Catalog {
   const s = stored as Partial<Catalog> | null | undefined
   if (s && s.version === 2 && Array.isArray(s.services) && s.services.length > 0) {
-    return { version: 2, services: s.services as CatalogService[] }
+    // The website address is the code's, not an editable field (saving the
+    // catalogue keeps it too), so an older saved catalogue cannot hold a stale one.
+    const services = (s.services as CatalogService[]).map(svc => ({ ...svc, slug: DEFAULT_CATALOG.services.find(d => d.id === svc.id)?.slug ?? svc.slug }))
+    return { version: 2, services }
   }
   return DEFAULT_CATALOG
 }

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 // eslint-disable-next-line test/no-import-node-test -- node --test is the runner (ADR-021)
 import { describe, it } from 'node:test'
 import { panelOrderPath, panelOrigin } from '../../../web/app/data/panel.ts'
-import { DEFAULT_CATALOG, findPlan, findService } from '../../shared/catalog.ts'
+import { DEFAULT_CATALOG, findPlan, findService, resolveCatalog } from '../../shared/catalog.ts'
 
 /**
  * The public site's "Start your order" buttons open this panel's New order
@@ -42,6 +42,16 @@ describe('the site\'s order links', () => {
 
   it('software, which the site scopes on a call, opens its service', () => {
     assert.equal(open(panelOrderPath('software-development')).service?.id, 'soft')
+  })
+
+  it('each service names the site\'s own address, even from an older saved catalogue', () => {
+    const site = ['website-design', 'software-development', 'digital-marketing', 'seo', 'ppc', 'ui-ux-design', 'branding']
+    assert.deepEqual(DEFAULT_CATALOG.services.map(s => s.slug).sort(), [...site].sort())
+    const saved = { version: 2, services: DEFAULT_CATALOG.services.map(s => ({ ...s, slug: s.id })) }
+    assert.deepEqual(resolveCatalog(saved).services.map(s => s.slug).sort(), [...site].sort())
+    for (const slug of site) {
+      assert.ok(findService(DEFAULT_CATALOG, slug), slug)
+    }
   })
 
   it('takes the panel origin only as a bare http(s) address', () => {

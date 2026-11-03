@@ -257,7 +257,7 @@ const PILL = 'apex-ring inline-flex h-8 cursor-pointer items-center gap-[7px] wh
         :class="[PILL, filter === f.key ? 'bg-accent border-transparent font-semibold text-white' : 'border-line-subtle text-fg-heading hover:bg-hover font-medium']"
         @click="filter = f.key"
       >
-        {{ f.label }} <span class="tabular-nums opacity-70">{{ list?.counts?.[f.key] ?? 0 }}</span>
+        {{ f.label }} <span class="tabular-nums">{{ list?.counts?.[f.key] ?? 0 }}</span>
       </button>
     </div>
 

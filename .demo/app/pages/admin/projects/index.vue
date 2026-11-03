@@ -297,12 +297,12 @@ const PILL = 'apex-ring inline-flex h-8 cursor-pointer items-center gap-[7px] wh
           :class="[PILL, status === t.key ? 'bg-accent border-transparent font-semibold text-white' : 'border-line-subtle text-fg-heading hover:bg-hover font-medium']"
           @click="status = t.key"
         >
-          {{ t.label }} <span class="tabular-nums opacity-70">{{ t.count }}</span>
+          {{ t.label }} <span class="tabular-nums">{{ t.count }}</span>
         </button>
       </div>
       <span class="hidden flex-1 xl:block" />
       <div class="flex w-full flex-wrap gap-2 xl:w-auto">
-        <input v-model="search" type="search" placeholder="Search project, client or ref" aria-label="Search projects" :class="ADMIN_INPUT" class="h-9! min-w-0 flex-1 xl:w-[260px]! xl:flex-none">
+        <input v-model="search" type="search" placeholder="Search project, client or ref" aria-label="Search projects" :class="ADMIN_INPUT" class="h-9! min-w-48 flex-1 xl:w-[260px]! xl:flex-none">
         <div class="w-full sm:w-[200px]">
           <!-- "All services" is the placeholder, not an item: reka throws on a SelectItem whose value is empty. -->
           <BaseSelect v-model="category" rounded="lg" size="sm" aria-label="Filter by service" placeholder="All services">

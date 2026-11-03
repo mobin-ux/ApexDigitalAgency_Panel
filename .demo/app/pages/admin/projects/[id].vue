@@ -656,6 +656,22 @@ const gates = computed(() => [
 ])
 const gatesDone = computed(() => gates.value.filter(g => g.ok).length)
 
+/** The line under the checks: what they mean for this project now. */
+const readyLine = computed(() => {
+  const status = project.value?.status
+  if (status === 'CANCELLED') {
+    return 'This order is cancelled; nothing here moves it on.'
+  }
+  if (status === 'COMPLETED') {
+    return 'This project is delivered.'
+  }
+  if (status !== 'PENDING') {
+    return 'This project has started.'
+  }
+  const left = gates.value.length - gatesDone.value
+  return left === 0 ? 'Everything is in place. Starting shows “In progress” to the client.' : `${left} check${left === 1 ? '' : 's'} outstanding.`
+})
+
 const facts = computed(() => {
   const pl = plan.value
   const rows = [
@@ -908,14 +924,14 @@ const TAB_CLS = 'apex-ring -mb-px inline-flex h-10 shrink-0 cursor-pointer items
                   <span class="text-fg-heading block text-sm font-semibold">{{ g.label }}</span>
                   <span class="mt-0.5 block text-[12.5px] leading-[1.45]" :class="g.ok ? 'text-fg-muted' : 'text-fg-body'"><ClientOnly>{{ g.detail }}</ClientOnly></span>
                 </span>
-                <span v-if="g.key === 'owner' && canAssign && project.status !== 'COMPLETED'" class="col-span-2 sm:col-span-1">
+                <span v-if="g.key === 'owner' && canAssign && project.status !== 'COMPLETED' && project.status !== 'CANCELLED'" class="col-span-2 sm:col-span-1">
                   <AdminButton size="sm" @click="showAssign = true">{{ project.managerId ? 'Change' : 'Assign owner' }}</AdminButton>
                 </span>
               </li>
             </ul>
             <div class="border-line-subtle flex flex-wrap items-center gap-3 border-t px-[18px] pb-[18px] pt-3.5 sm:px-[22px]">
               <span class="text-fg-muted min-w-[200px] flex-1 text-[13px] leading-normal">
-                {{ project.status !== 'PENDING' ? 'This project has started.' : gatesDone === gates.length ? 'Everything is in place. Starting shows “In progress” to the client.' : `${gates.length - gatesDone} check${gates.length - gatesDone === 1 ? '' : 's'} outstanding.` }}
+                {{ readyLine }}
               </span>
               <AdminButton v-if="project.status === 'PENDING' && canAssign" variant="primary" :disabled="!kickoffDone || !project.managerId" @click="startProject">
                 <Icon name="lucide:play" class="size-3.5" />Start project
@@ -949,7 +965,7 @@ const TAB_CLS = 'apex-ring -mb-px inline-flex h-10 shrink-0 cursor-pointer items
             </div>
             <div class="flex items-start gap-3">
               <ApexPanelAvatar v-if="project.manager" :person="project.manager" :size="38" />
-              <span v-else class="inline-flex size-[38px] shrink-0 items-center justify-center rounded-full bg-[#D9A521] text-[12.5px] font-bold text-white">?</span>
+              <span v-else aria-hidden="true" class="border-line-strong text-fg-muted inline-flex size-[38px] shrink-0 items-center justify-center rounded-full border-2 border-dashed"><Icon name="lucide:user" class="size-4" /></span>
               <span class="flex min-w-0 flex-1 flex-col gap-0.5">
                 <span class="text-fg-heading text-sm font-semibold">{{ ownerName ?? 'Unassigned' }}</span>
                 <span class="text-fg-muted text-[12.5px]">Project owner<template v-if="project.manager"> · {{ staffLabel(project.manager) }}</template></span>

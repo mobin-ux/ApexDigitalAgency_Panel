@@ -299,7 +299,7 @@ const OVERLINE = 'text-fg-muted text-xs font-bold uppercase tracking-[.06em]'
             :class="filter === id ? 'bg-fg-heading border-fg-heading text-card' : 'bg-card border-line-subtle text-fg-body'"
             @click="filter = id"
           >
-            {{ label }}<span class="text-xs font-bold tabular-nums opacity-75">{{ counts[id] }}</span>
+            {{ label }}<span class="text-xs font-bold tabular-nums">{{ counts[id] }}</span>
           </button>
         </div>
         <div class="flex max-w-[440px] flex-[1_1_300px] items-center gap-2.5">
@@ -345,7 +345,8 @@ const OVERLINE = 'text-fg-muted text-xs font-bold uppercase tracking-[.06em]'
           <span class="flex items-start gap-3.5">
             <span class="bg-accent-tint inline-flex size-[46px] shrink-0 items-center justify-center rounded-[14px]"><ApexGlyph :kind="r.glyph" /></span>
             <span class="flex min-w-0 grow flex-col gap-[3px]">
-              <span class="font-heading text-fg-heading truncate text-lg font-semibold tracking-[-0.02em]">{{ r.o.name }}</span>
+              <!-- Two lines before an ellipsis: beside the status chip one line held about twelve characters. -->
+              <span class="font-heading text-fg-heading line-clamp-2 break-words text-lg font-semibold leading-snug tracking-[-0.02em]">{{ r.o.name }}</span>
               <span class="text-fg-muted truncate text-[13.5px]">{{ [r.o.category, r.o.planName].filter(Boolean).join(' · ') }}</span>
             </span>
             <ApexStatusChip :tone="r.st.tone">

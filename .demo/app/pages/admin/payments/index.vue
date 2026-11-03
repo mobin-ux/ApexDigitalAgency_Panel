@@ -330,7 +330,7 @@ const TAB_CLS = 'apex-ring -mb-px inline-flex h-10 shrink-0 cursor-pointer items
           </button>
         </div>
         <span class="hidden flex-1 xl:block" />
-        <input v-model="txSearch" type="search" placeholder="Search client or description" aria-label="Search payments" :class="ADMIN_INPUT" class="h-9! min-w-0 flex-1 xl:w-[260px]! xl:flex-none">
+        <input v-model="txSearch" type="search" placeholder="Search client or description" aria-label="Search payments" :class="ADMIN_INPUT" class="h-9! min-w-48 flex-1 xl:w-[260px]! xl:flex-none">
       </div>
       <div v-if="txUserId" class="bg-accent-tint text-fg-heading flex items-center gap-3 rounded-xl px-4 py-3 text-[13.5px]">
         Showing one client’s payments.

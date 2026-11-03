@@ -283,6 +283,7 @@ take `page`, `pageSize`, their filters, and `sort` / `dir` where noted.
 | Method | Path | Needs |
 |---|---|---|
 | GET | `stats` | `work.view` (money figures only with `money.view`) |
+| GET | `nav-counts` | any staff session; the sidebar's counts, each one only when the role holds its permission (open requests `support.answer` + `work.view`, credit to decide `money.view`, documents in review `website.publish`, new enquiries `leads.handle`) |
 | GET · POST | `projects` (sort: name, updated, created, deadline, value) | `work.view` · `work.assign` |
 | GET · PATCH · DELETE | `projects/:id` | `work.view` · `work.assign` · `work.assign` |
 | POST | `projects/:id/advance` · `/kickoff` · `/milestones` · `/notes` · `/actions` | `work.assign` |

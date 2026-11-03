@@ -132,6 +132,11 @@ const all = computed(() => (data.value?.tickets ?? []).map((t) => {
 const manager = computed(() => data.value?.manager ?? null)
 const callTicket = computed(() => all.value.find(t => t.callSlot && t.open) ?? null)
 const waiting = computed(() => all.value.filter(t => t.open && t.chip.tone === 'warning'))
+// The card sits beside the manager card: the newest five, the rest on request
+// (every one of them is also in the requests list below).
+const WAITING_SHOWN = 5
+const allWaiting = ref(false)
+const waitingShown = computed(() => (allWaiting.value ? waiting.value : waiting.value.slice(0, WAITING_SHOWN)))
 
 const box = ref<'open' | 'resolved'>('open')
 const counts = computed(() => ({ open: all.value.filter(t => t.open).length, resolved: all.value.filter(t => !t.open).length }))
@@ -591,7 +596,7 @@ const BACK = 'apex-ring text-fg-body hover:text-fg-heading inline-flex min-h-10 
             <span class="inline-flex h-6 min-w-6 items-center justify-center rounded-full px-2 text-xs font-bold" :class="waiting.length ? 'bg-accent text-white' : 'bg-raised text-fg-muted'">{{ waiting.length }}</span>
           </div>
           <button
-            v-for="t in waiting"
+            v-for="t in waitingShown"
             :key="t.id"
             type="button"
             class="apex-ring border-line-subtle bg-raised hover:border-line-strong flex cursor-pointer items-center gap-3 rounded-[14px] border p-3.5 text-left"
@@ -602,6 +607,15 @@ const BACK = 'apex-ring text-fg-body hover:text-fg-heading inline-flex min-h-10 
               <span class="text-fg-muted truncate text-[12.5px]">{{ first(t.lastAuthor) || 'We' }} asked {{ ago(t.messages[0]?.createdAt ?? t.updatedAt) }} · {{ t.group }}</span>
             </span>
             <span class="text-accent-ink shrink-0 text-[13.5px] font-semibold">Reply →</span>
+          </button>
+          <button
+            v-if="waiting.length > WAITING_SHOWN"
+            type="button"
+            class="apex-ring text-accent-ink self-start rounded-md text-[13.5px] font-semibold hover:underline"
+            :aria-expanded="allWaiting"
+            @click="allWaiting = !allWaiting"
+          >
+            {{ allWaiting ? 'Show fewer' : `Show all ${waiting.length}` }}
           </button>
           <div v-if="!waiting.length" class="bg-raised text-fg-body flex grow items-center gap-3 rounded-[14px] p-3.5 text-sm">
             <span aria-hidden="true" class="inline-flex size-7 shrink-0 items-center justify-center rounded-full bg-[#22B07D] text-[13px] text-white">✓</span>Nothing needs your reply right now.
@@ -624,7 +638,7 @@ const BACK = 'apex-ring text-fg-body hover:text-fg-heading inline-flex min-h-10 
               :class="box === id ? 'bg-card shadow-panel text-fg-heading' : 'text-fg-muted'"
               @click="box = id"
             >
-              {{ label }}<span class="text-xs opacity-70">{{ counts[id] }}</span>
+              {{ label }}<span class="text-xs tabular-nums">{{ counts[id] }}</span>
             </button>
           </div>
         </div>

@@ -21,10 +21,12 @@ export default defineEventHandler(async (event) => {
     prisma.installment.aggregate({ _sum: { amountDue: true }, _count: true }),
   ])
 
+  // A PAYMENT row is money leaving the client's wallet, stored negative;
+  // what the business collected is the same sum the other way round.
   return {
-    totalRevenue: payments._sum.amount ?? 0,
+    totalRevenue: -(payments._sum.amount ?? 0),
     paymentCount: payments._count,
-    revenue30d: payments30d._sum.amount ?? 0,
+    revenue30d: -(payments30d._sum.amount ?? 0),
     totalDeposits: deposits._sum.amount ?? 0,
     // Sum of all customer wallets — what the platform owes its users.
     walletLiability: walletLiability._sum.walletBalance ?? 0,

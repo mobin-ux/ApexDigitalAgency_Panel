@@ -228,7 +228,7 @@ const SELECT = 'apex-ring border-line-rule bg-shell text-fg-heading h-[38px] w-f
             {{ label }}
           </button>
         </div>
-        <input v-model="search" type="search" placeholder="Search subject or client" aria-label="Search requests" :class="ADMIN_INPUT" class="h-9! min-w-0 flex-1 xl:w-[240px]! xl:flex-none">
+        <input v-model="search" type="search" placeholder="Search subject or client" aria-label="Search requests" :class="ADMIN_INPUT" class="h-9! min-w-48 flex-1 xl:w-[240px]! xl:flex-none">
       </div>
     </div>
 

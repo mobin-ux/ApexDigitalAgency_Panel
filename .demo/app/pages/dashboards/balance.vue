@@ -138,6 +138,15 @@ const split = computed(() => {
 const H2 = 'font-heading text-fg-heading m-0 text-[21px] font-bold tracking-[-0.02em]'
 const CARD = 'bg-card border-line-subtle shadow-panel rounded-[20px] border'
 const LINK = 'apex-ring text-accent-ink rounded-md text-sm font-semibold hover:underline'
+
+// Two rows of three on a desktop; the rest wait behind "Show all", so a long
+// list cannot push the money and the work below the fold.
+const NEEDS_SHOWN = 6
+const allNeeds = ref(false)
+const needsShown = computed(() => {
+  const needs = data.value?.needs ?? []
+  return allNeeds.value ? needs : needs.slice(0, NEEDS_SHOWN)
+})
 </script>
 
 <template>
@@ -167,12 +176,17 @@ const LINK = 'apex-ring text-accent-ink rounded-md text-sm font-semibold hover:u
 
     <!-- Waiting on you -->
     <section v-if="data?.needs.length" aria-labelledby="h-needs" class="flex flex-col gap-3.5">
-      <h2 id="h-needs" :class="H2" class="flex items-center gap-2.5">
-        Waiting on you
-        <span class="bg-st-warning-bg text-st-warning-fg rounded-full px-2.5 py-[3px] font-sans text-[12.5px] font-bold tracking-normal">{{ data.needs.length }}</span>
-      </h2>
+      <div class="flex flex-wrap items-baseline justify-between gap-4">
+        <h2 id="h-needs" :class="H2" class="flex items-center gap-2.5">
+          Waiting on you
+          <span class="bg-st-warning-bg text-st-warning-fg rounded-full px-2.5 py-[3px] font-sans text-[12.5px] font-bold tracking-normal">{{ data.needs.length }}</span>
+        </h2>
+        <button v-if="data.needs.length > NEEDS_SHOWN" type="button" :class="LINK" :aria-expanded="allNeeds" @click="allNeeds = !allNeeds">
+          {{ allNeeds ? 'Show fewer' : `Show all ${data.needs.length}` }}
+        </button>
+      </div>
       <div class="grid grid-cols-[repeat(auto-fit,minmax(min(100%,300px),1fr))] gap-3.5">
-        <div v-for="nd in data.needs" :key="nd.to + nd.title" class="bg-card border-line-subtle shadow-panel flex min-w-0 items-center gap-3.5 rounded-[18px] border px-[18px] py-4">
+        <div v-for="nd in needsShown" :key="nd.to + nd.title" class="bg-card border-line-subtle shadow-panel flex min-w-0 items-center gap-3.5 rounded-[18px] border px-[18px] py-4">
           <span aria-hidden="true" class="size-2 shrink-0 rounded-full bg-[#D9A521]" />
           <span class="flex min-w-0 grow flex-col gap-0.5">
             <span class="text-fg-heading text-[14.5px] font-semibold">{{ nd.title }}</span>
@@ -295,7 +309,7 @@ const LINK = 'apex-ring text-accent-ink rounded-md text-sm font-semibold hover:u
             <span>{{ formatCurrency(credit.used) }} committed to plans</span><span class="tabular-nums">{{ creditPct }}%</span>
           </div>
           <div class="border-line-soft text-fg-body mt-auto flex items-center gap-[9px] border-t pt-3.5 text-[13px] leading-normal">
-            <span class="inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-[#22B07D] text-[10px] text-white">✓</span>
+            <span aria-hidden="true" class="inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-[#22B07D] text-[10px] text-white">✓</span>
             Apex monthly plans never carry interest.
           </div>
         </template>

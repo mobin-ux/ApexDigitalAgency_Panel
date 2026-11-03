@@ -92,4 +92,9 @@ describe('audit kinds', () => {
     assert.ok(AUDIT_KIND_DEFS.website.prefixes.includes('admin.website.'))
     assert.equal(auditKindOf('admin.something.new'), 'config')
   })
+
+  it('staff sign-ins are Access, not the Config catch-all', () => {
+    assert.equal(auditKindOf('auth.staff.login'), 'access')
+    assert.equal(auditKindOf('auth.staff.login.failed'), 'access')
+  })
 })

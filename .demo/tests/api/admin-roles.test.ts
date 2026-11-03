@@ -31,6 +31,8 @@ interface Route {
 const ROUTES: Route[] = [
   // Work
   { method: 'GET', path: '/api/admin/stats', needs: ['work.view'] },
+  // Any staff session; each count inside is filtered by the role (nav-counts.get.ts).
+  { method: 'GET', path: '/api/admin/nav-counts', needs: [] },
   { method: 'GET', path: '/api/admin/projects', needs: ['work.view'] },
   { method: 'POST', path: '/api/admin/projects', needs: ['work.assign'] },
   { method: 'GET', path: `/api/admin/projects/${MISSING}`, needs: ['work.view'] },

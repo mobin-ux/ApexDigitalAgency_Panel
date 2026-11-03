@@ -236,7 +236,7 @@ const KIND_TONE: Record<AuditKind, string> = {
   team: 'bg-st-info-bg text-st-info-fg',
   money: 'bg-st-success-bg text-st-success-fg',
   files: 'bg-st-danger-bg text-st-danger-fg',
-  work: 'bg-accent-tint text-primary-400',
+  work: 'bg-accent-tint text-accent-ink',
   website: 'bg-st-info-bg text-st-info-fg',
   config: 'bg-muted-200 text-muted-600 dark:bg-white/5 dark:text-muted-400',
 }

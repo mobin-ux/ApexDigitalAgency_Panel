@@ -577,7 +577,9 @@
      over the card, and these chips are 12px. This is 5.0:1. */
   --status-danger-fg: #f27d6e;
   --status-info-bg: rgba(110, 168, 254, 0.14);
-  --status-info-fg: #6ea8fe;
+  /* #84B6FE, not #6EA8FE: the completed-blue was 4.4:1 on its own tint over
+     a raised row (an enquiry's "New" chip). This is 5.2:1 there. */
+  --status-info-fg: #84b6fe;
   --status-violet-bg: rgba(125, 83, 242, 0.16);
   --status-violet-fg: #ae96f9;
   --status-neutral-bg: rgba(255, 255, 255, 0.05);

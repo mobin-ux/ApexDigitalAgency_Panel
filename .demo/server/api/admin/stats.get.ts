@@ -230,8 +230,9 @@ export default defineEventHandler(async (event) => {
     pendingProjects,
     openTickets,
     unassignedTickets,
-    totalRevenue: revenue._sum.amount ?? 0,
-    revenue30d: revenue30d._sum.amount ?? 0,
+    // PAYMENT rows are stored negative (out of the client's wallet).
+    totalRevenue: -(revenue._sum.amount ?? 0),
+    revenue30d: -(revenue30d._sum.amount ?? 0),
     pendingWithdrawals,
     recentAudit,
 

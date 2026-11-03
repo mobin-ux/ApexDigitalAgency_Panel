@@ -1,16 +1,27 @@
+// The bell is mounted twice (the desktop bar and the phone bar, one hidden
+// by CSS) and the live refresh can ask at the same moment, so callers share
+// the request in flight instead of each sending one. Client-side only.
+let inFlight: Promise<void> | null = null
+
 export function useNotifications() {
   const notifications = useState<any[]>('notifications_list', () => [])
   const unreadCount = useState<number>('notifications_count', () => 0)
 
-  const fetchNotifications = async () => {
-    try {
-      const { notifications: list, unreadCount: count } = await $fetch('/api/notifications')
-      notifications.value = list
-      unreadCount.value = count
-    }
-    catch (e) {
-      console.error(e)
-    }
+  const fetchNotifications = () => {
+    inFlight ??= (async () => {
+      try {
+        const { notifications: list, unreadCount: count } = await $fetch('/api/notifications')
+        notifications.value = list
+        unreadCount.value = count
+      }
+      catch (e) {
+        console.error(e)
+      }
+      finally {
+        inFlight = null
+      }
+    })()
+    return inFlight
   }
 
   const markAllAsRead = async () => {
